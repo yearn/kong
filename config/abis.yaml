@@ -71,6 +71,12 @@ abis:
       filter: []
     }
 
+  - abiPath: 'yearn/3/roleManagerFactory'
+    sources: [
+      { chainId: 1, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 20974081 },
+      { chainId: 137, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 63167272 }
+    ]
+
   - abiPath: 'yearn/2/registry'
     sources: [
       { chainId: 1, address: '0xe15461b18ee31b7379019dc523231c57d1cbc18c', inceptBlock: 11563389 },
