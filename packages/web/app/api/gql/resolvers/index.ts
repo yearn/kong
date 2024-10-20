@@ -17,6 +17,7 @@ import riskScores from './riskScores'
 import vaultStrategies from './vaultStrategies'
 import vaultAccounts from './vaultAccounts'
 import prices from './prices'
+import projects from './projects'
 import accountants from './accountants'
 import accountant from './accountant'
 import things from './things'
@@ -35,6 +36,7 @@ const resolvers = {
     vaultReports,
     vaultStrategies,
     prices,
+    projects,
     riskScores,
     strategies,
     strategy,
