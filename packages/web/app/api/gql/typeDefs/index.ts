@@ -14,6 +14,8 @@ import accountant from './accountant'
 import thing from './thing'
 import tvl from './tvl'
 import allocator from './allocator'
+import project from './project'
+import roleManager from './roleManager'
 
 const query = gql`
   scalar BigInt
@@ -40,6 +42,7 @@ const query = gql`
     vaultReports(chainId: Int, address: String): [VaultReport]
     vaultStrategies(chainId: Int, vault: String): [Strategy]
     prices(chainId: Int, address: String, timestamp: BigInt): [Price]
+    projects(chainId: Int): [Project]
     riskScores: [RiskScore]
     strategies(chainId: Int, apiVersion: String, erc4626: Boolean): [Strategy]
     strategy(chainId: Int, address: String): Strategy
@@ -72,7 +75,9 @@ const typeDefs = [
   monitor,
   accountRole,
   accountant,
-  thing
+  thing,
+  project,
+  roleManager
 ]
 
 export default typeDefs
