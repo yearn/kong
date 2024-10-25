@@ -143,10 +143,3 @@ export function computeConcurrency(jobs: number, options: ConcurrencyOptions) {
   const concurrency = Math.floor(m * jobs + options.min)
   return Math.min(Math.max(concurrency, options.min), options.max)
 }
-
-async function down() {
-  await Promise.all(Object.values(queues).map(queue => queue.close()))
-}
-
-process.on('SIGINT', down)
-process.on('SIGTERM', down)
