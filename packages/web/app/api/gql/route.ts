@@ -4,7 +4,7 @@ import { ApolloServerPluginCacheControl } from '@apollo/server/plugin/cacheContr
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default'
 import responseCachePlugin from '@apollo/server-plugin-response-cache'
 import Keyv from 'keyv'
-import KeyvSqlite from '@keyv/sqlite'
+import KeyvRedis from '@keyv/redis'
 import typeDefs from './typeDefs'
 import resolvers from './resolvers'
 import { NextRequest } from 'next/server'
@@ -12,7 +12,7 @@ import { CustomKeyvAdapter } from './CustomKeyvAdapter'
 
 const enableCache = process.env.GQL_ENABLE_CACHE === 'true'
 const defaultCacheMaxAge = Number(process.env.GQL_DEFAULT_CACHE_MAX_AGE || 60 * 5)
-const sqliteUrl = process.env.GQL_CACHE_SQLITE_URL || ''
+const redisUrl = process.env.GQL_CACHE_REDIS_URL || 'redis://localhost:6379'
 
 const defaultQuery = `query Query {
   vaults {
@@ -26,8 +26,8 @@ const plugins = [
   ApolloServerPluginLandingPageLocalDefault({ document: defaultQuery })
 ]
 
-if(enableCache || true) {
-  const store = new KeyvSqlite(sqliteUrl)
+if(enableCache) {
+  const store = new KeyvRedis(redisUrl, { ttl: async () => defaultCacheMaxAge })
   const cache = new CustomKeyvAdapter(new Keyv(store))
   plugins.push(ApolloServerPluginCacheControl({ defaultMaxAge: defaultCacheMaxAge }))
   plugins.push(responseCachePlugin({ cache }))
