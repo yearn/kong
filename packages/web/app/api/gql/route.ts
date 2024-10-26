@@ -3,16 +3,16 @@ import { startServerAndCreateNextHandler } from '@as-integrations/next'
 import { ApolloServerPluginCacheControl } from '@apollo/server/plugin/cacheControl'
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default'
 import responseCachePlugin from '@apollo/server-plugin-response-cache'
-import Keyv from 'keyv'
-import KeyvSqlite from '@keyv/sqlite'
+import { createClient } from '@libsql/client'
 import typeDefs from './typeDefs'
 import resolvers from './resolvers'
 import { NextRequest } from 'next/server'
-import { CustomKeyvAdapter } from './CustomKeyvAdapter'
+import { LibSqlKeyvAdapter } from './LibSqlKeyvAdapter'
 
 const enableCache = process.env.GQL_ENABLE_CACHE === 'true'
 const defaultCacheMaxAge = Number(process.env.GQL_DEFAULT_CACHE_MAX_AGE || 60 * 5)
 const sqliteUrl = process.env.GQL_CACHE_SQLITE_URL || ''
+const sqliteToken = process.env.GQL_CACHE_SQLITE_TOKEN || ''
 
 const defaultQuery = `query Query {
   vaults {
@@ -26,9 +26,9 @@ const plugins = [
   ApolloServerPluginLandingPageLocalDefault({ document: defaultQuery })
 ]
 
-if(enableCache || true) {
-  const store = new KeyvSqlite(sqliteUrl)
-  const cache = new CustomKeyvAdapter(new Keyv(store))
+if (enableCache || true) {
+  const client = createClient({ url: sqliteUrl, authToken: sqliteToken })
+  const cache = new LibSqlKeyvAdapter(client)
   plugins.push(ApolloServerPluginCacheControl({ defaultMaxAge: defaultCacheMaxAge }))
   plugins.push(responseCachePlugin({ cache }))
 }
