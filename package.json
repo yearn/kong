@@ -1,7 +1,7 @@
 {
   "name": "kong",
   "version": "1.0.0",
-  "repository": "git@github.com:murderteeth/kong.git",
+  "repository": "git@github.com:yearn/kong.git",
   "author": "murderteeth <murdertxxth@gmail.com>",
   "license": "MIT",
   "private": true,

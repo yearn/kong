@@ -4,6 +4,7 @@ import { z } from 'zod'
 import Frosty from './Frosty'
 import { useData } from '@/hooks/useData'
 import LineItem, { formatLineItemValue } from './LineItem'
+import { useEffect } from 'react'
 
 const IndexStatsSchema = z.object({
   thing_total: z.number().optional().default(0),

@@ -19,7 +19,7 @@ export default function Ahoy() {
         </div>
       </div>
       <p className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)] text-sm">Real-time/historical EVM indexer x Analytics</p>
-      <a href="https://github.com/yearn/kong" target="_blank" className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)] text-xs">{'https://github.com/murderteeth/kong'}</a>
+      <a href="https://github.com/yearn/kong" target="_blank" className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)] text-xs">{'https://github.com/yearn/kong'}</a>
       <a href="/api/gql" target="_blank" className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)] text-xs">{'https://kong.yearn.farm/api/gql'}</a>
     </div>
   </div>
