@@ -26,7 +26,7 @@ const plugins = [
   ApolloServerPluginLandingPageLocalDefault({ document: defaultQuery })
 ]
 
-if (enableCache || true) {
+if (enableCache) {
   const client = createClient({ url: sqliteUrl, authToken: sqliteToken })
   const cache = new LibSqlKeyvAdapter(client)
   plugins.push(ApolloServerPluginCacheControl({ defaultMaxAge: defaultCacheMaxAge }))
