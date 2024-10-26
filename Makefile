@@ -10,7 +10,7 @@ dev:
 	./setup_devenv.sh
 
 	# Run commands
-	@tmux send-keys -t devenv:0.0 'yarn workspace web dev' C-m
+	@tmux send-keys -t devenv:0.0 'PORT=$${PORT:-3001} yarn workspace web dev' C-m
 	@tmux send-keys -t devenv:0.1 'yarn workspace ingest dev' C-m
 	@tmux send-keys -t devenv:0.2 'yarn workspace terminal dev' C-m
 	@tmux send-keys -t devenv:0.3 'sleep 6 && yarn workspace db migrate up && PGPASSWORD=password psql --host=localhost --port=5432 --username=user --dbname=user' C-m
