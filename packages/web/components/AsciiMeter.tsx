@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 
+function TextOverlay({ children }: { children: string }) {
+  return <div className="relative text-lg">
+    <div className="invisible">{children}</div>
+    <div className="absolute inset-0 z-0 text-black font-bold blur-sm">{children}</div>
+    <div className="absolute inset-0 z-10 text-yellow-500 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)]">{children}</div>
+  </div>
+}
+
 export default function AsciiMeter(
   { 
     current,
@@ -46,28 +54,24 @@ export default function AsciiMeter(
     return `${leftLabel} ${rightLabel}`
   }, [leftLabel, rightLabel])
 
-  return (
-    <div ref={meterRef} title={title} className={`relative flex items-center ${className}`}>
-      <div className={`
-        absolute z-50 top-0 left-0 
-        w-full h-full px-3
-        flex items-center justify-between 
-        text-yellow-500 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)]`}
-        style={{ fontSize: `${Math.floor(fontSize * .75)}px` }}>
-        <div>{leftLabel}</div>
-        <div>{rightLabel}</div>
+  return <div ref={meterRef} title={title} className={`relative flex items-center ${className}`}>
+    <div className={`
+      absolute z-50 top-0 left-0  w-full h-full px-3
+      flex items-center justify-between`}
+      style={{ fontSize: `${Math.floor(fontSize * .75)}px` }}>
+      <TextOverlay>{leftLabel}</TextOverlay>
+      <TextOverlay>{rightLabel}</TextOverlay>
+    </div>
+    <div className="relative" style={{ fontSize: `${fontSize}px` }}>
+      <div className="text-emerald-950">
+        {'░'.repeat(panels)}
       </div>
-      <div className="relative" style={{ fontSize: `${fontSize}px` }}>
-        <div className="text-emerald-950">
-          {'░'.repeat(panels)}
-        </div>
-        <div className="absolute z-10 inset-0 text-yellow-600">
-          {'▒'.repeat(Math.min(filledPanels2, maxPanels))}
-        </div>
-        <div className="absolute z-20 inset-0 text-yellow-300">
-          {'▒'.repeat(Math.min(filledPanels, maxPanels))}
-        </div>
+      <div className="absolute z-10 inset-0 text-yellow-600">
+        {'▒'.repeat(Math.min(filledPanels2, maxPanels))}
+      </div>
+      <div className="absolute z-20 inset-0 text-yellow-300">
+        {'▒'.repeat(Math.min(filledPanels, maxPanels))}
       </div>
     </div>
-  )
+  </div>
 }

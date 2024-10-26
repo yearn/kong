@@ -1,4 +1,7 @@
 
+clean:
+	@yarn clean
+
 dev:
 	@docker compose up -d redis
 	@docker compose up -d postgres
