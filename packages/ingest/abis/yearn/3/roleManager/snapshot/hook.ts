@@ -12,7 +12,9 @@ type Snapshot = z.infer<typeof SnapshotSchema>
 
 const DefaultsSchema = z.object({
   roleManagerFactory: EvmAddressSchema,
-  project: z.object({ id: zhexstring })
+  project: z.object({ id: zhexstring }),
+  inceptBlock: z.bigint({ coerce: true }),
+  inceptTime: z.bigint({ coerce: true })
 })
 
 type Defaults = z.infer<typeof DefaultsSchema>

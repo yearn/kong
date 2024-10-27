@@ -15,6 +15,11 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
   await mq.add(mq.job.load.thing, ThingSchema.parse({
     chainId, address: roleManager, label: 'roleManager',
-    defaults: { roleManagerFactory: address, project: { id: projectId } }
+    defaults: { 
+      roleManagerFactory: address, 
+      project: { id: projectId }, 
+      inceptBlock: data.blockNumber, 
+      inceptTime: data.timestamp 
+    }
   }))
 }

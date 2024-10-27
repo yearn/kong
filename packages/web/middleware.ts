@@ -12,7 +12,6 @@ export function middleware(request: NextRequest) {
 
   const auth = request.headers.get('auth')
   if(!auth) { return new NextResponse(null, { status: 401 }) }
-  console.log('auth', auth, expectedAuth)
   
   if(auth !== expectedAuth) { return new NextResponse(null, { status: 403 }) }
   return NextResponse.next()
