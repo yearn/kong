@@ -27,7 +27,7 @@ export default async function process(chainId: number, address: EvmAddress, data
   return { project: { id: defaults.project.id, name: projectName, ...project } }
 }
 
-function parseProjectName(snapshot: Snapshot) {
+export function parseProjectName(snapshot: Snapshot) {
   return snapshot.name.replace(' Role Manager', '')
 }
 

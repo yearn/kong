@@ -1,7 +1,9 @@
-import { EvmAddressSchema, zhexstring } from 'lib/types'
+import { EvmAddress, EvmAddressSchema, zhexstring } from 'lib/types'
 import { toEventSelector } from 'viem'
 import { z } from 'zod'
 import db from '../../../../../db'
+import { rpcs } from '../../../../../rpcs'
+import roleManagerAbi from '../../roleManager/abi'
 
 export const SnapshotSchema = z.object({
   accountant: EvmAddressSchema.optional(),
@@ -30,9 +32,17 @@ async function projectProjects(chainId: number, vault: `0x${string}`, blockNumbe
   for (const event of events.rows) {
     result.push({
       projectId: zhexstring.parse(event.args.projectId),
-      roleManager: EvmAddressSchema.parse(event.args.roleManager)
+      roleManager: EvmAddressSchema.parse(event.args.roleManager),
+      name: await getProjectName(chainId, event.args.roleManager)
     })
   }
 
   return result
+}
+
+async function getProjectName(chainId: number, roleManager: EvmAddress) {
+  const roleManagerName = await rpcs.next(chainId).readContract({
+    abi: roleManagerAbi, address: roleManager, functionName: 'name'
+  })
+  return roleManagerName.replace(' Role Manager', '')
 }

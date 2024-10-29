@@ -9,5 +9,6 @@ type Project {
   registry: String!
   accountant: String!
   debtAllocator: String!
+  roleManagerFactory: String!
 }
 `
