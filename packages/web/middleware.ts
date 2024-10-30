@@ -7,6 +7,8 @@ export const config = {
 }
 
 export function middleware(request: NextRequest) {
+  if (request.method === 'OPTIONS') { return NextResponse.next() }
+
   const expectedAuth = process.env.APP_API_AUTH
   if(expectedAuth === undefined) { return NextResponse.next() }
 
