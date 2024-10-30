@@ -49,6 +49,7 @@ export const job: { [queue: string]: { [job: string]: Job } } = {
 // where n is the number of prioritized jobs in the queue
 // (ie, total jobs - non-prioritized jobs)
 export const LOWEST_PRIORITY = 2 ** 21
+const DEFAULT_PRIORITY = 100
 
 const bull = { connection: {
   host: process.env.REDIS_HOST || 'localhost',
@@ -64,7 +65,7 @@ export function connect(queueName: string) {
 export async function add(job: Job, data: any, options?: any) {
   const queue = job.bychain ? `${job.queue}-${data.chainId}` : job.queue
   if (!queues[queue]) { queues[queue] = connect(queue) }
-  await queues[queue].add(job.name, data, options)
+  await queues[queue].add(job.name, data, { priority: DEFAULT_PRIORITY, ...options })
 }
 
 export function workers(queueSuffix: string, handler: (job: any) => Promise<any>) {
@@ -143,10 +144,3 @@ export function computeConcurrency(jobs: number, options: ConcurrencyOptions) {
   const concurrency = Math.floor(m * jobs + options.min)
   return Math.min(Math.max(concurrency, options.min), options.max)
 }
-
-async function down() {
-  await Promise.all(Object.values(queues).map(queue => queue.close()))
-}
-
-process.on('SIGINT', down)
-process.on('SIGTERM', down)

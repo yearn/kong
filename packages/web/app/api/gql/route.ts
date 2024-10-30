@@ -8,6 +8,7 @@ import typeDefs from './typeDefs'
 import resolvers from './resolvers'
 import { NextRequest } from 'next/server'
 import { LibSqlKeyvAdapter } from './LibSqlKeyvAdapter'
+import { CORS_HEADERS } from '../headers'
 
 const enableCache = process.env.GQL_ENABLE_CACHE === 'true'
 const defaultCacheMaxAge = Number(process.env.GQL_DEFAULT_CACHE_MAX_AGE || 60 * 5)
@@ -26,7 +27,7 @@ const plugins = [
   ApolloServerPluginLandingPageLocalDefault({ document: defaultQuery })
 ]
 
-if (enableCache || true) {
+if (enableCache) {
   const client = createClient({ url: sqliteUrl, authToken: sqliteToken })
   const cache = new LibSqlKeyvAdapter(client)
   plugins.push(ApolloServerPluginCacheControl({ defaultMaxAge: defaultCacheMaxAge }))
@@ -44,20 +45,14 @@ const handle = startServerAndCreateNextHandler(server)
 
 async function respondTo(request: NextRequest) {
   const response = await handle(request)
-  response.headers.set('Access-Control-Allow-Origin', '*')
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type')
+  for (const [key, value] of Object.entries(CORS_HEADERS)) {
+    response.headers.set(key, value)
+  }
   return response
 }
 
 async function OPTIONS() {
-  const response = new Response('', {
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    }
-  })
+  const response = new Response('', { headers: CORS_HEADERS })
   return response
 }
 
