@@ -36,6 +36,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     label: 'vault',
     defaults: {
       erc4626: true,
+      v3: true,
       yearn: true,
       asset: erc20.address,
       decimals: erc20.decimals,
@@ -54,6 +55,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
       label: 'strategy',
       defaults: {
         erc4626: true,
+        v3: true,
         yearn: true,
         asset: erc20.address,
         decimals: erc20.decimals,

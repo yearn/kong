@@ -122,6 +122,7 @@ type Vault {
   tvl: SparklinePoint
   apy: Apy
   roles: [Role]
+  v3: Boolean
   yearn: Boolean
 }
 `

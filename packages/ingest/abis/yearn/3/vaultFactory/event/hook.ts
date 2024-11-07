@@ -40,7 +40,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
     label: 'vault',
     defaults: {
       erc4626: true,
-      yearn: true,
+      v3: true,
+      vaultType: '1',
       asset: erc20.address,
       decimals: erc20.decimals,
       apiVersion: apiVersion!.result!,

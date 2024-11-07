@@ -73,6 +73,7 @@ type Strategy {
   claims: [Reward]
   risk: RiskScore
   meta: StrategyMeta
+  v3: Boolean
   yearn: Boolean
 }
 `
