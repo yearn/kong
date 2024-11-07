@@ -1,8 +1,14 @@
 import db from '@/app/api/db'
 import { compare } from '@/lib/compare'
 
-const vaults = async (_: any, args: { chainId?: number, apiVersion?: string, erc4626?: boolean }) => {
-  const { chainId, apiVersion, erc4626 } = args
+const vaults = async (_: any, args: { 
+  chainId?: number, 
+  apiVersion?: string, 
+  erc4626?: boolean,
+  v3?: boolean,
+  yearn?: boolean
+}) => {
+  const { chainId, apiVersion, erc4626, v3, yearn } = args
   try {
 
     const result = await db.query(`
@@ -28,7 +34,7 @@ const vaults = async (_: any, args: { chainId?: number, apiVersion?: string, erc
       ...row.hook
     }))
 
-    if (apiVersion) {
+    if (apiVersion !== undefined) {
       rows = rows.filter(row => {
         return compare(row.apiVersion ?? "0", apiVersion, '>=')
       })
@@ -37,6 +43,18 @@ const vaults = async (_: any, args: { chainId?: number, apiVersion?: string, erc
     if (erc4626 !== undefined) {
       rows = rows.filter(row => {
         return Boolean(row.erc4626 ?? false) === erc4626
+      })
+    }
+
+    if (v3 !== undefined) {
+      rows = rows.filter(row => {
+        return Boolean(row.v3 ?? false) === v3
+      })
+    }
+
+    if (yearn !== undefined) {
+      rows = rows.filter(row => {
+        return Boolean(row.yearn ?? false) === yearn
       })
     }
 
