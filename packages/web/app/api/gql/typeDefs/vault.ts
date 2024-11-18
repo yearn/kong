@@ -65,6 +65,7 @@ type Vault {
   apiVersion: String
   asset: Erc20
   availableDepositLimit: BigInt
+  category: Int
   chainId: Int
   creditAvailable: BigInt
   debtOutstanding: BigInt
@@ -98,6 +99,8 @@ type Vault {
   pricePerShare: BigInt
   profitMaxUnlockTime: BigInt
   profitUnlockingRate: BigInt
+  projectId: String
+  projectName: String
   rewards: String
   role_manager: String
   symbol: String

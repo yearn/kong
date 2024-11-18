@@ -93,7 +93,7 @@ export function worker(queueName: string, handler: (job: any) => Promise<any>, c
     },
     removeOnFail: { 
       count: (process.env.MQ_REMOVE_ON_FAIL_COUNT ?? 100) as number,
-      age: (process.env.MQ_REMOVE_ON_FAIL_AGE ?? 60 * 60) as number
+      age: (process.env.MQ_REMOVE_ON_FAIL_AGE ?? 15 * 60) as number
     }
   })
 
