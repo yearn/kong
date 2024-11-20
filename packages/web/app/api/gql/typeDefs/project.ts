@@ -10,5 +10,6 @@ type Project {
   accountant: String!
   debtAllocator: String!
   roleManagerFactory: String!
+  governance: String!
 }
 `
