@@ -13,7 +13,10 @@ const vaultStrategies = async (_: any, args: { chainId: number, vault: string })
 
     SELECT 
       thing.chain_id,
-      thing.address
+      thing.address,
+      thing.defaults,
+      snapshot.snapshot,
+      snapshot.hook
     FROM thing
     JOIN snapshot 
       ON thing.chain_id = snapshot.chain_id
