@@ -36,14 +36,16 @@ export const ResultSchema = z.object({
 
 export const SnapshotSchema = z.object({
   accountant: EvmAddressSchema.optional(),
-  role_manager: EvmAddressSchema.optional()
+  role_manager: EvmAddressSchema.optional(),
+  use_default_queue: z.boolean().optional(),
+  get_default_queue: EvmAddressSchema.array().optional()
 })
 
 type Snapshot = z.infer<typeof SnapshotSchema>
 
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const snapshot = SnapshotSchema.parse(data)
-  const strategies = await projectStrategies(chainId, address)
+  const strategies = await projectStrategies(chainId, address, undefined, snapshot)
   const roles = await projectRoles(chainId, address)
   if (snapshot.role_manager) appendRoleManagerPseudoRole(roles, snapshot.role_manager)
 
@@ -89,7 +91,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   }
 }
 
-export async function projectStrategies(chainId: number, vault: `0x${string}`, blockNumber?: bigint) {
+export async function projectStrategies(chainId: number, vault: `0x${string}`, blockNumber?: bigint, snapshot?: Snapshot) {
   const changeType = { [2 ** 0]: 'add', [2 ** 1]: 'revoke' }
   const topic = toEventSelector('event StrategyChanged(address indexed strategy, uint256 change_type)')
   const events = await db.query(`
@@ -107,6 +109,13 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
       result.splice(result.indexOf(zhexstring.parse(event.args.strategy)), 1)
     }
   }
+
+  if(snapshot?.use_default_queue) {
+    for (const strategy of snapshot.get_default_queue ?? []) {
+      if (!result.includes(strategy)) { result.push(strategy) }
+    }
+  }
+
   return result
 }
 
