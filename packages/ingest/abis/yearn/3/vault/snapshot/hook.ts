@@ -110,10 +110,8 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
     }
   }
 
-  if(snapshot?.use_default_queue) {
-    for (const strategy of snapshot.get_default_queue ?? []) {
-      if (!result.includes(strategy)) { result.push(strategy) }
-    }
+  for (const strategy of snapshot?.get_default_queue ?? []) {
+    if (!result.includes(strategy)) { result.push(strategy) }
   }
 
   return result
