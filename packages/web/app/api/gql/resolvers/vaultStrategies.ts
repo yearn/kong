@@ -5,6 +5,12 @@ const vaultStrategies = async (_: any, args: { chainId: number, vault: string })
   try {
 
     const result = await db.query(`
+    WITH strategies AS (
+      SELECT jsonb_array_elements_text(snapshot.hook->'strategies')
+      FROM snapshot 
+      WHERE chain_id = $1 AND address = $2
+    )
+
     SELECT 
       thing.chain_id,
       thing.address,
@@ -16,15 +22,8 @@ const vaultStrategies = async (_: any, args: { chainId: number, vault: string })
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
     WHERE thing.chain_id = $1
-      AND thing.address = ANY(
-        SELECT jsonb_array_elements_text(snapshot.hook->'strategies')
-        FROM snapshot 
-        WHERE chain_id = $1 AND address = $2
-      ) AND (
-        (COALESCE(thing.defaults->>'yearn', 'false')::boolean = true AND thing.label = 'strategy')
-        OR (COALESCE(thing.defaults->>'yearn', 'false')::boolean = false AND thing.label = 'vault')
-      )
-    ORDER BY snapshot.hook->>'totalDebtUsd' DESC`,
+      AND thing.address = ANY(SELECT * FROM strategies)
+    ORDER BY snapshot.hook->>'totalDebtUsd' DESC;`,
     [chainId, vault])
 
     return result.rows.map(row => ({
