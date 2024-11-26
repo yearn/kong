@@ -12,9 +12,11 @@ export const topics = [
 ].map(e => toEventSelector(e))
 
 const HookSchema = z.object({
-  project: z.object({
-    id: zhexstring,
-    name: z.string()
+  hook: z.object({
+    project: z.object({
+      id: zhexstring,
+      name: z.string()
+    })
   })
 })
 
@@ -44,9 +46,11 @@ export default async function process(chainId: number, address: `0x${string}`, d
     throw new Error('Vault multicall failed')
   }
 
-  const { project: { id: projectId, name: projectName } } = await first<Hook>(HookSchema, 
+  const hook = await first<Hook>(HookSchema, 
     `SELECT hook FROM snapshot WHERE chain_id = $1 AND address = $2`, 
   [chainId, address])
+
+  const { hook: { project: { id: projectId, name: projectName } } } = hook
 
   await mq.add(mq.job.load.thing, ThingSchema.parse({
     chainId,
