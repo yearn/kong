@@ -15,7 +15,7 @@ const projects = async (_: any, args: { chainId?: number }) => {
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
     WHERE thing.label = $1
-      AND thing.chain_id = $2 OR $2 IS NULL`,
+      AND (thing.chain_id = $2 OR $2 IS NULL)`,
     ['roleManager', chainId])
 
     return result.rows.map(row => ({
