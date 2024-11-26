@@ -22,7 +22,7 @@ const projects = async (_: any, args: { chainId?: number }) => {
       chainId: row.chain_id,
       ...row.hook?.project,
       roleManagerFactory: row.defaults?.roleManagerFactory,
-      governance: row.snapshot?.governance
+      governance: row.snapshot?.chad
     }))
   } catch (error) {
     console.error(error)
