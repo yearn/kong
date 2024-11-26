@@ -1,14 +1,24 @@
 import { z } from 'zod'
 import { mq } from 'lib'
 import { toEventSelector } from 'viem'
-import { EvmAddressSchema, ThingSchema } from 'lib/types'
+import { EvmAddressSchema, ThingSchema, zhexstring } from 'lib/types'
 import { rpcs } from '../../../../../rpcs'
 import vaultAbi from '../../vault/abi'
 import { getBlock } from 'lib/blocks'
+import { first } from '../../../../../db'
 
 export const topics = [
   `event AddedNewVault(address indexed vault, address indexed debtAllocator, uint256 category)`
 ].map(e => toEventSelector(e))
+
+const HookSchema = z.object({
+  project: z.object({
+    id: zhexstring,
+    name: z.string()
+  })
+})
+
+type Hook = z.infer<typeof HookSchema>
 
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const { 
@@ -34,6 +44,10 @@ export default async function process(chainId: number, address: `0x${string}`, d
     throw new Error('Vault multicall failed')
   }
 
+  const { project: { id: projectId, name: projectName } } = await first<Hook>(HookSchema, 
+    `SELECT hook FROM snapshot WHERE chain_id = $1 AND address = $2`, 
+  [chainId, address])
+
   await mq.add(mq.job.load.thing, ThingSchema.parse({
     chainId,
     address: vault,
@@ -47,6 +61,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
       decimals: decimals.result,
       apiVersion: apiVersion.result,
       roleManager: address,
+      projectId,
+      projectName,
       inceptBlock,
       inceptTime
     }
