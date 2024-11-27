@@ -48,7 +48,7 @@ const query = gql`
     strategy(chainId: Int, address: String): Strategy
     strategyReports(chainId: Int, address: String): [StrategyReport]
     transfers(chainId: Int, address: String): [Transfer]
-    timeseries(chainId: Int, address: String, label: String!, component: String, period: String, limit: Int, timestamp: BigInt): [Output]
+    timeseries(chainId: Int, address: String, label: String!, component: String, period: String, limit: Int, timestamp: BigInt, yearn: Boolean): [Output]
     tvls(chainId: Int!, address: String, period: String, limit: Int, timestamp: BigInt): [Tvl]
     accountRoles(chainId: Int, account: String!): [AccountRole]
     accountVaults(chainId: Int, account: String!): [Vault]
