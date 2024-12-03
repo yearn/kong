@@ -177,16 +177,17 @@ export default class Probe implements Processor {
     }
   }
 
+  private async fetchThingLabels() {
+    const query = `SELECT DISTINCT label FROM thing;`
+    return (await db.query(query)).rows.map(row => row.label)
+  }
+
   private async fetchTotals() {
+    const labels = await this.fetchThingLabels()
     const query = `
     WITH counts AS ( SELECT 
       (SELECT count(*) FROM thing)::int AS thing_total,
-      (SELECT count(*) FROM thing WHERE label = 'vault')::int AS thing_vault_total,
-      (SELECT count(*) FROM thing WHERE label = 'strategy')::int AS thing_strategy_total,
-      (SELECT count(*) FROM thing WHERE label = 'erc20')::int AS thing_erc20_total,
-      (SELECT count(*) FROM thing WHERE label = 'debtAllocator')::int AS thing_debtAllocator_total,
-      (SELECT count(*) FROM thing WHERE label = 'accountant')::int AS thing_accountant_total,
-      (SELECT count(*) FROM thing WHERE label = 'tradeHandler')::int AS thing_tradeHandler_total,
+      ${labels.map(label => `(SELECT count(*) FROM thing WHERE label = '${label}')::int AS thing_${label}_total,`).join('\n')}
       (SELECT count(*) FROM output)::int AS output_total,
       (SELECT count(*) FROM evmlog)::int AS evmlog_total
     )
