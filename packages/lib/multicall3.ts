@@ -1,4 +1,6 @@
 import { mainnet, optimism, gnosis, polygon, fantom, base, arbitrum } from 'viem/chains'
+import { customChains } from './chains'
+const { mode } = customChains
 
 export const activations = {
   [mainnet.id]: 14353601n,
@@ -7,7 +9,8 @@ export const activations = {
   [polygon.id]: 25770160n,
   [fantom.id]: 33001987n,
   [base.id]: 5022n,
-  [arbitrum.id]: 7654707n
+  [arbitrum.id]: 7654707n,
+  [mode.id]: 2465882n
 }
 
 export function getActivation(chainId: number) {

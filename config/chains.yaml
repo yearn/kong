@@ -7,4 +7,5 @@ chains: [
   'fantom',
   'base',
   'arbitrum',
+  'mode'
 ]

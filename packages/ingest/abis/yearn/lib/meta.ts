@@ -6,15 +6,44 @@ import { getAddress } from 'viem'
 type Metas<T> = { [address: `0x${string}`]: T }
 
 export async function getVaultMeta(chainId: number, address: `0x${string}`) {
-  return (await getMetas<VaultMeta>(VaultMetaSchema, chainId, 'vaults'))[getAddress(address)]
+  try {
+    return (await getMetas<VaultMeta>(VaultMetaSchema, chainId, 'vaults'))[getAddress(address)]
+  } catch(error) {
+    console.log('🤬', '!meta', chainId, address)
+    return {
+      displayName: '',
+      displaySymbol: '',
+      description: '',
+      protocols: []
+    }
+  }
 }
 
 export async function getStrategyMeta(chainId: number, address: `0x${string}`) {
-  return (await getMetas<StrategyMeta>(StrategyMetaSchema, chainId, 'strategies'))[getAddress(address)]
+  try {
+    return (await getMetas<StrategyMeta>(StrategyMetaSchema, chainId, 'strategies'))[getAddress(address)]
+  } catch(error) {
+    console.log('🤬', '!meta', chainId, address)
+    return {
+      displayName: '',
+      description: '',
+      protocols: []
+    }
+  }
 }
 
 export async function getTokenMeta(chainId: number, address: `0x${string}`) {
-  return (await getMetas<TokenMeta>(TokenMetaSchema, chainId, 'tokens'))[getAddress(address)]
+  try {
+    return (await getMetas<TokenMeta>(TokenMetaSchema, chainId, 'tokens'))[getAddress(address)]
+  } catch(error) {
+    console.log('🤬', '!meta', chainId, address)
+    return {
+      displayName: '',
+      displaySymbol: '',
+      description: '',
+      protocols: []
+    }
+  }
 }
 
 async function getMetas<T>(schema: z.ZodType<T>, chainId: number, type: 'tokens' | 'vaults' | 'strategies'): Promise<Metas<T>> {
