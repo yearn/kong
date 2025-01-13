@@ -245,17 +245,17 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
 }
 
 export async function extractFeesBps(chainId: number, address: `0x${string}`, snapshot: Snapshot) {
-  if(snapshot.accountant && snapshot.accountant !== zeroAddress) {
-    const feeConfig = await rpcs.next(chainId).readContract({
-      address: snapshot.accountant, abi: accountantAbi,
-      functionName: 'getVaultConfig', args: [address]
-    })
-    return {
-      managementFee: feeConfig[0],
-      performanceFee: feeConfig[1]
-    }
-  } else {
-    try {
+  try {
+    if(snapshot.accountant && snapshot.accountant !== zeroAddress) {
+      const feeConfig = await rpcs.next(chainId).readContract({
+        address: snapshot.accountant, abi: accountantAbi,
+        functionName: 'getVaultConfig', args: [address]
+      })
+      return {
+        managementFee: feeConfig[0],
+        performanceFee: feeConfig[1]
+      }
+    } else {
       const performanceFee = await rpcs.next(chainId).readContract({
         address,
         abi: parseAbi(['function performanceFee() view returns (uint16)']),
@@ -265,11 +265,11 @@ export async function extractFeesBps(chainId: number, address: `0x${string}`, sn
         managementFee: 0,
         performanceFee: performanceFee
       }
-    } catch {
-      return {
-        managementFee: 0,
-        performanceFee: 0
-      }
+    }
+  } catch {
+    return {
+      managementFee: 0,
+      performanceFee: 0
     }
   }
 }
