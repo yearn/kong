@@ -11,12 +11,13 @@ const vaultStrategies = async (_: any, args: { chainId: number, vault: string })
       WHERE chain_id = $1 AND address = $2
     )
 
-    SELECT 
+    SELECT DISTINCT
       thing.chain_id,
       thing.address,
       thing.defaults,
       snapshot.snapshot,
-      snapshot.hook
+      snapshot.hook,
+      snapshot.hook->>'totalDebtUsd'
     FROM thing
     JOIN snapshot 
       ON thing.chain_id = snapshot.chain_id
