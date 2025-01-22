@@ -25,6 +25,7 @@ abis:
       { chainId: 1, address: '0xff31A1B020c868F6eA3f61Eb953344920EeCA3af', inceptBlock: 19072527 },
       { chainId: 100, address: '0xff31A1B020c868F6eA3f61Eb953344920EeCA3af', inceptBlock: 32902749 },
       { chainId: 137, address: '0xff31A1B020c868F6eA3f61Eb953344920EeCA3af', inceptBlock: 52488140 },
+      { chainId: 146, address: '0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038', inceptBlock: 4459165 },
       { chainId: 8453, address: '0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038', inceptBlock: 22344791 },
       { chainId: 42161, address: '0xff31A1B020c868F6eA3f61Eb953344920EeCA3af', inceptBlock: 171850013 },
     ]
@@ -38,6 +39,7 @@ abis:
       { chainId: 100, address: '0x444045c5C13C246e117eD36437303cac8E250aB0', inceptBlock: 32784248 },
       { chainId: 137, address: '0x444045c5c13c246e117ed36437303cac8e250ab0', inceptBlock: 54308118 },
       { chainId: 137, address: '0x770D0d1Fb036483Ed4AbB6d53c1C88fb277D812F', inceptBlock: 63721181 },
+      { chainId: 146, address: '0x770D0d1Fb036483Ed4AbB6d53c1C88fb277D812F', inceptBlock: 307787 },
       { chainId: 8453, address: '0x444045c5c13c246e117ed36437303cac8e250ab0', inceptBlock: 12295872 },
       { chainId: 8453, address: '0x770D0d1Fb036483Ed4AbB6d53c1C88fb277D812F', inceptBlock: 21802552 },
       { chainId: 34443, address: '0xE9E8C89c8Fc7E8b8F23425688eb68987231178e5', inceptBlock: 4574184 },
@@ -80,7 +82,8 @@ abis:
   - abiPath: 'yearn/3/roleManagerFactory'
     sources: [
       { chainId: 1, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 20974081 },
-      { chainId: 137, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 63167272 }
+      { chainId: 137, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 63167272 },
+      { chainId: 146, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 307805 }
     ]
 
   - abiPath: 'yearn/3/roleManager'
