@@ -7,5 +7,6 @@ chains: [
   'fantom',
   'base',
   'arbitrum',
-  'mode'
+  'mode',
+  'sonic'
 ]
