@@ -332,9 +332,9 @@ A strides array that looks like `[{"from":"19419991","to":"19800000"}, {"from":"
 ## Motivation
 Robust indexing is tough. Some observations,
 
-- Indexers spend a lot of time waiting for external things to respond. Kong's approach is high concurrency and batching.
+- Indexers spend most of their time waiting for external things to respond. But lots of threads waiting on stuff is wasteful. Kong emphasizes concurrency over threading.
 
-- Reindexing is expensive. Kong is designed for replayability.
+- Deterministic indexing is expensive and cumbersome. So kong is designed to handle events out of order. This improves historical indexing times and enables the replay of arbitrary block ranges on any domain object.
 
 - It's hard to separate domain from indexer logic, but crucial for testing and growth. Kong uses indexer hooks to separate these concerns.
 
@@ -389,4 +389,20 @@ Kong uses viem to interface with rpcs. Because viem is new and changing often, a
 
 
 ## Production
-Kong is hosted on Render. See render.yaml for details.
+
+| component | host |
+|-------------|-----------|
+| Ingest    | [render.com](render.com)   |
+| Redis    | [render.com](render.com)   |
+| Postgres    | [neon.tech](neon.tech)   |
+| GraphQL    | [vercel.com](vercel.com)   |
+| Cache    | [turso.com](turso.com)   |
+
+
+
+
+
+
+
+
+
