@@ -83,7 +83,9 @@ abis:
     sources: [
       { chainId: 1, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 20974081 },
       { chainId: 137, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 63167272 },
-      { chainId: 146, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 307805 }
+      { chainId: 146, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 307805 },
+      { chainId: 8453, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 25064422 },
+      { chainId: 34443, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 4574184 }
     ]
 
   - abiPath: 'yearn/3/roleManager'
