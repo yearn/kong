@@ -1,0 +1,7 @@
+[test]
+preload = ["./test/setup.ts"]
+timeout = 30_000 # 30 seconds
+env = { NODE_ENV = "test" }
+
+[serializer]
+unsafe_integer_to_string = true 

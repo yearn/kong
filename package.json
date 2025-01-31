@@ -9,6 +9,10 @@
     "packages/*"
   ],
   "scripts": {
-    "clean": "rm -rf node_modules packages/**/node_modules packages/**/dist packages/**/.next"
+    "clean": "rm -rf node_modules packages/**/node_modules packages/**/dist packages/**/.next",
+    "test": "docker-compose up -d & wait-on tcp:localhost:5432 && wait-on tcp:localhost:6379 && sleep 8 && yarn workspace db migrate up && bun test --preload ./test/setup.ts --timeout 15000"
+  },
+  "devDependencies": {
+    "bun-types": "^1.2.1"
   }
 }

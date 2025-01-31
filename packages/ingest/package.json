@@ -35,7 +35,6 @@
     "@types/redis-info": "^3.0.3",
     "chai-almost": "^1.0.1",
     "chain": "^0.4.0",
-    "mocha": "^10.2.0",
     "wait-for-postgres": "^1.5.3",
     "wait-on": "^7.0.1"
   }
