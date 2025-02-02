@@ -7,6 +7,7 @@ import Postgres from '@/components/Postgres'
 import Things from '@/components/Things'
 import Evmlogs from '@/components/Evmlogs'
 import Outputs from '@/components/Outputs'
+import IndexingErrors from '@/components/IndexingErrors'
 
 export default function Home() {
   return <main className="relative w-full min-h-screen sm:h-auto flex justify-center">
@@ -20,6 +21,7 @@ export default function Home() {
       <LatestBlocks />
       <Outputs />
       <Evmlogs />
+      <IndexingErrors />
     </div>
   </main>
 }
