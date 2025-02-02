@@ -1,7 +1,8 @@
+
 services:
   redis:
     image: redis:latest
-    command: ["redis-server", "--maxclients", "950", "--maxmemory", "1gb"]
+    command: ["redis-server", "--maxclients", "250", "--maxmemory", "1gb"]
     ports:
       - "6379:6379"
 
