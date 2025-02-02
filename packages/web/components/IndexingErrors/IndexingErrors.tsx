@@ -1,26 +1,12 @@
 "use client";
 
-import useSWR from "swr";
 import {
   CellMeasurer,
   CellMeasurerCache,
   List,
   ListRowProps,
 } from "react-virtualized";
-
-const fetcher = async () => {
-  const response = await fetch("/api/errors");
-  return response.json();
-};
-
-const useIndexingErrors = () => {
-  const { data, error, isLoading } = useSWR("/api/mq/errors", fetcher);
-  return {
-    errors: data,
-    isLoading,
-    isError: error,
-  };
-};
+import { useIndexingErrors } from "./useIndexingError";
 
 export default function IndexingErrors() {
   const { errors, isLoading, isError } = useIndexingErrors();
@@ -45,14 +31,8 @@ export default function IndexingErrors() {
         {({ measure, registerChild }) => (
           <div
             ref={registerChild}
-            style={{
-              ...style,
-              whiteSpace: "pre-wrap",
-              wordWrap: "break-word",
-              overflowWrap: "break-word",
-              borderBottom: "1px solid #333",
-              padding: "8px",
-            }}
+            style={style}
+            className="whitespace-pre-wrap word-wrap break-word border-b border-yellow-700 p-2"
             onLoad={measure}
           >
             {error.stacktrace}
@@ -63,14 +43,18 @@ export default function IndexingErrors() {
   }
 
   return (
-    <List
-      height={800}
-      itemCount={errors.length}
-      itemSize={cache.rowHeight}
-      width={500}
-      rowRenderer={rowRenderer}
-      rowHeight={cache.rowHeight}
-      rowCount={errors.length}
-    />
+    <div className={"w-full flex flex-col gap-2 text-yellow-700"}>
+      <div className="font-bold text-xl">Latest Errors</div>
+      <List
+        className="scrollbar scrollbar-thumb-yellow-700"
+        height={800}
+        itemCount={errors.length}
+        itemSize={cache.rowHeight}
+        width={500}
+        rowRenderer={rowRenderer}
+        rowHeight={cache.rowHeight}
+        rowCount={errors.length}
+      />
+    </div>
   );
 }
