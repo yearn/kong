@@ -38,8 +38,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const price = await fetchErc20PriceUsd(chainId, asset, latestHarvest.blockNumber)
 
   const previousLog = await first<EvmLog>(EvmLogSchema, `
-  SELECT * from evmlog 
-  WHERE chain_id = $1 AND address = $2 AND signature = $3 AND block_number < $4 
+  SELECT * from evmlog
+  WHERE chain_id = $1 AND address = $2 AND signature = $3 AND block_number < $4
   ORDER BY block_number DESC, log_index DESC LIMIT 1`,
   [chainId, address, topics[0], latestHarvest.blockNumber])
   const previousHarvest = previousLog ? HarvestSchema.parse(previousLog) : undefined
