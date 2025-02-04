@@ -21,11 +21,11 @@ export default class AbisFanout {
             chainId: _thing.chainId, 
             abi, 
             source: { 
-            chainId: _thing.chainId, 
-            address: _thing.address, 
-            inceptBlock: _thing.defaults.inceptBlock,
-            inceptTime: _thing.defaults.inceptTime
-          } }
+              chainId: _thing.chainId, 
+              address: _thing.address, 
+              inceptBlock: _thing.defaults.inceptBlock,
+              inceptTime: _thing.defaults.inceptTime
+            } }
           await mq.add(mq.job.fanout.events, _data)
           await mq.add(mq.job.extract.snapshot, _data)
           await mq.add(mq.job.fanout.timeseries, _data)

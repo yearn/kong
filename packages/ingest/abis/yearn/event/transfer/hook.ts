@@ -5,7 +5,7 @@ import { fetchOrExtractDecimals } from '../../lib'
 import { fetchErc20PriceUsd } from '../../../../prices'
 
 export const topics = [
-  `event Transfer(address indexed sender, address indexed receiver, uint256 value)`
+  'event Transfer(address indexed sender, address indexed receiver, uint256 value)'
 ].map(e => toEventSelector(e))
 
 export default async function process(chainId: number, address: `0x${string}`, data: any) {

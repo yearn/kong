@@ -178,7 +178,7 @@ export default class Probe implements Processor {
   }
 
   private async fetchThingLabels() {
-    const query = `SELECT DISTINCT label FROM thing;`
+    const query = 'SELECT DISTINCT label FROM thing;'
     return (await db.query(query)).rows.map(row => row.label)
   }
 
@@ -196,7 +196,7 @@ export default class Probe implements Processor {
   }
 
   private async fetchEventCounts() {
-    const query = `SELECT event_name, count(*) FROM evmlog GROUP BY event_name ORDER BY count DESC;`
+    const query = 'SELECT event_name, count(*) FROM evmlog GROUP BY event_name ORDER BY count DESC;'
     return (await db.query(query)).rows
   }
 

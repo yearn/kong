@@ -10,7 +10,7 @@ import { EvmLog, EvmLogSchema, zhexstring } from 'lib/types'
 import { getBlockTime } from 'lib/blocks'
 
 export const topics = [
-  `event Reported(uint256 profit, uint256 loss, uint256 protocolFees, uint256 performanceFees)`
+  'event Reported(uint256 profit, uint256 loss, uint256 protocolFees, uint256 performanceFees)'
 ].map(e => toEventSelector(e))
 
 export const HarvestSchema = z.object({
@@ -44,8 +44,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
   [chainId, address, topics[0], latestHarvest.blockNumber])
   const previousHarvest = previousLog ? HarvestSchema.parse(previousLog) : undefined
   const apr = multicall3.supportsBlock(chainId, data.blockNumber)
-  ? await computeApr(latestHarvest, previousHarvest)
-  : { gross: 0, net: 0 }
+    ? await computeApr(latestHarvest, previousHarvest)
+    : { gross: 0, net: 0 }
 
   return {
     profitUsd: priced(latestHarvest.args.profit, decimals, price.priceUsd),
@@ -84,12 +84,12 @@ export async function computeApr(latest: Harvest, previous: Harvest | undefined)
   const fees = latest.args.performanceFees ?? 0n
 
   const grossPerformance = (loss > profit)
-  ? math.div(-loss, previousAssets)
-  : math.div(profit, previousAssets)
+    ? math.div(-loss, previousAssets)
+    : math.div(profit, previousAssets)
 
   const netPerformance = (loss > profit)
-  ? math.div(-loss, previousAssets)
-  : math.div(math.max(profit - fees, 0n), previousAssets)
+    ? math.div(-loss, previousAssets)
+    : math.div(math.max(profit - fees, 0n), previousAssets)
 
   const periodInHours = Number(((latest.blockTime || 0n) - (previous.blockTime || 0n)) / (60n * 60n)) || 1
   const hoursInOneYear = 24 * 365

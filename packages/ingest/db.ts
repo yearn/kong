@@ -153,8 +153,8 @@ export function toUpsertSql(table: string, pk: string, data: any, where?: string
 
   const values = fields.map((field, index) => 
     (field.endsWith('timestamp') || field.endsWith('time') && !timestampConversionExceptions.includes(field)) 
-    ? `to_timestamp($${index + 1}::double precision)`
-    : `$${index + 1}`
+      ? `to_timestamp($${index + 1}::double precision)`
+      : `$${index + 1}`
   ).join(', ')
 
   const updates = fields.map(field => 

@@ -7,7 +7,7 @@ import { ThingSchema, zhexstring } from 'lib/types'
 import { fetchOrExtractErc20, throwOnMulticallError } from '../../../lib'
 
 export const topics = [
-  `event NewVault(address indexed vault_address, address indexed asset)`
+  'event NewVault(address indexed vault_address, address indexed asset)'
 ].map(e => toEventSelector(e))
 
 export default async function process(chainId: number, address: `0x${string}`, data: any) {

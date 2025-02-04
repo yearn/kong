@@ -144,7 +144,7 @@ async function computeRewards(chainId: number, strategy: `0x${string}`, snapshot
 async function fetchTradeables(chainId: number, strategy: `0x${string}`, tradeHandler: `0x${string}`) {
   const result = await db.query(`
     SELECT hook->'tradeables' as tradeables FROM snapshot WHERE chain_id = $1 AND address = $2`, 
-    [chainId, tradeHandler]
+  [chainId, tradeHandler]
   )
   if (result.rows.length === 0) return []
   const tradeables = TradeableSchema.array().parse(result.rows[0].tradeables || [])

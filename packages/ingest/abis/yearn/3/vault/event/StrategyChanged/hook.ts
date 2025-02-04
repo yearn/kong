@@ -7,7 +7,7 @@ import { rpcs } from '../../../../../../rpcs'
 import strategyAbi from '../../../strategy/abi'
 
 export const topics = [
-  `event StrategyChanged(address indexed strategy, uint256 change_type)`
+  'event StrategyChanged(address indexed strategy, uint256 change_type)'
 ].map(e => toEventSelector(e))
 
 export default async function process(chainId: number, address: `0x${string}`, data: any) {

@@ -68,51 +68,51 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 
   return OutputSchema.array().parse([
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'net', value: apy.net
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'grossApr', value: apy.grossApr
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'pricePerShare', value: Number(apy.pricePerShare)
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'weeklyNet', value: apy.weeklyNet
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'weeklyPricePerShare', value: Number(apy.weeklyPricePerShare)
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'weeklyBlockNumber', value: Number(apy.weeklyBlockNumber)
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'monthlyNet', value: apy.monthlyNet
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'monthlyPricePerShare', value: Number(apy.monthlyPricePerShare)
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'monthlyBlockNumber', value: Number(apy.monthlyBlockNumber)
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'inceptionNet', value: apy.inceptionNet
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'inceptionPricePerShare', value: Number(apy.inceptionPricePerShare)
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'inceptionBlockNumber', value: Number(apy.inceptionBlockNumber)
     }
   ])
@@ -166,7 +166,7 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
   const blocksPerDay = (blockNumber - result.weeklyBlockNumber) / 7n
 
   result.weeklyNet = result.weeklyPricePerShare === undefined ? undefined : compoundAndAnnualizeDelta(
-    { block: result.weeklyBlockNumber, pps: result.weeklyPricePerShare }, 
+    { block: result.weeklyBlockNumber, pps: result.weeklyPricePerShare },
     { block: blockNumber, pps: result.pricePerShare }, blocksPerDay
   )
 
@@ -181,26 +181,26 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
   )
 
   const candidates: (number | undefined)[] = []
-	if(chainId !== mainnet.id) {
-		candidates.push(result.weeklyNet, result.monthlyNet, result.inceptionNet)
-	} else {
-		candidates.push(result.monthlyNet, result.weeklyNet, result.inceptionNet)
-	}
+  if(chainId !== mainnet.id) {
+    candidates.push(result.weeklyNet, result.monthlyNet, result.inceptionNet)
+  } else {
+    candidates.push(result.monthlyNet, result.weeklyNet, result.inceptionNet)
+  }
 
   result.net = candidates.find(apy => apy !== undefined) ?? (() => { throw new Error('!candidates') })()
 
   const annualCompoundingPeriods = 52
   const fees = compare(vault.defaults.apiVersion, '3.0.0', '>=')
-  ? await extractFees__v3(chainId, address, strategies, blockNumber)
-  : await extractFees__v2(chainId, address, strategies, blockNumber)
+    ? await extractFees__v3(chainId, address, strategies, blockNumber)
+    : await extractFees__v2(chainId, address, strategies, blockNumber)
 
   const netApr = result.net > 0
-  ? annualCompoundingPeriods * Math.pow(result.net + 1, 1 / annualCompoundingPeriods) - annualCompoundingPeriods
-  : 0
+    ? annualCompoundingPeriods * Math.pow(result.net + 1, 1 / annualCompoundingPeriods) - annualCompoundingPeriods
+    : 0
 
   result.grossApr = fees.performance === 1
-  ? netApr + fees.management
-  : netApr / (1 - fees.performance) + fees.management
+    ? netApr + fees.management
+    : netApr / (1 - fees.performance) + fees.management
 
   if(result.net < 0) {
     if(compare(vault.defaults.apiVersion, '0.3.5', '>=')) {
@@ -209,8 +209,8 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
   }
 
   result.lockedProfit = compare(vault.defaults.apiVersion, '3.0.0', '>=')
-  ? await extractLockedProfit__v3(chainId, address, blockNumber)
-  : await extractLockedProfit__v2(chainId, address, blockNumber)
+    ? await extractLockedProfit__v3(chainId, address, blockNumber)
+    : await extractLockedProfit__v2(chainId, address, blockNumber)
 
   return result
 }
@@ -234,7 +234,7 @@ async function getInceptionBlockNumber(vault: Thing, blockNumber: bigint) {
 
 export async function extractFees__v2(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[], blockNumber: bigint) {
   const strategiesMulticall = await rpcs.next(chainId, blockNumber).multicall({ contracts: strategies.map(s => ({
-    args: [s as string], address: vault, functionName: 'strategies', 
+    args: [s as string], address: vault, functionName: 'strategies',
     abi: parseAbi(['function strategies(address) returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)'])
   })), blockNumber})
 
@@ -256,19 +256,18 @@ export async function extractFees__v2(chainId: number, vault: `0x${string}`, str
 async function getFirstTwoHarvestBlocks(vault: Thing) {
   const harvests = await query<EvmLog>(EvmLogSchema, `
   SELECT * FROM evmlog WHERE chain_id = $1 AND address = $2 AND event_name IN ('StrategyReported', 'Reported')
-  ORDER BY block_number, log_index LIMIT 2`, 
+  ORDER BY block_number, log_index LIMIT 2`,
   [vault.chainId, vault.address])
   return harvests.map(h => h.blockNumber)
 }
 
 function compoundAndAnnualizeDelta(
-  before: { block: bigint, pps: bigint }, 
-  after: { block: bigint, pps: bigint }, 
+  before: { block: bigint, pps: bigint },
+  after: { block: bigint, pps: bigint },
   blocksPerDay: bigint
 ) {
-	const delta = math.div(after.pps - before.pps, before.pps || 1n)
-  const period = math.div((BigInt(after.block) - BigInt
-  (before.block)), blocksPerDay)
+  const delta = math.div(after.pps - before.pps, before.pps || 1n)
+  const period = math.div((BigInt(after.block) - BigInt(before.block)), blocksPerDay)
   return Math.pow(1 + delta, 365.2425 / period) - 1
 }
 
@@ -277,9 +276,9 @@ export async function extractFees__v3(chainId: number, vault: `0x${string}`, str
   if(!accountant) {
     try {
       const performanceFeeBps = await rpcs.next(chainId, blockNumber).readContract({
-        address: vault, 
+        address: vault,
         abi: parseAbi(['function performanceFee() view returns (uint16)']),
-        functionName: 'performanceFee'    
+        functionName: 'performanceFee'
       })
       return {
         performance: performanceFeeBps / 10_000,
@@ -367,13 +366,13 @@ export async function extractFees__v3(chainId: number, vault: `0x${string}`, str
 async function extractAccountant(chainId: number, address: `0x${string}`, blockNumber: bigint) {
   try {
     return await rpcs.next(chainId, blockNumber).readContract({
-      address, 
+      address,
       abi: parseAbi(['function accountant() view returns (address)']),
       functionName: 'accountant'
     })
   } catch(error) {
     return undefined
-  }  
+  }
 }
 
 export async function extractLockedProfit__v2(chainId: number, address: `0x${string}`, blockNumber: bigint) {

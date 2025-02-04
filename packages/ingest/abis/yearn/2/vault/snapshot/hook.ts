@@ -88,15 +88,15 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
 
   for (const event of events.rows) {
     switch (event.signature) {
-      case topics[0]:
-        result.push(zhexstring.parse(event.args.strategy))
-        break
-      case topics[1]:
-        result.push(zhexstring.parse(event.args.newVersion))
-        break
-      case topics[2]:
-        result.splice(result.indexOf(zhexstring.parse(event.args.strategy)), 1)
-        break
+    case topics[0]:
+      result.push(zhexstring.parse(event.args.strategy))
+      break
+    case topics[1]:
+      result.push(zhexstring.parse(event.args.newVersion))
+      break
+    case topics[2]:
+      result.splice(result.indexOf(zhexstring.parse(event.args.strategy)), 1)
+      break
     }
   }
 
@@ -210,5 +210,5 @@ export async function extractWithdrawalQueue(chainId: number, address: `0x${stri
   ], blockNumber })
 
   return multicall.filter(result => result.status === 'success' && result.result && result.result !== zeroAddress)
-  .map(result => result.result as `0x${string}`)
+    .map(result => result.result as `0x${string}`)
 }

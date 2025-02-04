@@ -17,7 +17,7 @@ describe('abis/yearn/lib/apy', function() {
         blockNumber: 15243268n, blockTime: 1n, logIndex: 1, transactionHash: '0x', transactionIndex: 1
       })
       await upsertBatch([harvest, {...harvest, blockNumber: 15243269n, blockTime: 2n}], 
-      'evmlog', 'chain_id, address, signature, block_number, log_index, transaction_hash')
+        'evmlog', 'chain_id, address, signature, block_number, log_index, transaction_hash')
     }
 
     {
@@ -27,7 +27,7 @@ describe('abis/yearn/lib/apy', function() {
         blockNumber: 49181585n, blockTime: 1n, logIndex: 1, transactionHash: '0x', transactionIndex: 1
       })
       await upsertBatch([harvest, {...harvest, blockNumber: 49181586n, blockTime: 2n}], 
-      'evmlog', 'chain_id, address, signature, block_number, log_index, transaction_hash')
+        'evmlog', 'chain_id, address, signature, block_number, log_index, transaction_hash')
     }
   })
 

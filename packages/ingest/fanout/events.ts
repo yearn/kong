@@ -25,8 +25,8 @@ export default class EventsFanout {
     const { replay } = data
 
     const from = replay?.enabled && replay?.since
-    ? await estimateHeight(chainId, replay?.since)
-    : startBlock ?? inceptBlock
+      ? await estimateHeight(chainId, replay?.since)
+      : startBlock ?? inceptBlock
 
     const to = endBlock ?? await getBlockNumber(chainId)
 

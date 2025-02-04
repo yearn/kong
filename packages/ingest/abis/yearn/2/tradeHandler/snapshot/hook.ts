@@ -28,16 +28,16 @@ async function project(chainId: number, tradeHandler: `0x${string}`) {
   for (const event of events.rows) {
     const index = result.findIndex(r => r.strategy === zhexstring.parse(event.args.seller) && r.token === zhexstring.parse(event.args.tokenIn))
     switch (event.signature) {
-      case topics[0]:
-        if (index > -1) break
-        result.push({
-          strategy: zhexstring.parse(event.args.seller),
-          token: zhexstring.parse(event.args.tokenIn)
-        })
-        break
-      case topics[1]:
-        if (index !== -1) result.splice(index, 1)
-        break
+    case topics[0]:
+      if (index > -1) break
+      result.push({
+        strategy: zhexstring.parse(event.args.seller),
+        token: zhexstring.parse(event.args.tokenIn)
+      })
+      break
+    case topics[1]:
+      if (index !== -1) result.splice(index, 1)
+      break
     }
   }
 

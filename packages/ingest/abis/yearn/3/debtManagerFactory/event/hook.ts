@@ -5,7 +5,7 @@ import { estimateCreationBlock } from 'lib/blocks'
 import { ThingSchema, zhexstring } from 'lib/types'
 
 export const topics = [
-  `event NewDebtAllocator(address indexed allocator, address indexed vault)`
+  'event NewDebtAllocator(address indexed allocator, address indexed vault)'
 ].map(e => toEventSelector(e))
 
 export default async function process(chainId: number, address: `0x${string}`, data: any) {

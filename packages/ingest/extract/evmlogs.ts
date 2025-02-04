@@ -31,8 +31,8 @@ export class EvmLogsExtractor {
     const excludeLimitlist = from < defaultStartBlockNumber
 
     const events = excludeLimitlist
-    ? abiutil.exclude([...blacklist.events.ignore, ...blacklist.events.limit], abiutil.events(abi))
-    : abiutil.exclude(blacklist.events.ignore, abiutil.events(abi))
+      ? abiutil.exclude([...blacklist.events.ignore, ...blacklist.events.limit], abiutil.events(abi))
+      : abiutil.exclude(blacklist.events.ignore, abiutil.events(abi))
 
     const logs = await (async () => {
       if (replay) {

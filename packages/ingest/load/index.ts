@@ -12,29 +12,29 @@ export default class Load implements Processor {
 
   handlers: Record<string, (data: any) => Promise<any>> = {
     [mq.job.load.block.name]: async data => 
-    await upsert(data, 'latest_block', 'chain_id', 
-      'WHERE latest_block.block_number < EXCLUDED.block_number'
-    ),
+      await upsert(data, 'latest_block', 'chain_id', 
+        'WHERE latest_block.block_number < EXCLUDED.block_number'
+      ),
 
     [mq.job.load.monitor.name]: async data => 
-    await upsert({ singleton: true, latest: data }, 'monitor', 'singleton'),
+      await upsert({ singleton: true, latest: data }, 'monitor', 'singleton'),
 
     [mq.job.load.evmlog.name]: async data => 
-    await upsertEvmLog(data),
+      await upsertEvmLog(data),
 
     [mq.job.load.snapshot.name]: async data => 
-    await upsertSnapshot(data),
+      await upsertSnapshot(data),
 
     [mq.job.load.thing.name]: async data => 
-    await upsertThing(data),
+      await upsertThing(data),
 
     [mq.job.load.output.name]: async data => data.batch
-    ? await upsertBatchOutput(data.batch)
-    : await upsertOutput(data),
+      ? await upsertBatchOutput(data.batch)
+      : await upsertOutput(data),
 
     [mq.job.load.price.name]: async data => data.batch 
-    ? await upsertBatch(data.batch, 'price', 'chain_id, address, block_number') 
-    : await upsert(data, 'price', 'chain_id, address, block_number')
+      ? await upsertBatch(data.batch, 'price', 'chain_id, address, block_number') 
+      : await upsert(data, 'price', 'chain_id, address, block_number')
   }
 
   async up() {
@@ -72,7 +72,7 @@ export async function upsertEvmLog(data: any) {
       VALUES ($1, $2, $3) 
       ON CONFLICT (chain_id, address) 
       DO UPDATE SET strides = $3`, 
-      [chainId, address, JSON.stringify(next)]
+    [chainId, address, JSON.stringify(next)]
     )
 
     await client.query('COMMIT')

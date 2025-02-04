@@ -8,7 +8,7 @@ import { getBlock } from 'lib/blocks'
 import { first } from '../../../../../db'
 
 export const topics = [
-  `event AddedNewVault(address indexed vault, address indexed debtAllocator, uint256 category)`
+  'event AddedNewVault(address indexed vault, address indexed debtAllocator, uint256 category)'
 ].map(e => toEventSelector(e))
 
 const HookSchema = z.object({
@@ -47,8 +47,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
   }
 
   const hook = await first<Hook>(HookSchema, 
-    `SELECT hook FROM snapshot WHERE chain_id = $1 AND address = $2`, 
-  [chainId, address])
+    'SELECT hook FROM snapshot WHERE chain_id = $1 AND address = $2', 
+    [chainId, address])
 
   const { hook: { project: { id: projectId, name: projectName } } } = hook
 
