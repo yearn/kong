@@ -36,7 +36,7 @@ const vaults = async (_: any, args: {
 
     if (apiVersion !== undefined) {
       rows = rows.filter(row => {
-        return compare(row.apiVersion ?? "0", apiVersion, '>=')
+        return compare(row.apiVersion ?? '0', apiVersion, '>=')
       })
     }
 
