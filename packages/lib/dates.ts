@@ -40,7 +40,7 @@ export function makeTimeline(start: bigint, end: bigint): bigint[] {
   end = endOfDay(end)
 
   let current = start
-  let result: bigint[] = []
+  const result: bigint[] = []
 
   while (current <= end) {
     result.push(current)
