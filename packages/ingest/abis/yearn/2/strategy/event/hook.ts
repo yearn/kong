@@ -13,7 +13,7 @@ import strategyAbi from '../abi'
 import vaultAbi from '../../vault/abi'
 
 export const topics = [
-  `event Harvested(uint256 profit, uint256 loss, uint256 debtPayment, uint256 debtOutstanding)`
+  'event Harvested(uint256 profit, uint256 loss, uint256 debtPayment, uint256 debtOutstanding)'
 ].map(e => toEventSelector(e))
 
 export const HarvestSchema = z.object({
@@ -122,8 +122,8 @@ export async function computeApr(latest: Harvest, previous: Harvest | undefined)
   const loss = latest.args.loss
 
   const performance = (loss > profit)
-  ? math.div(-loss, previousDebt.totalDebt)
-  : math.div(profit, previousDebt.totalDebt)
+    ? math.div(-loss, previousDebt.totalDebt)
+    : math.div(profit, previousDebt.totalDebt)
 
   const periodInHours = Number(((latest.blockTime || 0n) - (previous.blockTime || 0n)) / (60n * 60n)) || 1
   const hoursInOneYear = 24 * 365

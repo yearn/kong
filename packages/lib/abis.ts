@@ -72,13 +72,13 @@ export function prune(abis: AbiConfig[]): AbiConfig[] {
   const someSourceOnly = copy.some(abi => abi.sources.some(source => source.only))
   const someThingOnly = copy.some(abi => abi.things?.only)
 
-  let result = copy.map(abi => ({
+  const result = copy.map(abi => ({
     ...abi,
     sources: abi.sources.filter(source => !source.skip && (abi.only || source.only || !(someSourceOnly || someThingOnly))),
     things: abi.things && !abi.things.skip && (abi.only || abi.things.only || !(someSourceOnly || someThingOnly))
-    ? ({
-      ...abi.things
-    }) : undefined
+      ? ({
+        ...abi.things
+      }) : undefined
   }))
 
   return result.filter(abi => 

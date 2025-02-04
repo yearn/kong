@@ -365,7 +365,7 @@ export default function plugin<TContext extends BaseContext>(
             if (!options.sessionId) {
               logger.warn(
                 'A GraphQL response used @cacheControl or setCacheHint to set cache hints with scope ' +
-                  "Private, but you didn't define the sessionId hook for " +
+                  'Private, but you didn\'t define the sessionId hook for ' +
                   'apollo-server-plugin-response-cache. Not caching.',
               )
               return

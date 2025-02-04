@@ -23,8 +23,8 @@ export default class Extract implements Processor {
   async up() {
     const handler = async (job: any) => {
       const label = job.data.replay
-      ? `🎭 ${job.name} ${job.id} ${job.data.chainId}`
-      : `🛸 ${job.name} ${job.id} ${job.data.chainId}`
+        ? `🎭 ${job.name} ${job.id} ${job.data.chainId}`
+        : `🛸 ${job.name} ${job.id} ${job.data.chainId}`
       console.time(label)
       await this.extractors[job.name].extract(job.data)
       console.timeEnd(label)

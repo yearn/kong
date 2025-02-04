@@ -23,10 +23,10 @@ class __Cache {
 
   get wrap() {
     return this.__cache
-    ? (this.__cache as Cache).wrap.bind(this.__cache)
-    : async (key: string, fn: () => Promise<any>) => {
-      return await fn()
-    }
+      ? (this.__cache as Cache).wrap.bind(this.__cache)
+      : async (key: string, fn: () => Promise<any>) => {
+        return await fn()
+      }
   }
 
   async up() {

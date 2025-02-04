@@ -9,22 +9,22 @@ function TextOverlay({ children }: { children: string }) {
 }
 
 export default function AsciiMeter(
-  { 
+  {
     current,
     current2,
-    max, 
+    max,
     leftLabel = '',
     rightLabel = '',
     panels = 24,
-    className = '' 
-  } : { 
+    className = ''
+  } : {
     current: number,
     current2?: number,
-    max: number, 
-    leftLabel?: string, 
-    rightLabel?: string, 
-    panels?: number, 
-    className?: string 
+    max: number,
+    leftLabel?: string,
+    rightLabel?: string,
+    panels?: number,
+    className?: string
   }
 ) {
   const meterRef = useRef<HTMLDivElement>(null)
@@ -55,9 +55,7 @@ export default function AsciiMeter(
   }, [leftLabel, rightLabel])
 
   return <div ref={meterRef} title={title} className={`relative flex items-center ${className}`}>
-    <div className={`
-      absolute z-50 top-0 left-0  w-full h-full px-3
-      flex items-center justify-between`}
+    <div className={'absolute z-50 top-0 left-0  w-full h-full px-3 flex items-center justify-between'}
       style={{ fontSize: `${Math.floor(fontSize * .75)}px` }}>
       <TextOverlay>{leftLabel}</TextOverlay>
       <TextOverlay>{rightLabel}</TextOverlay>

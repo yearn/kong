@@ -4,7 +4,7 @@ import React from 'react'
 import Image from 'next/image'
 import figureImage from '@/app/figure.png'
 import figlet from 'figlet'
-// @ts-ignore
+// @ts-expect-error legacy something something something
 import font from 'figlet/importable-fonts/Cyberlarge.js'
 figlet.parseFont('Cyberlarge', font)
 
@@ -21,8 +21,8 @@ export default function Ahoy() {
       <p className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)] text-sm">Real-time/historical EVM indexer x Analytics</p>
       <div className="flex items-center gap-3 text-xs">
         <a href="/api/gql" target="_blank" className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)]">explorer</a>
-        {'//'} <a href="https://yearn-kong.betteruptime.com" target="_blank" className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)]">uptime</a>
-        {'//'} <a href="https://github.com/yearn/kong" target="_blank" className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)]">github</a>
+        {'//'} <a href="https://yearn-kong.betteruptime.com" target="_blank" className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)]" rel="noreferrer">uptime</a>
+        {'//'} <a href="https://github.com/yearn/kong" target="_blank" className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)]" rel="noreferrer">github</a>
       </div>
     </div>
   </div>

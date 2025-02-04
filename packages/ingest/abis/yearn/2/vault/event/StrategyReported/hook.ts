@@ -10,7 +10,7 @@ import { math, multicall3 } from 'lib'
 import { extractDebtFromStrategy, extractDelegatedAssets, extractFees } from '../../../strategy/event/hook'
 
 export const topics = [
-  `event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 debtPaid, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtRatio)`
+  'event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 debtPaid, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtRatio)'
 ].map(e => toEventSelector(e))
 
 export const HarvestSchema = z.object({
@@ -85,8 +85,8 @@ export async function computeApr(latest: Harvest, previous: Harvest | undefined)
   const loss = latest.args.loss
 
   const performance = (loss > profit)
-  ? math.div(-loss, previousDebt.totalDebt)
-  : math.div(profit, previousDebt.totalDebt)
+    ? math.div(-loss, previousDebt.totalDebt)
+    : math.div(profit, previousDebt.totalDebt)
 
   const periodInHours = Number(((latest.blockTime || 0n) - (previous.blockTime || 0n)) / (60n * 60n)) || 1
   const hoursInOneYear = 24 * 365

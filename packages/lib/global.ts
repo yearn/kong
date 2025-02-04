@@ -1,6 +1,6 @@
 Object.defineProperty(BigInt.prototype, 'toJSON', {
   get() {
-      'use strict'
-      return () => String(this)
+    'use strict'
+    return () => String(this)
   }
 })

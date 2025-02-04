@@ -57,8 +57,8 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
   if(totalAssets === 0n) return { priceUsd, source, tvl: 0 }
 
   const totalDelegatedAssets = compare(apiVersion, '3.0.0', '<')
-  ? await extractTotalDelegatedAssets(chainId, address, blockNumber)
-  : 0n
+    ? await extractTotalDelegatedAssets(chainId, address, blockNumber)
+    : 0n
 
   const tvl = priced(totalAssets, decimals, priceUsd) 
   - priced(totalDelegatedAssets, decimals, priceUsd)
@@ -83,8 +83,8 @@ async function extractDelegatedAssets(chainId: number, addresses: `0x${string}` 
 
   multicallresults.forEach((result, index) => {
     const delegatedAssets = result.status === 'failure'
-    ? 0n
-    : BigInt(result.result as bigint)
+      ? 0n
+      : BigInt(result.result as bigint)
 
     results.push({ address: addresses[index], delegatedAssets })
   })

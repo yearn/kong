@@ -4,7 +4,7 @@ import { ThingSchema, zhexstring } from 'lib/types'
 import { mq } from 'lib'
 
 export const topics = [
-  `event StrategyRevoked(address indexed strategy)`
+  'event StrategyRevoked(address indexed strategy)'
 ].map(e => toEventSelector(e))
 
 export default async function process(chainId: number, address: `0x${string}`, data: any) {

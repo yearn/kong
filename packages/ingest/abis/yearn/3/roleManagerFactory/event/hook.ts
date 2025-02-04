@@ -5,7 +5,7 @@ import { EvmAddressSchema, ThingSchema, zhexstring } from 'lib/types'
 import { getBlock } from 'lib/blocks'
 
 export const topics = [
-  `event NewProject(bytes32 indexed projectId, address indexed roleManager)`
+  'event NewProject(bytes32 indexed projectId, address indexed roleManager)'
 ].map(e => toEventSelector(e))
 
 export default async function process(chainId: number, address: `0x${string}`, data: any) {

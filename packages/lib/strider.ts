@@ -8,7 +8,7 @@ export function plan(from: bigint, to: bigint, travelled: Stride[] | undefined):
   const result: Stride[] = []
   let startFrom = from
 
-  for (let stride of travelled) {
+  for (const stride of travelled) {
     if (startFrom < stride.from) {
       if (stride.from - 1n > to) {
         result.push({ from: startFrom, to })

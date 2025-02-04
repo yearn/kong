@@ -7,8 +7,8 @@ import { rpcs } from '../../../../../../rpcs'
 import { extractDecimals, fetchOrExtractAssetAddress, fetchOrExtractErc20 } from '../../../../lib'
 
 export const topics = [
-  `event StrategyAdded(address indexed strategy, uint256 debtRatio, uint256 minDebtPerHarvest, uint256 maxDebtPerHarvest, uint256 performanceFee)`,
-  `event StrategyMigrated(address indexed oldVersion, address indexed newVersion)`
+  'event StrategyAdded(address indexed strategy, uint256 debtRatio, uint256 minDebtPerHarvest, uint256 maxDebtPerHarvest, uint256 performanceFee)',
+  'event StrategyMigrated(address indexed oldVersion, address indexed newVersion)'
 ].map(e => toEventSelector(e))
 
 export default async function process(chainId: number, address: `0x${string}`, data: any) {

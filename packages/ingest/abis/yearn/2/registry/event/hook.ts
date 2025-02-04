@@ -6,8 +6,8 @@ import { ThingSchema, zhexstring } from 'lib/types'
 import { fetchOrExtractErc20 } from '../../../lib'
 
 export const topics = [
-  `event NewVault(address indexed token, uint256 indexed deployment_id, address vault, string api_version)`,
-  `event NewExperimentalVault(address indexed token, address indexed deployer, address vault, string api_version)`
+  'event NewVault(address indexed token, uint256 indexed deployment_id, address vault, string api_version)',
+  'event NewExperimentalVault(address indexed token, address indexed deployer, address vault, string api_version)'
 ].map(e => toEventSelector(e))
 
 export default async function process(chainId: number, address: `0x${string}`, data: any) {

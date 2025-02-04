@@ -216,16 +216,16 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
       const multicall = await rpcs.next(chainId).multicall({ contracts })
 
       const [activation, lastReport, currentDebt, maxDebt] = multicall[0].result
-      ? multicall[0].result! as [bigint, bigint, bigint, bigint]
-      : [0n, 0n, 0n, 0n] as [bigint, bigint, bigint, bigint]
+        ? multicall[0].result! as [bigint, bigint, bigint, bigint]
+        : [0n, 0n, 0n, 0n] as [bigint, bigint, bigint, bigint]
 
       const targetDebtRatio = multicall[1]?.result
-      ? Number(multicall[1].result)
-      : undefined
+        ? Number(multicall[1].result)
+        : undefined
 
       const maxDebtRatio = multicall[2]?.result 
-      ? Number(multicall[2].result) 
-      : undefined
+        ? Number(multicall[2].result) 
+        : undefined
 
       const price = await fetchErc20PriceUsd(chainId, asset)
 
