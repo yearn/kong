@@ -1,6 +1,6 @@
 import db from '@/app/api/db'
 
-const vaultReports = async (_: any, args: { chainId?: number, address?: string }) => {
+const vaultReports = async (_: object, args: { chainId?: number, address?: string }) => {
   const { chainId, address } = args
   try {
     const result = await db.query(`
@@ -46,7 +46,7 @@ const vaultReports = async (_: any, args: { chainId?: number, address?: string }
       AND event_name = 'StrategyReported'
     ORDER BY
       block_time DESC, log_index DESC
-    LIMIT 1000;`, 
+    LIMIT 1000;`,
     [chainId, address])
 
     return result.rows

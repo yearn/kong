@@ -33,7 +33,7 @@ export const ResultSchema = z.object({
   meta: VaultMetaSchema.merge(z.object({ token: TokenMetaSchema }))
 })
 
-export default async function process(chainId: number, address: `0x${string}`, data: any) {
+export default async function process(chainId: number, address: `0x${string}`, data: object) {
   const oldold = compare(data.apiVersion, '0.3.1', '<=')
   const strategies = await projectStrategies(chainId, address)
   const withdrawalQueue = await extractWithdrawalQueue(chainId, address)
@@ -56,13 +56,13 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
   await thingRisk(risk)
 
-  return { 
+  return {
     asset: erc20,
     strategies,
-    withdrawalQueue, 
-    debts, 
-    risk, 
-    meta: { ...meta, token }, 
+    withdrawalQueue,
+    debts,
+    risk,
+    meta: { ...meta, token },
     sparklines,
     tvl: sparklines.tvl[0],
     apy

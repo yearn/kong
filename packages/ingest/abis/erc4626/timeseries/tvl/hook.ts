@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Data } from '../../../../extract/timeseries'
-import { Erc20Schema, EvmAddressSchema, Output, OutputSchema, Thing, ThingSchema } from 'lib/types'
+import { EvmAddressSchema, Output, OutputSchema, Thing, ThingSchema } from 'lib/types'
 import { priced } from 'lib/math'
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { first } from '../../../../db'
@@ -33,15 +33,15 @@ export default async function _process(chainId: number, address: `0x${string}`, 
   const { tvl, source: priceSource } = await _compute(vault, blockNumber, latest)
 
   return OutputSchema.array().parse([{
-    chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel, 
+    chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
     component: priceSource, value: tvl
   }])
 }
 
 export async function _compute(vault: Thing, blockNumber: bigint, latest = false) {
   const { chainId, address, defaults } = vault
-  const { asset, decimals } = z.object({ 
-    asset: EvmAddressSchema, 
+  const { asset, decimals } = z.object({
+    asset: EvmAddressSchema,
     decimals: z.number({ coerce: true }) }
   ).parse(defaults)
 
@@ -53,7 +53,7 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
 
   if(totalAssets === 0n) return { priceUsd, source, tvl: 0 }
 
-  const tvl = priced(totalAssets, decimals, priceUsd) 
+  const tvl = priced(totalAssets, decimals, priceUsd)
 
   return { priceUsd, source, tvl }
 }

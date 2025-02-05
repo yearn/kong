@@ -21,6 +21,7 @@ export class SnapshotExtractor {
     const abi = await abiutil.load(abiPath)
     const fields = abiutil.fields(abi)
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const contracts = fields.map((f: any) => ({
       address, abi: [f], functionName: f.name
     }))
@@ -28,11 +29,13 @@ export class SnapshotExtractor {
     const block = await getBlock(chainId)
     const multicall = await rpcs.next(chainId).multicall({ contracts, blockNumber: block.number })
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const _snapshot: { [key: string]: any } = {
       blockNumber: block.number,
       blockTime: block.timestamp
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const kvps = fields.map((f: any, index: number) => ({ key: f.name, value: multicall[index].result }))
     for (const { key, value } of kvps) {
       _snapshot[key] = value

@@ -46,7 +46,7 @@ export const LenderStatusSchema = z.object({
 
 export type LenderStatus = z.infer<typeof LenderStatusSchema>
 
-export default async function process(chainId: number, address: `0x${string}`, data: any) {
+export default async function process(chainId: number, address: `0x${string}`, data: object) {
   const snapshot = SnapshotSchema.parse(data)
   await processTradeFactory(chainId, snapshot)
   const { totalDebt, totalDebtUsd } = await extractTotalDebtFromSnapshot(chainId, address, snapshot)
@@ -102,7 +102,7 @@ export async function extractTotalDebt(chainId: number, vault: `0x${string}`, st
 export async function extractLenderStatuses(chainId: number, address: `0x${string}`, blockNumber?: bigint) {
   try {
     return (await rpcs.next(chainId, blockNumber).readContract({
-      address, functionName: 'lendStatuses', 
+      address, functionName: 'lendStatuses',
       abi: parseAbi([
         'struct lendStatus { string name; uint256 assets; uint256 rate; address add; }',
         'function lendStatuses() view returns (lendStatus[])'
@@ -143,7 +143,7 @@ async function computeRewards(chainId: number, strategy: `0x${string}`, snapshot
 
 async function fetchTradeables(chainId: number, strategy: `0x${string}`, tradeHandler: `0x${string}`) {
   const result = await db.query(`
-    SELECT hook->'tradeables' as tradeables FROM snapshot WHERE chain_id = $1 AND address = $2`, 
+    SELECT hook->'tradeables' as tradeables FROM snapshot WHERE chain_id = $1 AND address = $2`,
   [chainId, tradeHandler]
   )
   if (result.rows.length === 0) return []
@@ -152,7 +152,7 @@ async function fetchTradeables(chainId: number, strategy: `0x${string}`, tradeHa
 }
 
 async function extractBalances(chainId: number, strategy: `0x${string}`, tradeables: Tradeable[]) {
-  const contracts = tradeables.map(t => ({ 
+  const contracts = tradeables.map(t => ({
     address: t.token, functionName: 'balanceOf', args: [strategy],
     abi: parseAbi(['function balanceOf(address) view returns (uint256)'])
   }))

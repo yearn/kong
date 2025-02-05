@@ -10,7 +10,7 @@ export const ResultSchema = z.object({
   performanceFeeThreshold: z.bigint().optional()
 })
 
-export default async function process(chainId: number, address: `0x${string}`, data: any) {
+export default async function process(chainId: number, address: `0x${string}`, data: object) {
   const vaults = await projectVaults(chainId, address)
   const thresholds = await extractHardCodedThresholds(chainId, address)
   return ResultSchema.parse({ vaults, ...thresholds })
@@ -46,14 +46,14 @@ export async function projectVaults(chainId: number, accountant: `0x${string}`, 
 export async function extractHardCodedThresholds(chainId: number, accountant: `0x${string}`, blockNumber?: bigint) {
   const multicall = await rpcs.next(chainId, blockNumber).multicall({ contracts: [
     {
-      address: accountant, 
-      abi: parseAbi(['function MANAGEMENT_FEE_THRESHOLD() view returns (uint256)']), 
-      functionName: 'MANAGEMENT_FEE_THRESHOLD' 
+      address: accountant,
+      abi: parseAbi(['function MANAGEMENT_FEE_THRESHOLD() view returns (uint256)']),
+      functionName: 'MANAGEMENT_FEE_THRESHOLD'
     },
     {
-      address: accountant, 
-      abi: parseAbi(['function PERFORMANCE_FEE_THRESHOLD() view returns (uint256)']), 
-      functionName: 'PERFORMANCE_FEE_THRESHOLD' 
+      address: accountant,
+      abi: parseAbi(['function PERFORMANCE_FEE_THRESHOLD() view returns (uint256)']),
+      functionName: 'PERFORMANCE_FEE_THRESHOLD'
     }
   ], blockNumber })
 

@@ -8,7 +8,7 @@ export const topics = [
   'event NewDebtAllocator(address indexed allocator, address indexed vault)'
 ].map(e => toEventSelector(e))
 
-export default async function process(chainId: number, address: `0x${string}`, data: any) {
+export default async function process(chainId: number, address: `0x${string}`, data: object) {
   const { allocator } = z.object({
     allocator: zhexstring,
     vault: zhexstring

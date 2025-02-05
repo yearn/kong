@@ -2,7 +2,7 @@ import { z } from 'zod'
 import db from '@/app/api/db'
 import { zhexstring } from 'lib/types'
 
-const vaultAccounts = async (_: any, args: { chainId?: number, vault: `0x${string}` }) => {
+const vaultAccounts = async (_: object, args: { chainId?: number, vault: `0x${string}` }) => {
   const { chainId, vault } = args
   try {
 

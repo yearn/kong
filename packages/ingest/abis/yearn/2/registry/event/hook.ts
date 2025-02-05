@@ -10,7 +10,7 @@ export const topics = [
   'event NewExperimentalVault(address indexed token, address indexed deployer, address vault, string api_version)'
 ].map(e => toEventSelector(e))
 
-export default async function process(chainId: number, address: `0x${string}`, data: any) {
+export default async function process(chainId: number, address: `0x${string}`, data: object) {
   const { vault, token, api_version } = z.object({
     vault: zhexstring,
     token: zhexstring,

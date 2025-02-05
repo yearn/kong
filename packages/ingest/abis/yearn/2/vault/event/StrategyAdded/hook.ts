@@ -11,7 +11,7 @@ export const topics = [
   'event StrategyMigrated(address indexed oldVersion, address indexed newVersion)'
 ].map(e => toEventSelector(e))
 
-export default async function process(chainId: number, address: `0x${string}`, data: any) {
+export default async function process(chainId: number, address: `0x${string}`, data: object) {
   const vault = address
   const { args } = z.object({
     blockNumber: z.bigint({ coerce: true }),

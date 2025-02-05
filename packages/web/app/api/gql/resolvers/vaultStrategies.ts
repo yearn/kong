@@ -1,13 +1,13 @@
 import db from '@/app/api/db'
 
-const vaultStrategies = async (_: any, args: { chainId: number, vault: string }) => {
+const vaultStrategies = async (_: object, args: { chainId: number, vault: string }) => {
   const { chainId, vault } = args
   try {
 
     const result = await db.query(`
     WITH strategies AS (
       SELECT jsonb_array_elements_text(snapshot.hook->'strategies')
-      FROM snapshot 
+      FROM snapshot
       WHERE chain_id = $1 AND address = $2
     )
 
@@ -18,7 +18,7 @@ const vaultStrategies = async (_: any, args: { chainId: number, vault: string })
       snapshot.snapshot,
       snapshot.hook
     FROM thing
-    JOIN snapshot 
+    JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
     WHERE thing.chain_id = $1

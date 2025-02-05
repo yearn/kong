@@ -1,6 +1,6 @@
 import db from '@/app/api/db'
 
-const strategyReports = async (_: any, args: { chainId?: number, address?: string }) => {
+const strategyReports = async (_: object, args: { chainId?: number, address?: string }) => {
   const { chainId, address } = args
   try {
     const result = await db.query(`
@@ -36,7 +36,7 @@ const strategyReports = async (_: any, args: { chainId?: number, address?: strin
       AND (event_name = 'Reported' OR event_name = 'Harvested')
     ORDER BY
       block_time DESC, log_index DESC
-    LIMIT 1000;`, 
+    LIMIT 1000;`,
     [chainId, address])
 
     return result.rows

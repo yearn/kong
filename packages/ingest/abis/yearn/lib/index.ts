@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { rpcs } from 'lib/rpcs'
 import { parseAbi } from 'viem'
-import db, { firstValue } from '../../../db'
+import db from '../../../db'
 import { RiskScore, ThingSchema, zhexstring } from 'lib/types'
 import { mq } from 'lib'
 
@@ -11,11 +11,12 @@ export async function extractDecimals(chainId: number, address: `0x${string}`) {
 
 export async function fetchDecimals(chainId: number, address: `0x${string}`) {
   return (await db.query(
-    'SELECT coalesce(defaults #>> \'{decimals}\', defaults #>> \'{asset, decimals}\') AS decimals FROM thing WHERE chain_id = $1 AND address = $2', 
+    'SELECT coalesce(defaults #>> \'{decimals}\', defaults #>> \'{asset, decimals}\') AS decimals FROM thing WHERE chain_id = $1 AND address = $2',
     [chainId, address]
   )).rows[0]?.decimals as number
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function safeFetchOrExtractDecimals(chainId: number, address: `0x${string}`): Promise<{ success: true, error: undefined, decimals: number } | { success: false, error: any, decimals: undefined }> {
   try {
     return {
@@ -47,7 +48,7 @@ export async function fetchOrExtractDecimals(chainId: number, address: `0x${stri
 
 export async function fetchAssetAddress(chainId: number, address: `0x${string}`, label: string) {
   return (await db.query(
-    'SELECT defaults #>> \'{asset, address}\' AS address FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3', 
+    'SELECT defaults #>> \'{asset, address}\' AS address FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3',
     [chainId, address, label])
   ).rows[0]?.address as `0x${string}`
 }
@@ -80,13 +81,13 @@ export async function fetchOrExtractErc20(chainId: number, address: `0x${string}
 
 export async function fetchErc20(chainId: number, address: `0x${string}`) {
   const rows = (await db.query(`
-    SELECT 
+    SELECT
       chain_id AS "chainId",
       address,
-      defaults->'name' AS name, 
-      defaults->'symbol' AS symbol, 
-      defaults->'decimals' AS decimals 
-    FROM thing 
+      defaults->'name' AS name,
+      defaults->'symbol' AS symbol,
+      defaults->'decimals' AS decimals
+    FROM thing
     WHERE chain_id = $1 AND address = $2 AND label = 'erc20'`,
   [chainId, address]
   )).rows
@@ -127,6 +128,7 @@ export async function thingRisk(risk: RiskScore | undefined) {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function throwOnMulticallError(multicall: any[]) {
   if (multicall.some(result => result.status !== 'success')) {
     const first = multicall.find(result => result.status !== 'success')

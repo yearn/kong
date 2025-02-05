@@ -22,10 +22,10 @@ const HookSchema = z.object({
 
 type Hook = z.infer<typeof HookSchema>
 
-export default async function process(chainId: number, address: `0x${string}`, data: any) {
-  const { 
-    number: inceptBlock, 
-    timestamp: inceptTime 
+export default async function process(chainId: number, address: `0x${string}`, data: object) {
+  const {
+    number: inceptBlock,
+    timestamp: inceptTime
   } = await getBlock(chainId, data.blockNumber)
 
   const { vault, category } = z.object({
@@ -46,8 +46,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
     throw new Error('Vault multicall failed')
   }
 
-  const hook = await first<Hook>(HookSchema, 
-    'SELECT hook FROM snapshot WHERE chain_id = $1 AND address = $2', 
+  const hook = await first<Hook>(HookSchema,
+    'SELECT hook FROM snapshot WHERE chain_id = $1 AND address = $2',
     [chainId, address])
 
   const { hook: { project: { id: projectId, name: projectName } } } = hook

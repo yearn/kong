@@ -10,7 +10,7 @@ export const SnapshotSchema = z.object({
   role_manager: EvmAddressSchema.optional()
 })
 
-export default async function process(chainId: number, address: `0x${string}`, data: any) {
+export default async function process(chainId: number, address: `0x${string}`, data: object) {
   const projects = await projectProjects(chainId, address)
   return { projects }
 }

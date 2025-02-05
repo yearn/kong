@@ -24,7 +24,7 @@ class __Cache {
   get wrap() {
     return this.__cache
       ? (this.__cache as Cache).wrap.bind(this.__cache)
-      : async (key: string, fn: () => Promise<any>) => {
+      : async (key: string, fn: () => Promise<unknown>) => {
         return await fn()
       }
   }
@@ -36,6 +36,7 @@ class __Cache {
         port: (process.env.REDIS_PORT || 6379) as number,
       }
     })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.__cache = await caching(this.__store as any)
   }
 
