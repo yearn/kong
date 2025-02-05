@@ -8,6 +8,7 @@ export const topics = [
   'event NewDebtAllocator(address indexed allocator, address indexed vault)'
 ].map(e => toEventSelector(e))
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const { allocator } = z.object({
     allocator: zhexstring,

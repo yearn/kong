@@ -1,21 +1,21 @@
 import db from '@/app/api/db'
 
-const vault = async (_: any, args: { chainId: number, address: `0x${string}` }) => {
+const vault = async (_: object, args: { chainId: number, address: `0x${string}` }) => {
   const { chainId, address } = args
   try {
 
     const result = await db.query(`
-    SELECT 
+    SELECT
       thing.chain_id,
       thing.address,
       thing.defaults,
       snapshot.snapshot,
       snapshot.hook
     FROM thing
-    JOIN snapshot 
+    JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
-    WHERE thing.chain_id = $1 
+    WHERE thing.chain_id = $1
       AND thing.address = $2
       AND thing.label = $3`,
     [chainId, address, 'vault'])

@@ -1,7 +1,7 @@
 import { mq, types } from 'lib'
 import { rpcs } from '../rpcs'
 
-interface ApetaxVault { 
+interface ApetaxVault {
   TITLE: string
   LOGO: string
   VAULT_ABI: string
@@ -17,7 +17,7 @@ interface ApetaxVault {
 export class ApetaxExtractor {
   url: string = process.env.APE_TAX_VAULTS || 'https://raw.githubusercontent.com/saltyfacu/ape-tax/master/utils/vaults.json'
 
-  async extract(_: any) {
+  async extract() {
     console.log('🦍', 'extract apetax registry')
 
     const vaults = Object.values(await(

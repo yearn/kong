@@ -4,7 +4,7 @@ import { Tradeable, TradeableSchema, zhexstring } from 'lib/types'
 import db from '../../../../../db'
 import { throwOnMulticallError } from '../../../lib'
 
-export default async function process(chainId: number, address: `0x${string}`, data: any) {
+export default async function process(chainId: number, address: `0x${string}`) {
   const tradeables = await fill(chainId, await project(chainId, address))
   return { tradeables }
 }

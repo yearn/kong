@@ -8,23 +8,24 @@ export const topics = [
   'event NewProject(bytes32 indexed projectId, address indexed roleManager)'
 ].map(e => toEventSelector(e))
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const { projectId, roleManager } = z.object({
     projectId: zhexstring,
     roleManager: EvmAddressSchema
   }).parse(data.args)
 
-  const { 
-    number: inceptBlock, 
-    timestamp: inceptTime 
+  const {
+    number: inceptBlock,
+    timestamp: inceptTime
   } = await getBlock(chainId, data.blockNumber)
 
   await mq.add(mq.job.load.thing, ThingSchema.parse({
     chainId, address: roleManager, label: 'roleManager',
-    defaults: { 
-      roleManagerFactory: address, 
-      project: { id: projectId }, 
-      inceptBlock, 
+    defaults: {
+      roleManagerFactory: address,
+      project: { id: projectId },
+      inceptBlock,
       inceptTime
     }
   }))

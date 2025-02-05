@@ -4,7 +4,7 @@ import { fetchOrExtractErc20 } from '../../yearn/lib'
 import { mq } from 'lib'
 import { getLatestApy, getSparkline } from '../../../db'
 
-export default async function process(chainId: number, address: `0x${string}`, data: any) {
+export default async function process(chainId: number, address: `0x${string}`, data: object) {
   const { asset } = z.object({ asset: EvmAddressSchema }).parse(data)
 
   const sparklines = {
@@ -19,7 +19,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     chainId, address: asset, label: 'erc20', defaults: erc20
   }))
 
-  return { 
+  return {
     asset: erc20,
     sparklines,
     tvl: sparklines.tvl[0],

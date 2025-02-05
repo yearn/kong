@@ -12,7 +12,7 @@ export default class Fanout implements Processor {
     [mq.job.fanout.abis.name]: new AbisFanout(),
     [mq.job.fanout.events.name]: new EventsFanout(),
     [mq.job.fanout.timeseries.name]: new TimeseriesFanout()
-  } as { [key: string]: Processor & { fanout: (data?: any) => Promise<void> } }
+  } as { [key: string]: Processor & { fanout: (data?: object) => Promise<void> } }
 
   async up() {
     this.worker = mq.worker(mq.q.fanout, async job => {

@@ -31,6 +31,7 @@ export const HarvestSchema = z.object({
 
 type Harvest = z.infer<typeof HarvestSchema>
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const harvest = HarvestSchema.parse({
     chainId, address, ...data, blockTime: await getBlockTime(chainId, data.blockNumber)
@@ -55,9 +56,9 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
 async function fetchPreviousHarvest(harvest: Harvest) {
   const previousLog = await first<EvmLog>(EvmLogSchema, `
-  SELECT * from evmlog 
+  SELECT * from evmlog
   WHERE chain_id = $1 AND address = $2 AND signature = $3 AND block_number < $4
-  ORDER BY block_number DESC, log_index DESC 
+  ORDER BY block_number DESC, log_index DESC
   LIMIT 1`,
   [harvest.chainId, harvest.address, topics[0], harvest.blockNumber])
   if (!previousLog) return undefined

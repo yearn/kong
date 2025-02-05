@@ -10,30 +10,31 @@ import { endOfDay } from 'lib/dates'
 export default class Load implements Processor {
   worker: Worker | undefined
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handlers: Record<string, (data: any) => Promise<any>> = {
-    [mq.job.load.block.name]: async data => 
-      await upsert(data, 'latest_block', 'chain_id', 
+    [mq.job.load.block.name]: async data =>
+      await upsert(data, 'latest_block', 'chain_id',
         'WHERE latest_block.block_number < EXCLUDED.block_number'
       ),
 
-    [mq.job.load.monitor.name]: async data => 
+    [mq.job.load.monitor.name]: async data =>
       await upsert({ singleton: true, latest: data }, 'monitor', 'singleton'),
 
-    [mq.job.load.evmlog.name]: async data => 
+    [mq.job.load.evmlog.name]: async data =>
       await upsertEvmLog(data),
 
-    [mq.job.load.snapshot.name]: async data => 
+    [mq.job.load.snapshot.name]: async data =>
       await upsertSnapshot(data),
 
-    [mq.job.load.thing.name]: async data => 
+    [mq.job.load.thing.name]: async data =>
       await upsertThing(data),
 
     [mq.job.load.output.name]: async data => data.batch
       ? await upsertBatchOutput(data.batch)
       : await upsertOutput(data),
 
-    [mq.job.load.price.name]: async data => data.batch 
-      ? await upsertBatch(data.batch, 'price', 'chain_id, address, block_number') 
+    [mq.job.load.price.name]: async data => data.batch
+      ? await upsertBatch(data.batch, 'price', 'chain_id, address, block_number')
       : await upsert(data, 'price', 'chain_id, address, block_number')
   }
 
@@ -51,7 +52,7 @@ export default class Load implements Processor {
   }
 }
 
-export async function upsertEvmLog(data: any) {
+export async function upsertEvmLog(data: object) {
   const { chainId, address, from, to, batch } = z.object({
     chainId: z.number(),
     address: zhexstring,
@@ -68,10 +69,10 @@ export async function upsertEvmLog(data: any) {
     const current = await getTravelledStrides(chainId, address, client)
     const next = strider.add({ from, to }, current)
     await client.query(`
-      INSERT INTO evmlog_strides(chain_id, address, strides) 
-      VALUES ($1, $2, $3) 
-      ON CONFLICT (chain_id, address) 
-      DO UPDATE SET strides = $3`, 
+      INSERT INTO evmlog_strides(chain_id, address, strides)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (chain_id, address)
+      DO UPDATE SET strides = $3`,
     [chainId, address, JSON.stringify(next)]
     )
 
@@ -85,14 +86,14 @@ export async function upsertEvmLog(data: any) {
   }
 }
 
-export async function upsertSnapshot(data: any) {
+export async function upsertSnapshot(data: object) {
   const snapshot = SnapshotSchema.parse(data)
   const client = await db.connect()
 
   try {
     await client.query('BEGIN')
     const { snapshot: currentSnapshot, hook: currentHook } = (await firstRow(
-      'SELECT snapshot, hook FROM snapshot WHERE chain_id = $1 AND address = $2 FOR UPDATE', 
+      'SELECT snapshot, hook FROM snapshot WHERE chain_id = $1 AND address = $2 FOR UPDATE',
       [snapshot.chainId, snapshot.address],
       client
     )) ?? { snapshot: {}, hook: {} }
@@ -112,12 +113,13 @@ export async function upsertSnapshot(data: any) {
   }
 }
 
-export async function upsertThing(data: any) {
+export async function upsertThing(data: object) {
   const thing = ThingSchema.parse(data)
   const client = await db.connect()
 
   try {
     await client.query('BEGIN')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const currentDefaults: any = (await client.query(
       'SELECT defaults FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3 FOR UPDATE',
       [thing.chainId, thing.address, thing.label]))
@@ -135,29 +137,32 @@ export async function upsertThing(data: any) {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function upsertOutput(data: any) {
-  const output = { 
-    ...OutputSchema.parse(data), 
-    series_time: endOfDay(data.block_time) 
+  const output = {
+    ...OutputSchema.parse(data),
+    series_time: endOfDay(data.block_time)
   }
   await upsert(output, 'output', 'chain_id, address, label, component, series_time')
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function upsertBatchOutput(batch: any[]) {
   const outputs = OutputSchema.array().parse(batch).map(output => ({
-    ...output, 
+    ...output,
     series_time: endOfDay(output.blockTime)
   }))
   await upsertBatch(outputs, 'output', 'chain_id, address, label, component, series_time')
 }
 
-export async function upsert(data: any, table: string, pk: string, where?: string, _client?: PoolClient) {
+export async function upsert(data: object, table: string, pk: string, where?: string, _client?: PoolClient) {
   await (_client ?? db).query(
     toUpsertSql(table, pk, data, where),
     Object.values(data)
   )
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function upsertBatch(batch: any[], table: string, pk: string, where?: string, _client?: PoolClient) {
   const client = _client ?? await db.connect()
   try {

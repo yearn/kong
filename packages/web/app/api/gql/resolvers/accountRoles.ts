@@ -3,7 +3,7 @@ import db from '@/app/api/db'
 import { zhexstring } from 'lib/types'
 import { snakeToCamelCols } from '@/lib/strings'
 
-const accountRoles = async (_: any, args: { chainId?: number, account: `0x${string}` }) => {
+const accountRoles = async (_: object, args: { chainId?: number, account: `0x${string}` }) => {
   const { chainId, account } = args
   try {
 

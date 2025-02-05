@@ -1,17 +1,17 @@
 import db from '@/app/api/db'
 
-const projects = async (_: any, args: { chainId?: number }) => {
+const projects = async (_: object, args: { chainId?: number }) => {
   const { chainId } = args
 
   try {
     const result = await db.query(`
-    SELECT 
+    SELECT
       thing.chain_id,
       thing.defaults as defaults,
       snapshot.hook as hook,
       snapshot.snapshot as snapshot
     FROM thing
-    JOIN snapshot 
+    JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
     WHERE thing.label = $1

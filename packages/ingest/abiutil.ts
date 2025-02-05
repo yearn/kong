@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import _path from 'path'
 
 export async function load(path: string) {
