@@ -8,7 +8,8 @@ export const topics = [
   'event NewProject(bytes32 indexed projectId, address indexed roleManager)'
 ].map(e => toEventSelector(e))
 
-export default async function process(chainId: number, address: `0x${string}`, data: object) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const { projectId, roleManager } = z.object({
     projectId: zhexstring,
     roleManager: EvmAddressSchema

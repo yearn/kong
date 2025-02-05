@@ -5,7 +5,8 @@ import { fetchOrExtractErc20, thingRisk } from '../../../lib'
 import { getRiskScore } from '../../../lib/risk'
 import { getStrategyMeta } from '../../../lib/meta'
 
-export default async function process(chainId: number, address: `0x${string}`, data: object) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const asset = await fetchOrExtractErc20(chainId, data.asset)
   const risk = await getRiskScore(chainId, address)
   const meta = await getStrategyMeta(chainId, address)

@@ -10,7 +10,8 @@ export const topics = [
   'event NewExperimentalVault(address indexed token, address indexed deployer, address vault, string api_version)'
 ].map(e => toEventSelector(e))
 
-export default async function process(chainId: number, address: `0x${string}`, data: object) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const { vault, token, api_version } = z.object({
     vault: zhexstring,
     token: zhexstring,

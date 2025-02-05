@@ -10,7 +10,7 @@ export const ResultSchema = z.object({
   performanceFeeThreshold: z.bigint().optional()
 })
 
-export default async function process(chainId: number, address: `0x${string}`, data: object) {
+export default async function process(chainId: number, address: `0x${string}`) {
   const vaults = await projectVaults(chainId, address)
   const thresholds = await extractHardCodedThresholds(chainId, address)
   return ResultSchema.parse({ vaults, ...thresholds })

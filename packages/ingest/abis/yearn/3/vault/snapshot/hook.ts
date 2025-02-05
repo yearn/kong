@@ -44,7 +44,8 @@ export const SnapshotSchema = z.object({
 
 type Snapshot = z.infer<typeof SnapshotSchema>
 
-export default async function process(chainId: number, address: `0x${string}`, data: object) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const snapshot = SnapshotSchema.parse(data)
   const strategies = await projectStrategies(chainId, address, undefined, snapshot)
   const roles = await projectRoles(chainId, address)

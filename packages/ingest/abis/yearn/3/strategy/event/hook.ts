@@ -28,7 +28,8 @@ export const HarvestSchema = z.object({
 
 export type Harvest = z.infer<typeof HarvestSchema>
 
-export default async function process(chainId: number, address: `0x${string}`, data: object) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const latestHarvest = HarvestSchema.parse({
     chainId, address, blockTime: await getBlockTime(chainId, data.blockNumber), ...data
   })
