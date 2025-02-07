@@ -1,7 +1,7 @@
 import db from '@/app/api/db'
 import { snakeToCamelCols } from '@/lib/strings'
 
-const tvls = async (_: any, args: { 
+const tvls = async (_: object, args: {
   chainId: number,
   address?: `0x${string}`,
   period?: string,
@@ -13,16 +13,16 @@ const tvls = async (_: any, args: {
   try {
     const result = await db.query(`
     WITH asset_info AS (
-      SELECT 
-        chain_id, 
-        address, 
-        defaults->>'asset' AS asset_address 
-      FROM thing 
+      SELECT
+        chain_id,
+        address,
+        defaults->>'asset' AS asset_address
+      FROM thing
       WHERE chain_id = $1
         AND (address = $2 OR $2 IS NULL)
     ),
     tvl_data AS (
-      SELECT 
+      SELECT
         o.chain_id,
         o.address,
         COALESCE(AVG(NULLIF(o.value, 0)), 0) AS value,
@@ -32,15 +32,15 @@ const tvls = async (_: any, args: {
         a.asset_address
       FROM output o
       JOIN asset_info a ON o.chain_id = a.chain_id AND o.address = a.address
-      WHERE o.chain_id = $1 
-        AND (o.address = $2 OR $2 IS NULL) 
+      WHERE o.chain_id = $1
+        AND (o.address = $2 OR $2 IS NULL)
         AND o.label = 'tvl'
         AND (o.block_time > to_timestamp($4) OR $4 IS NULL)
       GROUP BY o.chain_id, o.address, time, a.asset_address
       ORDER BY time ASC
       LIMIT $5
     )
-    SELECT 
+    SELECT
       t.chain_id,
       t.address,
       t.value,
@@ -50,9 +50,9 @@ const tvls = async (_: any, args: {
       COALESCE(p.price_usd, 0) AS price_usd,
       COALESCE(p.price_source, 'na') AS price_source
     FROM tvl_data t
-    LEFT JOIN price p 
-      ON t.chain_id = p.chain_id 
-      AND t.asset_address = p.address 
+    LEFT JOIN price p
+      ON t.chain_id = p.chain_id
+      AND t.asset_address = p.address
       AND t.block_number = p.block_number`,
     [chainId, address, period ?? '1 day', timestamp, limit ?? 100])
 

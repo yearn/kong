@@ -97,19 +97,19 @@ export default class Probe implements Processor {
     const query = `
       SELECT 'databaseSize' as property, pg_database_size($1) as value
       UNION SELECT 'clients', count(*) FROM pg_stat_activity
-      UNION SELECT 
+      UNION SELECT
         'cacheHitRate',
         ROUND(SUM(heap_blks_hit) / (SUM(heap_blks_hit) + SUM(heap_blks_read)), 4) AS value
-      FROM 
+      FROM
         pg_statio_user_tables
-      UNION SELECT 
+      UNION SELECT
         'indexHitRate',
         ROUND(SUM(idx_blks_hit) / (SUM(idx_blks_hit) + SUM(idx_blks_read)), 4)
-      FROM 
+      FROM
         pg_statio_user_indexes;`
     const dbStatusRows = (await db.query(query, [process.env.POSTGRES_DATABASE || 'user'])).rows
 
-    const result: { [key: string]: any } = {}
+    const result: { [key: string]: object } = {}
     for (const row of dbStatusRows) result[row.property] = row.value
     return { db: result}
   }
@@ -154,18 +154,18 @@ export default class Probe implements Processor {
     const totalMemory = os.totalmem()
     const freeMemory = os.freemem()
     const usedMemory = totalMemory - freeMemory
-  
+
     const cpus = os.cpus()
     let totalIdle = 0, totalTick = 0
     cpus.forEach(cpu => {
       totalTick += Object.values(cpu.times).reduce((a, b) => a + b, 0)
       totalIdle += cpu.times.idle
     })
-  
+
     const idle = totalIdle / cpus.length
     const total = totalTick / cpus.length
     const usage = (total - idle) / total
-  
+
     return {
       ingest: {
         cpu: { usage },
@@ -178,14 +178,14 @@ export default class Probe implements Processor {
   }
 
   private async fetchThingLabels() {
-    const query = `SELECT DISTINCT label FROM thing;`
+    const query = 'SELECT DISTINCT label FROM thing;'
     return (await db.query(query)).rows.map(row => row.label)
   }
 
   private async fetchTotals() {
     const labels = await this.fetchThingLabels()
     const query = `
-    WITH counts AS ( SELECT 
+    WITH counts AS ( SELECT
       (SELECT count(*) FROM thing)::int AS thing_total,
       ${labels.map(label => `(SELECT count(*) FROM thing WHERE label = '${label}')::int AS thing_${label}_total,`).join('\n')}
       (SELECT count(*) FROM output)::int AS output_total,
@@ -196,7 +196,7 @@ export default class Probe implements Processor {
   }
 
   private async fetchEventCounts() {
-    const query = `SELECT event_name, count(*) FROM evmlog GROUP BY event_name ORDER BY count DESC;`
+    const query = 'SELECT event_name, count(*) FROM evmlog GROUP BY event_name ORDER BY count DESC;'
     return (await db.query(query)).rows
   }
 

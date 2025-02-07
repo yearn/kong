@@ -13,7 +13,7 @@ import strategyAbi from '../abi'
 import vaultAbi from '../../vault/abi'
 
 export const topics = [
-  `event Harvested(uint256 profit, uint256 loss, uint256 debtPayment, uint256 debtOutstanding)`
+  'event Harvested(uint256 profit, uint256 loss, uint256 debtPayment, uint256 debtOutstanding)'
 ].map(e => toEventSelector(e))
 
 export const HarvestSchema = z.object({
@@ -31,6 +31,7 @@ export const HarvestSchema = z.object({
 
 type Harvest = z.infer<typeof HarvestSchema>
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const harvest = HarvestSchema.parse({
     chainId, address, ...data, blockTime: await getBlockTime(chainId, data.blockNumber)
@@ -55,9 +56,9 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
 async function fetchPreviousHarvest(harvest: Harvest) {
   const previousLog = await first<EvmLog>(EvmLogSchema, `
-  SELECT * from evmlog 
+  SELECT * from evmlog
   WHERE chain_id = $1 AND address = $2 AND signature = $3 AND block_number < $4
-  ORDER BY block_number DESC, log_index DESC 
+  ORDER BY block_number DESC, log_index DESC
   LIMIT 1`,
   [harvest.chainId, harvest.address, topics[0], harvest.blockNumber])
   if (!previousLog) return undefined
@@ -122,8 +123,8 @@ export async function computeApr(latest: Harvest, previous: Harvest | undefined)
   const loss = latest.args.loss
 
   const performance = (loss > profit)
-  ? math.div(-loss, previousDebt.totalDebt)
-  : math.div(profit, previousDebt.totalDebt)
+    ? math.div(-loss, previousDebt.totalDebt)
+    : math.div(profit, previousDebt.totalDebt)
 
   const periodInHours = Number(((latest.blockTime || 0n) - (previous.blockTime || 0n)) / (60n * 60n)) || 1
   const hoursInOneYear = 24 * 365

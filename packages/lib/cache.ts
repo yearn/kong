@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { Cache, caching } from 'cache-manager'
 import { redisStore } from 'cache-manager-redis-yet'
 
@@ -23,10 +25,10 @@ class __Cache {
 
   get wrap() {
     return this.__cache
-    ? (this.__cache as Cache).wrap.bind(this.__cache)
-    : async (key: string, fn: () => Promise<any>) => {
-      return await fn()
-    }
+      ? (this.__cache as Cache).wrap.bind(this.__cache)
+      : async (key: string, fn: () => Promise<any>) => {
+        return await fn()
+      }
   }
 
   async up() {
@@ -36,6 +38,7 @@ class __Cache {
         port: (process.env.REDIS_PORT || 6379) as number,
       }
     })
+     
     this.__cache = await caching(this.__store as any)
   }
 

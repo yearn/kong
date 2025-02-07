@@ -15,8 +15,10 @@ export const cutStartAndEndSlash = (str: string) => cutEndSlash(cutStartSlash(st
 
 export const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const snakeToCamelCols = (rows: any[]) => {
   return rows.map(row => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result: { [key: string]: any } = {}
     for (const key of Object.keys(row)) {
       result[snakeToCamel(key)] = row[key]

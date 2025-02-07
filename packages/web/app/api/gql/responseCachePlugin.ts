@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // adapted from https://github.com/apollographql/apollo-server/blob/597f6e1cb7abc65282737ff46d3c008bc8384c25/packages/plugin-response-cache/src/ApolloServerPluginResponseCache.ts
 
 import type { CacheHint } from '@apollo/cache-control-types'
@@ -234,7 +235,7 @@ export default function plugin<TContext extends BaseContext>(
           }
 
           // Call hooks. Save values which will be used in willSendResponse as well.
-          let extraCacheKeyData: any = null
+          let extraCacheKeyData: object | null = null
           if (options.sessionId) {
             sessionId = await options.sessionId(requestContext)
           }
@@ -365,7 +366,7 @@ export default function plugin<TContext extends BaseContext>(
             if (!options.sessionId) {
               logger.warn(
                 'A GraphQL response used @cacheControl or setCacheHint to set cache hints with scope ' +
-                  "Private, but you didn't define the sessionId hook for " +
+                  'Private, but you didn\'t define the sessionId hook for ' +
                   'apollo-server-plugin-response-cache. Not caching.',
               )
               return

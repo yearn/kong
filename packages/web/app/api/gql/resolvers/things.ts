@@ -1,7 +1,7 @@
 import db from '@/app/api/db'
 import { snakeToCamelCols } from '@/lib/strings'
 
-const things = async (_: any, args: { chainId?: number, labels: string[] }) => {
+const things = async (_: object, args: { chainId?: number, labels: string[] }) => {
   const { chainId, labels } = args
 
   try {

@@ -1,9 +1,9 @@
 import db from '@/app/api/db'
 import { compare } from '@/lib/compare'
 
-const vaults = async (_: any, args: { 
-  chainId?: number, 
-  apiVersion?: string, 
+const vaults = async (_: object, args: {
+  chainId?: number,
+  apiVersion?: string,
   erc4626?: boolean,
   v3?: boolean,
   yearn?: boolean
@@ -12,14 +12,14 @@ const vaults = async (_: any, args: {
   try {
 
     const result = await db.query(`
-    SELECT 
+    SELECT
       thing.chain_id,
       thing.address,
       thing.defaults,
       snapshot.snapshot,
       snapshot.hook
     FROM thing
-    JOIN snapshot 
+    JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
     WHERE thing.label = $1 AND (thing.chain_id = $2 OR $2 IS NULL)
@@ -36,7 +36,7 @@ const vaults = async (_: any, args: {
 
     if (apiVersion !== undefined) {
       rows = rows.filter(row => {
-        return compare(row.apiVersion ?? "0", apiVersion, '>=')
+        return compare(row.apiVersion ?? '0', apiVersion, '>=')
       })
     }
 

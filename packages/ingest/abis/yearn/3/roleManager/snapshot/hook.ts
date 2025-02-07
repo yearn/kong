@@ -19,7 +19,7 @@ const DefaultsSchema = z.object({
 
 type Defaults = z.infer<typeof DefaultsSchema>
 
-export default async function process(chainId: number, address: EvmAddress, data: any) {
+export default async function process(chainId: number, address: EvmAddress, data: object) {
   const snapshot = SnapshotSchema.parse(data)
   const projectName = parseProjectName(snapshot)
   const defaults = await fetchDefaults(chainId, address)
@@ -33,7 +33,7 @@ export function parseProjectName(snapshot: Snapshot) {
 
 async function fetchDefaults(chainId: number, address: EvmAddress) {
   const result = await db.query(
-    `SELECT defaults FROM thing WHERE chain_id = $1 AND address = $2`, 
+    'SELECT defaults FROM thing WHERE chain_id = $1 AND address = $2',
     [chainId, address]
   )
   if (!result.rows[0]) throw new Error(`Thing not found, ${chainId}:${address}`)

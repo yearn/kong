@@ -152,10 +152,10 @@ type YDaemonPrices = {
 function lowercaseAddresses(data: YDaemonPrices): YDaemonPrices {
   const result: YDaemonPrices = {}
   for (const outerKey in data) {
-      result[outerKey] = {}
-      for (const innerKey in data[outerKey]) {
-          result[outerKey][innerKey.toLowerCase()] = data[outerKey][innerKey]
-      }
+    result[outerKey] = {}
+    for (const innerKey in data[outerKey]) {
+      result[outerKey][innerKey.toLowerCase()] = data[outerKey][innerKey]
+    }
   }
   return result
 }

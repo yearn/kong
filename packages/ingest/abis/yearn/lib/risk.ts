@@ -33,6 +33,7 @@ async function extractRiskGroups(chainId: number) {
   )
 
   const json = await response.json()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const files = json.map((file: any) => file.path)
   const paths = files.filter((path: string) => path.endsWith('.json'))
   const responses = await Promise.all(paths.map((path: string) => fetch(

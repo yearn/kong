@@ -7,9 +7,10 @@ import { ThingSchema, zhexstring } from 'lib/types'
 import { fetchOrExtractErc20 } from '../../../lib'
 
 export const topics = [
-  `event NewEndorsedVault(address indexed vault, address indexed asset, uint256 releaseVersion, uint256 vaultType)`
+  'event NewEndorsedVault(address indexed vault, address indexed asset, uint256 releaseVersion, uint256 vaultType)'
 ].map(e => toEventSelector(e))
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const { vault, asset, vaultType } = z.object({
     vault: zhexstring,

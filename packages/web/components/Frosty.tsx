@@ -11,6 +11,6 @@ export default function Frosty(
     initial={{color: colors.yellow[300]}}
     animate={{color: disabled ? colors.yellow[950] : colors.yellow[700]}}
     className={className}>
-      {children}
+    {children}
   </motion.div>
 }

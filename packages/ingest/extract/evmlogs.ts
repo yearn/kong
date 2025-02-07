@@ -14,7 +14,7 @@ import { safeFetchOrExtractDecimals } from '../abis/yearn/lib'
 export class EvmLogsExtractor {
   resolveHooks: ResolveHooks|undefined
 
-  async extract(data: any) {
+  async extract(data: object) {
     if (!this.resolveHooks) this.resolveHooks = await requireHooks()
 
     const { abiPath, chainId, address, from, to, replay } = z.object({
@@ -31,8 +31,8 @@ export class EvmLogsExtractor {
     const excludeLimitlist = from < defaultStartBlockNumber
 
     const events = excludeLimitlist
-    ? abiutil.exclude([...blacklist.events.ignore, ...blacklist.events.limit], abiutil.events(abi))
-    : abiutil.exclude(blacklist.events.ignore, abiutil.events(abi))
+      ? abiutil.exclude([...blacklist.events.ignore, ...blacklist.events.limit], abiutil.events(abi))
+      : abiutil.exclude(blacklist.events.ignore, abiutil.events(abi))
 
     const logs = await (async () => {
       if (replay) {
@@ -127,9 +127,11 @@ export async function tooSmall(chainId: number, address: EvmAddress, args: any) 
   return math.div(BigInt(amount), 10n ** BigInt(decimals)) < 0.1
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function extractLogArgs(log: any) {
   if (!log.args) return {}
   if (Array.isArray(log.args)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return log.args.reduce((acc: any, arg: any, i: number) => {
       acc[`arg${i}`] = arg
       return acc
@@ -155,10 +157,10 @@ async function fetchLogs(chainId: number, address: `0x${string}`, from: bigint, 
       transaction_hash as "transactionHash",
       transaction_index as "transactionIndex"
     FROM evmlog
-    WHERE 
-      chain_id = $1 
-      AND address = $2 
-      AND block_number >= $3 
+    WHERE
+      chain_id = $1
+      AND address = $2
+      AND block_number >= $3
       AND block_number <= $4
       AND (event_name = $5 OR $5 IS NULL)
   `, [chainId, address, from, to, eventName])

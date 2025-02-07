@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { z } from 'zod'
-import { strings, types } from 'lib'
+import { strings } from 'lib'
 import { StrideSchema } from 'lib/types'
 import { Pool, PoolClient, types as pgTypes } from 'pg'
 import { snakeToCamelCols } from 'lib/strings'
@@ -15,7 +17,7 @@ pgTypes.setTypeParser(1184, (stringValue) => {
 const db = new Pool({
   host: process.env.POSTGRES_HOST ?? 'localhost',
   port: (process.env.POSTGRES_PORT ?? 5432) as number,
-  ssl: (process.env.POSTGRES_SSL ?? false) 
+  ssl: (process.env.POSTGRES_SSL ?? false)
     ? (process.env.POSTGRES_SSL_REJECT_UNAUTHORIZED ?? true)
       ? true
       : { rejectUnauthorized: false }
@@ -89,7 +91,7 @@ export async function getSparkline(chainId: number, address: string, label: stri
     ORDER BY "blockTime" DESC
     LIMIT 3;
   `, [chainId, address, label, component])
- 
+
   return z.object({
     chainId: z.number(),
     address: z.string(),
@@ -142,22 +144,22 @@ export async function getLatestApy(chainId: number, address: string) {
   }).parse(first)
 }
 
-export function toUpsertSql(table: string, pk: string, data: any, where?: string) {
+export function toUpsertSql(table: string, pk: string, data: object, where?: string) {
   const timestampConversionExceptions = [ 'profit_max_unlock_time' ]
 
-  const fields = Object.keys(data).map(key => 
+  const fields = Object.keys(data).map(key =>
     strings.camelToSnake(key)
   ) as string[]
 
   const columns = fields.join(', ')
 
-  const values = fields.map((field, index) => 
-    (field.endsWith('timestamp') || field.endsWith('time') && !timestampConversionExceptions.includes(field)) 
-    ? `to_timestamp($${index + 1}::double precision)`
-    : `$${index + 1}`
+  const values = fields.map((field, index) =>
+    (field.endsWith('timestamp') || field.endsWith('time') && !timestampConversionExceptions.includes(field))
+      ? `to_timestamp($${index + 1}::double precision)`
+      : `$${index + 1}`
   ).join(', ')
 
-  const updates = fields.map(field => 
+  const updates = fields.map(field =>
     `${field} = EXCLUDED.${field}`
   ).join(', ')
 
@@ -165,7 +167,7 @@ export function toUpsertSql(table: string, pk: string, data: any, where?: string
     INSERT INTO ${table} (${columns})
     VALUES (${values})
     ON CONFLICT (${pk})
-    DO UPDATE SET 
+    DO UPDATE SET
       ${updates}
     ${where || ''};
   `

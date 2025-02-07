@@ -8,7 +8,7 @@ import { getBlock } from 'lib/blocks'
 import { first } from '../../../../../db'
 
 export const topics = [
-  `event AddedNewVault(address indexed vault, address indexed debtAllocator, uint256 category)`
+  'event AddedNewVault(address indexed vault, address indexed debtAllocator, uint256 category)'
 ].map(e => toEventSelector(e))
 
 const HookSchema = z.object({
@@ -22,10 +22,11 @@ const HookSchema = z.object({
 
 type Hook = z.infer<typeof HookSchema>
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
-  const { 
-    number: inceptBlock, 
-    timestamp: inceptTime 
+  const {
+    number: inceptBlock,
+    timestamp: inceptTime
   } = await getBlock(chainId, data.blockNumber)
 
   const { vault, category } = z.object({
@@ -46,9 +47,9 @@ export default async function process(chainId: number, address: `0x${string}`, d
     throw new Error('Vault multicall failed')
   }
 
-  const hook = await first<Hook>(HookSchema, 
-    `SELECT hook FROM snapshot WHERE chain_id = $1 AND address = $2`, 
-  [chainId, address])
+  const hook = await first<Hook>(HookSchema,
+    'SELECT hook FROM snapshot WHERE chain_id = $1 AND address = $2',
+    [chainId, address])
 
   const { hook: { project: { id: projectId, name: projectName } } } = hook
 

@@ -21,8 +21,8 @@ export default class TimeseriesFanout {
       const outputLabel = hook.module.outputLabel
 
       const from = startBlock !== undefined
-      ? startBlock 
-      : math.max(inceptBlock, defaultStartBlockNumber, multicall3Activation)
+        ? startBlock 
+        : math.max(inceptBlock, defaultStartBlockNumber, multicall3Activation)
       const to = endBlock !== undefined ? endBlock : await getBlockNumber(chainId)
       const start = endOfDay(await getBlockTime(chainId, from))
       const end = endOfDay(await getBlockTime(chainId, to))
@@ -33,7 +33,7 @@ export default class TimeseriesFanout {
       WHERE chain_id = $1 AND address = $2 AND label = $3
       ORDER BY block_time ASC`, 
       [chainId, address, outputLabel]))
-      .rows.map(row => BigInt(row.block_time))
+        .rows.map(row => BigInt(row.block_time))
 
       const missing = findMissingTimestamps(start, end, computed)
       if (missing.length === 0 || missing[missing.length - 1] !== end) {

@@ -23,11 +23,18 @@ abis:
   - abiPath: 'yearn/3/registry2'
     sources: [
       { chainId: 1, address: '0xff31A1B020c868F6eA3f61Eb953344920EeCA3af', inceptBlock: 19072527 },
+      { chainId: 1, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 20966875 },
       { chainId: 100, address: '0xff31A1B020c868F6eA3f61Eb953344920EeCA3af', inceptBlock: 32902749 },
+      { chainId: 100, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 126847258 },
       { chainId: 137, address: '0xff31A1B020c868F6eA3f61Eb953344920EeCA3af', inceptBlock: 52488140 },
+      { chainId: 137, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 63167078 },
       { chainId: 146, address: '0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038', inceptBlock: 4459165 },
+      { chainId: 146, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 307793 },
       { chainId: 8453, address: '0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038', inceptBlock: 22344791 },
+      { chainId: 8453, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 21261966 },
       { chainId: 42161, address: '0xff31A1B020c868F6eA3f61Eb953344920EeCA3af', inceptBlock: 171850013 },
+      { chainId: 42161, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 265347635 },
+      { chainId: 80094, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 827648 }
     ]
 
   - abiPath: 'yearn/3/vaultFactory'
@@ -44,7 +51,8 @@ abis:
       { chainId: 8453, address: '0x770D0d1Fb036483Ed4AbB6d53c1C88fb277D812F', inceptBlock: 21802552 },
       { chainId: 34443, address: '0xE9E8C89c8Fc7E8b8F23425688eb68987231178e5', inceptBlock: 4574184 },
       { chainId: 42161, address: '0x444045c5C13C246e117eD36437303cac8E250aB0', inceptBlock: 187480878 },
-      { chainId: 42161, address: '0x770D0d1Fb036483Ed4AbB6d53c1C88fb277D812F', inceptBlock: 269623414 }
+      { chainId: 42161, address: '0x770D0d1Fb036483Ed4AbB6d53c1C88fb277D812F', inceptBlock: 269623414 },
+      { chainId: 80094, address: '0x770D0d1Fb036483Ed4AbB6d53c1C88fb277D812F', inceptBlock: 827640 }
     ]
 
   - abiPath: 'yearn/3/vault'
@@ -83,7 +91,10 @@ abis:
     sources: [
       { chainId: 1, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 20974081 },
       { chainId: 137, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 63167272 },
-      { chainId: 146, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 307805 }
+      { chainId: 146, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 307805 },
+      { chainId: 8453, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 25064422 },
+      { chainId: 34443, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 4574184 },
+      { chainId: 80094, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 827660 }
     ]
 
   - abiPath: 'yearn/3/roleManager'

@@ -38,51 +38,51 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
   return OutputSchema.array().parse([
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'net', value: apy.net
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'grossApr', value: apy.grossApr
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'pricePerShare', value: Number(apy.pricePerShare)
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'weeklyNet', value: apy.weeklyNet
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'weeklyPricePerShare', value: Number(apy.weeklyPricePerShare)
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'weeklyBlockNumber', value: Number(apy.weeklyBlockNumber)
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'monthlyNet', value: apy.monthlyNet
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'monthlyPricePerShare', value: Number(apy.monthlyPricePerShare)
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'monthlyBlockNumber', value: Number(apy.monthlyBlockNumber)
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'inceptionNet', value: apy.inceptionNet
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'inceptionPricePerShare', value: Number(apy.inceptionPricePerShare)
     },
     {
-      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime, 
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'inceptionBlockNumber', value: Number(apy.inceptionBlockNumber)
     }
   ])
@@ -132,7 +132,7 @@ export async function _compute(vault: Thing, blockNumber: bigint) {
   const blocksPerDay = (blockNumber - result.weeklyBlockNumber) / 7n
 
   result.weeklyNet = result.weeklyPricePerShare === undefined ? undefined : compoundAndAnnualizeDelta(
-    { block: result.weeklyBlockNumber, pps: result.weeklyPricePerShare }, 
+    { block: result.weeklyBlockNumber, pps: result.weeklyPricePerShare },
     { block: blockNumber, pps: result.pricePerShare }, blocksPerDay
   )
 
@@ -147,19 +147,19 @@ export async function _compute(vault: Thing, blockNumber: bigint) {
   )
 
   const candidates: (number | undefined)[] = []
-	if(chainId !== mainnet.id) {
-		candidates.push(result.weeklyNet, result.monthlyNet, result.inceptionNet)
-	} else {
-		candidates.push(result.monthlyNet, result.weeklyNet, result.inceptionNet)
-	}
+  if(chainId !== mainnet.id) {
+    candidates.push(result.weeklyNet, result.monthlyNet, result.inceptionNet)
+  } else {
+    candidates.push(result.monthlyNet, result.weeklyNet, result.inceptionNet)
+  }
 
   result.net = candidates.find(apy => apy !== undefined) ?? (() => { throw new Error('!candidates') })()
 
   const annualCompoundingPeriods = 52
 
   const netApr = result.net > 0
-  ? annualCompoundingPeriods * Math.pow(result.net + 1, 1 / annualCompoundingPeriods) - annualCompoundingPeriods
-  : 0
+    ? annualCompoundingPeriods * Math.pow(result.net + 1, 1 / annualCompoundingPeriods) - annualCompoundingPeriods
+    : 0
 
   result.grossApr = netApr
 
@@ -167,12 +167,11 @@ export async function _compute(vault: Thing, blockNumber: bigint) {
 }
 
 function compoundAndAnnualizeDelta(
-  before: { block: bigint, pps: bigint }, 
-  after: { block: bigint, pps: bigint }, 
+  before: { block: bigint, pps: bigint },
+  after: { block: bigint, pps: bigint },
   blocksPerDay: bigint
 ) {
-	const delta = math.div(after.pps - before.pps, before.pps || 1n)
-  const period = math.div((BigInt(after.block) - BigInt
-  (before.block)), blocksPerDay)
+  const delta = math.div(after.pps - before.pps, before.pps || 1n)
+  const period = math.div((BigInt(after.block) - BigInt(before.block)), blocksPerDay)
   return Math.pow(1 + delta, 365.2425 / period) - 1
 }

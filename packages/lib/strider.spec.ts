@@ -9,16 +9,16 @@ describe('strider', function() {
 
   it('plans around previous strides', async function() {
     expect(plan(0n, 100n, [{ from: 0n, to: 50n }]))
-    .to.deep.equal([{ from: 51n, to: 100n }])
+      .to.deep.equal([{ from: 51n, to: 100n }])
 
     expect(plan(0n, 100n, [{ from: 50n, to: 100n }]))
-    .to.deep.equal([{ from: 0n, to: 49n }])
+      .to.deep.equal([{ from: 0n, to: 49n }])
 
     expect(plan(0n, 100n, [{ from: 10n, to: 20n }, { from: 70n, to: 90n }]))
-    .to.deep.equal([{ from: 0n, to: 9n }, { from: 21n, to: 69n }, { from: 91n, to: 100n }])
+      .to.deep.equal([{ from: 0n, to: 9n }, { from: 21n, to: 69n }, { from: 91n, to: 100n }])
 
     expect(plan(0n, 100n, [{ from: 10n, to: 20n }, { from: 70n, to: 90n }, { from: 200n, to: 300n }]))
-    .to.deep.equal([{ from: 0n, to: 9n }, { from: 21n, to: 69n }, { from: 91n, to: 100n }])
+      .to.deep.equal([{ from: 0n, to: 9n }, { from: 21n, to: 69n }, { from: 91n, to: 100n }])
   })
 
   it('adds strides', async function() {

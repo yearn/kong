@@ -1,6 +1,6 @@
 import db from '@/app/api/db'
 
-const transfers = async (_: any, args: { chainId: number, address: string }) => {
+const transfers = async (_: object, args: { chainId: number, address: string }) => {
   const { chainId, address } = args
   try {
     const result = await db.query(`
@@ -24,7 +24,7 @@ const transfers = async (_: any, args: { chainId: number, address: string }) => 
       AND args->>'receiver' IS NOT NULL
     ORDER BY
       chain_id, block_time DESC, log_index DESC
-    LIMIT 100;`, 
+    LIMIT 100;`,
     [chainId, address])
 
     return result.rows

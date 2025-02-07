@@ -1,12 +1,12 @@
 import db from '@/app/api/db'
 import { snakeToCamelCols } from '@/lib/strings'
 
-const prices = async (_: any, args: { chainId?: number, address?: `0x${string}`, timestamp?: bigint }) => {
+const prices = async (_: object, args: { chainId?: number, address?: `0x${string}`, timestamp?: bigint }) => {
   const { chainId, address, timestamp } = args
   try {
 
     const result = await db.query(`
-    SELECT 
+    SELECT
       chain_id as "chainId",
       address,
       price_usd as "priceUsd",

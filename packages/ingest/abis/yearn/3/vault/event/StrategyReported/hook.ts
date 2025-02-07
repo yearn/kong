@@ -10,7 +10,7 @@ import { rpcs } from '../../../../../../rpcs'
 import { math } from 'lib'
 
 export const topics = [
-  `event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 current_debt, uint256 protocol_fees, uint256 total_fees, uint256 total_refunds)`
+  'event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 current_debt, uint256 protocol_fees, uint256 total_fees, uint256 total_refunds)'
 ].map(e => toEventSelector(e))
 
 export const HarvestSchema = z.object({
@@ -32,6 +32,7 @@ export const HarvestSchema = z.object({
 
 export type Harvest = z.infer<typeof HarvestSchema>
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const harvest = HarvestSchema.parse({
     chainId, address, blockTime: await getBlockTime(chainId, data.blockNumber), ...data
@@ -58,14 +59,14 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
 async function fetchPreviousHarvest(harvest: Harvest) {
   const previousLog = await first<EvmLog>(EvmLogSchema, `
-  SELECT * from evmlog 
-  WHERE 
+  SELECT * from evmlog
+  WHERE
     chain_id = $1
     AND address = $2
     AND signature = $3
     AND (block_number < $4 OR block_number = $4 AND log_index < $6)
     AND args->>'strategy' = $5
-  ORDER BY block_number DESC, log_index DESC 
+  ORDER BY block_number DESC, log_index DESC
   LIMIT 1`,
   [harvest.chainId, harvest.address, topics[0], harvest.blockNumber, harvest.args.strategy, harvest.logIndex])
   if (!previousLog) return undefined
@@ -96,12 +97,12 @@ export async function computeApr(latest: Harvest, previous: Harvest | undefined)
   const fees = BigInt(await performanceFee(latest))
 
   const grossPerformance = (loss > profit)
-  ? math.div(-loss, previous.args.current_debt)
-  : math.div(profit, previous.args.current_debt)
+    ? math.div(-loss, previous.args.current_debt)
+    : math.div(profit, previous.args.current_debt)
 
   const netPerformance = (loss > profit)
-  ? math.div(-loss, previous.args.current_debt)
-  : math.div(math.max(profit - fees, 0n), previous.args.current_debt)
+    ? math.div(-loss, previous.args.current_debt)
+    : math.div(math.max(profit - fees, 0n), previous.args.current_debt)
 
   const periodInHours = Number(((latest.blockTime || 0n) - (previous.blockTime || 0n)) / (60n * 60n)) || 1
   const hoursInOneYear = 24 * 365

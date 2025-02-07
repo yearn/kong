@@ -1,6 +1,6 @@
 import db from '@/app/api/db'
 
-const accountStrategies = async (_: any, args: { chainId?: number, account: `0x${string}` }) => {
+const accountStrategies = async (_: object, args: { chainId?: number, account: `0x${string}` }) => {
   const { chainId, account } = args
   try {
 
@@ -11,16 +11,16 @@ const accountStrategies = async (_: any, args: { chainId?: number, account: `0x$
         thing.chain_id,
         jsonb_array_elements_text(snapshot.hook->'strategies') AS address
       FROM thing
-      JOIN snapshot 
+      JOIN snapshot
         ON thing.chain_id = snapshot.chain_id
         AND thing.address = snapshot.address
-      WHERE 
-        thing.label = $1 
+      WHERE
+        thing.label = $1
         AND (thing.chain_id = $2 OR $2 IS NULL)
         AND snapshot.hook @> $3::jsonb
     )
 
-    SELECT 
+    SELECT
       thing.chain_id,
       thing.address,
       thing.defaults,
@@ -30,7 +30,7 @@ const accountStrategies = async (_: any, args: { chainId?: number, account: `0x$
     JOIN strategies
       ON thing.chain_id = strategies.chain_id
       AND thing.address = strategies.address
-    JOIN snapshot 
+    JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
     WHERE thing.label = $4 AND (thing.chain_id = $2 OR $2 IS NULL);`,

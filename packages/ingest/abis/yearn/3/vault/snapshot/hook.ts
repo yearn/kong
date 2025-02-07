@@ -44,6 +44,7 @@ export const SnapshotSchema = z.object({
 
 type Snapshot = z.infer<typeof SnapshotSchema>
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const snapshot = SnapshotSchema.parse(data)
   const strategies = await projectStrategies(chainId, address, undefined, snapshot)
@@ -83,9 +84,9 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
   await thingRisk(risk)
 
-  return { 
-    asset, strategies, allocator, roles, debts, fees, 
-    risk, meta: { ...meta, token }, 
+  return {
+    asset, strategies, allocator, roles, debts, fees,
+    risk, meta: { ...meta, token },
     sparklines,
     tvl: sparklines.tvl[0],
     apy
@@ -121,11 +122,11 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
 export async function projectDebtAllocator(chainId: number, vault: `0x${string}`) {
   const topic = toEventSelector('event NewDebtAllocator(address indexed allocator, address indexed vault)')
   const events = await db.query(`
-  SELECT args 
-  FROM evmlog 
+  SELECT args
+  FROM evmlog
   WHERE chain_id = $1 AND signature = $2 AND args->>'vault' = $3
   ORDER BY block_number DESC, log_index DESC
-  LIMIT 1`, 
+  LIMIT 1`,
   [chainId, topic, vault])
   if(events.rows.length === 0) return undefined
   return zhexstring.parse(events.rows[0].args.allocator)
@@ -135,13 +136,13 @@ export async function projectRoles(chainId: number, vault: `0x${string}`) {
   const topic = toEventSelector('event RoleSet(address indexed account, uint256 indexed role)')
   const roles = await db.query(`
   WITH ranked AS (
-    SELECT 
+    SELECT
       args->>'account' as account,
       (args->>'role')::bigint as role_mask,
       ROW_NUMBER() OVER(PARTITION BY args->'account' ORDER BY block_number DESC, log_index DESC) AS rn
-    FROM evmlog 
-    WHERE 
-      chain_id = $1 
+    FROM evmlog
+    WHERE
+      chain_id = $1
       AND address = $2
       AND signature = $3
     ORDER BY block_number DESC, log_index DESC
@@ -157,7 +158,7 @@ export async function projectRoles(chainId: number, vault: `0x${string}`) {
 }
 
 function appendRoleManagerPseudoRole(
-  roles: { account: `0x${string}`, roleMask: bigint }[], 
+  roles: { account: `0x${string}`, roleMask: bigint }[],
   roleManager: `0x${string}`
 ) {
   const account = roles.find(r => r.account === roleManager)
@@ -216,16 +217,16 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
       const multicall = await rpcs.next(chainId).multicall({ contracts })
 
       const [activation, lastReport, currentDebt, maxDebt] = multicall[0].result
-      ? multicall[0].result! as [bigint, bigint, bigint, bigint]
-      : [0n, 0n, 0n, 0n] as [bigint, bigint, bigint, bigint]
+        ? multicall[0].result! as [bigint, bigint, bigint, bigint]
+        : [0n, 0n, 0n, 0n] as [bigint, bigint, bigint, bigint]
 
       const targetDebtRatio = multicall[1]?.result
-      ? Number(multicall[1].result)
-      : undefined
+        ? Number(multicall[1].result)
+        : undefined
 
-      const maxDebtRatio = multicall[2]?.result 
-      ? Number(multicall[2].result) 
-      : undefined
+      const maxDebtRatio = multicall[2]?.result
+        ? Number(multicall[2].result)
+        : undefined
 
       const price = await fetchErc20PriceUsd(chainId, asset)
 

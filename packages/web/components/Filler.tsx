@@ -35,8 +35,7 @@ const Filler: React.FC<FillerProps> = ({
   return (
     <div 
       ref={containerRef} 
-      className={`overflow-hidden font-mono whitespace-pre text-base leading-none ${className}`}
-    >
+      className={`overflow-hidden font-mono whitespace-pre text-base leading-none ${className}`}>
       {text}
     </div>
   )

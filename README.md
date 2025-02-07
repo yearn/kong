@@ -45,7 +45,7 @@ Kong's Yearn index covers the v3 and v2 vault ecosystems:
 ### abis.yaml x ingest/abis
 Kong implements a convention-based relationship between `abis.yaml` and the special repo path `packages/ingest/abis`. Add a contract to the index like this:
 
-- Make a path under `ingest/abis`, eg `ingest/abis/yearn/3/registry` 
+- Make a path under `ingest/abis`, eg `ingest/abis/yearn/3/registry`
 
 - Add the contract's abi to the project as abi.ts, eg `ingest/abis/yearn/3/registry/abi.ts`
 
@@ -55,7 +55,7 @@ Kong implements a convention-based relationship between `abis.yaml` and the spec
 
 - "Things" in kong are analogous to "entities" in conventional etl design.
 
-- Use hooks to create things. 
+- Use hooks to create things.
 
 - Use things as abi sources for more indexing.
 
@@ -86,7 +86,7 @@ For example,
     filter: [{ field: 'apiVersion', op: '>=', value: '3.0.0' }]
   }
 ```
-Three abis are configured, two registries and a vault. The first registry is being skipped by setting the optional `skip` to true. The second registry specifies three static addresses as sources, but uses the optional `only` flag to narrow the sources to one. 
+Three abis are configured, two registries and a vault. The first registry is being skipped by setting the optional `skip` to true. The second registry specifies three static addresses as sources, but uses the optional `only` flag to narrow the sources to one.
 
 The vault abi sources addresses from things labeled 'vault' and filters them by apiVersion. For this to work, a registry event hook would loads new vaults as things. For example,
 ```typescript
@@ -96,7 +96,7 @@ export const topics = [
 
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
 
-  // processing and extract code 
+  // processing and extract code
 
   await mq.add(mq.job.load.thing, ThingSchema.parse({
     chainId,
@@ -217,7 +217,7 @@ Kong resources are managed monorepo style using a yarn workspace.
 
 `Testing` - Kong uses mocha\chai for testing. Tests are co-located with the code they test.
 
-`yaml config` - Kong's indexing set is defined by yaml file. 
+`yaml config` - Kong's indexing set is defined by yaml file.
 
 `.env config` - RPC urls and other core settings are defined in .env.
 
@@ -227,7 +227,7 @@ Kong resources are managed monorepo style using a yarn workspace.
 ## Schema
 
 ### thing
-Thing records define domain objects tracked by the indexer. 
+Thing records define domain objects tracked by the indexer.
 
 | column_name | data_type | is_nullable | column_default |
 |-------------|-----------|-------------|----------------|
@@ -313,7 +313,7 @@ desc limit 1;
 
 
 ### evmlog_strides
-The strides table records which blocks have been queried for logs for all of the indexer's domain objects. 
+The strides table records which blocks have been queried for logs for all of the indexer's domain objects.
 
 | column_name | data_type | is_nullable | column_default |
 |-------------|-----------|-------------|----------------|
@@ -332,9 +332,9 @@ A strides array that looks like `[{"from":"19419991","to":"19800000"}, {"from":"
 ## Motivation
 Robust indexing is tough. Some observations,
 
-- Indexers spend a lot of time waiting for external things to respond. Kong's approach is high concurrency and batching.
+- Indexers spend most of their time waiting for external things to respond. But lots of threads waiting on stuff is wasteful. Kong emphasizes concurrency over threading.
 
-- Reindexing is expensive. Kong is designed for replayability.
+- Deterministic indexing is expensive and cumbersome. So kong is designed to handle events out of order. This improves historical indexing times and enables the replay of arbitrary block ranges on any domain object.
 
 - It's hard to separate domain from indexer logic, but crucial for testing and growth. Kong uses indexer hooks to separate these concerns.
 
@@ -389,4 +389,20 @@ Kong uses viem to interface with rpcs. Because viem is new and changing often, a
 
 
 ## Production
-Kong is hosted on Render. See render.yaml for details.
+
+| component | host |
+|-------------|-----------|
+| Ingest    | [render.com](render.com)   |
+| Redis    | [render.com](render.com)   |
+| Postgres    | [neon.tech](neon.tech)   |
+| GraphQL    | [vercel.com](vercel.com)   |
+| Cache    | [turso.com](turso.com)   |
+
+
+
+
+
+
+
+
+

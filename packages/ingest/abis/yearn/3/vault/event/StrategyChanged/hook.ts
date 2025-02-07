@@ -7,18 +7,18 @@ import { rpcs } from '../../../../../../rpcs'
 import strategyAbi from '../../../strategy/abi'
 
 export const topics = [
-  `event StrategyChanged(address indexed strategy, uint256 change_type)`
+  'event StrategyChanged(address indexed strategy, uint256 change_type)'
 ].map(e => toEventSelector(e))
 
-export default async function process(chainId: number, address: `0x${string}`, data: any) {
+export default async function process(chainId: number, address: `0x${string}`, data: object) {
   const { args: { strategy }, blockNumber } = z.object({
     blockNumber: z.bigint({ coerce: true }),
     args: z.object({ strategy: EvmAddressSchema })
   }).parse(data)
 
   const {
-    number: inceptBlock, 
-    timestamp: inceptTime 
+    number: inceptBlock,
+    timestamp: inceptTime
   } = await estimateCreationBlock(chainId, strategy)
 
   const asset = await rpcs.next(chainId, blockNumber).readContract({
