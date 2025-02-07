@@ -1,17 +1,18 @@
 import { mainnet, optimism, gnosis, polygon, fantom, base, arbitrum } from 'viem/chains'
 import { customChains } from './chains'
-const { mode, sonic } = customChains
+const { mode, sonic, bera } = customChains
 
 export const activations = {
-  [mainnet.id]: 14353601n,
-  [optimism.id]: 4286263n,
-  [gnosis.id]: 21022491n,
-  [polygon.id]: 25770160n,
-  [fantom.id]: 33001987n,
-  [base.id]: 5022n,
-  [arbitrum.id]: 7654707n,
-  [mode.id]: 2465882n,
-  [sonic.id]: 60n
+  [mainnet.id]: BigInt(mainnet.contracts.multicall3.blockCreated),
+  [optimism.id]: BigInt(optimism.contracts.multicall3.blockCreated),
+  [gnosis.id]: BigInt(gnosis.contracts.multicall3.blockCreated),
+  [polygon.id]: BigInt(polygon.contracts.multicall3.blockCreated),
+  [sonic.id]: BigInt(sonic.contracts.multicall3.blockCreated),
+  [fantom.id]: BigInt(fantom.contracts.multicall3.blockCreated),
+  [base.id]: BigInt(base.contracts.multicall3.blockCreated),
+  [mode.id]: BigInt(mode.contracts.multicall3.blockCreated),
+  [arbitrum.id]: BigInt(arbitrum.contracts.multicall3.blockCreated),
+  [bera.id]: BigInt(bera.contracts.multicall3.blockCreated)
 }
 
 export function getActivation(chainId: number) {
