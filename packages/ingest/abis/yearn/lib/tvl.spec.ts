@@ -1,23 +1,23 @@
-import { expect } from "chai";
-import { _compute } from "./tvl";
-import { ThingSchema } from "lib/types";
-import { addresses } from "../../../test.fixture";
+import { expect } from 'chai'
+import { _compute } from './tvl'
+import { ThingSchema } from 'lib/types'
+import { addresses } from '../../../test.fixture'
 
-describe("abis/yearn/lib/tvl", function () {
-  it("yvWETH 0.4.2 @ block 18417431", async function () {
+describe('abis/yearn/lib/tvl', function () {
+  it('yvWETH 0.4.2 @ block 18417431', async function () {
     const yvweth = ThingSchema.parse({
       chainId: 1,
       address: addresses.v2.yvweth,
-      label: "vault",
+      label: 'vault',
       defaults: {
-        apiVersion: "0.4.2",
-        registry: "0xe15461b18ee31b7379019dc523231c57d1cbc18c",
+        apiVersion: '0.4.2',
+        registry: '0xe15461b18ee31b7379019dc523231c57d1cbc18c',
         asset: addresses.v2.weth,
         decimals: 18,
         inceptBlock: 12588794,
         inceptTime: 1623088086,
       },
-    });
+    })
 
     const blockNumber = 18417431n
     const { priceUsd, tvl } = await _compute(yvweth, blockNumber)
