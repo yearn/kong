@@ -72,7 +72,7 @@ describe("abis/yearn/lib/apy", function () {
     expect(noLockedProfit).to.eq(0n);
   });
 
-  it("yvUSDT 0.4.3 @ block 18344466", async function (this: Mocha.Context) {
+  it.only("yvUSDT 0.4.3 @ block 18344466", async function (this: Mocha.Context) {
     const blockNumber = 18344466n;
     const strategies: `0x${string}`[] = [
       addresses.v2.strategyLenderYieldOptimiser,

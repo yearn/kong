@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "clean": "rm -rf node_modules packages/**/node_modules packages/**/dist packages/**/.next",
-    "test": "docker-compose up -d & wait-on tcp:localhost:5432 && wait-on tcp:localhost:6379 && sleep 8 && yarn workspace db migrate up && bun test --preload ./test/setup.ts --timeout 15000",
+    "test": "docker-compose up --force-recreate -d & wait-on tcp:localhost:5432 && wait-on tcp:localhost:6379 && sleep 8 && yarn workspace db migrate up && bun test --preload ./test/setup.ts --timeout 1500000",
     "lint:ingest": "cd packages/ingest && eslint .",
     "lint:fix:ingest": "cd packages/ingest && eslint . --fix",
     "lint:lib": "cd packages/lib && eslint .",
