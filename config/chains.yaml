@@ -4,9 +4,10 @@ chains: [
   'optimism',
   'gnosis',
   'polygon',
+  'sonic',
   'fantom',
   'base',
-  'arbitrum',
   'mode',
-  'sonic'
+  'arbitrum',
+  'bera'
 ]
