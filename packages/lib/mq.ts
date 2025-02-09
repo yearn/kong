@@ -6,7 +6,8 @@ export const q = {
   fanout: 'fanout',
   extract: 'extract',
   load: 'load',
-  probe: 'probe'
+  probe: 'probe',
+  logs: 'logs'
 }
 
 export const job: { [queue: string]: { [job: string]: Job } } = {
@@ -37,6 +38,10 @@ export const job: { [queue: string]: { [job: string]: Job } } = {
 
   probe: {
     all: { queue: 'probe', name: 'all' }
+  },
+
+  logs: {
+    logs: { queue: 'logs', name: 'logs' }
   }
 }
 
@@ -51,7 +56,7 @@ export const job: { [queue: string]: { [job: string]: Job } } = {
 export const LOWEST_PRIORITY = 2 ** 21
 const DEFAULT_PRIORITY = 100
 
-const bull = { connection: {
+export const bull = { connection: {
   host: process.env.REDIS_HOST || 'localhost',
   port: (process.env.REDIS_PORT || 6379) as number,
 }}
