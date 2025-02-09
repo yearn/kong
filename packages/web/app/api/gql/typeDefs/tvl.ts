@@ -5,7 +5,7 @@ type Tvl {
   chainId: Int!
   address: String!
   value: Float!
-  priceUsd: Float!
+  priceUsd: Float
   priceSource: String!
   period: String!
   blockNumber: Int!

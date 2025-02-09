@@ -47,7 +47,7 @@ const tvls = async (_: object, args: {
       t.period,
       t.block_number,
       t.time,
-      COALESCE(p.price_usd, 0) AS price_usd,
+      p.price_usd,
       COALESCE(p.price_source, 'na') AS price_source
     FROM tvl_data t
     LEFT JOIN price p
