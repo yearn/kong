@@ -9,13 +9,13 @@ Kong comes configured with an index over Yearn Finance's v2 and v3 vault ecosyst
 
 
 ## Requirements
-- node, yarn, make, tmux, docker, docker compose, postgresql-client
+- node, bun, make, tmux, docker, docker compose, postgresql-client
 - ♥ for zoo animals
 
 
 ## Quick start
 ```bash
-yarn
+bun install
 cp .env.example .env
 # configure .env
 make dev
@@ -155,10 +155,10 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 ### testing
 `make test` - test everything
 
-`yarn workspace <workspace> test` - test individual workspaces
+`bun --filter <workspace> test` - test individual workspaces
 
 ```bash
-yarn workspace ingest test
+bun --filter ingest test
 ```
 
 ### tmux
@@ -171,18 +171,18 @@ yarn workspace ingest test
 `scroll` - `ctrl+b` then `[` then `arrow keys` or `page up\down keys` then `q` to quit scroll mode
 
 ### database migrations
-**create** - `yarn workspace db migrate create <migration-name> --sql-file`
+**create** - `bun --filter db migrate create <migration-name> --sql-file`
 
-**up** - `yarn workspace db migrate up [name|-c count|...]`
+**up** - `bun --filter db migrate up [name|-c count|...]`
 
-**down** - `yarn workspace db migrate down [-c count|...]`
+**down** - `bun --filter db migrate down [-c count|...]`
 
 ### timescale
 **hypertable size** - `SELECT hypertable_size('table name');`
 
 
 ## Monorepo layout
-Kong resources are managed monorepo style using a yarn workspace.
+Kong resources are managed monorepo style using a workspace.
 
 `.env` - core config
 
@@ -385,7 +385,7 @@ Timescale has to be manually installed on top of postgres in the render environm
 
 
 ### viem, https://viem.sh
-Kong uses viem to interface with rpcs. Because viem is new and changing often, all of kong's package.json files are hardcoded with the same viem version. To upgrade viem, manually update all package/package.json files then run `yarn` from root.
+Kong uses viem to interface with rpcs. Because viem is new and changing often, all of kong's package.json files are hardcoded with the same viem version. To upgrade viem, manually update all package/package.json files then run `bun install` from root.
 
 
 ## Production
