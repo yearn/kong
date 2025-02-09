@@ -2,6 +2,7 @@ import { expect } from 'chai'
 import { mainnet } from 'viem/chains'
 import { getStrategyMeta, getTokenMeta, getVaultMeta } from './meta'
 import { zeroAddress } from 'viem'
+import { describe, it } from 'bun:test'
 
 describe('abis/yearn/lib/meta', function () {
   it('extracts vault meta', async function () {

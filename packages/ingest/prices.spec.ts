@@ -2,7 +2,8 @@ import { expect } from 'chai'
 import { mainnet } from 'viem/chains'
 import { fetchErc20PriceUsd } from './prices'
 import { beforeAll, describe, it } from 'bun:test'
-describe('prices', function () {
+
+describe.only('prices', function () {
   let block: bigint
   beforeAll(function () {
     setTimeout(() => {}, 2 * 60_000)
