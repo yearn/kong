@@ -11,8 +11,8 @@ crons:
     schedule: "*/2 * * * * *" # every 2 seconds
     start: true
 
-  - name: ErrorsTracker
-    queue: errors-tracker
-    job: errors-tracker
-    schedule: "*/15 * * * * *" # every 15 minutes
+  - name: ErrorsAgent
+    queue: agent
+    job: errors
+    schedule: "*/2 * * * * *" # every 2 seconds
     start: true
