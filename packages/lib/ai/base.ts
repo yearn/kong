@@ -6,5 +6,5 @@ export interface Prompt {
 }
 
 export interface AiConnector {
-  compute<T>(prompt: Prompt, outputSchema: z.ZodSchema, outputKey: string): Promise<T>;
+  compute<T>(prompt: Prompt, outputSchema: z.ZodSchema, outputKey: string): Promise<T | null>;
 }

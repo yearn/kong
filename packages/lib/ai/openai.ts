@@ -12,7 +12,12 @@ export class OpenAIConnector implements AiConnector {
     })
   }
 
-  async compute<T>(prompt: Prompt, outputSchema: ZodType, outputKey: string): Promise<T> {
+  async compute<T>(prompt: Prompt, outputSchema: ZodType, outputKey: string): Promise<T | null> {
+    if(!process.env.OPENAI_API_KEY) {
+      console.log('😭 OPENAI_API_KEY is not set')
+      return null
+    }
+
     const completion = await this.client.beta.chat.completions.parse({
       model: 'gpt-4o',
       messages: [{ role: 'system', content: prompt.system}, {
