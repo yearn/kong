@@ -1,2 +1,3 @@
 [test]
 preload = ["./setup-tests.ts"]
+no-clear-screen = true

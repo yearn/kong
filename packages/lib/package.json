@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "main": "index.ts",
   "license": "MIT",
+  "scripts": {
+    "test": "bun test --timeout 1500000 --preload ./setup-tests.ts"
+  },
   "dependencies": {
     "bullmq": "^4.7.3",
     "cache-manager": "^5.2.3",
@@ -20,11 +23,9 @@
     "@eslint/js": "^9.19.0",
     "@types/chai": "^4.3.6",
     "@types/js-yaml": "^4.0.8",
-    "@types/mocha": "^10.0.1",
     "@typescript-eslint/eslint-plugin": "^8.23.0",
     "@typescript-eslint/parser": "^8.23.0",
     "chai": "^4.3.8",
-    "eslint": "^9.19.0",
-    "mocha": "^10.2.0"
+    "eslint": "^9.19.0"
   }
 }

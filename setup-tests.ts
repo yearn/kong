@@ -1,28 +1,29 @@
 import 'lib/global'
 import { config } from 'dotenv'
 import { afterAll, beforeAll } from 'bun:test'
-import { cache } from 'lib'
-import { rpcs } from './packages/ingest/rpcs'
 import path from 'path'
+import { setup, teardown } from './packages/lib/helpers/tests'
 
 const envPath = path.join(__dirname, '.env')
 config({ path: envPath })
 
+let isSetup = false
+
 beforeAll(async () => {
-  const { $ } = await import('bun')
-  await $`docker-compose up -d`
-  await $`wait-on tcp:localhost:5432`.quiet()
-  await $`wait-on tcp:localhost:6379`.quiet()
-  await $`sleep 8`.quiet()
-  await $`bun run --filter db migrate up`.quiet()
-  await Promise.all([rpcs.up(), cache.up()])
-  console.log('⬆', 'test fixture up')
+  // Only run setup once
+  if (!isSetup) {
+    await setup()
+    isSetup = true
+  }
 })
 
 afterAll(async () => {
-  const { $ } = await import('bun')
-  await Promise.all([rpcs.down(), cache.down()])
-  await $`docker-compose down`
+  // Only run teardown once
+  if (isSetup) {
+    await teardown()
+    isSetup = false
+  }
 })
 
-
+// Export the setup state so packages can check it
+export { isSetup }

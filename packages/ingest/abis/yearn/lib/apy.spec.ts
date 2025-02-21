@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { addresses } from '../../../test.fixture'
+import { addresses } from '../../../setup-tests'
 import { mainnet, polygon } from 'viem/chains'
 import {
   _compute,
@@ -56,7 +56,7 @@ describe('abis/yearn/lib/apy', function () {
     expect(fees.performance).to.eq(0.2)
   })
 
-  it('extracts v2 locked profit', async function (this: Mocha.Context) {
+  it('extracts v2 locked profit', async function () {
     const lotsOfLockedProfit = await extractLockedProfit__v2(
       mainnet.id,
       addresses.v2.yvusdt,
@@ -72,7 +72,7 @@ describe('abis/yearn/lib/apy', function () {
     expect(noLockedProfit).to.eq(0n)
   })
 
-  it.only('yvUSDT 0.4.3 @ block 18344466', async function (this: Mocha.Context) {
+  it.only('yvUSDT 0.4.3 @ block 18344466', async function () {
     const blockNumber = 18344466n
     const strategies: `0x${string}`[] = [
       addresses.v2.strategyLenderYieldOptimiser,
@@ -114,7 +114,7 @@ describe('abis/yearn/lib/apy', function () {
     expect(Number(apy.inceptionBlockNumber)).to.be.closeTo(15243268, 4)
   })
 
-  it('yvUSDT 0.4.3 @ block 15871070', async function (this: Mocha.Context) {
+  it('yvUSDT 0.4.3 @ block 15871070', async function () {
     const blockNumber = 15871070n
     const strategies: `0x${string}`[] = [
       '0xBc04eFD0D18685BA97cFAdE4e2D3171701B4099c',
@@ -184,7 +184,7 @@ describe('abis/yearn/lib/apy', function () {
     expect(fees.performance).to.eq(0.05)
   })
 
-  it('extracts v3 locked profit', async function (this: Mocha.Context) {
+  it('extracts v3 locked profit', async function () {
     const lotsOfLockedProfit = await extractLockedProfit__v3(
       polygon.id,
       addresses.v3.yvusdca,
@@ -200,7 +200,7 @@ describe('abis/yearn/lib/apy', function () {
     expect(noLockedProfit).to.eq(0n)
   })
 
-  it('yvUSDCA 3.0.1 @ block 52031869n', async function (this: Mocha.Context) {
+  it('yvUSDCA 3.0.1 @ block 52031869n', async function () {
     const blockNumber = 52031869n
     const strategies: `0x${string}`[] = [
       addresses.v3.aaveV3UsdcLender,

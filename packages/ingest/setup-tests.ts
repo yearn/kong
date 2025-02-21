@@ -1,11 +1,6 @@
-import 'lib/global'
-import path from 'path'
-import dotenv from 'dotenv'
 import chai from 'chai'
 import chaiAlmost from 'chai-almost'
-
-const envPath = path.join(__dirname, '../..', '.env')
-dotenv.config({ path: envPath })
+import '../../setup-tests'
 
 chai.use(chaiAlmost())
 
