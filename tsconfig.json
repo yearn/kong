@@ -1,6 +1,0 @@
-{
-  "compilerOptions": {
-    "types": ["bun-types"],
-    "esModuleInterop": true
-  }
-}
