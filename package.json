@@ -10,7 +10,6 @@
   ],
   "scripts": {
     "clean": "rm -rf node_modules packages/**/node_modules packages/**/dist packages/**/.next",
-    "test": "bun test --timeout 1500000",
     "lint:ingest": "cd packages/ingest && eslint .",
     "lint:fix:ingest": "cd packages/ingest && eslint . --fix",
     "lint:lib": "cd packages/lib && eslint .",

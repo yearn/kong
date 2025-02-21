@@ -22,7 +22,8 @@ dev:
 	@docker compose down
 
 test:
-	@bun run test --elide-lines 0
+	@bun run --elide-lines 0 --filter lib test
+	@bun run --elide-lines 0 --filter ingest test
 
 down:
 	@docker compose down
