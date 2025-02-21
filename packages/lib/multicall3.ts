@@ -1,5 +1,5 @@
-import { mainnet, optimism, gnosis, polygon, fantom, base, arbitrum } from 'viem/chains';
-import { customChains } from './chains';
+import { mainnet, optimism, gnosis, polygon, fantom, base, arbitrum } from 'viem/chains'
+import { customChains } from './chains'
 const { mode, sonic, bera } = customChains
 
 export const activations = {
@@ -16,15 +16,16 @@ export const activations = {
 }
 
 export function getActivation(chainId: number) {
-  if (!Object.keys(activations).includes(chainId.toString())) {
-    return undefined;
+  if(!Object.keys(activations).includes(chainId.toString())) {
+    throw new Error(`Chain ${chainId} not supported`)
   }
-  return activations[chainId as keyof typeof activations];
+  return activations[chainId as keyof typeof activations]
 }
 
 export function supportsBlock(chainId: number, blockNumber: bigint) {
-  if (!Object.keys(activations).includes(chainId.toString())) {
-    return false;
+  if(!Object.keys(activations).includes(chainId.toString())) {
+    throw new Error(`Chain ${chainId} not supported`)
   }
-  return blockNumber >= activations[chainId as keyof typeof activations];
+
+  return blockNumber >= activations[chainId as keyof typeof activations]
 }

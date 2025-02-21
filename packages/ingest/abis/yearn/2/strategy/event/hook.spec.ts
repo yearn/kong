@@ -1,7 +1,6 @@
 import { expect } from 'chai'
 import { HarvestSchema, computeApr } from './hook'
-import { addresses } from '../../../../../setup-tests'
-import { describe, it } from 'bun:test'
+import { addresses } from '../../../../../test.fixture'
 
 function mock() {
   return HarvestSchema.parse({
@@ -27,13 +26,13 @@ describe('abis/yearn/2/strategy/event/Harvested/hook', function() {
   })
 
   it('computes gross and net apr on profit', async function() {
-    const latest = {
+    const latest = { 
       ...mock(),
       blockNumber: 18116044n,
       blockTime: BigInt(70 * 24 * 60 * 60 + (9 * 60 * 60)),
       args: { ...mock().args,
         profit: 194459789900456241429n
-      }
+      } 
     }
 
     const apr = await computeApr(latest, mock())
@@ -42,22 +41,22 @@ describe('abis/yearn/2/strategy/event/Harvested/hook', function() {
   })
 
   it('computes gross and net apr on loss', async function() {
-    const zero = {
+    const zero = { 
       ...mock(),
       args: { ...mock().args,
         profit: 0n,
         loss: 0n
-      }
+      } 
     }
 
-    const loss = {
+    const loss = { 
       ...zero,
       blockNumber: 18116044n,
       blockTime: BigInt(24 * 60 * 60),
       args: { ...mock().args,
         profit: 0n,
         loss: 523277537563798n
-      }
+      } 
     }
 
     const apr = await computeApr(loss, zero)

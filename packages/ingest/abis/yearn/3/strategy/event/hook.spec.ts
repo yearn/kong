@@ -1,7 +1,6 @@
 import { expect } from 'chai'
 import { HarvestSchema, computeApr, totalAssets } from './hook'
-import { addresses } from '../../../../../setup-tests'
-import { describe, it } from 'bun:test'
+import { addresses } from '../../../../../test.fixture'
 
 function mock() {
   return HarvestSchema.parse({

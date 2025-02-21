@@ -4,9 +4,11 @@
   "main": "index.ts",
   "license": "MIT",
   "scripts": {
-    "test": "bun test --timeout 1500000 --preload ./setup-tests.ts",
-    "dev": "bun index.ts",
-    "production": "bun index.ts"
+    "dev": "ts-node index.ts",
+    "production": "ts-node --transpile-only index.ts",
+    "pretest": "docker compose up -d postgres && docker compose up -d redis && wait-on tcp:localhost:5432 && wait-on tcp:localhost:6379 && sleep 8 && yarn workspace db migrate up",
+    "test": "mocha; exit_code=$?; npm run posttest; exit $exit_code",
+    "posttest": "echo 'docker compose down' && docker compose down"
   },
   "dependencies": {
     "@types/node": "^20.5.0",
@@ -19,6 +21,8 @@
     "lib": "^1.0.0",
     "pg": "^8.11.2",
     "redis-info": "^3.1.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.1.6",
     "viem": "2.5.0",
     "zod": "3.22.4"
   },
@@ -29,12 +33,14 @@
     "@types/chai-almost": "^1.0.2",
     "@types/compare-versions": "^3.3.0",
     "@types/js-yaml": "^4.0.8",
+    "@types/mocha": "^10.0.1",
     "@types/redis-info": "^3.0.3",
     "@typescript-eslint/eslint-plugin": "^8.23.0",
     "@typescript-eslint/parser": "^8.23.0",
     "chai-almost": "^1.0.1",
     "chain": "^0.4.0",
     "eslint": "^9.19.0",
+    "mocha": "^10.2.0",
     "wait-for-postgres": "^1.5.3",
     "wait-on": "^7.0.1"
   }

@@ -1,11 +1,10 @@
 import { expect } from 'chai'
 import { _compute } from './tvl'
 import { ThingSchema } from 'lib/types'
-import { addresses } from '../../../setup-tests'
-import { describe, it } from 'bun:test'
+import { addresses } from '../../../test.fixture'
 
-describe('abis/yearn/lib/tvl', function () {
-  it('yvWETH 0.4.2 @ block 18417431', async function () {
+describe('abis/yearn/lib/tvl', function() {
+  it('yvWETH 0.4.2 @ block 18417431', async function(this: Mocha.Context) {
     const yvweth = ThingSchema.parse({
       chainId: 1,
       address: addresses.v2.yvweth,
@@ -16,8 +15,8 @@ describe('abis/yearn/lib/tvl', function () {
         asset: addresses.v2.weth,
         decimals: 18,
         inceptBlock: 12588794,
-        inceptTime: 1623088086,
-      },
+        inceptTime: 1623088086
+      }
     })
 
     const blockNumber = 18417431n

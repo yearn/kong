@@ -2,18 +2,13 @@ import { expect } from 'chai'
 import path from 'path'
 import fs from 'fs/promises'
 import { getHookType, isHookPath, parseHookPath, requireHooks } from '.'
-import { beforeAll, beforeEach, afterEach, describe, it } from 'bun:test'
 
-describe('abis', function () {
-  describe('hook resolver', function () {
-    beforeAll(() => {
-      setTimeout(() => {
-        console.log('timeout')
-      }, 10_000)
-    })
+describe('abis', function() {
+  describe('hook resolver', function() {
+    this.timeout(10_000)  // hook resolver is kinda slow rn
     const root = path.join(__dirname, '.spec')
 
-    beforeEach(async function () {
+    beforeEach(async function() {
       await fs.mkdir(root, { recursive: true })
       await fs.mkdir(path.join(root, 'event/n'), { recursive: true })
       await fs.writeFile(path.join(root, 'event/n/hook.ts'), '')
@@ -29,53 +24,37 @@ describe('abis', function () {
       await fs.writeFile(path.join(root, 'x/j/k/event/n/hook.ts'), '')
       await fs.mkdir(path.join(root, 'a/b/event'), { recursive: true })
       await fs.writeFile(path.join(root, 'a/b/event/hook.ts'), '')
-      await fs.mkdir(path.join(root, 'a/b/timeseries/tvl'), {
-        recursive: true,
-      })
+      await fs.mkdir(path.join(root, 'a/b/timeseries/tvl'), { recursive: true })
       await fs.writeFile(path.join(root, 'a/b/timeseries/tvl/hook.ts'), '')
-      await fs.mkdir(path.join(root, 'a/b/timeseries/apy'), {
-        recursive: true,
-      })
+      await fs.mkdir(path.join(root, 'a/b/timeseries/apy'), { recursive: true })
       await fs.writeFile(path.join(root, 'a/b/timeseries/apy/hook.ts'), '')
     })
 
-    afterEach(async function () {
+    afterEach(async function() {
       await fs.rm(root, { recursive: true })
     })
 
-    it('knows hook from not hook', function () {
+    it('knows hook from not hook', function() {
       expect(isHookPath(path.join(root, 'a/b/event/hook.ts'))).to.be.true
       expect(isHookPath(path.join(root, 'a/b/snapshot/hook.ts'))).to.be.true
       expect(isHookPath(path.join(root, 'a/b/timeseries/hook.ts'))).to.be.true
       expect(isHookPath(path.join(root, 'a/b/nihao/hook.ts'))).to.be.false
     })
 
-    it('gets types', function () {
-      expect(getHookType(path.join(root, 'a/b/event/hook.ts'))).to.equal(
-        'event'
-      )
-      expect(getHookType(path.join(root, 'a/b/snapshot/hook.ts'))).to.equal(
-        'snapshot'
-      )
-      expect(getHookType(path.join(root, 'a/b/timeseries/hook.ts'))).to.equal(
-        'timeseries'
-      )
+    it('gets types', function() {
+      expect(getHookType(path.join(root, 'a/b/event/hook.ts'))).to.equal('event')
+      expect(getHookType(path.join(root, 'a/b/snapshot/hook.ts'))).to.equal('snapshot')
+      expect(getHookType(path.join(root, 'a/b/timeseries/hook.ts'))).to.equal('timeseries')
       expect(getHookType(path.join(root, 'a/b/nihao/hook.ts'))).to.be.undefined
     })
 
-    it('parses paths', function () {
-      expect(
-        parseHookPath(path.join(root, 'a/b/event/hook.ts'), root)
-      ).to.deep.equal({ type: 'event', abiPath: 'a/b' })
-      expect(
-        parseHookPath(path.join(root, 'a/b/snapshot/hook.ts'), root)
-      ).to.deep.equal({ type: 'snapshot', abiPath: 'a/b' })
-      expect(
-        parseHookPath(path.join(root, 'a/b/timeseries/hook.ts'), root)
-      ).to.deep.equal({ type: 'timeseries', abiPath: 'a/b' })
+    it('parses paths', function() {
+      expect(parseHookPath(path.join(root, 'a/b/event/hook.ts'), root)).to.deep.equal({ type: 'event', abiPath: 'a/b' })
+      expect(parseHookPath(path.join(root, 'a/b/snapshot/hook.ts'), root)).to.deep.equal({ type: 'snapshot', abiPath: 'a/b' })
+      expect(parseHookPath(path.join(root, 'a/b/timeseries/hook.ts'), root)).to.deep.equal({ type: 'timeseries', abiPath: 'a/b' })
     })
 
-    it('resolves paths', async function () {
+    it('resolves paths', async function() {
       const resolveHooks = await requireHooks(root)
       expect(resolveHooks('')).to.have.length(9)
       expect(resolveHooks('', 'event')).to.have.length(6)

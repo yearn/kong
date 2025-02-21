@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { z } from 'zod'
 import { cache } from 'lib'
 import { StrategyMeta, StrategyMetaSchema, TokenMeta, TokenMetaSchema, VaultMeta, VaultMetaSchema } from 'lib/types'
@@ -60,7 +59,6 @@ async function extractMetas<T>(schema: z.ZodType<T>, chainId: number, type: 'tok
     `https://raw.githubusercontent.com/yearn/ydaemon/main/data/meta/${type}/${chainId}.json`,
     { headers: { Authorization: `Bearer ${process.env.GITHUB_PERSONAL_ACCESS_TOKEN}` } }
   )).json()
-
 
   const results: { [address: `0x${string}`]: T } = {}
   for (const key of Object.keys(json[type])) {

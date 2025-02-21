@@ -4,7 +4,9 @@
   "main": "index.ts",
   "license": "MIT",
   "scripts": {
-    "test": "bun test --timeout 1500000 --preload ./setup-tests.ts"
+    "pretest": "docker compose up -d postgres && docker compose up -d redis && wait-on tcp:localhost:5432 && wait-on tcp:localhost:6379 && sleep 8 && yarn workspace db migrate up",
+    "test": "mocha; exit_code=$?; npm run posttest; exit $exit_code",
+    "posttest": "echo 'docker compose down' && docker compose down"
   },
   "dependencies": {
     "bullmq": "^4.7.3",
@@ -23,9 +25,11 @@
     "@eslint/js": "^9.19.0",
     "@types/chai": "^4.3.6",
     "@types/js-yaml": "^4.0.8",
+    "@types/mocha": "^10.0.1",
     "@typescript-eslint/eslint-plugin": "^8.23.0",
     "@typescript-eslint/parser": "^8.23.0",
     "chai": "^4.3.8",
-    "eslint": "^9.19.0"
+    "eslint": "^9.19.0",
+    "mocha": "^10.2.0"
   }
 }

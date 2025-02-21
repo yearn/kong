@@ -1,9 +1,12 @@
-import { test, expect } from "bun:test";
-import { __estimateHeight } from "./blocks";
+import { expect } from 'chai'
+import { __estimateHeight } from './blocks'
 
-test("estimates block height", async () => {
-  const result = await __estimateHeight(1, 1716356553n);
-  const ranged = result >= 19923410n && result <= 19923414n;
-  if (!ranged) console.error("result", result);
-  expect(ranged).toBe(true);
-});
+describe('blocks', function() {
+  it('estimates block height', async function() {
+    this.timeout(5_000)
+    const result = await __estimateHeight(1, 1716356553n)
+    const ranged = result >= 19923410n && result <= 19923414n
+    if (!ranged) console.error ('result', result)
+    expect (ranged).to.be.true
+  })
+})
