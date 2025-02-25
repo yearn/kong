@@ -20,6 +20,8 @@
     "lint:fix:web": "cd packages/web && NEXT_TELEMETRY_DISABLED=1 next lint --fix"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^10.18.0",
+    "@testcontainers/redis": "^10.18.0",
     "bun-types": "^1.2.1"
   },
   "dependencies": {
