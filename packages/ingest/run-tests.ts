@@ -50,6 +50,11 @@ spawnTestContainersAndRun().then((env) => {
     process.exit(code)
   })
 
+  mochaProcess.on('exit', (code: number) => {
+    shutdownTestcontainers()
+    process.exit(code)
+  })
+
   mochaProcess.on('error', (err) => {
     shutdownTestcontainers()
     process.exit(1)
