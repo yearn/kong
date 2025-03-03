@@ -48,7 +48,7 @@ export class EvmLogsExtractor {
     })()
 
     const hooks = this.resolveHooks(abiPath, 'event')
-    const processedLogs = []
+    const processedLogs: any[] = []
     for (const log of logs) {
       if(!log.topics[0]) { throw new Error('!log.topics[0]') }
 

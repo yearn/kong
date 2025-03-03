@@ -17,17 +17,7 @@ export const Redis = new RedisContainer('redis:latest').withHealthCheck({
 }).withWaitStrategy(Wait.forHealthCheck()).withExposedPorts(6379)
 
 
-export const dbMigrate = async (postgres: StartedPostgreSqlContainer, redis: StartedRedisContainer) => {
-  process.env.POSTGRES_HOST = postgres.getHost()
-  process.env.POSTGRES_PORT = postgres.getPort().toString()
-  process.env.POSTGRES_USER = postgres.getUsername()
-  process.env.POSTGRES_PASSWORD = postgres.getPassword()
-  process.env.POSTGRES_DB = postgres.getDatabase()
-  process.env.REDIS_HOST = redis.getHost()
-  process.env.REDIS_PORT = redis.getMappedPort(6379).toString()
-
-  process.env.DATABASE_URL = postgres.getConnectionUri()
-
+export const dbMigrate = async ({ postgres }: { postgres: StartedPostgreSqlContainer}) => {
   await migrate({
     host: postgres.getHost(),
     port: postgres.getPort(),
@@ -35,5 +25,23 @@ export const dbMigrate = async (postgres: StartedPostgreSqlContainer, redis: Sta
     password: postgres.getPassword(),
     database: postgres.getDatabase()
   })
+}
 
+export function setTestcontainersEnv({ postgres, redis }: { postgres: StartedPostgreSqlContainer, redis: StartedRedisContainer }) {
+  process.env.POSTGRES_HOST = postgres.getHost()
+  process.env.POSTGRES_PORT = postgres.getPort().toString()
+  process.env.POSTGRES_USER = postgres.getUsername()
+  process.env.POSTGRES_PASSWORD = postgres.getPassword()
+  process.env.POSTGRES_DB = postgres.getDatabase()
+  process.env.REDIS_HOST = redis.getHost()
+  process.env.REDIS_PORT = redis.getMappedPort(6379).toString()
+  return {
+    host: postgres.getHost(),
+    port: postgres.getPort(),
+    user: postgres.getUsername(),
+    password: postgres.getPassword(),
+    database: postgres.getDatabase(),
+    redisHost: redis.getHost(),
+    redisPort: redis.getMappedPort(6379).toString()
+  }
 }

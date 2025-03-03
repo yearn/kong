@@ -4,7 +4,7 @@
   "main": "index.ts",
   "license": "MIT",
   "scripts": {
-    "test": "mocha; exit_code=$?; exit $exit_code"
+    "test": "ts-node run-tests.ts"
   },
   "dependencies": {
     "bullmq": "^4.7.3",

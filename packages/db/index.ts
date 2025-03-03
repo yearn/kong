@@ -1,4 +1,3 @@
-// @ts-expect-error db-migrate is not typed
 import DBMigrate from 'db-migrate'
 import path from 'path'
 
@@ -9,6 +8,7 @@ export function migrate({ host, port, user, password, database }: { host: string
     cwd: currentDir,
     config: {
       dev: {
+        driver: 'postgresql',
         host,
         port,
         user,

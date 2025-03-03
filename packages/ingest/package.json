@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "ts-node index.ts",
     "production": "ts-node --transpile-only index.ts",
-    "test": "mocha; exit_code=$?; exit $exit_code"
+    "test": "ts-node run-tests.ts"
   },
   "dependencies": {
     "@types/node": "^20.5.0",
