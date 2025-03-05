@@ -6,7 +6,7 @@ export interface Processor {
 export class ProcessorPool<T extends Processor> implements Processor {
   private pool: T[] = []
   private pointer = 0
-  private interval: NodeJS.Timeout | undefined
+  private interval: NodeJS.Timer | undefined
 
   constructor(private readonly Type: new () => T, size: number = 2, private recycleMs: number) {
     for (let i = 0; i < size; i++) {
