@@ -9,8 +9,7 @@ Kong comes configured with an index over Yearn Finance's v2 and v3 vault ecosyst
 
 
 ## Requirements
-- node, bun, make, tmux, docker, docker compose, postgresql-client
-  - Bun has a built in flag on their cli which collapses the texts called [ellide](https://bun.sh/blog/bun-v1.1.43#elide-lines-n-controls-filter-output-line-length), use `--elide-lines 0` in front of any command if you wish.
+- node, yarn, bun, make, tmux, docker, docker compose, postgresql-client
 - ♥ for zoo animals
 
 
@@ -402,8 +401,10 @@ Kong uses viem to interface with rpcs. Because viem is new and changing often, a
 
 
 
+## Developer notes
 
-
+Bun has a built in flag on their cli which collapses the texts called [ellide](https://bun.sh/blog/bun-v1.1.43#elide-lines-n-controls-filter-output-line-length), you can use `--elide-lines 0` on each cli command, but it has a lot of bugs.
+There are some tickets related to this, that's why we preferred to still have yarn for our command running on `Makefile`
 
 
 
