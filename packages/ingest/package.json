@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "ts-node index.ts",
     "production": "ts-node --transpile-only index.ts",
-    "test": "ts-node run-tests.ts"
+    "test": "ts-node run-tests.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@types/node": "^20.5.0",

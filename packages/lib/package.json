@@ -4,7 +4,9 @@
   "main": "index.ts",
   "license": "MIT",
   "scripts": {
-    "test": "ts-node run-tests.ts"
+    "test": "ts-node run-tests.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "bullmq": "^4.7.3",

@@ -10,14 +10,14 @@
   ],
   "scripts": {
     "clean": "rm -rf node_modules packages/**/node_modules packages/**/dist packages/**/.next",
-    "lint:ingest": "cd packages/ingest && eslint .",
-    "lint:fix:ingest": "cd packages/ingest && eslint . --fix",
-    "lint:lib": "cd packages/lib && eslint .",
-    "lint:fix:lib": "cd packages/lib && eslint . --fix",
-    "lint:terminal": "cd packages/terminal && eslint .",
-    "lint:fix:terminal": "cd packages/terminal && eslint . --fix",
-    "lint:web": "cd packages/web && NEXT_TELEMETRY_DISABLED=1 next lint",
-    "lint:fix:web": "cd packages/web && NEXT_TELEMETRY_DISABLED=1 next lint --fix"
+    "lint:ingest": "bun run --elide-lines 0 --filter ingest lint",
+    "lint:fix:ingest": "bun run --elide-lines 0 --filter ingest lint --fix",
+    "lint:lib": "bun run --elide-lines 0 --filter lib lint",
+    "lint:fix:lib": "bun run --elide-lines 0 --filter lib lint --fix",
+    "lint:terminal": "bun run --elide-lines 0 --filter terminal lint",
+    "lint:fix:terminal": "bun run --elide-lines 0 --filter terminal lint --fix",
+    "lint:web": "bun run --elide-lines 0 --filter web lint",
+    "lint:fix:web": "bun run --elide-lines 0 --filter web lint --fix"
   },
   "devDependencies": {
     "@testcontainers/postgresql": "^10.18.0",
