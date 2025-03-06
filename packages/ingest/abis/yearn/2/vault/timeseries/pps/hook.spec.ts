@@ -2,7 +2,7 @@ import { expect } from 'chai'
 import { mainnet } from 'viem/chains'
 import { _compute } from './hook'
 import { ThingSchema } from 'lib/types'
-import { addresses } from '../../../../../../test.fixture'
+import { addresses } from '../../../../../../test-addresses'
 
 describe('abis/yearn/2/vault/timeseries/pps/hook', function() {
   it('extracts pps', async function() {

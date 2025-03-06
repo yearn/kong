@@ -7,14 +7,13 @@ import { cache } from './cache'
 const envPath = path.join(__dirname, '../..', '.env')
 dotenv.config({ path: envPath })
 
+
 export const mochaGlobalSetup = async function() {
-  await rpcs.up()
-  await cache.up()
+  await Promise.all([rpcs.up(), cache.up()])
   console.log('⬆', 'test fixture up')
 }
 
 export const mochaGlobalTeardown = async () => {
-  await cache.down()
-  await rpcs.down()
+  await Promise.all([cache.down(), rpcs.down()])
   console.log('⬇', 'test fixture down')
 }

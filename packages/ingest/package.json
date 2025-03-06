@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "ts-node index.ts",
     "production": "ts-node --transpile-only index.ts",
-    "pretest": "docker compose up -d postgres && docker compose up -d redis && wait-on tcp:localhost:5432 && wait-on tcp:localhost:6379 && sleep 8 && yarn workspace db migrate up",
-    "test": "mocha; exit_code=$?; npm run posttest; exit $exit_code",
-    "posttest": "echo 'docker compose down' && docker compose down"
+    "test": "ts-node run-tests.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@types/node": "^20.5.0",

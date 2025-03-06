@@ -4,9 +4,9 @@
   "main": "index.ts",
   "license": "MIT",
   "scripts": {
-    "pretest": "docker compose up -d postgres && docker compose up -d redis && wait-on tcp:localhost:5432 && wait-on tcp:localhost:6379 && sleep 8 && yarn workspace db migrate up",
-    "test": "mocha; exit_code=$?; npm run posttest; exit $exit_code",
-    "posttest": "echo 'docker compose down' && docker compose down"
+    "test": "ts-node run-tests.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "bullmq": "^4.7.3",

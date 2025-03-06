@@ -20,10 +20,10 @@ services:
   - type: worker
     name: ingest-v-2
     region: ohio
-    env: node
+    runtime: node
     plan: standard
-    buildCommand: yarn
-    startCommand: yarn workspace ingest production
+    buildCommand: bun install
+    startCommand: (cd packages/ingest && bun run production)
     envVars:
       - fromGroup: kong
       - key: NODE_VERSION
