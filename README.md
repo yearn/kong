@@ -387,6 +387,10 @@ Timescale has to be manually installed on top of postgres in the render environm
 ### viem, https://viem.sh
 Kong uses viem to interface with rpcs. Because viem is new and changing often, all of kong's package.json files are hardcoded with the same viem version. To upgrade viem, manually update all package/package.json files then run `bun install` from root.
 
+### bun
+Bun has a built in flag on their cli which collapses the texts called [ellide](https://bun.sh/blog/bun-v1.1.43#elide-lines-n-controls-filter-output-line-length), you can use `--elide-lines 0` on each cli command, but it has a lot of bugs.
+There are some tickets related to this, that's why we preferred to still have yarn for our command running on `Makefile`
+
 
 ## Production
 
@@ -397,14 +401,4 @@ Kong uses viem to interface with rpcs. Because viem is new and changing often, a
 | Postgres    | [neon.tech](neon.tech)   |
 | GraphQL    | [vercel.com](vercel.com)   |
 | Cache    | [turso.com](turso.com)   |
-
-
-
-
-## Developer notes
-
-Bun has a built in flag on their cli which collapses the texts called [ellide](https://bun.sh/blog/bun-v1.1.43#elide-lines-n-controls-filter-output-line-length), you can use `--elide-lines 0` on each cli command, but it has a lot of bugs.
-There are some tickets related to this, that's why we preferred to still have yarn for our command running on `Makefile`
-
-
 
