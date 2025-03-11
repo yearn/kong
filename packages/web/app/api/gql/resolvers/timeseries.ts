@@ -37,7 +37,7 @@ async function alltimeseries(args: {
       address,
       CAST($3 AS text) AS label,
       COALESCE(CAST($4 AS text), component) AS component,
-      COALESCE(AVG(NULLIF(value, 0)), 0) AS value,
+      AVG(NULLIF(value, 0)) AS value,
       CAST($5 AS text) AS period,
       time_bucket(CAST($5 AS interval), block_time) AS time
     FROM output
@@ -68,7 +68,7 @@ async function yearntimeseries(args: {
       output.address,
       CAST($3 AS text) AS label,
       COALESCE(CAST($4 AS text), output.component) AS component,
-      COALESCE(AVG(NULLIF(output.value, 0)), 0) AS value,
+      AVG(NULLIF(output.value, 0)) AS value,
       CAST($5 AS text) AS period,
       time_bucket(CAST($5 AS interval), output.block_time) AS time
     FROM output
