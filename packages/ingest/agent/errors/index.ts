@@ -1,4 +1,4 @@
-import { Queue, RedisClient } from 'bullmq'
+import { Job, Queue, RedisClient } from 'bullmq'
 import { q, bull } from 'lib/mq'
 import { summarize } from './ai'
 
@@ -9,7 +9,7 @@ export class ErrorsAgent {
 
   async act() {
     console.log('🤖', 'ErrorsAgent.act()')
-    const results = []
+    const results: Job<any, any, string>[] = []
     for (const queueName of Object.keys(q)) {
       const queueInstance = new Queue(queueName, {
         connection: bull.connection,

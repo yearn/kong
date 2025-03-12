@@ -41,6 +41,7 @@
     "chain": "^0.4.0",
     "eslint": "^9.19.0",
     "mocha": "^10.2.0",
+    "sinon": "^19.0.2",
     "wait-for-postgres": "^1.5.3",
     "wait-on": "^7.0.1"
   }
