@@ -1,14 +1,17 @@
 import db from '@/app/api/db'
 import { compare } from '@/lib/compare'
+import { EvmAddressSchema } from 'lib/types'
 
 const vaults = async (_: object, args: {
   chainId?: number,
   apiVersion?: string,
   erc4626?: boolean,
   v3?: boolean,
-  yearn?: boolean
+  yearn?: boolean,
+  addresses?: string[]
 }) => {
-  const { chainId, apiVersion, erc4626, v3, yearn } = args
+  const { chainId, apiVersion, erc4626, v3, yearn, addresses: rawAddresses } = args
+
   try {
 
     const result = await db.query(`
@@ -33,6 +36,19 @@ const vaults = async (_: object, args: {
       ...row.snapshot,
       ...row.hook
     }))
+
+    if (rawAddresses !== undefined) {
+      const validAddressesLowerCase: string[] = []
+
+      for (const rawAddress of rawAddresses) {
+        const address = EvmAddressSchema.safeParse(rawAddress)
+        if (address.success) { validAddressesLowerCase.push(address.data.toLowerCase()) }
+      }
+
+      rows = rows.filter(row => {
+        return validAddressesLowerCase.includes(row.address.toLowerCase())
+      })
+    }
 
     if (apiVersion !== undefined) {
       rows = rows.filter(row => {
