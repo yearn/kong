@@ -25,7 +25,7 @@ const tvls = async (_: object, args: {
       SELECT
         o.chain_id,
         o.address,
-        NULLIF(o.value, 0) AS value,
+        COALESCE(AVG(NULLIF(o.value, 0)), 0) AS value,
         CAST($3 AS text) AS period,
         MAX(o.block_number) AS block_number,
         time_bucket(CAST($3 AS interval), o.block_time) AS time,
@@ -47,7 +47,7 @@ const tvls = async (_: object, args: {
       t.period,
       t.block_number,
       t.time,
-      COALESCE(p.price_usd, 0) AS price_usd,
+      CASE WHEN p.price_usd = 0 THEN NULL ELSE p.price_usd END AS price_usd,
       COALESCE(p.price_source, 'na') AS price_source
     FROM tvl_data t
     LEFT JOIN price p

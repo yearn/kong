@@ -6,7 +6,7 @@ type Output {
   address: String!
   label: String!
   component: String
-  value: Float!
+  value: Float
   period: String!
   time: BigInt
 }
