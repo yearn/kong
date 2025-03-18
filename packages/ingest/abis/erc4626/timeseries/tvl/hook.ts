@@ -46,7 +46,6 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
   ).parse(defaults)
 
   const { priceUsd, priceSource: source } = await fetchErc20PriceUsd(chainId, asset, blockNumber, latest)
-  const normalizedPrice = priceUsd === null ? 0 : priceUsd
 
   const totalAssets = await rpcs.next(chainId, blockNumber).readContract({
     abi, address, functionName: 'totalAssets', blockNumber
@@ -54,7 +53,7 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
 
   if(totalAssets === 0n) return { priceUsd, source, tvl: 0 }
 
-  const tvl = priced(totalAssets, decimals, normalizedPrice)
+  const tvl = priced(totalAssets, decimals, priceUsd)
 
-  return { priceUsd: normalizedPrice, source, tvl }
+  return { priceUsd, source, tvl }
 }
