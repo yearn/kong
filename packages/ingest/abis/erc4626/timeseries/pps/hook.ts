@@ -35,7 +35,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const pps = await _compute(vault, blockNumber)
   if (!pps) return []
 
-  return OutputSchema.array().parse([{
+  return OutputSchema.array().parse([{ 
     chainId, address, label: data.outputLabel, component: 'raw',
     blockNumber: pps.number, blockTime: pps.timestamp, value: Number(pps.raw)
   }, {
@@ -53,9 +53,5 @@ export async function _compute(vault: Thing, blockNumber: bigint) {
   } as ReadContractParameters
   const raw = await rpcs.next(chainId, blockNumber).readContract({...ppsParameters, blockNumber}) as bigint
   const humanized = div(raw, 10n ** BigInt(vault.defaults.decimals ?? 0n))
-  const values = {
-    raw: raw === 0n ? null : raw,
-    humanized: humanized === 0 ? null : humanized
-  }
-  return { ...block, ...values }
+  return { ...block, raw, humanized }
 }
