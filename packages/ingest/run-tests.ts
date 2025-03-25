@@ -14,8 +14,8 @@ async function spawnTestContainersAndRun() {
   return setTestcontainersEnv({ postgres, redis })
 }
 
-function shutdownTestcontainers() {
-  containers.forEach(container => container.stop())
+async function shutdownTestcontainers() {
+  await Promise.all(containers.map((container) => container.stop()))
 }
 
 let mochaProcess: ChildProcess
@@ -34,7 +34,7 @@ spawnTestContainersAndRun().then((env) => {
 
   const mochaBin = path.resolve(__dirname, '../../node_modules/.bin/mocha')
 
-  mochaProcess = spawn(mochaBin, ['--timeout 5000'], {
+  mochaProcess = spawn(mochaBin, ['--timeout 5000', '--exit'], {
     // @ts-expect-error env is not typed
     env: {
       ...customEnv,
@@ -45,30 +45,30 @@ spawnTestContainersAndRun().then((env) => {
   })
 
   // Handle process events
-  mochaProcess.on('close', (code: number) => {
-    shutdownTestcontainers()
+  mochaProcess.on('close', async (code: number) => {
+    await shutdownTestcontainers()
     process.exit(code)
   })
 
-  mochaProcess.on('exit', (code: number) => {
-    shutdownTestcontainers()
+  mochaProcess.on('exit', async (code: number) => {
+    await shutdownTestcontainers()
     process.exit(code)
   })
 
-  mochaProcess.on('error', (err) => {
-    shutdownTestcontainers()
+  mochaProcess.on('error', async (err) => {
+    await shutdownTestcontainers()
     process.exit(1)
   })
 
 
-  process.on('SIGINT', () => {
-    shutdownTestcontainers()
+  process.on('SIGINT', async () => {
+    await shutdownTestcontainers()
     mochaProcess.kill()
     process.exit(0)
   })
 
-  process.on('SIGTERM', () => {
-    shutdownTestcontainers()
+  process.on('SIGTERM', async () => {
+    await shutdownTestcontainers()
     mochaProcess.kill()
     process.exit(0)
   })

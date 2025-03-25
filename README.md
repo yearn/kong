@@ -155,10 +155,10 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 ### testing
 `make test` - test everything
 
-`bun --filter <workspace> test` - test individual workspaces
+`bun --elide-lines=0 --filter <workspace> test` - test individual workspaces
 
 ```bash
-bun --filter ingest test
+bun --elide-lines=0 --filter ingest test
 ```
 
 ### tmux

@@ -8,7 +8,7 @@ export const CronSchema = z.object({
   queue: z.string(),
   job: z.string(),
   schedule: z.string(),
-  start: z.boolean().optional().default(false)
+  start: z.boolean().optional().default(false),
 })
 
 export type Cron = z.infer<typeof CronSchema>
