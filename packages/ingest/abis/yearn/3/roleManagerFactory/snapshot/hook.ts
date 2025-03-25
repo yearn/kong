@@ -27,7 +27,7 @@ async function projectProjects(chainId: number, vault: `0x${string}`, blockNumbe
 
   if(events.rows.length === 0) return []
 
-  const result = []
+  const result: { projectId: string, roleManager: string, name: string }[] = []
 
   for (const event of events.rows) {
     result.push({
