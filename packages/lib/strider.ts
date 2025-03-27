@@ -27,24 +27,24 @@ export function plan(from: bigint, to: bigint, travelled: Stride[] | undefined):
   return result
 }
 
-export function add(toadd: Stride, strides: Stride[] | undefined): Stride[] {
-  if (!strides || strides.length === 0) return [toadd]
+export function add(stride: Stride, strides: Stride[] | undefined): Stride[] {
+  if (!strides || strides.length === 0) return [stride]
   strides.sort((a, b) => Number(a.from - b.from))
 
-  let merged = [toadd]
-  for (const stride of strides) {
+  let merged = [stride]
+  for (const _stride of strides) {
     let added = false
     merged = merged.map(m => {
-      if ((stride.to >= m.from && stride.from <= m.to)
-        || stride.to + 1n === m.from
-        || stride.from - 1n === m.to
+      if ((_stride.to >= m.from && _stride.from <= m.to)
+        || _stride.to + 1n === m.from
+        || _stride.from - 1n === m.to
       ) {
         added = true
-        return { from: math.min(stride.from, m.from), to: math.max(stride.to, m.to) }
+        return { from: math.min(_stride.from, m.from), to: math.max(_stride.to, m.to) }
       }
       return m
     })
-    if (!added) merged.push(stride)
+    if (!added) merged.push(_stride)
   }
 
   let hasOverlap = true
@@ -69,33 +69,33 @@ export function add(toadd: Stride, strides: Stride[] | undefined): Stride[] {
   return merged.sort((a, b) => Number(a.from - b.from))
 }
 
-export function remove(toremove: Stride, strides: Stride[] | undefined): Stride[] {
+export function remove(stride: Stride, strides: Stride[] | undefined): Stride[] {
   if (!strides || strides.length === 0) return []
   strides.sort((a, b) => Number(a.from - b.from))
 
   const result: Stride[] = []
 
-  for (const stride of strides) {
+  for (const _stride of strides) {
     // If stride is completely before toremove, keep it as is
-    if (stride.to < toremove.from) {
-      result.push(stride)
+    if (_stride.to < stride.from) {
+      result.push(_stride)
       continue
     }
 
     // If stride is completely after toremove, keep it as is
-    if (stride.from > toremove.to) {
-      result.push(stride)
+    if (_stride.from > stride.to) {
+      result.push(_stride)
       continue
     }
 
     // If there's a part before toremove, keep it
-    if (stride.from < toremove.from) {
-      result.push({ from: stride.from, to: toremove.from - 1n })
+    if (_stride.from < stride.from) {
+      result.push({ from: _stride.from, to: stride.from - 1n })
     }
 
     // If there's a part after toremove, keep it
-    if (stride.to > toremove.to) {
-      result.push({ from: toremove.to + 1n, to: stride.to })
+    if (_stride.to > stride.to) {
+      result.push({ from: stride.to + 1n, to: _stride.to })
     }
   }
 
