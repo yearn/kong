@@ -54,7 +54,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   }
 }
 
-async function fetchPreviousHarvest(harvest: Harvest) {
+export async function fetchPreviousHarvest(harvest: Harvest) {
   const previousLog = await first<EvmLog>(EvmLogSchema, `
   SELECT * from evmlog
   WHERE chain_id = $1 AND address = $2 AND signature = $3 AND block_number < $4
