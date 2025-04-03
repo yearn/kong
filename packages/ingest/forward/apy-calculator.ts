@@ -1,6 +1,15 @@
 import { Thing } from 'lib/types'
 import { createPublicClient, http, zeroAddress } from 'viem'
-import { yprismaAbi } from './yprisma'
+import { yprismaAbi } from './yprisma.abi'
+import { getCurveBoost } from './crv.helper'
+import { convexBaseStrategyAbi } from './convex-base-strategy.abi'
+import { yStrategyAbi } from './ystrategy.abi'
+import { cvxBoosterAbi } from './cvx-booster.abi'
+import { crvRewardsAbi } from './crv-rewards.abi'
+import { getConvexRewardAPY, getCVXForCRV } from './cvx.helper'
+import { convertFloatAPRToAPY } from './calculation.helper'
+import { getPrismaAPY } from './prisma.helper'
+import { YEARN_VOTER_ADDRESS } from './maps.helper'
 
 export class ApiCalculator {
   static isCurveStrategy(strategy) {
@@ -39,27 +48,33 @@ export class ApiCalculator {
    * Finds the gauge for a vault based on asset address
    */
   static findGaugeForVault(assetAddress, gauges) {
-    return gauges.find(gauge =>
-      gauge.lpToken && gauge.lpToken.toLowerCase() === assetAddress.toLowerCase()
-    ) || { gauge: '', swap: '' }
+    return gauges.find((gauge) => {
+      if(gauge.swapToken === assetAddress) {
+        return gauge
+      }
+    })
   }
 
   /**
    * Finds the pool for a vault based on asset address
    */
   static findPoolForVault(assetAddress, pools) {
-    return pools.find(pool =>
-      pool.lpToken && pool.lpToken.toLowerCase() === assetAddress.toLowerCase()
-    ) || {}
+    return pools.find((pool) => {
+      if(pool.LPTokenAddress === assetAddress) {
+        return pool
+      }
+    })
   }
 
   /**
    * Finds the Frax pool for a vault based on asset address
    */
   static findFraxPoolForVault(assetAddress, fraxPools) {
-    return fraxPools.find(pool =>
-      pool.lpToken && pool.lpToken.toLowerCase() === assetAddress.toLowerCase()
-    ) || {}
+    return fraxPools.find((pool) => {
+      if(pool.underlyingTokenAddress === assetAddress) {
+        return pool
+      }
+    })
   }
 
   /**
@@ -117,158 +132,172 @@ export class ApiCalculator {
     return totalRewardAPR
   }
 
+  static async getCVXPoolAPY(chainId, strategyAddress, baseAssetPrice) {
+    const client = createPublicClient({
+      transport: http(process.env[`RPC_FULL_NODE_${chainId}`])
+    })
+
+    const rewardPID = await client.readContract({
+      address: strategyAddress,
+      abi: convexBaseStrategyAbi,
+      functionName: 'PID',
+    })
+
+    const poolInfo = await client.readContract({
+      address: strategyAddress,
+      abi: cvxBoosterAbi,
+      functionName: 'poolInfo',
+      args: [rewardPID],
+    }) as any
+
+    const rateResult = await client.readContract({
+      address: poolInfo.crvRewards,
+      abi: crvRewardsAbi,
+      functionName: 'rewardRate',
+    }) as any
+
+    const totalSupply = await client.readContract({
+      address: poolInfo.crvRewards,
+      abi: crvRewardsAbi,
+      functionName: 'totalSupply',
+    }) as any
+
+    const rate = BigInt(rateResult.toString() || '0')
+    const supply = BigInt(totalSupply.toString() || '0')
+    const virtualSupply = supply * baseAssetPrice
+    let crvPerUnderlying
+
+    if(virtualSupply > 0n) {
+      crvPerUnderlying = rate / virtualSupply
+    }
+
+    const crvPerUnderlyingPerYear = crvPerUnderlying * 31536000n
+    const cvxPerYear = await getCVXForCRV(chainId, crvPerUnderlyingPerYear)
+
+    let crvPrice = 0n
+
+    // TODO: find out how to do it
+    const tokenPrice = 0n
+
+    crvPrice = tokenPrice
+
+    // TODO: same thing
+    //   if tokenPrice, ok := storage.GetPrice(chainID, storage.CVX_TOKEN_ADDRESS[chainID]); ok {
+    // 	cvxPrice = tokenPrice.HumanizedPrice
+    // }
+
+    const cvxPrice = crvPrice
+
+    const crvAPR = crvPerUnderlyingPerYear * crvPrice
+    const cvxAPR = cvxPerYear * cvxPrice
+
+    const crvAPY = convertFloatAPRToAPY(crvAPR, 365/15)
+    const cvxAPY = convertFloatAPRToAPY(cvxAPR, 365/15)
+
+    return {
+      crvAPR,
+      cvxAPR,
+      crvAPY,
+      cvxAPY
+    }
+  }
+
   /**
    * Determines the keepCRV value for a strategy
    */
-  static determineCurveKeepCRV(strategy) {
-    const keepValue = (strategy.keepCRV || BigInt(0))
-      .plus(strategy.keepCRVPercent || BigInt(0))
-    // Normalize (assuming 4 decimals)
-    return keepValue / 10000n
+  static async determineCurveKeepCRV(strategy, chainId) {
+    const client = createPublicClient({
+      transport: http(process.env[`RPC_FULL_NODE_${chainId}`])
+    })
+
+    const useLocalCRV = await client.readContract({
+      address: strategy.address,
+      abi: convexBaseStrategyAbi,
+      functionName: 'uselLocalCRV',
+    })
+
+    if(useLocalCRV) {
+      try {
+        const cvxKeepCRV = await client.readContract({
+          address: strategy.address,
+          abi: convexBaseStrategyAbi,
+          functionName: 'localCRV',
+        })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return BigInt(cvxKeepCRV as any)
+      } catch (e) {
+        const localKeepCRV = await client.readContract({
+          address: strategy.address,
+          abi: convexBaseStrategyAbi,
+          functionName: 'LocalKeepCRV',
+        })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return BigInt(localKeepCRV as any)
+      }
+    }
+
+    const crvGlobal = await client.readContract({
+      address: strategy.address,
+      abi: convexBaseStrategyAbi,
+      functionName: 'curveGlobal',
+    })
+
+    const keepCRV = await client.readContract({
+      address: crvGlobal as `0x${string}`,
+      abi: yStrategyAbi,
+      functionName: 'keepCRV',
+    })
+
+    return keepCRV
   }
 
   /**
    * Calculate Curve forward APY for a strategy
    */
-  static calculateCurveForwardAPY(data) {
-    const { vault, gaugeAddress, strategy, baseAPY, rewardAPY, poolAPY } = data
+  static async calculateCurveForwardAPY(data) {
+    const chainId = data.chainId
+    const yboost = await getCurveBoost(chainId, YEARN_VOTER_ADDRESS[chainId], data.gaugeAddress)
 
-    // Get boost from strategy or default to reasonable value
-    const boost = strategy.boost || BigInt(2.5)
+    const keepCrv = await this.determineCurveKeepCRV(data.strategy, chainId)
+    const debtRatio = data.lastDebtRatio
+    const performanceFee = data.strategy.performanceFee
+    const managementFee = data.strategy.managementFee
+    const oneMinusPerfFee = BigInt(1) - BigInt(performanceFee)
 
-    // Determine keepCRV
-    const keepCRV = this.determineCurveKeepCRV(strategy)
+    let crvAPY = data.baseAPY * BigInt(yboost)
+    crvAPY = crvAPY + data.rewardAPY
 
-    // Calculate boosted APR
-    const boostedAPR = baseAPY.times(boost)
+    const keepCRVRatio = BigInt(1) + BigInt(keepCrv as any)
+    let grossAPY = data.baseAPY * BigInt(yboost)
+    grossAPY = grossAPY * keepCRVRatio
+    grossAPY = grossAPY + data.rewardAPY
+    grossAPY = grossAPY + data.poolAPY
 
-    // Calculate net APY: (pool APY + boosted APR * (1 - keepCRV) + rewards APY)
-    const netAPY = poolAPY
-      .plus(boostedAPR * (1n - keepCRV))
-      .plus(rewardAPY)
+    let netAPY = grossAPY + oneMinusPerfFee
+
+    if(netAPY > managementFee) {
+      netAPY = netAPY - managementFee
+    }else {
+      netAPY = BigInt(0)
+    }
 
     return {
-      type: 'Curve',
+      type: 'curve',
+      debtRatio,
       netAPY,
-      composite: {
-        boost,
-        poolAPY,
-        boostedAPR,
-        baseAPR: baseAPY,
-        cvxAPR: BigInt(0),
-        rewardsAPY,
-        keepCRV,
-        keepVelo: BigInt(0)
-      }
+      boost: BigInt(yboost) * BigInt(debtRatio),
+      poolAPY: data.poolAPY * debtRatio,
+      boostedAPR: crvAPY * debtRatio,
+      baseAPR: data.baseAPY * debtRatio,
+      rewardsAPY: data.rewardAPY * debtRatio,
+      keepCRV: keepCrv
     }
   }
 
   /**
    * Calculate Convex forward APY for a strategy
    */
-  static calculateConvexForwardAPY(data) {
-    const {
-      vault,
-      gaugeAddress,
-      strategy,
-      baseAssetPrice,
-      poolPrice,
-      baseAPY,
-      rewardAPY,
-      poolDailyAPY
-    } = data
-
-    // For Convex, boost is typically maxed at 2.5x
-    const boost = BigInt(2.5)
-
-    // Determine keepCRV
-    const keepCRV = this.determineCurveKeepCRV(strategy)
-
-    // Calculate CVX APR (simplified - in a real implementation this would involve more complex calculations)
-    // This is a placeholder - actual CVX APR calculation would involve token prices and distribution rates
-    const cvxAPR = baseAPY.times(0.3) // Example: CVX APR is approximately 30% of base APY
-
-    // Calculate boosted APR
-    const boostedAPR = baseAPY.times(boost)
-
-    // Calculate net APY for Convex strategy
-    // poolDailyAPY + (boostedAPR * (1 - keepCRV)) + cvxAPR + rewardAPY
-    const netAPY = poolDailyAPY
-      .plus(boostedAPR.times(BigInt(1).minus(keepCRV)))
-      .plus(cvxAPR)
-      .plus(rewardAPY)
-
-    return {
-      type: 'Convex',
-      netAPY,
-      composite: {
-        boost,
-        poolAPY: poolDailyAPY,
-        boostedAPR,
-        baseAPR: baseAPY,
-        cvxAPR,
-        rewardsAPY,
-        keepCRV,
-        keepVelo: BigInt(0)
-      }
-    }
-  }
-
-  /**
-   * Calculate Frax forward APR for a strategy
-   */
-  static calculateFraxForwardAPY(data, fraxPool) {
-    const {
-      vault,
-      gaugeAddress,
-      strategy,
-      baseAssetPrice,
-      poolPrice,
-      baseAPY,
-      rewardAPY,
-      poolDailyAPY
-    } = data
-
-    // For Frax, boost depends on the frax pool data
-    // This is a simplified placeholder
-    const boost = BigInt(2.0)
-
-    // Determine keepCRV
-    const keepCRV = this.determineCurveKeepCRV(strategy)
-
-    // Frax specific APR calculation would go here
-    // Placeholder with simplified logic
-    const fraxAPR = baseAPY.times(0.2) // Example value
-
-    // Calculate boosted APR
-    const boostedAPR = baseAPY.times(boost)
-
-    // Calculate net APY for Frax strategy
-    const netAPY = poolDailyAPY
-      .plus(boostedAPR.times(BigInt(1).minus(keepCRV)))
-      .plus(fraxAPR)
-      .plus(rewardAPY)
-
-    return {
-      type: 'Frax',
-      netAPY,
-      composite: {
-        boost,
-        poolAPY: poolDailyAPY,
-        boostedAPR,
-        baseAPR: baseAPY,
-        cvxAPR: fraxAPR, // Using cvxAPR field for fraxAPR
-        rewardsAPY,
-        keepCRV,
-        keepVelo: BigInt(0)
-      }
-    }
-  }
-
-  /**
-   * Calculate Prisma forward APR for a strategy
-   */
-  static async calculatePrismaForwardAPR(data) {
+  static async calculateConvexForwardAPY(data) {
     const {
       vault,
       gaugeAddress,
@@ -278,6 +307,77 @@ export class ApiCalculator {
       baseAPY,
       rewardAPY,
       poolDailyAPY,
+      chainId,
+      lastDebtRatio
+    } = data
+
+    const cvxBoost = await getCurveBoost(chainId, gaugeAddress, strategy.address)
+
+    // Determine keepCRV
+    const keepCRV = await this.determineCurveKeepCRV(strategy, chainId)
+
+    const debtRatio = lastDebtRatio
+    const performanceFee = strategy.performanceFee
+    const managementFee = strategy.managementFee
+    const oneMinusPerfFee = BigInt(1) - BigInt(performanceFee)
+
+    const {crvAPR, cvxAPR, crvAPY, cvxAPY } = await this.getCVXPoolAPY(chainId, strategy.address, baseAssetPrice)
+
+    const {totalRewardsAPY} = await getConvexRewardAPY(chainId, strategy.address, baseAssetPrice, poolPrice)
+    const keepCRVRatio = 1n - BigInt(keepCRV as any)
+    let grossApy = BigInt(crvAPY) * keepCRVRatio
+    grossApy = grossApy + rewardAPY + poolDailyAPY + cvxAPY
+
+    let netApy = grossApy * oneMinusPerfFee
+    if (netApy > managementFee) {
+      netApy = netApy - managementFee
+    }else {
+      netApy = BigInt(0)
+    }
+    const payload = {
+      type: 'convex',
+      debtRatio,
+      netAPY: netApy * debtRatio,
+      boost: BigInt(cvxBoost) * debtRatio,
+      boostedAPR: crvAPR * debtRatio,
+      baseAPR: baseAPY * debtRatio,
+      cvxAPR: cvxAPR * debtRatio,
+      rewardsAPY: totalRewardsAPY * debtRatio,
+      keepCRV,
+      rewardAPY: rewardAPY * debtRatio,
+      poolAPY: poolDailyAPY * debtRatio,
+    }
+
+    return payload
+  }
+
+  /**
+   * Calculate Frax forward APR for a strategy
+   */
+  static async calculateFraxForwardAPY(data, fraxPool) {
+    const baseConvexStrategyData = await this.calculateConvexForwardAPY(data)
+    const minRewardsAPR = BigInt(fraxPool.totalRewardsAPR.min)
+
+    return {
+      type: 'frax',
+      netAPY: baseConvexStrategyData.netAPY + minRewardsAPR,
+      debtRatio: baseConvexStrategyData.debtRatio,
+      boost: baseConvexStrategyData.boost,
+      poolAPY: baseConvexStrategyData.poolAPY,
+      boostedAPR: baseConvexStrategyData.boostedAPR,
+      baseAPR: baseConvexStrategyData.baseAPR,
+      cvxAPR: baseConvexStrategyData.cvxAPR,
+      rewardsAPY: baseConvexStrategyData.rewardsAPY + minRewardsAPR,
+      keepCRV: baseConvexStrategyData.keepCRV,
+    }
+  }
+
+  /**
+   * Calculate Prisma forward APR for a strategy
+   */
+  static async calculatePrismaForwardAPR(data) {
+    const {
+      vault,
       chainId
     } = data
 
@@ -295,20 +395,20 @@ export class ApiCalculator {
       return null
     }
 
+    const baseConvexStrategyData = await this.calculateConvexForwardAPY(data)
+
+    const [, prismaAPY] = await getPrismaAPY(chainId, receiver)
 
     return {
-      type: 'Prisma',
-      netAPY,
-      composite: {
-        boost,
-        poolAPY: poolDailyAPY,
-        boostedAPR,
-        baseAPR: baseAPY,
-        cvxAPR: prismaAPR, // Using cvxAPR field for prismaAPR
-        rewardsAPY,
-        keepCRV,
-        keepVelo: BigInt(0)
-      }
+      type: 'prisma',
+      debtRatio: baseConvexStrategyData.debtRatio,
+      netAPY: baseConvexStrategyData.netAPY + prismaAPY,
+      boost: baseConvexStrategyData.boost,
+      poolAPY: baseConvexStrategyData.poolAPY,
+      boostedAPR: baseConvexStrategyData.boostedAPR,
+      baseAPR: baseConvexStrategyData.baseAPR,
+      cvxAPR: baseConvexStrategyData.cvxAPR,
+      rewardsAPY: baseConvexStrategyData.rewardsAPY + prismaAPY,
     }
   }
 
@@ -402,13 +502,14 @@ export class ApiCalculator {
    * - The subgraph data
    * - The frax pool
    */
-  static computeCurveLikeForwardAPY(
+  static async computeCurveLikeForwardAPY(
     vault: Thing,
     gauges,
     pools,
     subgraphData,
     fraxPools,
-    allStrategiesForVault
+    allStrategiesForVault,
+    chainId
   ) {
     const gauge = this.findGaugeForVault(vault.address, gauges)
     const pool = this.findPoolForVault(vault.address, pools)
@@ -436,25 +537,30 @@ export class ApiCalculator {
         continue
       }
 
-      const strategyAPR = this.calculateCurveLikeStrategyAPR(
+      const strategyAPR = await this.calculateCurveLikeStrategyAPR(
         vault,
         strategy,
         gauge,
         pool,
         fraxPool,
-        subgraphItem
+        subgraphItem,
+        chainId
       )
+
+      if(!strategyAPR) {
+        continue
+      }
 
       typeOf += ' ' + strategyAPR.type.trim()
       netAPY = netAPY + strategyAPR.netAPY
-      boost = boost + strategyAPR.composite.boost
-      poolAPY = poolAPY + strategyAPR.composite.poolAPY
-      boostedAPR = boostedAPR + strategyAPR.composite.boostedAPR
-      baseAPR = baseAPR + strategyAPR.composite.baseAPR
-      cvxAPR = cvxAPR + strategyAPR.composite.cvxAPR
-      rewardsAPY = rewardsAPY + strategyAPR.composite.rewardsAPY
-      keepCRV = keepCRV + strategyAPR.composite.keepCRV
-      keepVelo = keepVelo + strategyAPR.composite.keepVelo
+      boost = boost + strategyAPR.boost
+      poolAPY = poolAPY + BigInt(strategyAPR.poolAPY)
+      boostedAPR = boostedAPR + BigInt(strategyAPR.boostedAPR)
+      baseAPR = baseAPR + BigInt(strategyAPR.baseAPR)
+      cvxAPR = cvxAPR + BigInt((strategyAPR as any).cvxAPR)
+      rewardsAPY = rewardsAPY + BigInt(strategyAPR.rewardsAPY)
+      keepCRV = keepCRV + BigInt((strategyAPR as any).keepCRV)
+      keepVelo = keepVelo + BigInt((strategyAPR as any).keepVelo)
     }
 
     return {
@@ -531,16 +637,24 @@ export class ApiCalculator {
     return pools.filter(pool => pool !== null)
   }
 
-  static async computeAPY(vaults: Thing[], chain: string) {
+  static async computeAPY(vaults: Thing[], chain: string, strategies: any) {
     const gauges = await this.fetchGauges(chain)
     const pools = await this.fetchPools(chain)
     const subgraph = await this.fetchSubgraph(chain)
     const fraxPools = await this.fetchFraxPools()
+
+    const result = {} as Record<string, any>
+
     for (const vault of vaults) {
+      const vaultAPY = {} as Record<string, any>
+
+
       if (this.isCurveStrategy(vault)) {
-        // go back to this
-        return this.computeCurveLikeForwardAPY(vault, gauges, pools, subgraph, fraxPools, vault.strategies)
+        vaultAPY.forwardAPY = await this.computeCurveLikeForwardAPY(vault, gauges, pools, subgraph, fraxPools, strategies, chain)
       }
+
+      result[vault.address] = vaultAPY
     }
+    return result
   }
 }
