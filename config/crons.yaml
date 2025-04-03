@@ -1,4 +1,3 @@
-
 crons:
   - name: LatestBlocks
     queue: extract
@@ -10,4 +9,10 @@ crons:
     queue: probe
     job: all
     schedule: "*/2 * * * * *" # every 2 seconds
+    start: true
+
+  - name: ForwardApy
+    queue: forward
+    job: fApy
+    schedule: "*/15 * * * *" # every 15 minutes
     start: true
