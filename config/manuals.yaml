@@ -102,3 +102,181 @@ manuals:
       inceptBlock: 32945516,
       inceptTime: 1710521005
     }
+
+ 
+  - chainId: 1
+    address: '0x7c37d1Ca716c4519BEcc9bC0CEea065C88caF98B'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      cove: true,
+      yearn: false,
+      asset: '0x64DC55D76d1541E0853cbd7cF6586615e9E6f4C7',
+      apiVersion: '3.0.0',
+      decimals: 18,
+      inceptBlock: 20458470,
+      inceptTime: 1722813995 
+    }
+
+
+  - chainId: 1
+    address: '0x4D840966887673132Ec61aB4Ffb5e3c26cB1F4BD'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      cove: true,
+      yearn: false,
+      asset: '0xF96E4C5Eee8095F918eD3312B3De3d68156798f8',
+      apiVersion: '3.0.0',
+      decimals: 18,
+      inceptBlock: 20295171,
+      inceptTime: 1720844555   
+    }
+
+
+  - chainId: 1
+    address: '0xf750c238cE033afC224C2E57d0fcb86E64Db0221'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      cove: true,
+      yearn: false,
+      asset: '0x552868611d2641144454140DdED98E6160b3Bfc9',
+      apiVersion: '3.0.0',
+      decimals: 18,
+      inceptBlock: 19594550,
+      inceptTime: 1712380715    
+    }
+
+
+  - chainId: 1
+    address: '0xb5907b7913F4dc10C5c0fc75c570c7D78D16768F'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      cove: true,
+      yearn: false,
+      asset: '0x120B128cF1a5117Fe8E9E12b79B3437e7396bd14',
+      apiVersion: '3.0.0',
+      decimals: 18,
+      inceptBlock: 19594562,
+      inceptTime: 1712380859    
+    }
+    
+   
+  - chainId: 1
+    address: '0x093f4FCA4b71912EDb33B2d4Bb92E5b85658D833'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      cove: true,
+      yearn: false,
+      asset: '0x18f365ECCe58fA865Ec9FB027E9175125DB93B91',
+      apiVersion: '3.0.0',
+      decimals: 18,
+      inceptBlock: 19594539,
+      inceptTime: 1712380583    
+    }
+
+
+  - chainId: 1
+    address: '0x90B28aa7Df2eFaaAD4582afaF4D2a1c61519A245'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      cove: true,
+      yearn: false,
+      asset: '0x28b2DC219c047B10F353caA2934ad8803e089A88',
+      apiVersion: '3.0.0',
+      decimals: 18,
+      inceptBlock: 19594606,
+      inceptTime: 1712381387    
+    }
+
+
+  - chainId: 1
+    address: '0x45380B6249a1005bec67928AF03b8aA8ec4eadCC'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      cove: true,
+      yearn: false,
+      asset: '0x9Cb8c5136aD079d3311F5b766D6fC370bF29E76b',
+      apiVersion: '3.0.0',
+      decimals: 18,
+      inceptBlock: 20458470,
+      inceptTime: 1722813995     
+    }
+
+
+  - chainId: 1
+    address: '0x2BCc065433c608B2e71eA80405E260cA9B40ff65'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      cove: true,
+      yearn: false,
+      asset: '0xfe08Fc631BE2DA2B47aa6adBA275ADAB2197C0cd',
+      apiVersion: '3.0.0',
+      decimals: 18,
+      inceptBlock: 19594573,
+      inceptTime: 1712380991      
+    }
+
+
+  - chainId: 1
+    address: '0x66Afc16E2FaCf4EeA0712EDEBE0B96C5f51606Fa'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      cove: true,
+      yearn: false,
+      asset: '0x87588D3fBCdff1bF84555F0A22056d94534A74A6',
+      apiVersion: '3.0.0',
+      decimals: 18,
+      inceptBlock: 	19594595,
+      inceptTime: 1712381255      
+    }
+
+    
+  - chainId: 1
+    address: '0xED08B03bAeAB9EEF24F8AAa7c752f34a3264992e'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      cove: true,
+      yearn: false,
+      asset: '0x81D40243c649f7d6092295F50F4B1D3A8e53DA99',
+      apiVersion: '3.0.0',
+      decimals: 18,
+      inceptBlock: 19594617,
+      inceptTime: 1712381519      
+    }
+
+
+  - chainId: 1
+    address: '0x4E69d3b01a5693DBff8dC0AD340eBF816b38D162'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      cove: true,
+      yearn: false,
+      asset: '0x29eE8c3FB7ea0b52261B18782F1a060C2e210aFa',
+      apiVersion: '3.0.0',
+      decimals: 18,
+      inceptBlock: 20458470,
+      inceptTime: 1722813995      
+    }  
+
+    
