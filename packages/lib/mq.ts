@@ -54,6 +54,9 @@ const DEFAULT_PRIORITY = 100
 const bull = { connection: {
   host: process.env.REDIS_HOST || 'localhost',
   port: (process.env.REDIS_PORT || 6379) as number,
+  ...(process.env.REDIS_USERNAME ? { username: process.env.REDIS_USERNAME } : {}),
+  ...(process.env.REDIS_PASSWORD ? { password: process.env.REDIS_PASSWORD } : {}),
+  ...(process.env.REDIS_TLS === 'true' ? { tls: {} } : {})
 }}
 
 const queues: { [key: string]: Queue } = {}
@@ -66,7 +69,7 @@ export function connect(queueName: string) {
 export async function add(job: Job, data: any, options?: any) {
   const queue = job.bychain ? `${job.queue}-${data.chainId}` : job.queue
   if (!queues[queue]) { queues[queue] = connect(queue) }
-  await queues[queue].add(job.name, data, { priority: DEFAULT_PRIORITY, ...options })
+  return await queues[queue].add(job.name, data, { priority: DEFAULT_PRIORITY, attempts: 1, ...options })
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -146,4 +149,8 @@ export function computeConcurrency(jobs: number, options: ConcurrencyOptions) {
   const m = (options.max - options.min) / (options.threshold - 0)
   const concurrency = Math.floor(m * jobs + options.min)
   return Math.min(Math.max(concurrency, options.min), options.max)
+}
+
+export async function down() {
+  return Promise.all(Object.values(queues).map(async queue => queue.close()))
 }
