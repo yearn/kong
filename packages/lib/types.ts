@@ -321,7 +321,18 @@ export const ThingSchema = z.object({
   defaults: z.record(z.any())
 })
 
-export type Thing = z.infer<typeof ThingSchema>
+export type Thing = z.infer<typeof ThingSchema> & {
+  defaults: {
+    [k: string]: unknown;
+    asset?: `0x${string}`
+    vault?: `0x${string}`
+    decimals?: number;
+    apiVersion?: string;
+    inceptTime?: string;
+    inceptBlock?: string;
+    v3?: boolean;
+  }
+}
 
 export const SnapshotSchema = z.object({
   chainId: z.number(),

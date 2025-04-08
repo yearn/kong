@@ -1,79 +1,22 @@
-import { mq } from 'lib'
-import { Processor } from 'lib/processor'
-import { Worker } from 'bullmq'
-import db from '../db'
-import { snakeToCamelCols } from 'lib/strings'
-import { ApiCalculator } from './apy-calculator'
 import { Thing } from 'lib/types'
+import { computeCurveLikeForwardAPY, fetchFraxPools, fetchGauges, fetchPools, fetchSubgraph, isCurveStrategy } from './crv-like.forward'
 
-export default class Forward implements Processor {
-  worker: Worker | undefined
+export async function computeChainAPY(vaults: Thing[], chain: string, strategies: any) {
+  const gauges = await fetchGauges(chain)
+  const pools = await fetchPools(chain)
+  const subgraph = await fetchSubgraph(chain)
+  const fraxPools = await fetchFraxPools()
 
-  handlers: Record<string, (data: any) => Promise<any>> = {
-    [mq.job.forward.fApy.name]: async data => {
-      this.handleFApy(data)
-    },
-    [mq.job.forward.curve.name]: async data => {
-      this.handleCurve(data)
-    },
-    [mq.job.forward.v2.name]: async data => {
-      this.handleV2(data)
+  const result = {} as Record<string, any>
+
+  for (const vault of vaults) {
+    const vaultAPY = {} as Record<string, any>
+
+    if (isCurveStrategy(vault)) {
+      vaultAPY.forwardAPY = await computeCurveLikeForwardAPY(vault, gauges, pools, subgraph, fraxPools, strategies, chain)
     }
-  }
 
-  async up() {
-    this.worker = mq.worker(mq.q.forward, async job => {
-      const label = `🔄 ${job.name} ${job.id}`
-      console.time(label)
-      await this.handlers[job.name](job.data)
-      console.timeEnd(label)
-    })
+    result[vault.address] = vaultAPY
   }
-
-  async down() {
-  }
-
-  async handleFApy() {
-    const curve = await this.fetchCurve()
-    const v2 = await this.fetchYV2()
-    await mq.add(mq.job.forward.curve, curve)
-    await mq.add(mq.job.forward.v2, v2)
-  }
-
-  async handleCurve(data: Thing[] ) {
-    for await (const vault of data) {
-      const forward = await ApiCalculator.computeCurveLikeForwardAPY(
-        vault,
-        vault.defaults.strategies,
-        vault.defaults.gauges,
-        vault.defaults.pools,
-        vault.defaults.subgraphData,
-        vault.defaults.fraxPools
-      )
-      console.info(forward)
-    }
-  }
-
-  async handleV2(data: any) {
-    console.info(data)
-  }
-
-  async fetchCurve() {
-    const client = await db.connect()
-    try {
-      const result = await client.query('SELECT * FROM thing where label LIKE 1', ['%curve%'])
-    } finally {
-      client.release()
-    }
-  }
-
-  async fetchYV2() {
-    const client = await db.connect()
-    try {
-      const result = await client.query('SELECT * FROM thing where defaults->>apiVersion = $1', ['2'])
-      return snakeToCamelCols(result.rows)
-    } finally {
-      client.release()
-    }
-  }
+  return result
 }

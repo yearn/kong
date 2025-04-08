@@ -1,10 +1,10 @@
 import { createPublicClient, erc20Abi, http } from 'viem'
 import { mainnet } from 'viem/chains'
 import { fetchErc20PriceUsd } from '../prices'
+import { convexBaseStrategyAbi } from './abis/convex-base-strategy.abi'
+import { crvRewardsAbi } from './abis/crv-rewards.abi'
+import { cvxBoosterAbi } from './abis/cvx-booster.abi'
 import { convertFloatAPRToAPY } from './calculation.helper'
-import { convexBaseStrategyAbi } from './convex-base-strategy.abi'
-import { crvRewardsAbi } from './crv-rewards.abi'
-import { cvxBoosterAbi } from './cvx-booster.abi'
 import { CVX_TOKEN_ADDRESS } from './maps.helper'
 
 export const getCVXForCRV = async (chainID: number, crvEarned: bigint): Promise<bigint> => {

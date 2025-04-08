@@ -1,7 +1,7 @@
 import { ethers } from 'ethers'
 import { createPublicClient, http } from 'viem'
-import { fetchErc20PriceUsd } from '../prices'
-import { yprismaReceiverAbi } from './yprisma-receiver.abi'
+import { fetchErc20PriceUsd } from '../../prices'
+import { yprismaReceiverAbi } from '../abis/yprisma-receiver.abi'
 
 export async function getPrismaAPY(chainID: number, prismaReceiver: string): Promise<[number, number]> {
   const client = createPublicClient({

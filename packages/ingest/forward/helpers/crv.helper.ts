@@ -1,8 +1,8 @@
 import { createPublicClient, http } from 'viem'
 import { mainnet } from 'viem/chains'
-import { convexBaseStrategyAbi } from './convex-base-strategy.abi'
-import { curveGaugeAbi } from './crv-gauge.abi'
-import { strategyBaseAbi } from './strategy-base.abi'
+import { convexBaseStrategyAbi } from '../abis/convex-base-strategy.abi'
+import { curveGaugeAbi } from '../abis/crv-gauge.abi'
+import { strategyBaseAbi } from '../abis/strategy-base.abi'
 
 type Address = `0x${string}`
 
