@@ -34,10 +34,14 @@ function getDb() {
   })
 }
 
-async function resetHarvestsWithBadAprs(db: Pool) {
+async function replayHarvestsWithBadAprs(db: Pool) {
   const result: { chainId: number, address: string, blockNumber: bigint }[] = []
   const strategies = await db.query(`
-    select snapshot.chain_id as "chainId", snapshot.address as "address", snapshot->'apiVersion' as "apiVersion", hook->'lastReportDetail' as "lastReportDetail"
+    select
+      snapshot.chain_id as "chainId",
+      snapshot.address as "address",
+      replace(snapshot->>'apiVersion', '.Edited', '') as "apiVersion",
+      hook->'lastReportDetail' as "lastReportDetail"
     from snapshot
     join thing on snapshot.chain_id = thing.chain_id and snapshot.address = thing.address
     where thing.label = 'strategy'
@@ -64,29 +68,45 @@ async function resetHarvestsWithBadAprs(db: Pool) {
 
     for (const [index, harvest] of harvests.entries()) {
       if (index > harvests.length - 2) { continue }
-      const latestApr = await computeApr(harvests[index], harvests[index + 1])
 
-      if (latestApr.gross !== (harvests[index].hook.apr.gross ?? 0)) {
-        console.log(
-          harvest.transactionHash, '😱',
-          'latestApr.gross', latestApr.gross,
-          'harvests[index].hook.apr.gross ?? 0', harvests[index].hook.apr.gross ?? 0,
-          'block', harvest.blockNumber,
-          'replay', result.length + 1
-        )
+      try {
+        const latestApr = await computeApr(harvests[index], harvests[index + 1])
 
-        result.push({
-          chainId: strategy.chainId,
-          address: strategy.address,
-          blockNumber: harvest.blockNumber
-        })
+        if (latestApr.gross !== (harvests[index].hook.apr.gross ?? 0)) {
+          console.log(
+            harvest.transactionHash, '😱',
+            'latestApr.gross', latestApr.gross,
+            'harvests[index].hook.apr.gross ?? 0', harvests[index].hook.apr.gross ?? 0,
+            'block', harvest.blockNumber,
+            'replay', result.length + 1
+          )
 
-      } else {
-        console.log(harvest.transactionHash, '👍', 'aprs =')
+          result.push({
+            chainId: strategy.chainId,
+            address: strategy.address,
+            blockNumber: harvest.blockNumber
+          })
+
+          console.log('mq.add(mq.job.extract.evmlog)', strategy.chainId, strategy.address, harvest.blockNumber)
+          await mq.add(mq.job.extract.evmlog, {
+            abiPath: 'yearn/2/strategy',
+            chainId: strategy.chainId,
+            address: strategy.address,
+            from: harvest.blockNumber,
+            to: harvest.blockNumber,
+            replay: false
+          })
+
+        } else {
+          console.log(harvest.transactionHash, '👍', 'aprs =')
+        }
+
+      } catch {
+        console.error('🤬🤬🤬🤬🤬', harvest.chainId, harvest.address, harvest.blockNumber)
       }
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 10))
   }
 
   return result
@@ -99,20 +119,8 @@ async function main() {
   console.log('rpcs up')
 
   try {
-    const harvests = await resetHarvestsWithBadAprs(db)
+    const harvests = await replayHarvestsWithBadAprs(db)
     console.log('harvests', harvests.length)
-
-    for (const harvest of harvests) {
-      console.log('mq.add(mq.job.extract.evmlog)', harvest.chainId, harvest.address, harvest.blockNumber)
-      await mq.add(mq.job.extract.evmlog, {
-        abiPath: 'yearn/2/strategy',
-        chainId: harvest.chainId,
-        address: harvest.address,
-        from: harvest.blockNumber,
-        to: harvest.blockNumber,
-        replay: false
-      })
-    }
 
   } catch (error) {
     console.error('🤬🤬🤬🤬🤬')
