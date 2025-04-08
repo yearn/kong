@@ -1,15 +1,16 @@
 import { Thing } from 'lib/types'
 import { createPublicClient, http, zeroAddress } from 'viem'
-import { yprismaAbi } from './yprisma.abi'
-import { getCurveBoost } from './crv.helper'
-import { convexBaseStrategyAbi } from './convex-base-strategy.abi'
-import { yStrategyAbi } from './ystrategy.abi'
-import { cvxBoosterAbi } from './cvx-booster.abi'
-import { crvRewardsAbi } from './crv-rewards.abi'
-import { getConvexRewardAPY, getCVXForCRV } from './cvx.helper'
+import { fetchErc20PriceUsd } from '../prices'
 import { convertFloatAPRToAPY } from './calculation.helper'
+import { convexBaseStrategyAbi } from './convex-base-strategy.abi'
+import { crvRewardsAbi } from './crv-rewards.abi'
+import { getCurveBoost } from './crv.helper'
+import { cvxBoosterAbi } from './cvx-booster.abi'
+import { getConvexRewardAPY, getCVXForCRV } from './cvx.helper'
+import { CRV_TOKEN_ADDRESS, CVX_TOKEN_ADDRESS, YEARN_VOTER_ADDRESS } from './maps.helper'
 import { getPrismaAPY } from './prisma.helper'
-import { YEARN_VOTER_ADDRESS } from './maps.helper'
+import { yprismaAbi } from './yprisma.abi'
+import { yStrategyAbi } from './ystrategy.abi'
 
 export class ApiCalculator {
   static isCurveStrategy(strategy) {
@@ -162,37 +163,27 @@ export class ApiCalculator {
       functionName: 'totalSupply',
     }) as any
 
-    const rate = BigInt(rateResult.toString() || '0')
-    const supply = BigInt(totalSupply.toString() || '0')
+    const rate = Number(rateResult)
+    const supply = Number(totalSupply)
     const virtualSupply = supply * baseAssetPrice
     let crvPerUnderlying
 
-    if(virtualSupply > 0n) {
+    if(virtualSupply > 0) {
       crvPerUnderlying = rate / virtualSupply
     }
 
-    const crvPerUnderlyingPerYear = crvPerUnderlying * 31536000n
-    const cvxPerYear = await getCVXForCRV(chainId, crvPerUnderlyingPerYear)
+    const crvPerUnderlyingPerYear = crvPerUnderlying * 31536000
+    const cvxPerYear = await getCVXForCRV(chainId, BigInt(crvPerUnderlyingPerYear))
 
-    let crvPrice = 0n
+    const { priceUsd: crvPrice } = await fetchErc20PriceUsd(chainId, CRV_TOKEN_ADDRESS[chainId], undefined, true)
 
-    // TODO: find out how to do it
-    const tokenPrice = 0n
-
-    crvPrice = tokenPrice
-
-    // TODO: same thing
-    //   if tokenPrice, ok := storage.GetPrice(chainID, storage.CVX_TOKEN_ADDRESS[chainID]); ok {
-    // 	cvxPrice = tokenPrice.HumanizedPrice
-    // }
-
-    const cvxPrice = crvPrice
+    const { priceUsd: cvxPrice } = await fetchErc20PriceUsd(chainId, CVX_TOKEN_ADDRESS[chainId], undefined, true)
 
     const crvAPR = crvPerUnderlyingPerYear * crvPrice
-    const cvxAPR = cvxPerYear * cvxPrice
+    const cvxAPR = Number(cvxPerYear) * cvxPrice
 
-    const crvAPY = convertFloatAPRToAPY(crvAPR, 365/15)
-    const cvxAPY = convertFloatAPRToAPY(cvxAPR, 365/15)
+    const crvAPY = convertFloatAPRToAPY(BigInt(crvAPR), 365/15)
+    const cvxAPY = convertFloatAPRToAPY(BigInt(cvxAPR), 365/15)
 
     return {
       crvAPR,
@@ -299,7 +290,6 @@ export class ApiCalculator {
    */
   static async calculateConvexForwardAPY(data) {
     const {
-      vault,
       gaugeAddress,
       strategy,
       baseAssetPrice,
@@ -319,26 +309,26 @@ export class ApiCalculator {
     const debtRatio = lastDebtRatio
     const performanceFee = strategy.performanceFee
     const managementFee = strategy.managementFee
-    const oneMinusPerfFee = BigInt(1) - BigInt(performanceFee)
+    const oneMinusPerfFee = 1 - performanceFee
 
     const {crvAPR, cvxAPR, crvAPY, cvxAPY } = await this.getCVXPoolAPY(chainId, strategy.address, baseAssetPrice)
 
     const {totalRewardsAPY} = await getConvexRewardAPY(chainId, strategy.address, baseAssetPrice, poolPrice)
-    const keepCRVRatio = 1n - BigInt(keepCRV as any)
-    let grossApy = BigInt(crvAPY) * keepCRVRatio
+    const keepCRVRatio = 1 - Number(keepCRV)
+    let grossApy = crvAPY * keepCRVRatio
     grossApy = grossApy + rewardAPY + poolDailyAPY + cvxAPY
 
     let netApy = grossApy * oneMinusPerfFee
     if (netApy > managementFee) {
       netApy = netApy - managementFee
     }else {
-      netApy = BigInt(0)
+      netApy = 0
     }
     const payload = {
       type: 'convex',
       debtRatio,
       netAPY: netApy * debtRatio,
-      boost: BigInt(cvxBoost) * debtRatio,
+      boost: cvxBoost * debtRatio,
       boostedAPR: crvAPR * debtRatio,
       baseAPR: baseAPY * debtRatio,
       cvxAPR: cvxAPR * debtRatio,
@@ -356,7 +346,7 @@ export class ApiCalculator {
    */
   static async calculateFraxForwardAPY(data, fraxPool) {
     const baseConvexStrategyData = await this.calculateConvexForwardAPY(data)
-    const minRewardsAPR = BigInt(fraxPool.totalRewardsAPR.min)
+    const minRewardsAPR = fraxPool.totalRewardsAPR.min
 
     return {
       type: 'frax',
@@ -412,10 +402,28 @@ export class ApiCalculator {
     }
   }
 
+  static async calculateGaugeBaseAPR(gauge, crvTokenPrice, poolPrice, baseAssetPrice) {
+    const inflationRate = gauge.inflationRate
+    const gaugeWeight = gauge.relativeWeight
+    const secondPerYear = 31556952
+    const workingSupply = gauge.workingSupply
+    const perMaxBoost = 0.4
+
+    let baseAPR = inflationRate * gaugeWeight
+    baseAPR = baseAPR * (secondPerYear / workingSupply)
+    baseAPR = baseAPR * (perMaxBoost / poolPrice)
+    baseAPR = baseAPR * crvTokenPrice
+    baseAPR = baseAPR / baseAssetPrice
+
+    const baseAPY = convertFloatAPRToAPY(BigInt(baseAPR), 365/15)
+
+    return { baseAPR, baseAPY }
+  }
+
   /**
    * Calculate strategy APR based on its type (Curve, Convex, Frax, or Prisma)
    */
-  static calculateCurveLikeStrategyAPR(
+  static async calculateCurveLikeStrategyAPR(
     vault: Thing,
     strategy,
     gauge,
@@ -427,17 +435,14 @@ export class ApiCalculator {
     // Get base asset price from gauge
     const baseAssetPrice = BigInt(gauge.lpTokenPrice || 0)
 
-    // TODO: findout how to calculate this
-    const crvPrice = BigInt(1) // Placeholder
+    const { priceUsd } = await fetchErc20PriceUsd(chainId, CRV_TOKEN_ADDRESS[chainId], undefined, true)
+    const crvPrice = BigInt(priceUsd)
 
     // Get pool price from gauge
     const poolPrice = this.getPoolPrice(gauge)
 
-    // Calculate base APY (simplified)
-    // In a real implementation, this would use calculateGaugeBaseAPR
-    const baseAPY = BigInt(0.1) // Placeholder
+    const { baseAPY } = await this.calculateGaugeBaseAPR(gauge, crvPrice, poolPrice, baseAssetPrice)
 
-    // Get rewards APY
     const rewardAPY = this.getRewardsAPY(chainId, pool)
 
     // Get pool APYs
@@ -517,23 +522,19 @@ export class ApiCalculator {
     const subgraphItem = this.findSubgraphItemForVault(gauge.swap, subgraphData)
 
     let typeOf = ''
-    let netAPY = BigInt(0)
-    let boost = BigInt(0)
-    let poolAPY = BigInt(0)
-    let boostedAPR = BigInt(0)
-    let baseAPR = BigInt(0)
-    let cvxAPR = BigInt(0)
-    let rewardsAPY = BigInt(0)
-    let keepCRV = BigInt(0)
-    let keepVelo = BigInt(0)
+    let netAPY = 0
+    let boost = 0
+    let poolAPY = 0
+    let boostedAPR = 0
+    let baseAPR = 0
+    let cvxAPR = 0
+    let rewardsAPY = 0
+    let keepCRV = 0
 
     for (const strategyAddress in allStrategiesForVault) {
       const strategy = allStrategiesForVault[strategyAddress]
 
       if (!strategy.lastDebtRatio || strategy.lastDebtRatio.isZero()) {
-        if (process.env.ENVIRONMENT === 'dev') {
-          console.info(`Skipping strategy ${strategy.address} for vault ${vault.address} because debt ratio is zero`)
-        }
         continue
       }
 
@@ -552,15 +553,14 @@ export class ApiCalculator {
       }
 
       typeOf += ' ' + strategyAPR.type.trim()
-      netAPY = netAPY + strategyAPR.netAPY
-      boost = boost + strategyAPR.boost
-      poolAPY = poolAPY + BigInt(strategyAPR.poolAPY)
-      boostedAPR = boostedAPR + BigInt(strategyAPR.boostedAPR)
-      baseAPR = baseAPR + BigInt(strategyAPR.baseAPR)
-      cvxAPR = cvxAPR + BigInt((strategyAPR as any).cvxAPR)
-      rewardsAPY = rewardsAPY + BigInt(strategyAPR.rewardsAPY)
-      keepCRV = keepCRV + BigInt((strategyAPR as any).keepCRV)
-      keepVelo = keepVelo + BigInt((strategyAPR as any).keepVelo)
+      netAPY = netAPY + Number(strategyAPR.netAPY)
+      boost = boost + Number(strategyAPR.boost)
+      poolAPY = poolAPY + Number(strategyAPR.poolAPY)
+      boostedAPR = boostedAPR + Number(strategyAPR.boostedAPR)
+      baseAPR = baseAPR + Number(strategyAPR.baseAPR)
+      cvxAPR = cvxAPR + ('cvxAPR' in strategyAPR ? Number(strategyAPR.cvxAPR) : 0)
+      rewardsAPY = rewardsAPY + Number(strategyAPR.rewardsAPY)
+      keepCRV = keepCRV + ('keepCRV' in strategyAPR ? Number(strategyAPR.keepCRV) : 0)
     }
 
     return {
@@ -573,8 +573,7 @@ export class ApiCalculator {
         baseAPR,
         cvxAPR,
         rewardsAPY,
-        keepCRV,
-        keepVelo
+        keepCRV
       }
     }
   }

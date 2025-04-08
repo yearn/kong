@@ -1,6 +1,8 @@
 import { createPublicClient, http } from 'viem'
 import { mainnet } from 'viem/chains'
+import { convexBaseStrategyAbi } from './convex-base-strategy.abi'
 import { curveGaugeAbi } from './crv-gauge.abi'
+import { strategyBaseAbi } from './strategy-base.abi'
 
 type Address = `0x${string}`
 
@@ -37,7 +39,7 @@ export const getCurveBoost = async (chainID: number, voter: Address, gauge: Addr
 
   const boost = workingBalance && balanceOf ? (workingBalance * 10n) / (balanceOf * 4n) : 0n
 
-  return boost
+  return Number(boost)
 }
 
 
@@ -51,44 +53,43 @@ export const determineConvexKeepCRV = async (chainID: number, strategy: any) => 
     transport: http(process.env[`RPC_FULLNODE_${chainID}`]),
   })
 
-  const convexStrategy = await client.readContract({
+  const useLocalCRV = await client.readContract({
     address: strategy.Address,
-    abi: convexStrategyAbi,
+    abi: convexBaseStrategyAbi,
+    functionName: 'uselLocalCRV',
+  })
+
+  if(useLocalCRV) {
+    try {
+      const cvxKeepCRV = await client.readContract({
+        address: strategy.Address,
+        abi: convexBaseStrategyAbi,
+        functionName: 'cvxKeepCRV',
+      })
+      return Number(cvxKeepCRV)
+    }catch(err) {
+      const localKeepCRV = await client.readContract({
+        address: strategy.Address,
+        abi: convexBaseStrategyAbi,
+        functionName: 'localKeepCRV',
+      })
+      return Number(localKeepCRV)
+    }
+  }
+
+
+  const curveGlobal = await client.readContract({
+    address: strategy.Address,
+    abi: convexBaseStrategyAbi,
+    functionName: 'curveGlobal',
+  })
+
+  const keepCRV = await client.readContract({
+    address: curveGlobal as Address,
+    abi: strategyBaseAbi,
     functionName: 'keepCRV',
   })
 
+  return Number(keepCRV)
 
-  // if strategy.KeepCRV == nil {
-  // 	return storage.ZERO
-  // }
-  // client := ethereum.GetRPC(strategy.ChainID)
-  // convexStrategyContract, _ := contracts.NewConvexBaseStrategy(strategy.Address, client)
-  // useLocalCRV, err := convexStrategyContract.UselLocalCRV(nil)
-  // if err != nil {
-  // 	return helpers.ToNormalizedAmount(strategy.KeepCRV, 4)
-  // }
-  // if useLocalCRV {
-  // 	cvxKeepCRV, err := convexStrategyContract.LocalCRV(nil)
-  // 	if err != nil {
-  // 		localKeepCRV, err := convexStrategyContract.LocalKeepCRV(nil)
-  // 		if err != nil {
-  // 			return storage.ZERO
-  // 		}
-  // 		return helpers.ToNormalizedAmount(bigNumber.NewInt(0).Set(localKeepCRV), 4)
-  // 	}
-  // 	return helpers.ToNormalizedAmount(bigNumber.NewInt(0).Set(cvxKeepCRV), 4)
-  // }
-  // curveGlobal, err := convexStrategyContract.CurveGlobal(nil)
-  // if err != nil {
-  // 	return storage.ZERO
-  // }
-  // curveGlobalContract, err := contracts.NewStrategyBase(curveGlobal, client)
-  // if err != nil {
-  // 	return storage.ZERO
-  // }
-  // keepCRV, err := curveGlobalContract.KeepCRV(nil)
-  // if err != nil {
-  // 	return storage.ZERO
-  // }
-  // return helpers.ToNormalizedAmount(bigNumber.NewInt(0).Set(keepCRV), 4)
 }

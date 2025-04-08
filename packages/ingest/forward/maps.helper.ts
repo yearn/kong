@@ -51,3 +51,4 @@ export const CURVE_SUBGRAPHDATA_URI: Record<number, string> = {
   8453: '', // TODO: ADD CURVE_SUBGRAPHDATA_URI FOR BASE
   42161: 'https://api.curve.fi/api/getSubgraphData/arbitrum',
 }
+
