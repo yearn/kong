@@ -7,6 +7,5 @@ build/
 cache
 gql-cache*
 __pycache__
-.vscode/
 # this is for local history plugin :D
 .lh/
