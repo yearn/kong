@@ -7,3 +7,5 @@ build/
 cache
 gql-cache*
 __pycache__
+# this is for local history plugin :D
+.lh/

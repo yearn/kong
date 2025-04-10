@@ -1,6 +1,6 @@
 import { Output } from 'lib/types'
 import { Data } from '../../../../../../extract/timeseries'
-import _process, { _compute } from '../../../../lib/apy'
+import _process from '../../../../lib/apy'
 
 export const outputLabel = 'apy-bwd-delta-pps'
 
