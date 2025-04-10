@@ -7,7 +7,6 @@ export const q = {
   extract: 'extract',
   load: 'load',
   probe: 'probe',
-  forward: 'forward'
 }
 
 export const job: { [queue: string]: { [job: string]: Job } } = {
@@ -39,12 +38,6 @@ export const job: { [queue: string]: { [job: string]: Job } } = {
   probe: {
     all: { queue: 'probe', name: 'all' }
   },
-
-  forward: {
-    fApy: { queue: 'forward', name: 'fApy' },
-    curve: { queue: 'forward', name: 'curve' },
-    v2: { queue: 'forward', name: 'v2' }
-  }
 }
 
 // -= job priority in bullmq =-

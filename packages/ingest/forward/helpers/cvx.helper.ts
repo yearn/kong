@@ -1,11 +1,9 @@
 import { createPublicClient, erc20Abi, http } from 'viem'
 import { mainnet } from 'viem/chains'
-import { fetchErc20PriceUsd } from '../prices'
-import { convexBaseStrategyAbi } from './abis/convex-base-strategy.abi'
-import { crvRewardsAbi } from './abis/crv-rewards.abi'
-import { cvxBoosterAbi } from './abis/cvx-booster.abi'
+import { fetchErc20PriceUsd } from '../../prices'
 import { convertFloatAPRToAPY } from './calculation.helper'
 import { CVX_TOKEN_ADDRESS } from './maps.helper'
+import { convexBaseStrategyAbi, cvxBoosterAbi, crvRewardsAbi } from '../abis'
 
 export const getCVXForCRV = async (chainID: number, crvEarned: bigint): Promise<bigint> => {
   const cliffSize = BigInt('100000000000000000000000') // 1e23
@@ -39,9 +37,6 @@ export const getCVXForCRV = async (chainID: number, crvEarned: bigint): Promise<
   return cvxEarned
 }
 
-interface ConvexStrategy {
-  address: `0x${string}`
-}
 
 interface Price {
   humanizedPrice: bigint
@@ -49,7 +44,7 @@ interface Price {
 
 export const getConvexRewardAPY = async (
   chainID: number,
-  strategy: ConvexStrategy,
+  strategy: `0x${string}`,
   baseAssetPrice: bigint,
   poolPrice: bigint
 ): Promise<{ totalRewardsAPR: number; totalRewardsAPY: number }> => {
@@ -62,28 +57,25 @@ export const getConvexRewardAPY = async (
   let rewardPID: bigint
   try {
     rewardPID = await client.readContract({
-      address: strategy.address,
+      address: strategy,
       abi: convexBaseStrategyAbi,
       functionName: 'pid',
     }) as bigint
   } catch (error) {
     try {
       rewardPID = await client.readContract({
-        address: strategy.address,
+        address: strategy,
         abi: convexBaseStrategyAbi,
         functionName: 'id',
       }) as bigint
     } catch (error) {
       try {
         rewardPID = await client.readContract({
-          address: strategy.address,
+          address: strategy,
           abi: convexBaseStrategyAbi,
           functionName: 'fraxPid',
         }) as bigint
       } catch (error) {
-        if (process.env.ENVIRONMENT === 'dev') {
-          console.error(`Unable to get reward PID for convex strategy ${strategy.address}`)
-        }
         return { totalRewardsAPR: 0, totalRewardsAPY: 0 }
       }
     }

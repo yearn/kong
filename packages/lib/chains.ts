@@ -100,5 +100,10 @@ const chains = config.chains.map(name => {
   return viemchain
 })
 
+
+export function getChainByChainId(chainId: number) {
+  return chains.find(chain => chain.id === chainId)
+}
+
 export { chains }
 export default chains

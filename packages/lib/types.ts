@@ -321,18 +321,37 @@ export const ThingSchema = z.object({
   defaults: z.record(z.any())
 })
 
-export type Thing = z.infer<typeof ThingSchema> & {
-  defaults: {
-    [k: string]: unknown;
-    asset?: `0x${string}`
-    vault?: `0x${string}`
-    decimals?: number;
-    apiVersion?: string;
-    inceptTime?: string;
-    inceptBlock?: string;
-    v3?: boolean;
-  }
-}
+export type Thing = z.infer<typeof ThingSchema>
+
+export const StrategySchema = ThingSchema.extend({
+  chainId: z.number(),
+  address: zhexstring,
+  label: z.string(),
+  defaults: z.object({
+    v3: z.boolean().nullish(),
+    asset: zhexstring,
+    yearn: z.boolean().nullish(),
+    erc4626: z.boolean().nullish(),
+    decimals: z.coerce.number().nullish(),
+    apiVersion: z.string().nullish(),
+    inceptTime: z.bigint({ coerce: true }).nullish(),
+    inceptBlock: z.bigint({ coerce: true }).nullish()
+  })
+})
+
+export type StrategyThing = z.infer<typeof StrategySchema>
+
+export const StrategyIndicatorsSchema = StrategySchema.extend({
+  performanceFee: z.bigint({ coerce: true }).nullish(),
+  activation: z.bigint({ coerce: true }).nullish(),
+  debtRatio: z.bigint({ coerce: true }).nullish(),
+  lastReport: z.bigint({ coerce: true }).nullish(),
+  totalDebt: z.bigint({ coerce: true }).nullish(),
+  totalGain: z.bigint({ coerce: true }).nullish(),
+  totalLoss: z.bigint({ coerce: true }).nullish()
+})
+
+export type StrategyWithIndicators = z.infer<typeof StrategyIndicatorsSchema>
 
 export const SnapshotSchema = z.object({
   chainId: z.number(),
