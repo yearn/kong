@@ -14,6 +14,9 @@ export default class AbisFanout {
 
       if (abi.things) {
         const _things = await things.get(abi.things)
+        console.log({
+          _things
+        })
         for (const _thing of _things) {
           console.info('🤝', 'thing', 'abiPath', abi.abiPath, _thing.chainId, _thing.address)
           const _data = {
@@ -26,8 +29,8 @@ export default class AbisFanout {
               inceptBlock: _thing.defaults.inceptBlock,
               inceptTime: _thing.defaults.inceptTime
             } }
-          await mq.add(mq.job.fanout.events, _data)
-          await mq.add(mq.job.extract.snapshot, _data)
+          // await mq.add(mq.job.fanout.events, _data)
+          // await mq.add(mq.job.extract.snapshot, _data)
           await mq.add(mq.job.fanout.timeseries, _data)
         }
       }

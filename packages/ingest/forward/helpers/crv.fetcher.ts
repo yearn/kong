@@ -10,23 +10,38 @@ export async function fetchGauges(chain: string) {
     `${process.env.CRV_GAUGE_REGISTRY_URL}?blockchainId=${chain}`
   )
   const gauges = await gaugesResponse.json()
-  return gauges.data as Gauge[]
+  return Object.values(gauges.data) as Gauge[]
 }
 
 export async function fetchPools(chain: string) {
-  const poolsResponse = await fetch(
-    `${process.env.CRV_POOLS_URL}/${chain}`
-  )
-  const pools = await poolsResponse.json()
-  return pools.data?.poolData as CrvPool[]
+  try {
+
+    const poolsResponse = await fetch(
+      `${process.env.CRV_POOLS_URL}/${chain}`
+    )
+    const pools = await poolsResponse.json()
+    return pools.data?.poolData as CrvPool[]
+  }catch(err) {
+    console.error(err)
+    return []
+  }
 }
 
 export async function fetchSubgraph(chainId:number) {
-  const subgraphResponse = await fetch(
-    `${CURVE_SUBGRAPHDATA_URI[chainId]}`
-  )
-  const subgraph = await subgraphResponse.json()
-  return subgraph.data.poolList as CrvSubgraphPool[]
+
+  try {
+    const subgraphResponse = await fetch(
+      `${CURVE_SUBGRAPHDATA_URI[chainId]}`
+    )
+    const subgraph = await subgraphResponse.json()
+    return subgraph.data.poolList as CrvSubgraphPool[]
+  }catch(err) {
+    console.error({
+      err,
+      chainId
+    })
+    return []
+  }
 }
 
 export async function fetchFraxPools() {
@@ -36,7 +51,7 @@ export async function fetchFraxPools() {
   )
   const fraxPools = await fraxPoolsResponse.json()
 
-  const pools = fraxPools.pools.augumentedPoolData.map(pool => {
+  const pools = fraxPools.pools.augmentedPoolData	.map(pool => {
     if(pool.type !== 'convex') {
       return null
     }
@@ -56,6 +71,7 @@ export async function fetchFraxPools() {
         maxBoostedRewardApr
       }
     })
+
 
     return pool
   })

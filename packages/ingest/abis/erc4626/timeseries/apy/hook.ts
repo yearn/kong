@@ -15,10 +15,10 @@ export default async function process(chainId: number, address: `0x${string}`, d
   console.info('🧮', data.outputLabel, chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())
 
   let blockNumber: bigint = 0n
-  if(data.blockTime >= BigInt(Math.floor(new Date().getTime() / 1000))) {
+  if(data.blockTime && data.blockTime >= BigInt(Math.floor(new Date().getTime() / 1000))) {
     blockNumber = (await getBlock(chainId)).number
   } else {
-    blockNumber = await estimateHeight(chainId, data.blockTime)
+    blockNumber = await estimateHeight(chainId, data.blockTime ?? 0n)
   }
 
   if(!multicall3.supportsBlock(chainId, blockNumber)) {

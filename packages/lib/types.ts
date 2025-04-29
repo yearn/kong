@@ -317,9 +317,15 @@ export type Stride = z.infer<typeof StrideSchema>
 export const ThingSchema = z.object({
   chainId: z.number(),
   address: zhexstring,
+  defaults: z.record(z.any()),
   label: z.string(),
-  defaults: z.record(z.any())
 })
+
+export const VaultThingsWithNameSchema = ThingSchema.extend({
+  name: z.string()
+})
+
+export type VaultThingsWithName = z.infer<typeof VaultThingsWithNameSchema>
 
 export type Thing = z.infer<typeof ThingSchema>
 
@@ -329,7 +335,13 @@ export const StrategySchema = ThingSchema.extend({
   label: z.string(),
   defaults: z.object({
     v3: z.boolean().nullish(),
-    asset: zhexstring,
+    asset: z.object({
+      name: z.string(),
+      symbol: z.string(),
+      address: zhexstring,
+      chainId: z.number(),
+      decimals: z.string(),
+    }),
     yearn: z.boolean().nullish(),
     erc4626: z.boolean().nullish(),
     decimals: z.coerce.number().nullish(),
@@ -342,13 +354,37 @@ export const StrategySchema = ThingSchema.extend({
 export type StrategyThing = z.infer<typeof StrategySchema>
 
 export const StrategyIndicatorsSchema = StrategySchema.extend({
-  performanceFee: z.bigint({ coerce: true }).nullish(),
+  performanceFee: z.number({ coerce: true }).nullish(),
   activation: z.bigint({ coerce: true }).nullish(),
-  debtRatio: z.bigint({ coerce: true }).nullish(),
+  debtRatio: z.number({ coerce: true }).nullish(),
   lastReport: z.bigint({ coerce: true }).nullish(),
   totalDebt: z.bigint({ coerce: true }).nullish(),
   totalGain: z.bigint({ coerce: true }).nullish(),
-  totalLoss: z.bigint({ coerce: true }).nullish()
+  totalLoss: z.bigint({ coerce: true }).nullish(),
+  rewards: zhexstring.nullish(),
+  guardian: zhexstring.nullish(),
+  management: zhexstring.nullish(),
+  totalSupply: z.bigint({ coerce: true }).nullish(),
+  creditAvailable: z.bigint({ coerce: true }).nullish(),
+  debtOutstanding: z.bigint({ coerce: true }).nullish(),
+  DOMAIN_SEPARATOR: zhexstring.nullish(),
+  maxAvailableShares: z.bigint({ coerce: true }).nullish(),
+  expectedReturn: z.bigint({ coerce: true }).nullish(),
+  pricePerShare: z.bigint({ coerce: true }).nullish(),
+  lockedProfit: z.bigint({ coerce: true }).nullish(),
+  totalAssets: z.bigint({ coerce: true }).nullish(),
+  totalIdle: z.bigint({ coerce: true }).nullish(),
+  depositLimit: z.bigint({ coerce: true }).nullish(),
+  lockedProfitDegradation: z.bigint({ coerce: true }).nullish(),
+  managementFee: z.number({ coerce: true }).nullish(),
+  emergencyShutdown: z.boolean().nullish(),
+  availableDepositLimit: z.bigint({ coerce: true }).nullish(),
+  blockNumber: z.bigint({ coerce: true }).nullish(),
+  blockTime: z.number({ coerce: true }).nullish(),
+  symbol: z.string().nullish(),
+  token: zhexstring.nullish(),
+  decimals: z.number().nullish(),
+  governance: zhexstring.nullish()
 })
 
 export type StrategyWithIndicators = z.infer<typeof StrategyIndicatorsSchema>

@@ -45,7 +45,7 @@ interface Price {
 export const getConvexRewardAPY = async (
   chainID: number,
   strategy: `0x${string}`,
-  baseAssetPrice: bigint,
+  baseAssetPrice: number,
   poolPrice: bigint
 ): Promise<{ totalRewardsAPR: number; totalRewardsAPY: number }> => {
   const client = createPublicClient({
