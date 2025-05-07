@@ -14,9 +14,6 @@ export default class AbisFanout {
 
       if (abi.things) {
         const _things = await things.get(abi.things)
-        console.log({
-          _things
-        })
         for (const _thing of _things) {
           console.info('🤝', 'thing', 'abiPath', abi.abiPath, _thing.chainId, _thing.address)
           const _data = {

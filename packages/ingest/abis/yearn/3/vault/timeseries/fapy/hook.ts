@@ -3,7 +3,6 @@ import { Data } from '../../../../../../extract/timeseries'
 import { first, query } from '../../../../../../db'
 import { computeChainAPY } from '../../../../../../forward'
 import console from 'console'
-import { totalAssets } from '../../../strategy/event/hook'
 
 export const outputLabel = 'fapy'
 
@@ -58,21 +57,25 @@ export default async function process(_chainId: number, _address: `0x${string}`,
     `, [chainId, 'strategy', snapshot.hook.withdrawalQueue ?? snapshot.hook.strategies])
 
   const strategiesWithIndicators = await Promise.all(strategies.map(async (strategy) => {
+    const strategySnapshot = await first(SnapshotSchema, `
+      SELECT *
+      FROM snapshot
+      WHERE address = $1
+    `, [strategy.address])
+
     return {
       ...strategy,
-      token: snapshot?.snapshot.token,
-      symbol: snapshot?.snapshot.symbol,
-      rewards: snapshot?.snapshot.rewards,
-      decimals: Number(snapshot?.snapshot.decimals),
-      guardian: snapshot?.snapshot.guardian,
-      blockTime: Number(snapshot?.snapshot.blockTime),
-      debtRatio: Number(snapshot?.snapshot.debtRatio),
+      ...strategySnapshot?.snapshot,
+      name: strategySnapshot?.snapshot.name,
+      token: strategySnapshot?.snapshot.token,
+      symbol: strategySnapshot?.snapshot.symbol,
+      rewards: strategySnapshot?.snapshot.rewards,
+      guardian: strategySnapshot?.snapshot.guardian,
+      blockTime: Number(strategySnapshot?.snapshot.blockTime),
       totalDebt: BigInt(snapshot?.snapshot.totalDebt),
       totalIdle: BigInt(snapshot?.snapshot.totalIdle),
-      activation: BigInt(snapshot?.snapshot.activation),
-      apiVersion: snapshot?.snapshot.apiVersion,
-      governance: snapshot?.snapshot.governance,
-      lastReport: BigInt(snapshot?.snapshot.lastReport),
+      debtRatio: Number(snapshot?.snapshot.debtRatio),
+      decimals: Number(snapshot?.snapshot.decimals),
       management: snapshot?.snapshot.management,
       blockNumber: BigInt(snapshot?.snapshot.blockNumber),
       totalAssets: BigInt(snapshot?.snapshot.totalAssets),
@@ -89,16 +92,17 @@ export default async function process(_chainId: number, _address: `0x${string}`,
       emergencyShutdown: snapshot?.snapshot.emergencyShutdown,
       maxAvailableShares: BigInt(snapshot?.snapshot.maxAvailableShares),
       availableDepositLimit: BigInt(snapshot?.snapshot.availableDepositLimit),
-      lockedProfitDegradation: BigInt(snapshot?.snapshot.lockedProfitDegradation)
+      lockedProfitDegradation: BigInt(snapshot?.snapshot.lockedProfitDegradation),
+      localKeepCRV: BigInt(strategySnapshot?.snapshot.localKeepCRV),
+      apiVersion: strategySnapshot?.snapshot.apiVersion
     }
   }))
 
   const forwardAPY = await computeChainAPY(vault, 1, strategiesWithIndicators)
 
+  console.log('forwardAPY', forwardAPY)
   if(forwardAPY) {
-    console.log({
-      forwardAPY
-    })
+
     return OutputSchema.array().parse([{
       chainId, address, label: data.outputLabel, component: 'netAPY',
       blockNumber, blockTime: data.blockTime, value: Number(forwardAPY.netAPY)

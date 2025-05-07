@@ -28,7 +28,10 @@ export interface FraxPool {
   rewardAprs: any[]
   isPoolStopped: boolean
   boostedRewardAprs: any[]
-  totalRewardAprs: any
+  totalRewardAprs: {
+    min: string; // but represents float
+    max: string; // but represents float
+  }
   areConvexPoolsCrvAndCvxBoostable: boolean
   rewardApr?: number
   minBoostedRewardApr?: number

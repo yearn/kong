@@ -1,19 +1,16 @@
-import { createPublicClient, erc20Abi, http } from 'viem'
-import { mainnet } from 'viem/chains'
+import { erc20Abi } from 'viem'
 import { fetchErc20PriceUsd } from '../../prices'
 import { convertFloatAPRToAPY } from './calculation.helper'
 import { CVX_TOKEN_ADDRESS } from './maps.helper'
 import { convexBaseStrategyAbi, cvxBoosterAbi, crvRewardsAbi } from '../abis'
+import { rpcs } from 'lib/rpcs'
 
 export const getCVXForCRV = async (chainID: number, crvEarned: bigint): Promise<bigint> => {
   const cliffSize = BigInt('100000000000000000000000') // 1e23
   const cliffCount = BigInt('1000') // 1e3
   const maxSupply = BigInt('100000000000000000000000000') // 1e26
 
-  const client = createPublicClient({
-    chain: mainnet,
-    transport: http(process.env[`RPC_FULLNODE_${chainID}`]),
-  })
+  const client = rpcs.next(chainID)
 
   const cvxTotalSupply = await client.readContract({
     address: CVX_TOKEN_ADDRESS[chainID],
@@ -38,20 +35,13 @@ export const getCVXForCRV = async (chainID: number, crvEarned: bigint): Promise<
 }
 
 
-interface Price {
-  humanizedPrice: bigint
-}
-
 export const getConvexRewardAPY = async (
   chainID: number,
   strategy: `0x${string}`,
   baseAssetPrice: number,
-  poolPrice: bigint
+  poolPrice: number
 ): Promise<{ totalRewardsAPR: number; totalRewardsAPY: number }> => {
-  const client = createPublicClient({
-    chain: mainnet,
-    transport: http(process.env[`RPC_FULLNODE_${chainID}`]),
-  })
+  const client = rpcs.next(chainID)
 
   // Get reward PID from strategy
   let rewardPID: bigint
@@ -82,14 +72,19 @@ export const getConvexRewardAPY = async (
   }
 
   // Get pool info from booster
-  const poolInfo = await client.readContract({
-    address: CVX_TOKEN_ADDRESS[chainID],
-    abi: cvxBoosterAbi,
-    functionName: 'poolInfo',
-    args: [rewardPID],
-  }) as { crvRewards: `0x${string}` }
+  let poolInfo
+  try {
+    poolInfo = await client.readContract({
+      address: CVX_TOKEN_ADDRESS[chainID],
+      abi: cvxBoosterAbi,
+      functionName: 'poolInfo',
+      args: [rewardPID],
+    }) as { crvRewards: `0x${string}` }
+  } catch (error) {
+    return { totalRewardsAPR: 0, totalRewardsAPY: 0 }
+  }
 
-  // Get rewards contract
+  // Get rewards length
   const rewardsLength = await client.readContract({
     address: poolInfo.crvRewards,
     abi: crvRewardsAbi,
@@ -125,7 +120,11 @@ export const getConvexRewardAPY = async (
           functionName: 'rewardToken',
         }) as `0x${string}`
 
+        // Fetch price with fallback if not available
         const { priceUsd: rewardTokenPrice } = await fetchErc20PriceUsd(chainID, rewardToken, undefined, true)
+        if (!rewardTokenPrice) {
+          continue
+        }
 
         const rewardRate = await client.readContract({
           address: virtualRewardsPool,
@@ -144,22 +143,23 @@ export const getConvexRewardAPY = async (
         const totalSupplyNormalized = Number(totalSupply) / 1e18
         const secondPerYear = 31556952
 
+        // Following the Go implementation calculations
         let rewardAPRTop = rewardRateNormalized * secondPerYear
         rewardAPRTop = rewardAPRTop * tokenPrice
+
         let rewardAPRBottom = Number(poolPrice) / 1e18
         rewardAPRBottom = rewardAPRBottom * Number(baseAssetPrice)
         rewardAPRBottom = rewardAPRBottom * totalSupplyNormalized
-        const rewardAPR = rewardAPRTop / rewardAPRBottom
 
+        const rewardAPR = rewardAPRTop / rewardAPRBottom
         totalRewardsAPR = totalRewardsAPR + rewardAPR
       } catch (error) {
-        console.error(error)
         continue
       }
     }
   }
 
-  const totalRewardsAPY = convertFloatAPRToAPY(BigInt(totalRewardsAPR), 365/15)
+  const totalRewardsAPY = convertFloatAPRToAPY(totalRewardsAPR, 365/15)
 
   return {
     totalRewardsAPR: totalRewardsAPR,

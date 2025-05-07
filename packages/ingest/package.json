@@ -18,6 +18,7 @@
     "compare-versions": "^6.1.0",
     "cross-env": "5.0.5",
     "dotenv": "^16.3.1",
+    "js-big-decimal": "^2.2.0",
     "js-yaml": "^4.1.0",
     "lib": "^1.0.0",
     "pg": "^8.11.2",

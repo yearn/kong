@@ -37,4 +37,7 @@ export interface Gauge {
   side_chain: boolean;
   is_killed: boolean;
   hasNoCrv: boolean;
+  swap_data: {
+    virtual_price: string;
+  }
 }

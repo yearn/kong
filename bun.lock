@@ -32,6 +32,7 @@
         "compare-versions": "^6.1.0",
         "cross-env": "5.0.5",
         "dotenv": "^16.3.1",
+        "js-big-decimal": "^2.2.0",
         "js-yaml": "^4.1.0",
         "lib": "^1.0.0",
         "pg": "^8.11.2",
@@ -1412,6 +1413,8 @@
     "joi": ["joi@10.6.0", "", { "dependencies": { "hoek": "4.x.x", "isemail": "2.x.x", "items": "2.x.x", "topo": "2.x.x" } }, "sha512-hBF3LcqyAid+9X/pwg+eXjD2QBZI5eXnBFJYaAkH4SK3mp9QSRiiQnDYlmlz5pccMvnLcJRS4whhDOTCkmsAdQ=="],
 
     "js-base64": ["js-base64@3.7.7", "", {}, "sha512-7rCnleh0z2CkXhH67J8K1Ytz0b2Y+yxTPL+/KOJoa20hfnVQ/3/T6W/KflYI4bRHRagNeXeU2bkNGI3v1oS/lw=="],
+
+    "js-big-decimal": ["js-big-decimal@2.2.0", "", {}, "sha512-qJFDTcgBGvuPzsck0jNm1puKvJQ3AL8J3bIyrvF1KfsbljOVj8N/o9Kbr8RXlBx1J8aapcRpMCiG6h1l6QgYhQ=="],
 
     "js-sha3": ["js-sha3@0.8.0", "", {}, "sha512-gF1cRrHhIzNfToc802P800N8PpXS+evLLXfsVpowqmAFR9uwbi89WvXg2QspOmXL8QL86J4T1EpFu+yUkwJY3Q=="],
 

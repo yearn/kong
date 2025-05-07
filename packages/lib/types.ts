@@ -384,7 +384,10 @@ export const StrategyIndicatorsSchema = StrategySchema.extend({
   symbol: z.string().nullish(),
   token: zhexstring.nullish(),
   decimals: z.number().nullish(),
-  governance: zhexstring.nullish()
+  governance: zhexstring.nullish(),
+  name: z.string(),
+  localKeepCRV: z.bigint(),
+  apiVersion: z.string()
 })
 
 export type StrategyWithIndicators = z.infer<typeof StrategyIndicatorsSchema>
