@@ -7,17 +7,7 @@ import { getBlock, estimateHeight } from 'lib/blocks'
 
 export const outputLabel = 'fapy'
 
-export default async function process(_chainId: number, _address: `0x${string}`, _data: Data): Promise<Output[]> {
-  const chainId = 1
-  const address = '0xf165a634296800812B8B0607a75DeDdcD4D3cC88'
-
-  const data: Data = {
-    abiPath: 'yearn/3/vault',
-    chainId,
-    address,
-    outputLabel,
-    blockTime: BigInt(1734063803)
-  }
+export default async function process(chainId: number, address: `0x${string}`, data: Data): Promise<Output[]> {
   console.info('Fapy 🧮', data.outputLabel, chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())
 
   let blockNumber: bigint = 0n
@@ -102,7 +92,6 @@ export default async function process(_chainId: number, _address: `0x${string}`,
   const forwardAPY = await computeChainAPY(vault, 1, strategiesWithIndicators)
 
   if(forwardAPY) {
-
     return OutputSchema.array().parse([{
       chainId, address, label: data.outputLabel, component: 'netAPY',
       blockNumber, blockTime: data.blockTime, value: Number(forwardAPY.netAPY)

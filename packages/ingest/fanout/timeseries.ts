@@ -35,17 +35,6 @@ export default class TimeseriesFanout {
       [chainId, address, outputLabel]))
         .rows.map(row => BigInt(row.block_time))
 
-
-      // this means that the label wasnt processed
-      if(computed.length === 0){
-        await mq.add(mq.job.extract.timeseries, {
-          abiPath, chainId, address, outputLabel, blockTime: start
-        })
-
-        return
-      }
-
-
       const missing = findMissingTimestamps(start, end, computed)
       if (missing.length === 0 || missing[missing.length - 1] !== end) {
         missing.push(end)
