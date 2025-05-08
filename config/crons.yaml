@@ -1,3 +1,4 @@
+
 crons:
   - name: LatestBlocks
     queue: extract
