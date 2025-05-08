@@ -2,7 +2,8 @@ import { Output, OutputSchema, SnapshotSchema, StrategySchema, StrategyThing, Va
 import { Data } from '../../../../../../extract/timeseries'
 import { first, query } from '../../../../../../db'
 import { computeChainAPY } from '../../../../../../forward'
-import console from 'console'
+import { multicall3 } from 'lib'
+import { getBlock, estimateHeight } from 'lib/blocks'
 
 export const outputLabel = 'fapy'
 
@@ -19,17 +20,17 @@ export default async function process(_chainId: number, _address: `0x${string}`,
   }
   console.info('Fapy 🧮', data.outputLabel, chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())
 
-  const blockNumber: bigint = 22197283n
-  // if(data.blockTime >= BigInt(Math.floor(new Date().getTime() / 1000))) {
-  //   blockNumber = (await getBlock(chainId)).number
-  // } else {
-  //   blockNumber = await estimateHeight(chainId, data.blockTime)
-  // }
+  let blockNumber: bigint = 0n
+  if(data.blockTime >= BigInt(Math.floor(new Date().getTime() / 1000))) {
+    blockNumber = (await getBlock(chainId)).number
+  } else {
+    blockNumber = await estimateHeight(chainId, data.blockTime)
+  }
 
-  // if(!multicall3.supportsBlock(chainId, blockNumber)) {
-  //   console.warn('🚨', 'block not supported', chainId, blockNumber)
-  //   return []
-  // }
+  if(!multicall3.supportsBlock(chainId, blockNumber)) {
+    console.warn('🚨', 'block not supported', chainId, blockNumber)
+    return []
+  }
 
   const vault = await first<VaultThingsWithName>(VaultThingsWithNameSchema,
     `select thing.*, snapshot.snapshot->>'name' as name
@@ -39,7 +40,7 @@ export default async function process(_chainId: number, _address: `0x${string}`,
     [chainId, address, 'vault']
   )
 
-  // if (!vault) return []
+  if (!vault) return []
 
   let strategies: StrategyThing[] = []
 
@@ -100,7 +101,6 @@ export default async function process(_chainId: number, _address: `0x${string}`,
 
   const forwardAPY = await computeChainAPY(vault, 1, strategiesWithIndicators)
 
-  console.log('forwardAPY', forwardAPY)
   if(forwardAPY) {
 
     return OutputSchema.array().parse([{

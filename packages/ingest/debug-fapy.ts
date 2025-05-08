@@ -7,7 +7,7 @@ dotenv.config({ path: envPath })
 
 // Other imports after environment is loaded
 import { rpcs } from 'lib/rpcs'
-import process, { outputLabel } from './abis/yearn/3/vault/timeseries/fapy/hook'
+import process, { outputLabel } from './fapy/hook'
 import { Data } from './extract/timeseries'
 import { cache } from 'lib'
 import 'lib/global'
