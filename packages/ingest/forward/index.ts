@@ -5,6 +5,9 @@ import { fetchGauges } from './helpers/crv.fetcher'
 import { fetchPools } from './helpers/crv.fetcher'
 import { fetchSubgraph } from './helpers/crv.fetcher'
 import { isCurveStrategy, computeCurveLikeForwardAPY } from './crv-like.forward'
+import { isV3Vault } from './helpers/general'
+import { computeV3ForwardAPY } from './v3.forward'
+import { computeV2ForwardAPY } from './v2.forward'
 
 export interface ForwardAPY {
   netAPY: bigint
@@ -27,9 +30,10 @@ export async function computeChainAPY(vault: Thing & { name: string }, chainId: 
   const pools = await fetchPools(chain)
   const subgraph = await fetchSubgraph(chainId)
   const fraxPools = await fetchFraxPools()
+  let vaultAPY
 
   if (isCurveStrategy(vault)) {
-    return computeCurveLikeForwardAPY({
+    vaultAPY = computeCurveLikeForwardAPY({
       vault,
       gauges,
       pools,
@@ -40,5 +44,12 @@ export async function computeChainAPY(vault: Thing & { name: string }, chainId: 
     })
   }
 
-  return null
+  if(isV3Vault(vault)) {
+    vaultAPY = computeV3ForwardAPY(vault, strategies, chainId)
+  }else {
+    vaultAPY = computeV2ForwardAPY(vault)
+  }
+
+  return vaultAPY
+
 }
