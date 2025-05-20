@@ -3,7 +3,6 @@
 import { useData } from '@/hooks/useData'
 import AsciiMeter from './AsciiMeter'
 import prettyBytes from 'pretty-bytes'
-import Frosty from './Frosty'
 import { fPercent } from '@/lib/format'
 
 export default function Postgres() {
@@ -15,7 +14,7 @@ export default function Postgres() {
         current={monitor.db.databaseSize}
         max={16 * 1024 * 1024 * 1024}
         leftLabel='disk'
-        rightLabel={`${prettyBytes(Number(monitor.db.databaseSize))} / ${prettyBytes(120 * 1024 * 1024 * 1024)}`} />
+        rightLabel={`${prettyBytes(Number(monitor.db.databaseSize))} / ${prettyBytes(128 * 1024 * 1024 * 1024)}`} />
 
       <AsciiMeter
         current={monitor.db.clients}
