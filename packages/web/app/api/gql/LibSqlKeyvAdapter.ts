@@ -5,7 +5,7 @@
 import type {
   KeyValueCache,
 } from '@apollo/utils.keyvaluecache'
-import { Client, InValue } from '@libsql/client'
+import { Client, InValue } from '@libsql/client/web'
 
 export class LibSqlKeyvAdapter<
   V = string
