@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "test": "mocha ./**/*.test.[jt]s?(x)",
+    "clean": "rm -rf .next && rm -rf node_modules",
     "lint": "next lint"
   },
   "dependencies": {
@@ -19,12 +20,10 @@
     "chart.js": "^4.4.0",
     "compare-versions": "^6.1.0",
     "encoding": "^0.1.13",
-    "figlet": "^1.6.0",
     "framer-motion": "^10.16.1",
     "graphql": "^16.8.1",
     "graphql-tag": "^2.12.6",
-    "keyv": "^5.0.1",
-    "next": "^15.0.1",
+    "next": "^15.3.2",
     "pg": "^8.11.3",
     "postcss": "8.4.28",
     "pretty-bytes": "^6.1.1",

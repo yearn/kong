@@ -3,17 +3,17 @@
 import React from 'react'
 import Image from 'next/image'
 import figureImage from '@/app/figure.png'
-import figlet from 'figlet'
-// @ts-expect-error legacy something something something
-import font from 'figlet/importable-fonts/Cyberlarge.js'
-figlet.parseFont('Cyberlarge', font)
+
+const workmark = ` _     _  _____  __   _  ______
+ |____/  |     | | \\  | |  ____
+ |    \\_ |_____| |  \\_| |_____|`
 
 export default function Ahoy() {
-  const wordmark = figlet.textSync('KONG', { font: 'Cyberlarge' })
+
   return <div className="relative w-full flex items-start gap-0">
     <div className="z-10 w-full flex flex-col items-start gap-2">
-      <div className="-mb-6 flex items-end gap-0 sm:gap-6">
-        <div className="text-lg whitespace-pre [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)] z-10">{wordmark}</div>
+      <div className="sm:-mb-6 flex items-center gap-0 sm:gap-6">
+        <div className="text-lg whitespace-pre [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)] z-10">{workmark}</div>
         <div className="hidden sm:block w-[128px] h-[128px] ml-[-32px] sm:ml-0 z-0">
           <Image src={figureImage} alt="Kong" width={128} height={128} className="" />
         </div>

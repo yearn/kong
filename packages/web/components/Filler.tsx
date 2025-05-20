@@ -7,16 +7,14 @@ interface FillerProps {
   className?: string
 }
 
-const Filler = ({
+const Filler: React.FC<FillerProps> = ({
   character = '.',
   className = 'w-full h-24'
-}: FillerProps): JSX.Element => {
+}) => {
   const [text, setText] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!window) return
-
     const updateText = () => {
       if (containerRef.current) {
         const { clientWidth, clientHeight } = containerRef.current
