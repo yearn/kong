@@ -10,7 +10,7 @@ interface FillerProps {
 const Filler = ({
   character = '.',
   className = 'w-full h-24'
-}: FillerProps) => {
+}: FillerProps): JSX.Element => {
   const [text, setText] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
 
