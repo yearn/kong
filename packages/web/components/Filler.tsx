@@ -7,14 +7,16 @@ interface FillerProps {
   className?: string
 }
 
-const Filler: React.FC<FillerProps> = ({ 
-  character = '.', 
+const Filler = ({
+  character = '.',
   className = 'w-full h-24'
-}) => {
+}: FillerProps) => {
   const [text, setText] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (!window) return
+
     const updateText = () => {
       if (containerRef.current) {
         const { clientWidth, clientHeight } = containerRef.current
@@ -33,8 +35,8 @@ const Filler: React.FC<FillerProps> = ({
   }, [character])
 
   return (
-    <div 
-      ref={containerRef} 
+    <div
+      ref={containerRef}
       className={`overflow-hidden font-mono whitespace-pre text-base leading-none ${className}`}>
       {text}
     </div>
