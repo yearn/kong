@@ -12,7 +12,7 @@ export default function Postgres() {
     <div className="w-full flex flex-col justify-between gap-4">
       <AsciiMeter
         current={monitor.db.databaseSize}
-        max={16 * 1024 * 1024 * 1024}
+        max={128 * 1024 * 1024 * 1024}
         leftLabel='disk'
         rightLabel={`${prettyBytes(Number(monitor.db.databaseSize))} / ${prettyBytes(128 * 1024 * 1024 * 1024)}`} />
 
