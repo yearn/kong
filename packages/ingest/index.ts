@@ -35,7 +35,7 @@ const pools = fs.readdirSync(__dirname, { withFileTypes: true }).map(dirent => {
 
 const crons = cronsConfig.default
   .filter(cron => cron.start)
-  .map(cron => new Promise((resolve, reject) => {
+  .map(cron => new Promise(() => {
     const job = mq.job[cron.queue][cron.job]
     if (job.bychain) {
       for (const chain of chains) {
