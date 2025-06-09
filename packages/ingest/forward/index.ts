@@ -30,7 +30,7 @@ export async function computeChainAPY(vault: Thing & { name: string }, chainId: 
   let vaultAPY
 
   if (isCurveStrategy(vault)) {
-    vaultAPY = await computeCurveLikeForwardAPY({
+    return computeCurveLikeForwardAPY({
       vault,
       gauges,
       pools,
