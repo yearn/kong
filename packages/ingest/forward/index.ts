@@ -22,10 +22,7 @@ export interface ForwardAPY {
 
 export async function computeChainAPY(vault: Thing & { name: string }, chainId: number, strategies: StrategyWithIndicators[]) {
   const chain = getChainByChainId(chainId)?.name?.toLowerCase()
-
-
   if (!chain) return null
-
   const gauges = await fetchGauges(chain)
   const pools = await fetchPools(chain)
   const subgraph = await fetchSubgraph(chainId)
@@ -33,7 +30,7 @@ export async function computeChainAPY(vault: Thing & { name: string }, chainId: 
   let vaultAPY
 
   if (isCurveStrategy(vault)) {
-    vaultAPY = computeCurveLikeForwardAPY({
+    vaultAPY = await computeCurveLikeForwardAPY({
       vault,
       gauges,
       pools,
@@ -45,9 +42,9 @@ export async function computeChainAPY(vault: Thing & { name: string }, chainId: 
   }
 
   if(isV3Vault(vault)) {
-    vaultAPY = computeV3ForwardAPY(vault, strategies, chainId)
+    vaultAPY = await computeV3ForwardAPY(vault, strategies, chainId)
   }else {
-    vaultAPY = computeV2ForwardAPY(vault)
+    vaultAPY = await computeV2ForwardAPY(vault)
   }
 
   return vaultAPY

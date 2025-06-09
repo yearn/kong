@@ -15,31 +15,31 @@ export async function computeV2ForwardAPY(vault: Thing) {
   const ppsMonthAgo = await fetchPPSLastMonth(vault.chainId, vault.address)
 
   const snapshot = await first(SnapshotSchema, `
-    SELECT * FROM snapshots
-    WHERE chainId = ${vault.chainId}
-    AND address = ${vault.address}
+    SELECT * FROM snapshot
+    WHERE chain_id = $1
+    AND address = $2
   `, [vault.chainId, vault.address])
 
-  const performanceFee = snapshot.snapshot.hooks.fees.performanceFee
-  const managementFee = snapshot.snapshot.hooks.fees.managementFee
+  const performanceFee = snapshot.snapshot.performanceFee
+  const managementFee = snapshot.snapshot.managementFee
   const vaultAPRType = 'v2:averaged'
 
   const vaultAPR = {
-    Type:   vaultAPRType,
-    NetAPY: calculateMonthlyAPY(ppsToday, ppsMonthAgo),
-    Fees: {
-      Performance: performanceFee,
-      Management:  managementFee,
+    type:   vaultAPRType,
+    netAPY: calculateMonthlyAPY(ppsToday, ppsMonthAgo).toFloat64()[0],
+    fees: {
+      performance: performanceFee,
+      management:  managementFee,
     },
-    Points: {
-      WeekAgo:   calculateWeeklyAPY(ppsToday, ppsWeekAgo),
-      MonthAgo:  calculateMonthlyAPY(ppsToday, ppsMonthAgo),
-      Inception: calculateYearlyAPY(ppsToday, ppsInception),
+    points: {
+      weekAgo:   calculateWeeklyAPY(ppsToday, ppsWeekAgo).toFloat64()[0],
+      monthAgo:  calculateMonthlyAPY(ppsToday, ppsMonthAgo).toFloat64()[0],
+      inception: calculateYearlyAPY(ppsToday, ppsInception).toFloat64()[0],
     },
-    PricePerShare: {
-      Today:    ppsToday,
-      WeekAgo:  ppsWeekAgo,
-      MonthAgo: ppsMonthAgo,
+    pricePerShare: {
+      today:    ppsToday.toFloat64()[0],
+      weekAgo:  ppsWeekAgo.toFloat64()[0],
+      monthAgo: ppsMonthAgo.toFloat64()[0],
     },
   }
 

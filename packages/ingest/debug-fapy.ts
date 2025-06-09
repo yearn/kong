@@ -20,8 +20,8 @@ const CHAIN_ID = 1 // Ethereum mainnet
 // Create sample data
 const sampleData: Data = {
   abiPath: 'yearn/3/vault',
-  chainId: 1,
-  address: '0xf165a634296800812B8B0607a75DeDdcD4D3cC88',
+  chainId: CHAIN_ID,
+  address: VAULT_ADDRESS,
   outputLabel,
   blockTime: BigInt(Math.floor(Date.now() / 1000) - 3600)
 }

@@ -38,21 +38,21 @@ export async function computeCurrentV3VaultAPY(
   }
 
   const vaultAPR = {
-    Type: vaultAPRType,
-    netAPY: calculateMonthlyAPY(ppsToday, ppsMonthAgo),
-    Fees: {
-      Performance: Number(vaultPerformanceFee.toFloat64()[0]),
-      Management: Number(vaultManagementFee.toFloat64()[0]),
+    type: vaultAPRType,
+    netAPY: calculateMonthlyAPY(ppsToday, ppsMonthAgo).toFloat64()[0],
+    fees: {
+      performance: Number(vaultPerformanceFee.toFloat64()[0]),
+      management: Number(vaultManagementFee.toFloat64()[0]),
     },
     points: {
-      weekAgo: calculateWeeklyAPY(ppsToday, ppsWeekAgo),
-      monthAgo: calculateMonthlyAPY(ppsToday, ppsMonthAgo),
-      inception: calculateYearlyAPY(ppsToday, ppsInception),
+      weekAgo: calculateWeeklyAPY(ppsToday, ppsWeekAgo).toFloat64()[0],
+      monthAgo: calculateMonthlyAPY(ppsToday, ppsMonthAgo).toFloat64()[0],
+      inception: calculateYearlyAPY(ppsToday, ppsInception).toFloat64()[0],
     },
-    PricePerShare: {
-      Today: ppsToday,
-      WeekAgo: ppsWeekAgo,
-      MonthAgo: ppsMonthAgo,
+    pricePerShare: {
+      today: ppsToday.toFloat64()[0],
+      weekAgo: ppsWeekAgo.toFloat64()[0],
+      monthAgo: ppsMonthAgo.toFloat64()[0],
     },
   }
   return vaultAPR
