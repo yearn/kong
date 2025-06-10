@@ -9,5 +9,6 @@ chains: [
   'base',
   'mode',
   'arbitrum',
-  'bera'
+  'bera',
+  'katana'
 ]
