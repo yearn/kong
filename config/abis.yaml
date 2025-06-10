@@ -59,7 +59,8 @@ abis:
       { chainId: 34443, address: '0xE9E8C89c8Fc7E8b8F23425688eb68987231178e5', inceptBlock: 4574184 },
       { chainId: 42161, address: '0x444045c5C13C246e117eD36437303cac8E250aB0', inceptBlock: 187480878 },
       { chainId: 42161, address: '0x770D0d1Fb036483Ed4AbB6d53c1C88fb277D812F', inceptBlock: 269623414 },
-      { chainId: 80094, address: '0x770D0d1Fb036483Ed4AbB6d53c1C88fb277D812F', inceptBlock: 827640 }
+      { chainId: 80094, address: '0x770D0d1Fb036483Ed4AbB6d53c1C88fb277D812F', inceptBlock: 827640 },
+      { chainId: 747474, address: '0x770D0d1Fb036483Ed4AbB6d53c1C88fb277D812F', inceptBlock: 2236950 }
     ]
 
   - abiPath: 'yearn/3/vault'
