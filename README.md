@@ -1,7 +1,7 @@
 # Kong
 ### Real-time/Historical EVM Indexer x Analytics
 
-![figure](packages/web/app/figure.png)
+![figure](packages/web/public/figure.png)
 
 Kong is an integrated set of services and tools that make it easy to index EVM logs and state, enrich your data with custom hooks, query your data over graphql. Kong is designed to be cheap, reliable, easy to maintain, and simplify the process of updating your index.
 
