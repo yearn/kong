@@ -3,7 +3,24 @@ import { Float } from './helpers/bignumber-float'
 import { calculateMonthlyAPY, calculateWeeklyAPY, calculateYearlyAPY, fetchPPSLastMonth, fetchPPSLastWeek, fetchPPSToday } from './helpers/pps'
 import { first } from '../db'
 
-export async function computeV2ForwardAPY(vault: Thing) {
+export async function computeV2ForwardAPY(vault: Thing): Promise<{
+  type: string,
+  netAPY: number,
+  fees: {
+    performance: number,
+    management: number,
+  },
+  points: {
+    weekAgo: number,
+    monthAgo: number,
+    inception: number,
+  },
+  pricePerShare: {
+    today: number,
+    weekAgo: number,
+    monthAgo: number,
+  }
+}> {
 
   const ppsInception = new Float(1)
   const ppsToday = await fetchPPSToday({

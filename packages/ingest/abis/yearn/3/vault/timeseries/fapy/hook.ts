@@ -89,34 +89,75 @@ export default async function process(chainId: number, address: `0x${string}`, d
     }
   }))
 
-  const forwardAPY = await computeChainAPY(vault, 1, strategiesWithIndicators)
+  const vaultAPY = await computeChainAPY(vault, 1, strategiesWithIndicators)
 
-  if(forwardAPY) {
-    return OutputSchema.array().parse([{
-      chainId, address, label: data.outputLabel, component: 'netAPY',
-      blockNumber, blockTime: data.blockTime, value: Number(forwardAPY.netAPY)
-    }, {
-      chainId, address, label: data.outputLabel, component: 'boost',
-      blockNumber, blockTime: data.blockTime, value: Number(forwardAPY.boost)
-    }, {
-      chainId, address, label: data.outputLabel, component: 'poolAPY',
-      blockNumber, blockTime: data.blockTime, value: Number(forwardAPY.poolAPY)
-    }, {
-      chainId, address, label: data.outputLabel, component: 'boostedAPR',
-      blockNumber, blockTime: data.blockTime, value: Number(forwardAPY.boostedAPR)
-    }, {
-      chainId, address, label: data.outputLabel, component: 'baseAPR',
-      blockNumber, blockTime: data.blockTime, value: Number(forwardAPY.baseAPR)
-    }, {
-      chainId, address, label: data.outputLabel, component: 'rewardsAPY',
-      blockNumber, blockTime: data.blockTime, value: Number(forwardAPY.rewardsAPY)
-    }, {
-      chainId, address, label: data.outputLabel, component: 'cvxAPR',
-      blockNumber, blockTime: data.blockTime, value: Number(forwardAPY.cvxAPR)
-    }, {
-      chainId, address, label: data.outputLabel, component: 'keepCRV',
-      blockNumber, blockTime: data.blockTime, value: Number(forwardAPY.keepCRV)
-    }])
+  if(vaultAPY) {
+    return OutputSchema.array().parse([
+      {
+        chainId, address, label: data.outputLabel, component: 'vaultAPRType',
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.type
+      },
+      {
+        chainId, address, label: data.outputLabel, component: 'vaultPointsWeekAgo',
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.points?.weekAgo
+      },
+      {
+        chainId, address, label: data.outputLabel, component: 'vaultPointsMonthAgo',
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.points?.monthAgo
+      },
+      {
+        chainId, address, label: data.outputLabel, component: 'vaultPointsInception',
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.points?.inception
+      },
+      {
+        chainId, address, label: data.outputLabel, component: 'vaultPricePerShareToday',
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.pricePerShare?.today
+      },
+      {
+        chainId, address, label: data.outputLabel, component: 'vaultPricePerShareWeekAgo',
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.pricePerShare?.weekAgo
+      },
+      {
+        chainId, address, label: data.outputLabel, component: 'vaultPricePerShareMonthAgo',
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.pricePerShare?.monthAgo
+      },
+      {
+        chainId, address, label: data.outputLabel, component: 'vaultFeesPerformance',
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.fees?.performance
+      },
+      {
+        chainId, address, label: data.outputLabel, component: 'vaultFeesManagement',
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.fees?.management
+      },
+      {
+        chainId, address, label: data.outputLabel, component: 'forwardAPRType',
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.forwardAPY?.type
+      },
+      {
+        chainId, address, label: data.outputLabel, component: 'forwardNetAPY',
+        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.forwardAPY?.netAPY)
+      }, {
+        chainId, address, label: data.outputLabel, component: 'forwardBoost',
+        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.forwardAPY?.boost)
+      }, {
+        chainId, address, label: data.outputLabel, component: 'poolAPY',
+        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.forwardAPY?.poolAPY)
+      }, {
+        chainId, address, label: data.outputLabel, component: 'boostedAPR',
+        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.forwardAPY?.boostedAPR)
+      }, {
+        chainId, address, label: data.outputLabel, component: 'baseAPR',
+        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.forwardAPY?.baseAPR)
+      }, {
+        chainId, address, label: data.outputLabel, component: 'rewardsAPY',
+        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.forwardAPY?.rewardsAPY)
+      }, {
+        chainId, address, label: data.outputLabel, component: 'cvxAPR',
+        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.forwardAPY?.cvxAPR)
+      }, {
+        chainId, address, label: data.outputLabel, component: 'keepCRV',
+        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.forwardAPY?.keepCRV)
+      }])
   }
 
   return []

@@ -12,29 +12,56 @@ import { first } from '../db'
 import { BigNumber } from '@ethersproject/bignumber'
 
 export async function computeCurrentV3VaultAPY(
-  vault: Thing,
-  strategy: StrategyWithIndicators,
-){
+  vault: Thing
+): Promise<{
+  type: string,
+  netAPY: number,
+  fees: {
+    performance: number,
+    management: number,
+  },
+  points: {
+    weekAgo: number,
+    monthAgo: number,
+    inception: number,
+  },
+  pricePerShare: {
+    today: number,
+    weekAgo: number,
+    monthAgo: number,
+  }
+}>{
   const chainID = vault.chainId
   const yieldVault = vault.address
 
-
+  /**
+   * TODO: fetch these from crm
+   * const [registry, found] = getVaultFromRegistry(vault.address, chainID)
+   * if(found && registry.extraProperties.yieldVaultAddress) {
+   *  yieldVault = registry.extraProperties.yieldVaultAddress
+   * }
+   */
   const ppsInception = new Float(1)
   const ppsToday = await fetchPPSToday({chainId: chainID, vaultAddress: vault.address, decimals: vault.defaults.decimals})
   const ppsWeekAgo = await fetchPPSLastWeek(chainID, yieldVault)
   const ppsMonthAgo = await fetchPPSLastMonth(chainID, yieldVault)
 
+  const vaultSnapshot = await first(SnapshotSchema, `
+    SELECT * FROM snapshots
+    WHERE chainId = ${chainID}
+    AND address = ${vault.address}
+  `, [chainID, vault.address])
 
-  const vaultPerformanceFee = toNormalizedAmount(new BigNumberInt(Number(strategy.performanceFee)), 4)
-  const vaultManagementFee = toNormalizedAmount(new BigNumberInt(Number(strategy.managementFee)), 4)
+  const vaultPerformanceFee = toNormalizedAmount(new BigNumberInt(Number(vaultSnapshot.snapshot.performanceFee)), 4)
+  const vaultManagementFee = toNormalizedAmount(new BigNumberInt(Number(vaultSnapshot.snapshot.managementFee)), 4)
 
   const monthAgoTimestamp = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
   const monthAgoBlockNumber = await estimateHeight(chainID, BigInt(monthAgoTimestamp.getTime() / 1000))
   let vaultAPRType = 'v3:averaged'
   if(compare(vault.defaults.apiVersion, '3', '>=')) {
-    vaultAPRType = strategy?.activation && strategy.activation > monthAgoBlockNumber ? 'v3:new_averaged' : 'v3:averaged'
+    vaultAPRType = vaultSnapshot.snapshot.activation && vaultSnapshot.snapshot.activation > monthAgoBlockNumber ? 'v3:new_averaged' : 'v3:averaged'
   }else if(compare(vault.defaults.apiVersion, '3', '<')) {
-    vaultAPRType = strategy?.activation && strategy.activation > monthAgoBlockNumber ? 'v2:new_averaged' : 'v2:averaged'
+    vaultAPRType = vaultSnapshot.snapshot.activation && vaultSnapshot.snapshot.activation > monthAgoBlockNumber ? 'v2:new_averaged' : 'v2:averaged'
   }
 
   const vaultAPR = {
@@ -64,8 +91,6 @@ export async function computeV3ForwardAPY(
   strategies: StrategyWithIndicators[],
   chainId: number,
 ) {
-
-
   const vaultSnapshot = await first(SnapshotSchema, `
     SELECT * FROM snapshots
     WHERE chainId = ${chainId}
@@ -88,6 +113,7 @@ export async function computeV3ForwardAPY(
           })
           oracleAPR = toNormalizedAmount(new BigNumberInt(Number(getStrategyAPR)), 4)
         }catch(err) {
+          console.error('getStrategyApr error', err)
           const apr = await rpcs.next(chainId).readContract({
             address: V3_ORACLE_ADDRESS[chainId],
             abi: v3Oracle,
@@ -98,12 +124,16 @@ export async function computeV3ForwardAPY(
         }
 
         const humanizedAPR = toNormalizedAmount(new BigNumberInt(Number(oracleAPR)), 18)
+
         const performanceFeeFloat = new Float().setInt(new BigNumberInt(BigNumber.from(strategy.performanceFee).toBigInt()))
         let performanceFee = new Float().div(performanceFeeFloat, new Float(10000))
+
         performanceFee = new Float().sub(new Float(1), performanceFee)
         const scaledStrategyAPR = new Float().mul(humanizedAPR, performanceFee)
+
         debtRatioAPR = new Float().add(new Float(0), scaledStrategyAPR)
         debtRatioAPR = new Float().mul(debtRatioAPR, new Float(0.9))
+
         break
       }
     }
@@ -121,6 +151,7 @@ export async function computeV3ForwardAPY(
         })
         oracleAPR = toNormalizedAmount(new BigNumberInt(Number(getStrategyAPR)), 4)
       }catch(err) {
+        console.error('getCurrentApr error', err)
         const apr = await rpcs.next(chainId).readContract({
           address: V3_ORACLE_ADDRESS[chainId],
           abi: v3Oracle,
@@ -162,10 +193,10 @@ export async function computeV3ForwardAPY(
 
   return {
   	type: 'v3:onchainOracle',
-  	netAPY: primaryAPY,
+  	netAPY: primaryAPY.toFloat64()[0],
   	composite: {
-  		v3OracleCurrentAPR:    oracleAPY,
-  		v3OracleStratRatioAPR: debtRatioAPY,
+  		v3OracleCurrentAPR:    oracleAPY.toFloat64()[0],
+  		v3OracleStratRatioAPR: debtRatioAPY.toFloat64()[0],
   	},
   }
 }

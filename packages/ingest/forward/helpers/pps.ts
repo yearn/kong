@@ -51,11 +51,6 @@ export async function fetchPPSLastMonth(chainId: number, vaultAddress: string) {
   return getPPSByPeriod(chainId, vaultAddress, 30, 'days')
 }
 
-
-
-
-
-
 export function calculateAPY(currentPPS: Float, historicalPPS: Float, days: number) {
   if(historicalPPS.eq(new Float(0)) || currentPPS.eq(historicalPPS)) {
     return new Float(0)
