@@ -20,3 +20,13 @@ export const snakeToCamelCols = (rows: any[]) => {
     return result
   })
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const snakeToCamelObject = (obj: { [key: string]: any }) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result: { [key: string]: any } = {}
+  for (const key of Object.keys(obj)) {
+    result[snakeToCamel(key)] = obj[key]
+  }
+  return result
+}

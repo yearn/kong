@@ -23,6 +23,7 @@ import accountant from './accountant'
 import things from './things'
 import tvls from './tvls'
 import allocator from './allocator'
+import newSplitterLogs from './splitter'
 
 const resolvers = {
   BigInt: bigintScalar,
@@ -50,7 +51,8 @@ const resolvers = {
     accountants,
     accountant,
     allocator,
-    things
+    things,
+    newSplitterLogs
   }
 }
 

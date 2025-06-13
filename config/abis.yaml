@@ -111,6 +111,20 @@ abis:
       filter: []
     }
 
+  - abiPath: 'yearn/3/splitter/factory'
+    sources: [
+      { chainId: 1, address: '0xe28fCC9FB2998ba57754789F6666DAa8C815614D', inceptBlock: 19388854 },
+      { chainId: 10, address: '0xe28fCC9FB2998ba57754789F6666DAa8C815614D', inceptBlock: 117122455 },
+      { chainId: 100, address: '0xe28fCC9FB2998ba57754789F6666DAa8C815614D', inceptBlock: 36458633 },
+      { chainId: 137, address: '0xe28fCC9FB2998ba57754789F6666DAa8C815614D', inceptBlock: 54385936 },
+      { chainId: 146, address: '0xe28fCC9FB2998ba57754789F6666DAa8C815614D', inceptBlock: 307789 },
+      { chainId: 8453, address: '0xe28fCC9FB2998ba57754789F6666DAa8C815614D', inceptBlock: 15750807 },
+      { chainId: 34443, address: '0xe28fCC9FB2998ba57754789F6666DAa8C815614D', inceptBlock: 7771467 },
+      { chainId: 42161, address: '0x444045c5C13C246e117eD36437303cac8E250aB0', inceptBlock: 187480878 },
+      { chainId: 80094, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 827660 },
+      { chainId: 747474, address: '0xe28fCC9FB2998ba57754789F6666DAa8C815614D', inceptBlock: 2236953 }
+    ]
+
   - abiPath: 'yearn/2/registry'
     sources: [
       { chainId: 1, address: '0xe15461b18ee31b7379019dc523231c57d1cbc18c', inceptBlock: 11563389 },
