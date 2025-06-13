@@ -16,6 +16,7 @@ import tvl from './tvl'
 import allocator from './allocator'
 import project from './project'
 import roleManager from './roleManager'
+import { newSplitterLog } from './splitter'
 
 const query = gql`
   scalar BigInt
@@ -56,6 +57,7 @@ const query = gql`
     accountants(chainId: Int): [Accountant]
     accountant(chainId: Int!, address: String!): Accountant
     things(chainId: Int, labels: [String]!): [Thing]
+    newSplitterLogs(chainId: Int, address: String, splitter: String, manager: String, managerRecipient: String): [NewSplitterLog]
   }
 `
 
@@ -77,7 +79,8 @@ const typeDefs = [
   accountant,
   thing,
   project,
-  roleManager
+  roleManager,
+  newSplitterLog
 ]
 
 export default typeDefs
