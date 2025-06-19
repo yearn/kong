@@ -24,6 +24,7 @@ import things from './things'
 import tvls from './tvls'
 import allocator from './allocator'
 import newSplitterLogs from './splitter'
+import newYieldSplitterLogs from './yieldSplitter'
 
 const resolvers = {
   BigInt: bigintScalar,
@@ -52,7 +53,8 @@ const resolvers = {
     accountant,
     allocator,
     things,
-    newSplitterLogs
+    newSplitterLogs,
+    newYieldSplitterLogs
   }
 }
 

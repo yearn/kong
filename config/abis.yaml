@@ -125,6 +125,11 @@ abis:
       { chainId: 747474, address: '0xe28fCC9FB2998ba57754789F6666DAa8C815614D', inceptBlock: 2236953 }
     ]
 
+  - abiPath: 'yearn/3/yieldSplitter/factory'
+    sources: [
+      { chainId: 747474, address: '0x72bd640a903DAE71E1eaA315f31F4dA33C82872d', inceptBlock: 3426919 }
+    ]
+
   - abiPath: 'yearn/2/registry'
     sources: [
       { chainId: 1, address: '0xe15461b18ee31b7379019dc523231c57d1cbc18c', inceptBlock: 11563389 },
