@@ -9,6 +9,16 @@ export type HexString = z.infer<typeof zhexstring>
 export const EvmAddressSchema = zhexstring.transform(s => getAddress(s))
 export type EvmAddress = z.infer<typeof EvmAddressSchema>
 
+export function compareEvmAddresses(a?: string, b?: string) {
+  if (!a || !b) return false
+
+  try {
+    return EvmAddressSchema.parse(getAddress(a)) === EvmAddressSchema.parse(getAddress(b))
+  } catch {
+    return false
+  }
+}
+
 export const JobSchema = z.object({
   queue: z.string(),
   name: z.string(),

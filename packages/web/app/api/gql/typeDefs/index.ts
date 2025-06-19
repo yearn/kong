@@ -17,6 +17,7 @@ import allocator from './allocator'
 import project from './project'
 import roleManager from './roleManager'
 import { newSplitterLog } from './splitter'
+import { newYieldSplitterLog } from './yieldSplitter'
 
 const query = gql`
   scalar BigInt
@@ -58,6 +59,7 @@ const query = gql`
     accountant(chainId: Int!, address: String!): Accountant
     things(chainId: Int, labels: [String]!): [Thing]
     newSplitterLogs(chainId: Int, address: String, splitter: String, manager: String, managerRecipient: String): [NewSplitterLog]
+    newYieldSplitterLogs(chainId: Int, address: String, splitter: String, vault: String, want: String): [NewYieldSplitterLog]
   }
 `
 
@@ -80,7 +82,8 @@ const typeDefs = [
   thing,
   project,
   roleManager,
-  newSplitterLog
+  newSplitterLog,
+  newYieldSplitterLog
 ]
 
 export default typeDefs
