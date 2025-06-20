@@ -29,8 +29,6 @@ const newYieldSplitterLogs = async (_: object, args: { chainId?: number, address
       AND event_name = 'NewYieldSplitter';`,
     [chainId, address])
 
-    console.log(result.rows[0])
-
     const results = NewYieldSplitterLogSchema.array().parse(result.rows.map(row => ({
       chainId: row.chain_id,
       address: row.address,

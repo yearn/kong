@@ -25,6 +25,7 @@ import tvls from './tvls'
 import allocator from './allocator'
 import newSplitterLogs from './splitter'
 import newYieldSplitterLogs from './yieldSplitter'
+import vestingEscrowCreatedLogs from './vestingEscrow'
 
 const resolvers = {
   BigInt: bigintScalar,
@@ -54,7 +55,8 @@ const resolvers = {
     allocator,
     things,
     newSplitterLogs,
-    newYieldSplitterLogs
+    newYieldSplitterLogs,
+    vestingEscrowCreatedLogs
   }
 }
 
