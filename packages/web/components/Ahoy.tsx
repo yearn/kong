@@ -20,7 +20,7 @@ export default function Ahoy() {
       <p className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)] text-sm">Real-time/historical EVM indexer x Analytics</p>
       <div className="flex items-center gap-3 text-xs">
         <a href="/api/gql" target="_blank" className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)]">explorer</a>
-        {'//'} <a href="https://yearn-kong.betteruptime.com" target="_blank" className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)]" rel="noreferrer">uptime</a>
+        {'//'} <a href="https://status.yearn.fi" target="_blank" className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)]" rel="noreferrer">uptime</a>
         {'//'} <a href="https://github.com/yearn/kong" target="_blank" className="z-10 [text-shadow:_0_0_4px_rgb(0_0_0_/_100%)]" rel="noreferrer">github</a>
       </div>
     </div>
