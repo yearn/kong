@@ -1,6 +1,6 @@
 import { StrategyWithIndicators, Thing } from 'lib/types'
 import { zeroAddress } from 'viem'
-import { fetchErc20PriceUsd } from '../prices'
+import { fetchErc20PriceUsd } from '../../../../prices'
 import {
   convexBaseStrategyAbi,
   crvRewardsAbi,
@@ -25,6 +25,7 @@ import { YEARN_VAULT_ABI_04, YEARN_VAULT_V022_ABI, YEARN_VAULT_V030_ABI } from '
 import { Float } from './helpers/bignumber-float'
 import { BigNumberInt, toNormalizedAmount, toNormalizedAmount as toNormalizedIntAmount } from './helpers/bignumber-int'
 import { BigNumber } from '@ethersproject/bignumber'
+import { CVXPoolInfo } from './types/cvx'
 // Strategy type detection functions
 export function isCurveStrategy(vault: Thing & { name: string }) {
   const vaultName = vault?.name.toLowerCase()
@@ -129,6 +130,7 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
         functionName: 'PID',
       })
     } catch (error) {
+      console.error('Error getting reward PID:', error, strategyAddress)
       try {
         rewardPID = await client.readContract({
           address: strategyAddress,
@@ -136,6 +138,7 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
           functionName: 'ID',
         })
       } catch (innerError) {
+        console.error('Error getting reward ID:', innerError, strategyAddress)
         try {
           rewardPID = await client.readContract({
             address: strategyAddress,
@@ -143,6 +146,7 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
             functionName: 'fraxPid',
           })
         } catch (deepError) {
+          console.error('Error getting reward fraxPid:', deepError, strategyAddress)
           return { crvAPR, cvxAPR, crvAPY, cvxAPY }
         }
       }
@@ -156,8 +160,9 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
         abi: cvxBoosterAbi,
         functionName: 'poolInfo',
         args: [rewardPID],
-      }) as any
+      }) as CVXPoolInfo
     } catch (error) {
+      console.error('Error getting pool info:', error, strategyAddress)
       return { crvAPR, cvxAPR, crvAPY, cvxAPY }
     }
 
@@ -241,6 +246,7 @@ export async function determineCurveKeepCRV(strategy: StrategyWithIndicators, ch
     }) as bigint
 
   } catch (error) {
+    console.error('Error determining curve keep CRV:', error, strategy.address)
     return 0
   }
 
@@ -649,7 +655,6 @@ export async function computeCurveLikeForwardAPY({
   let cvxAPR = new Float(0)
   let rewardsAPY = new Float(0)
   let keepCRV = new Float(0)
-  // const keepVelo = new Float(0)
 
 
   await Promise.all(
@@ -678,7 +683,6 @@ export async function computeCurveLikeForwardAPY({
         cvxAPR = new Float(0).add(cvxAPR, new Float(strategyAPR?.cvxAPR || 0))
         rewardsAPY = new Float(0).add(rewardsAPY, new Float(strategyAPR?.rewardsAPY || 0))
         keepCRV = new Float(0).add(keepCRV, new Float(strategyAPR?.keepCRV || 0))
-        // keepVelo = new Float(0).add(keepVelo, new Float(strategyAPR?.keepVelo || 0))
 
         return strategyAPR
       })

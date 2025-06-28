@@ -1,101 +1,21 @@
 
-import { estimateHeight } from 'lib/blocks'
 import { Float } from './helpers/bignumber-float'
 import { BigNumberInt, toNormalizedAmount } from './helpers/bignumber-int'
-import { calculateMonthlyAPY, calculateWeeklyAPY, calculateYearlyAPY, fetchPPSLastMonth, fetchPPSLastWeek, fetchPPSToday } from './helpers/pps'
-import { SnapshotSchema, StrategyWithIndicators, Thing } from 'lib/types'
-import { compare } from 'compare-versions'
+import { Snapshot, StrategyWithIndicators } from 'lib/types'
 import { rpcs } from 'lib/rpcs'
 import { v3Oracle } from './abis/oracle-contract.abi'
 import { convertFloatAPRToAPY, V3_ORACLE_ADDRESS } from './helpers'
-import { first } from '../db'
 import { BigNumber } from '@ethersproject/bignumber'
 
-export async function computeCurrentV3VaultAPY(
-  vault: Thing
-): Promise<{
-  type: string,
-  netAPY: number,
-  fees: {
-    performance: number,
-    management: number,
-  },
-  points: {
-    weekAgo: number,
-    monthAgo: number,
-    inception: number,
-  },
-  pricePerShare: {
-    today: number,
-    weekAgo: number,
-    monthAgo: number,
-  }
-}>{
-  const chainID = vault.chainId
-  const yieldVault = vault.address
-
-  /**
-   * TODO: fetch these from crm
-   * const [registry, found] = getVaultFromRegistry(vault.address, chainID)
-   * if(found && registry.extraProperties.yieldVaultAddress) {
-   *  yieldVault = registry.extraProperties.yieldVaultAddress
-   * }
-   */
-  const ppsInception = new Float(1)
-  const ppsToday = await fetchPPSToday({chainId: chainID, vaultAddress: vault.address, decimals: vault.defaults.decimals})
-  const ppsWeekAgo = await fetchPPSLastWeek(chainID, yieldVault)
-  const ppsMonthAgo = await fetchPPSLastMonth(chainID, yieldVault)
-
-  const vaultSnapshot = await first(SnapshotSchema, `
-    SELECT * FROM snapshots
-    WHERE chainId = ${chainID}
-    AND address = ${vault.address}
-  `, [chainID, vault.address])
-
-  const vaultPerformanceFee = toNormalizedAmount(new BigNumberInt(Number(vaultSnapshot.snapshot.performanceFee)), 4)
-  const vaultManagementFee = toNormalizedAmount(new BigNumberInt(Number(vaultSnapshot.snapshot.managementFee)), 4)
-
-  const monthAgoTimestamp = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  const monthAgoBlockNumber = await estimateHeight(chainID, BigInt(monthAgoTimestamp.getTime() / 1000))
-  let vaultAPRType = 'v3:averaged'
-  if(compare(vault.defaults.apiVersion, '3', '>=')) {
-    vaultAPRType = vaultSnapshot.snapshot.activation && vaultSnapshot.snapshot.activation > monthAgoBlockNumber ? 'v3:new_averaged' : 'v3:averaged'
-  }else if(compare(vault.defaults.apiVersion, '3', '<')) {
-    vaultAPRType = vaultSnapshot.snapshot.activation && vaultSnapshot.snapshot.activation > monthAgoBlockNumber ? 'v2:new_averaged' : 'v2:averaged'
-  }
-
-  const vaultAPR = {
-    type: vaultAPRType,
-    netAPY: calculateMonthlyAPY(ppsToday, ppsMonthAgo).toFloat64()[0],
-    fees: {
-      performance: Number(vaultPerformanceFee.toFloat64()[0]),
-      management: Number(vaultManagementFee.toFloat64()[0]),
-    },
-    points: {
-      weekAgo: calculateWeeklyAPY(ppsToday, ppsWeekAgo).toFloat64()[0],
-      monthAgo: calculateMonthlyAPY(ppsToday, ppsMonthAgo).toFloat64()[0],
-      inception: calculateYearlyAPY(ppsToday, ppsInception).toFloat64()[0],
-    },
-    pricePerShare: {
-      today: ppsToday.toFloat64()[0],
-      weekAgo: ppsWeekAgo.toFloat64()[0],
-      monthAgo: ppsMonthAgo.toFloat64()[0],
-    },
-  }
-  return vaultAPR
-}
-
-
-export async function computeV3ForwardAPY(
-  vault: Thing,
+export async function computeV3ForwardAPY({
+  strategies,
+  chainId,
+  snapshot: vaultSnapshot
+}:{
   strategies: StrategyWithIndicators[],
   chainId: number,
-) {
-  const vaultSnapshot = await first(SnapshotSchema, `
-    SELECT * FROM snapshots
-    WHERE chainId = ${chainId}
-    AND address = ${vault.address}
-  `, [chainId, vault.address])
+  snapshot: Snapshot
+}) {
 
 
   let debtRatioAPR = new Float()
