@@ -84,11 +84,11 @@ export function findSubgraphItemForVault(swapAddress: string, subgraphData: CrvS
 
 // APY/APR calculation helpers
 export function getPoolWeeklyAPY(subgraphItem: CrvSubgraphPool | undefined) {
-  return new Float(0).div(new Float().setFloat64(subgraphItem?.latestWeeklyApy || 0), new Float(100))
+  return new Float().setFloat64(subgraphItem?.latestWeeklyApy || 0).div(new Float(100))
 }
 
 export function getPoolDailyAPY(subgraphItem: CrvSubgraphPool | undefined) {
-  return new Float(0).div(new Float().setFloat64(subgraphItem?.latestDailyApy || 0), new Float(100))
+  return new Float().setFloat64(subgraphItem?.latestDailyApy || 0).div(new Float(100))
 }
 
 export function getPoolPrice(gauge: Gauge): Float {
