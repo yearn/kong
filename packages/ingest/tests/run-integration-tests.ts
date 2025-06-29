@@ -64,53 +64,40 @@ spawnTestContainersAndRun().then(({ env }) => {
     if (isShuttingDown) return
     isShuttingDown = true
 
-    console.log('Cleaning up and shutting down...')
-
-    // Force exit after 15 seconds if cleanup hangs
     const forceExitTimer = setTimeout(() => {
-      console.log('Force exiting due to cleanup timeout')
       process.exit(code || 1)
     }, 15000)
 
     try {
       await shutdownTestcontainers()
       clearTimeout(forceExitTimer)
-      console.log('Cleanup complete, exiting with code:', code)
       process.exit(code)
     } catch (error) {
       clearTimeout(forceExitTimer)
-      console.error('Error during cleanup:', error)
       process.exit(1)
     }
   }
 
   // Handle process events
   mochaProcess.on('close', (code: number) => {
-    console.log('Mocha process closed with code:', code)
     cleanup(code || 0)
   })
 
   mochaProcess.on('exit', (code: number) => {
-    console.log('Mocha process exited with code:', code)
     cleanup(code || 0)
   })
 
   mochaProcess.on('error', (err) => {
-    console.error('Mocha process error:', err)
     cleanup(1)
   })
 
 
   process.on('SIGINT', () => {
-    console.log('Received SIGINT, killing mocha process...')
     mochaProcess.kill('SIGINT')
-    // cleanup will be called by mochaProcess.on('close') or 'exit'
   })
 
   process.on('SIGTERM', () => {
-    console.log('Received SIGTERM, killing mocha process...')
     mochaProcess.kill('SIGTERM')
-    // cleanup will be called by mochaProcess.on('close') or 'exit'
   })
 })
 
