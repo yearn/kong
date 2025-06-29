@@ -1,7 +1,7 @@
 import { expect } from 'chai'
-import { add, contains, plan } from './strider'
+import { add, contains, plan, remove } from './strider'
 
-describe('strider', function() {
+describe.only('strider', function() {
   it('plans new strides', async function() {
     expect(plan(0n, 100n, undefined)).to.deep.equal([{ from: 0n, to: 100n }])
     expect(plan(0n, 100n, [])).to.deep.equal([{ from: 0n, to: 100n }])
@@ -31,6 +31,16 @@ describe('strider', function() {
     expect(add({ from: 101n, to: 199n },  [{ from: 0n, to: 100n }, { from: 200n, to: 300n }])).to.deep.equal([{ from: 0n, to: 300n }])
     expect(add({ from: 100n, to: 199n },  [{ from: 200n, to: 300n }])).to.deep.equal([{ from: 100n, to: 300n }])
   })
+
+  it('removes strides', async function() {
+    expect(remove({ from: 0n, to: 100n }, [])).to.deep.equal([])
+    expect(remove({ from: 0n, to: 100n }, [{ from: 0n, to: 100n }])).to.deep.equal([])
+    expect(remove({ from: 10n, to: 20n }, [{ from: 0n, to: 5n }, { from: 25n, to: 30n }])).to.deep.equal([{ from: 0n, to: 5n }, { from: 25n, to: 30n }])
+    expect(remove({ from: 0n, to: 50n }, [{ from: 0n, to: 100n }])).to.deep.equal([{ from: 51n, to: 100n }])
+    expect(remove({ from: 50n, to: 100n }, [{ from: 0n, to: 100n }])).to.deep.equal([{ from: 0n, to: 49n }])
+    expect(remove({ from: 30n, to: 40n }, [{ from: 0n, to: 100n }])).to.deep.equal([{ from: 0n, to: 29n }, { from: 41n, to: 100n }])
+  })
+
 
   it('knows when strides contain strides', async function() {
     expect(contains({ from: 0n, to: 10n }, { from: 0n, to: 10n })).to.be.true

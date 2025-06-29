@@ -102,3 +102,17 @@ manuals:
       inceptBlock: 32945516,
       inceptTime: 1710521005
     }
+
+  - chainId: 80094
+    address: '0x982940eBfC5caa2F5b5a82AAc2Dfa99F18BB7dA4'
+    label: 'vault'
+    defaults: {
+      yearn: true
+    }
+
+  - chainId: 80094
+    address: '0xC82971BcFF09171e16Ac08AEE9f4EA3fB16C3BDC'
+    label: 'vault'
+    defaults: {
+      yearn: true
+    }

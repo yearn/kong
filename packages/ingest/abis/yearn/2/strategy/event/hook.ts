@@ -6,7 +6,7 @@ import { fetchOrExtractAssetAddress, fetchOrExtractDecimals, throwOnMulticallErr
 import { extractTotalDebt } from '../snapshot/hook'
 import { rpcs } from '../../../../../rpcs'
 import { first } from '../../../../../db'
-import { EvmLog, EvmLogSchema, zhexstring } from 'lib/types'
+import { EvmLog, EvmLogSchema, EvmAddressSchema } from 'lib/types'
 import { math, multicall3 } from 'lib'
 import { getBlockTime } from 'lib/blocks'
 import strategyAbi from '../abi'
@@ -18,7 +18,7 @@ export const topics = [
 
 export const HarvestSchema = z.object({
   chainId: z.number(),
-  address: zhexstring,
+  address: EvmAddressSchema,
   blockNumber: z.bigint({ coerce: true }),
   blockTime: z.bigint({ coerce: true }),
   args: z.object({
@@ -37,13 +37,24 @@ export default async function process(chainId: number, address: `0x${string}`, d
     chainId, address, ...data, blockTime: await getBlockTime(chainId, data.blockNumber)
   })
 
+  console.log('****************************')
+  console.log('harvest')
+  console.log(harvest)
+  console.log('****************************')
+
   const decimals = await fetchOrExtractDecimals(chainId, address)
   const asset = await fetchOrExtractAssetAddress(chainId, address, 'strategy', 'want')
   const price = await fetchErc20PriceUsd(chainId, asset, harvest.blockNumber)
   const previousHarvest = await fetchPreviousHarvest(harvest)
+
+  console.log('****************************')
+  console.log('previousHarvest')
+  console.log(previousHarvest)
+  console.log('****************************')
+
   const apr = await computeApr(harvest, previousHarvest)
 
-  return {
+  const result = {
     profitUsd: priced(harvest.args.profit, decimals, price.priceUsd),
     lossUsd: priced(harvest.args.loss, decimals, price.priceUsd),
     debtPaymentUsd: priced(harvest.args.debtPayment, decimals, price.priceUsd),
@@ -52,9 +63,16 @@ export default async function process(chainId: number, address: `0x${string}`, d
     priceSource: price.priceSource,
     apr
   }
+
+  console.log('****************************')
+  console.log('result')
+  console.log(result)
+  console.log('****************************')
+
+  return result
 }
 
-async function fetchPreviousHarvest(harvest: Harvest) {
+export async function fetchPreviousHarvest(harvest: Harvest) {
   const previousLog = await first<EvmLog>(EvmLogSchema, `
   SELECT * from evmlog
   WHERE chain_id = $1 AND address = $2 AND signature = $3 AND block_number < $4

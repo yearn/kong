@@ -7,8 +7,8 @@ interface FillerProps {
   className?: string
 }
 
-const Filler: React.FC<FillerProps> = ({ 
-  character = '.', 
+const Filler: React.FC<FillerProps> = ({
+  character = '.',
   className = 'w-full h-24'
 }) => {
   const [text, setText] = useState('')
@@ -33,8 +33,8 @@ const Filler: React.FC<FillerProps> = ({
   }, [character])
 
   return (
-    <div 
-      ref={containerRef} 
+    <div
+      ref={containerRef}
       className={`overflow-hidden font-mono whitespace-pre text-base leading-none ${className}`}>
       {text}
     </div>

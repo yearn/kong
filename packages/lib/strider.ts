@@ -27,24 +27,24 @@ export function plan(from: bigint, to: bigint, travelled: Stride[] | undefined):
   return result
 }
 
-export function add(next: Stride, travelled: Stride[] | undefined): Stride[] {
-  if (!travelled || travelled.length === 0) return [next]
-  travelled.sort((a, b) => Number(a.from - b.from))
+export function add(stride: Stride, strides: Stride[] | undefined): Stride[] {
+  if (!strides || strides.length === 0) return [stride]
+  strides.sort((a, b) => Number(a.from - b.from))
 
-  let merged = [next]
-  for (const stride of travelled) {
+  let merged = [stride]
+  for (const _stride of strides) {
     let added = false
     merged = merged.map(m => {
-      if ((stride.to >= m.from && stride.from <= m.to) 
-        || stride.to + 1n === m.from 
-        || stride.from - 1n === m.to
+      if ((_stride.to >= m.from && _stride.from <= m.to)
+        || _stride.to + 1n === m.from
+        || _stride.from - 1n === m.to
       ) {
         added = true
-        return { from: math.min(stride.from, m.from), to: math.max(stride.to, m.to) }
+        return { from: math.min(_stride.from, m.from), to: math.max(_stride.to, m.to) }
       }
       return m
     })
-    if (!added) merged.push(stride)
+    if (!added) merged.push(_stride)
   }
 
   let hasOverlap = true
@@ -52,8 +52,8 @@ export function add(next: Stride, travelled: Stride[] | undefined): Stride[] {
     hasOverlap = false
     for (let i = 0; i < merged.length; i++) {
       for (let j = i + 1; j < merged.length; j++) {
-        if ((merged[i].to >= merged[j].from && merged[i].from <= merged[j].to) 
-          || merged[i].to + 1n === merged[j].from 
+        if ((merged[i].to >= merged[j].from && merged[i].from <= merged[j].to)
+          || merged[i].to + 1n === merged[j].from
           || merged[i].from - 1n === merged[j].to
         ) {
           merged[i] = { from: math.min(merged[i].from, merged[j].from), to: math.max(merged[i].to, merged[j].to) }
@@ -67,6 +67,39 @@ export function add(next: Stride, travelled: Stride[] | undefined): Stride[] {
   }
 
   return merged.sort((a, b) => Number(a.from - b.from))
+}
+
+export function remove(stride: Stride, strides: Stride[] | undefined): Stride[] {
+  if (!strides || strides.length === 0) return []
+  strides.sort((a, b) => Number(a.from - b.from))
+
+  const result: Stride[] = []
+
+  for (const _stride of strides) {
+    // If stride is completely before toremove, keep it as is
+    if (_stride.to < stride.from) {
+      result.push(_stride)
+      continue
+    }
+
+    // If stride is completely after toremove, keep it as is
+    if (_stride.from > stride.to) {
+      result.push(_stride)
+      continue
+    }
+
+    // If there's a part before toremove, keep it
+    if (_stride.from < stride.from) {
+      result.push({ from: _stride.from, to: stride.from - 1n })
+    }
+
+    // If there's a part after toremove, keep it
+    if (_stride.to > stride.to) {
+      result.push({ from: stride.to + 1n, to: _stride.to })
+    }
+  }
+
+  return result
 }
 
 export function contains(a: Stride, b: Stride) {
