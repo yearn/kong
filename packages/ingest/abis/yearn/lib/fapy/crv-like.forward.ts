@@ -35,7 +35,9 @@ export function isCurveStrategy(vault: Thing & { name: string }) {
 }
 
 export function isConvexStrategy(strategy: StrategyWithIndicators) {
-  return strategy.name.toLowerCase().includes('convex')
+  const strategyName = strategy.name.toLowerCase()
+  // More specific detection to match Go logic
+  return strategyName.includes('convex') && !strategyName.includes('curve')
 }
 
 export function isFraxStrategy(strategy: StrategyWithIndicators) {
@@ -51,20 +53,20 @@ export function isPrismaStrategy(strategy: StrategyWithIndicators) {
 // Find functions
 export function findGaugeForVault(assetAddress: string, gauges: Gauge[]) {
   return gauges.find((gauge) => {
-    if(gauge.swap) {
-      return gauge.swap?.toLowerCase() === assetAddress.toLowerCase()
-    }
+    // Match Go logic: check SwapToken field first
     if(gauge.swap_token?.toLowerCase() === assetAddress.toLowerCase()) {
-      return gauge
+      return true
     }
+    if(gauge.swap?.toLowerCase() === assetAddress.toLowerCase()) {
+      return true
+    }
+    return false
   })
 }
 
 export function findPoolForVault(assetAddress: string, pools: CrvPool[]) {
   return pools.find((pool) => {
-    if(pool.lpTokenAddress === assetAddress) {
-      return pool
-    }
+    return pool.lpTokenAddress?.toLowerCase() === assetAddress.toLowerCase()
   })
 }
 
@@ -82,11 +84,11 @@ export function findSubgraphItemForVault(swapAddress: string, subgraphData: CrvS
 
 // APY/APR calculation helpers
 export function getPoolWeeklyAPY(subgraphItem: CrvSubgraphPool | undefined) {
-  return new Float(0).div(new Float(subgraphItem?.latestWeeklyApy || 0), new Float(100))
+  return new Float(0).div(new Float().setFloat64(subgraphItem?.latestWeeklyApy || 0), new Float(100))
 }
 
 export function getPoolDailyAPY(subgraphItem: CrvSubgraphPool | undefined) {
-  return new Float(0).div(new Float(subgraphItem?.latestDailyApy || 0), new Float(100))
+  return new Float(0).div(new Float().setFloat64(subgraphItem?.latestDailyApy || 0), new Float(100))
 }
 
 export function getPoolPrice(gauge: Gauge): Float {
@@ -286,8 +288,7 @@ export async function calculateCurveForwardAPY(data: {
   }
 
   return {
-    type: 'curve',
-    debtRatio: debtRatio.toFloat64()[0],
+    type: 'crv',
     netAPY: netAPY.toFloat64()[0],
     boost: new Float().mul(yboost, debtRatio).toFloat64()[0],
     poolAPY: new Float().mul(data.poolAPY, debtRatio).toFloat64()[0],
@@ -329,8 +330,8 @@ export async function calculateConvexForwardAPY(data: {
 
   const {totalRewardsAPY: rewardsAPY} = await getConvexRewardAPY(chainId, strategy.address, baseAssetPrice, poolPrice)
 
-  const [keepCRVRatio] = new Float().sub(new Float(1), keepCRV).toFloat64()
-  let grossAPY = new Float().mul(crvAPY, new Float(keepCRVRatio))
+  const keepCRVRatio = new Float().sub(new Float(1), keepCRV)
+  let grossAPY = new Float().mul(crvAPY, keepCRVRatio)
   grossAPY = new Float().add(grossAPY, rewardsAPY)
   grossAPY = new Float().add(grossAPY, poolWeeklyAPY)
   grossAPY = new Float().add(grossAPY, cvxAPY)
@@ -345,7 +346,7 @@ export async function calculateConvexForwardAPY(data: {
 
 
   return {
-    type: 'convex',
+    type: 'cvx',
     debtRatio: debtRatio.toFloat64()[0],
     netAPY: netAPY.toFloat64()[0],
     boost: new Float().mul(cvxBoost, debtRatio).toFloat64()[0],
@@ -675,7 +676,6 @@ export async function computeCurveLikeForwardAPY({
       })
   )
 
-  console.log('typeOf', typeOf)
   return {
     type: typeOf,
     netAPR: netAPY.toFloat64()[0],
