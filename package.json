@@ -22,8 +22,7 @@
   "devDependencies": {
     "@testcontainers/postgresql": "^10.18.0",
     "@testcontainers/redis": "^10.18.0",
-    "bun-types": "^1.2.1",
-    "ts-node": "^10.9.2"
+    "bun-types": "^1.2.1"
   },
   "dependencies": {
     "@types/bun": "^1.2.2"
