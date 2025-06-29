@@ -107,11 +107,11 @@ export const determineConvexKeepCRV = async (chainID: number, strategy: Strategy
         functionName: 'keepCRV',
       }) as bigint
 
-      return toNormalizedIntAmount(new BigNumberInt().set(BigInt(keepCRV)), 4)
+      return toNormalizedIntAmount(new BigNumberInt().set(keepCRV), 4)
     } catch (err) {
-      return toNormalizedIntAmount(new BigNumberInt().set(BigInt(0)), 4)
+      return toNormalizedIntAmount(new BigNumberInt().set(0n), 4)
     }
   } catch (err) {
-    return toNormalizedIntAmount(new BigNumberInt().set(BigInt(0)), 4)
+    return toNormalizedIntAmount(new BigNumberInt().set(0n), 4)
   }
 }

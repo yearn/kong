@@ -24,7 +24,6 @@ import { rpcs } from 'lib/rpcs'
 import { YEARN_VAULT_ABI_04, YEARN_VAULT_V022_ABI, YEARN_VAULT_V030_ABI } from './abis/0xAbis.abi'
 import { Float } from './helpers/bignumber-float'
 import { BigNumberInt, toNormalizedAmount, toNormalizedAmount as toNormalizedIntAmount } from './helpers/bignumber-int'
-import { BigNumber } from '@ethersproject/bignumber'
 import { CVXPoolInfo } from './types/cvx'
 // Strategy type detection functions
 export function isCurveStrategy(vault: Thing & { name: string }) {
@@ -83,20 +82,19 @@ export function findSubgraphItemForVault(swapAddress: string, subgraphData: CrvS
 
 // APY/APR calculation helpers
 export function getPoolWeeklyAPY(subgraphItem: CrvSubgraphPool | undefined) {
-  return Number(subgraphItem?.latestWeeklyApy || 0)
+  return new Float(0).div(new Float(subgraphItem?.latestWeeklyApy || 0), new Float(100))
 }
 
 export function getPoolDailyAPY(subgraphItem: CrvSubgraphPool | undefined) {
-  return Number(subgraphItem?.latestDailyApy || 0)
+  return new Float(0).div(new Float(subgraphItem?.latestDailyApy || 0), new Float(100))
 }
 
-export function getPoolPrice(gauge: Gauge): number {
-  let virtualPrice = 0
+export function getPoolPrice(gauge: Gauge): Float {
+  let virtualPrice = new BigNumberInt(0)
   if (gauge.swap_data?.virtual_price) {
-    virtualPrice = Number(gauge.swap_data.virtual_price)
+    virtualPrice = new BigNumberInt(gauge.swap_data.virtual_price)
   }
-  const divisor = 10 ** 18
-  return virtualPrice / divisor
+  return toNormalizedIntAmount(virtualPrice, 18)
 }
 
 export function getRewardsAPY(chainId: number, pool: CrvPool) {
@@ -113,12 +111,12 @@ export function getRewardsAPY(chainId: number, pool: CrvPool) {
   return totalRewardAPR
 }
 
-export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${string}`, baseAssetPrice: number) {
+export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${string}`, baseAssetPrice: Float) {
   const client = rpcs.next(chainId)
-  const crvAPR = new Float(0)
-  const cvxAPR = new Float(0)
-  const crvAPY = new Float(0)
-  const cvxAPY = new Float(0)
+  let crvAPR = new Float(0)
+  let cvxAPR = new Float(0)
+  let crvAPY = new Float(0)
+  let cvxAPY = new Float(0)
 
   try {
     // Try to get the PID (Pool ID) - try different function names as they vary by contract
@@ -177,10 +175,10 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
     ]) as [bigint, bigint]
 
     // Convert results to normalized amounts
-    const rate = toNormalizedIntAmount(new BigNumberInt(rateResult.toString()), 18)
-    const supply = toNormalizedIntAmount(new BigNumberInt(totalSupply.toString()), 18)
+    const rate = toNormalizedIntAmount(new BigNumberInt(rateResult), 18)
+    const supply = toNormalizedIntAmount(new BigNumberInt(totalSupply), 18)
     const crvPerUnderlying = new Float(0)
-    const virtualSupply = new Float().mul(supply, new Float(baseAssetPrice))
+    const virtualSupply = new Float().mul(supply, baseAssetPrice)
 
     if (virtualSupply.gt(new Float(0))) {
       crvPerUnderlying.div(rate, virtualSupply)
@@ -194,12 +192,14 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
     const { priceUsd: cvxPrice } = await fetchErc20PriceUsd(chainId, CVX_TOKEN_ADDRESS[chainId], undefined, true)
 
     // Calculate APRs
-    crvAPR.mul(crvPerUnderlyingPerYear, new Float(crvPrice))
-    cvxAPR.mul(new Float(Number(cvxPerYear)), new Float(cvxPrice))
+    crvAPR = new Float().mul(crvPerUnderlyingPerYear, new Float(crvPrice))
+    cvxAPR = new Float().mul(cvxPerYear, new Float(cvxPrice))
 
-    // Convert APRs to APYs
-    crvAPY.set(BigNumber.from(convertFloatAPRToAPY(crvAPR.toNumber(), 365/15)))
-    cvxAPY.set(BigNumber.from(convertFloatAPRToAPY(cvxAPR.toNumber(), 365/15)))
+    const [crvAPRFloat64] = crvAPR.toFloat64()
+    const [cvxAPRFloat64] = cvxAPR.toFloat64()
+
+    crvAPY = new Float().setFloat64(convertFloatAPRToAPY(crvAPRFloat64, 365/15))
+    cvxAPY = new Float().setFloat64(convertFloatAPRToAPY(cvxAPRFloat64, 365/15))
   } catch (error) {
     console.error('Error calculating CVX pool APY:', error, strategyAddress)
   }
@@ -258,13 +258,13 @@ export async function calculateCurveForwardAPY(data: {
   rewardAPY: Float,
   poolAPY: Float,
   chainId: number,
-  lastDebtRatio: number
+  lastDebtRatio: Float
 }) {
   const chainId = data.chainId
   const yboost = await getCurveBoost(chainId, YEARN_VOTER_ADDRESS[chainId], data.gaugeAddress)
 
   const keepCrv = await determineCurveKeepCRV(data.strategy, chainId)
-  const debtRatio = toNormalizedIntAmount(new BigNumberInt(data.lastDebtRatio), 4)
+  const debtRatio = toNormalizedIntAmount(new BigNumberInt(data.lastDebtRatio.toNumber()), 4)
   const performanceFee = toNormalizedIntAmount(new BigNumberInt(data.strategy.performanceFee ?? 0), 4)
   const managementFee = toNormalizedIntAmount(new BigNumberInt(data.strategy.managementFee ?? 0), 4)
   const oneMinusPerfFee = new Float().sub(new Float(1), performanceFee)
@@ -301,13 +301,13 @@ export async function calculateCurveForwardAPY(data: {
 export async function calculateConvexForwardAPY(data: {
   gaugeAddress: `0x${string}`,
   strategy: StrategyWithIndicators,
-  baseAssetPrice: number,
-  poolPrice: number,
+  baseAssetPrice: Float,
+  poolPrice: Float,
   baseAPY: Float,
   rewardAPY: Float,
   poolWeeklyAPY: Float,
   chainId: number,
-  lastDebtRatio: number
+  lastDebtRatio: Float
 }) {
   const {
     gaugeAddress,
@@ -321,13 +321,13 @@ export async function calculateConvexForwardAPY(data: {
   } = data
   const cvxBoost = await getCurveBoost(chainId, gaugeAddress, strategy.address)
   const keepCRV = await determineConvexKeepCRV(chainId, strategy)
-  const debtRatio = toNormalizedIntAmount(new BigNumberInt(lastDebtRatio), 4)
+  const debtRatio = toNormalizedIntAmount(new BigNumberInt(lastDebtRatio.toNumber()), 4)
   const performanceFee = toNormalizedIntAmount(new BigNumberInt(strategy.performanceFee ?? 0), 4)
   const managementFee = toNormalizedIntAmount(new BigNumberInt(strategy.managementFee ?? 0), 4)
   const oneMinusPerfFee = new Float().sub(new Float(1), performanceFee)
   const {crvAPR, cvxAPR, crvAPY, cvxAPY} = await getCVXPoolAPY(chainId, strategy.address, baseAssetPrice)
 
-  const {totalRewardsAPY: rewardsAPY} = await getConvexRewardAPY(chainId, strategy.address, new Float(baseAssetPrice), new Float(poolPrice))
+  const {totalRewardsAPY: rewardsAPY} = await getConvexRewardAPY(chainId, strategy.address, baseAssetPrice, poolPrice)
 
   const [keepCRVRatio] = new Float().sub(new Float(1), keepCRV).toFloat64()
   let grossAPY = new Float().mul(crvAPY, new Float(keepCRVRatio))
@@ -361,13 +361,13 @@ export async function calculateConvexForwardAPY(data: {
 export async function calculateFraxForwardAPY(data: {
   gaugeAddress: `0x${string}`,
   strategy: StrategyWithIndicators,
-  baseAssetPrice: number,
-  poolPrice: number,
+    baseAssetPrice: Float,
+  poolPrice: Float,
   baseAPY: Float,
   rewardAPY: Float,
   poolWeeklyAPY: Float,
   chainId: number,
-  lastDebtRatio: number
+  lastDebtRatio: Float
 }, fraxPool: FraxPool | undefined) {
   if(!fraxPool) {
     return null
@@ -394,8 +394,8 @@ export async function calculatePrismaForwardAPR(data: {
   chainId: number,
   gaugeAddress: `0x${string}`,
   strategy: StrategyWithIndicators,
-  baseAssetPrice: number,
-  poolPrice: number,
+  baseAssetPrice: Float,
+  poolPrice: Float,
   baseAPY: Float,
   rewardAPY: Float,
   poolWeeklyAPY: Float,
@@ -424,7 +424,7 @@ export async function calculatePrismaForwardAPR(data: {
     rewardAPY: data.rewardAPY,
     poolWeeklyAPY: data.poolWeeklyAPY,
     chainId: data.chainId,
-    lastDebtRatio: data.strategy.debtRatio || 0
+    lastDebtRatio: new Float(data.strategy.debtRatio || 0)
   })
 
   const [, prismaAPY] = await getPrismaAPY(chainId, receiver)
@@ -444,16 +444,16 @@ export async function calculatePrismaForwardAPR(data: {
 
 export async function calculateGaugeBaseAPR(
   gauge: Gauge,
-  crvTokenPrice: number | Float,
-  poolPrice: bigint | number | Float,
-  baseAssetPrice: number | Float
+  crvTokenPrice: Float,
+  poolPrice: Float,
+  baseAssetPrice: Float
 ) {
   // Initialize inflation rate
   let inflationRate = new Float(0)
   if (typeof gauge.gauge_controller.inflation_rate === 'string') {
     inflationRate = toNormalizedIntAmount(new BigNumberInt(gauge.gauge_controller.inflation_rate), 18)
   } else {
-    inflationRate.setFloat64(gauge.gauge_controller.inflation_rate as number)
+    inflationRate = new Float().setFloat64(gauge.gauge_controller.inflation_rate)
   }
 
   // Convert parameters to Float objects
@@ -468,33 +468,32 @@ export async function calculateGaugeBaseAPR(
   )
   const perMaxBoost = new Float(0.4)
   const crvPrice = (crvTokenPrice instanceof Float) ? crvTokenPrice : new Float(crvTokenPrice)
-  const poolPriceFloat = (poolPrice instanceof Float) ? poolPrice : new Float(poolPrice.toString())
+  const poolPriceFloat = (poolPrice instanceof Float) ? poolPrice : new Float(poolPrice)
   const baseAssetPriceFloat = (baseAssetPrice instanceof Float) ? baseAssetPrice : new Float(baseAssetPrice)
 
   // Calculate baseAPR using the formula from Go implementation:
   // baseAPR = (inflationRate * gaugeWeight * (secondsPerYear / workingSupply) * (perMaxBoost / poolPrice) * crvPrice) / baseAssetPrice
 
   // Step 1: inflationRate * gaugeWeight
-  const baseAPR = new Float(0).mul(inflationRate, gaugeWeight)
+  let baseAPR = new Float(0).mul(inflationRate, gaugeWeight)
 
   // Step 2: * (secondsPerYear / workingSupply)
   const yearsBySupply = new Float(0).div(secondsPerYear, workingSupply)
-  baseAPR.mul(baseAPR, yearsBySupply)
+  baseAPR = new Float().mul(baseAPR, yearsBySupply)
 
   // Step 3: * (perMaxBoost / poolPrice)
   const boostByPool = new Float(0).div(perMaxBoost, poolPriceFloat)
-  baseAPR.mul(baseAPR, boostByPool)
+  baseAPR = new Float().mul(baseAPR, boostByPool)
 
   // Step 4: * crvPrice
-  baseAPR.mul(baseAPR, crvPrice)
+  baseAPR = new Float().mul(baseAPR, crvPrice)
 
   // Step 5: / baseAssetPrice
-  baseAPR.div(baseAPR, baseAssetPriceFloat)
+  baseAPR = new Float().div(baseAPR, baseAssetPriceFloat)
 
   // Convert APR to APY using 365/15 periods per year (as in Go implementation)
 
-  const baseAPRFloat2 = baseAPR.toFloat64()
-  const [baseAPRFloat] = baseAPRFloat2
+  const [baseAPRFloat] = baseAPR.toFloat64()
 
   const baseAPY = new Float().setFloat64(convertFloatAPRToAPY(baseAPRFloat, 365/15))
 
@@ -537,10 +536,10 @@ export async function calculateCurveLikeStrategyAPR(
   ** - We get the CRV price from our price package, which is in base 6 but converted in 2.
   ** - We get the pool price from the curve API, which is in base 18 but converted in 2.
   **********************************************************************************************/
-  const baseAssetPrice = Number(gauge.lpTokenPrice || 0)
+  const baseAssetPrice = new Float().setFloat64(gauge.lpTokenPrice || 0)
 
   const { priceUsd } = await fetchErc20PriceUsd(chainId, CRV_TOKEN_ADDRESS[chainId], undefined, true)
-  const crvPrice = priceUsd
+  const crvPrice = new Float(priceUsd)
 
   const poolPrice = getPoolPrice(gauge)
 
@@ -552,7 +551,7 @@ export async function calculateCurveLikeStrategyAPR(
   const poolWeeklyAPY = getPoolWeeklyAPY(subgraphItem)
 
 
-  const poolWeeklyAPYFloat = new Float(poolWeeklyAPY)
+  const poolWeeklyAPYFloat = poolWeeklyAPY
 
 
 
@@ -562,11 +561,11 @@ export async function calculateCurveLikeStrategyAPR(
       chainId,
       gaugeAddress: gauge.gauge as `0x${string}`,
       strategy,
-      baseAssetPrice: Number(baseAssetPrice),
+      baseAssetPrice: baseAssetPrice,
       poolPrice,
       baseAPY,
       rewardAPY,
-      poolWeeklyAPY: poolWeeklyAPYFloat,
+      poolWeeklyAPY: poolWeeklyAPY,
     })
   }
 
@@ -578,9 +577,9 @@ export async function calculateCurveLikeStrategyAPR(
       poolPrice,
       baseAPY,
       rewardAPY,
-      poolWeeklyAPY: poolWeeklyAPYFloat,
+      poolWeeklyAPY: poolWeeklyAPY,
       chainId,
-      lastDebtRatio: strategy.debtRatio || 0
+      lastDebtRatio: new Float(strategy.debtRatio || 0)
     }, fraxPool)
   }
 
@@ -594,7 +593,7 @@ export async function calculateCurveLikeStrategyAPR(
       rewardAPY,
       poolWeeklyAPY: poolWeeklyAPYFloat,
       chainId,
-      lastDebtRatio: strategy.debtRatio || 0
+      lastDebtRatio: new Float(strategy.debtRatio || 0)
     })
   }
 
@@ -603,9 +602,9 @@ export async function calculateCurveLikeStrategyAPR(
     strategy,
     baseAPY,
     rewardAPY,
-    poolAPY: poolWeeklyAPYFloat,
+    poolAPY: poolWeeklyAPY,
     chainId,
-    lastDebtRatio: strategy.debtRatio || 0
+    lastDebtRatio: new Float(strategy.debtRatio || 0)
   })
 }
 

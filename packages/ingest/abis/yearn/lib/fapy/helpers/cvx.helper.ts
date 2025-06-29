@@ -7,33 +7,50 @@ import { rpcs } from 'lib/rpcs'
 import { Float } from './bignumber-float'
 import { toNormalizedAmount, BigNumberInt } from './bignumber-int'
 
-export const getCVXForCRV = async (chainID: number, crvEarned: bigint): Promise<bigint> => {
-  const cliffSize = BigInt('100000000000000000000000') // 1e23
-  const cliffCount = BigInt('1000') // 1e3
-  const maxSupply = BigInt('100000000000000000000000000') // 1e26
-
+export const getCVXForCRV = async (chainID: number, crvEarned: bigint) => {
   const client = rpcs.next(chainID)
 
-  const cvxTotalSupply = await client.readContract({
-    address: CVX_TOKEN_ADDRESS[chainID],
-    abi: erc20Abi,
-    functionName: 'totalSupply',
-  })
+  // Constants from Go code
+  const cliffSize = new Float(0).setString('100000000000000000000000')    // 1e23
+  const cliffCount = new Float(0).setString('1000')                       // 1e3
+  const maxSupply = new Float(0).setString('100000000000000000000000000') // 1e26
 
-  const currentCliff = cvxTotalSupply / cliffSize
-  if (currentCliff >= cliffCount) {
-    return BigInt(0)
+  try {
+    // Get CVX total supply from contract
+    const cvxTotalSupplyInt = await client.readContract({
+      address: CVX_TOKEN_ADDRESS[chainID],
+      abi: erc20Abi,
+      functionName: 'totalSupply',
+    }) as bigint
+
+    // Convert to Float for calculations
+    const cvxTotalSupply = new Float(0).setInt(new BigNumberInt(cvxTotalSupplyInt))
+    const crvEarnedFloat = new Float(0).setInt(new BigNumberInt(crvEarned))
+
+    // Calculate current cliff
+    const currentCliff = new Float(0).div(cvxTotalSupply, cliffSize)
+
+    // If current cliff >= cliff count, return zero
+    if (currentCliff.gte(cliffCount)) {
+      return new Float(0)
+    }
+
+    // Calculate remaining and cvxEarned
+    const remaining = new Float(0).sub(cliffCount, currentCliff)
+    let cvxEarned = new Float(0).mul(crvEarnedFloat, remaining)
+    cvxEarned = new Float(0).div(cvxEarned, cliffCount)
+
+    // Check amount till max supply
+    const amountTillMax = new Float(0).sub(maxSupply, cvxTotalSupply)
+    if (cvxEarned.gt(amountTillMax)) {
+      cvxEarned = amountTillMax
+    }
+
+    // Convert back to bigint
+    return cvxEarned
+  } catch (error) {
+    return new Float(0)
   }
-
-  const remaining = cliffCount - currentCliff
-  let cvxEarned = crvEarned * remaining / cliffCount
-
-  const amountTillMax = maxSupply - cvxTotalSupply
-  if (cvxEarned > amountTillMax) {
-    cvxEarned = amountTillMax
-  }
-
-  return cvxEarned
 }
 
 
@@ -99,7 +116,7 @@ export const getConvexRewardAPY = async (
   }
 
   const now = BigInt(Math.floor(Date.now() / 1000))
-  const totalRewardsAPR = new Float(0)
+  let totalRewardsAPR = new Float(0)
 
   if (rewardsLength > BigInt(0)) {
     for (let i = 0; i < Number(rewardsLength); i++) {
@@ -162,7 +179,7 @@ export const getConvexRewardAPY = async (
         rewardAPRBottom = new Float(0).mul(rewardAPRBottom, totalSupply)
 
         const rewardAPR = new Float(0).div(rewardAPRTop, rewardAPRBottom)
-        totalRewardsAPR.add(totalRewardsAPR, rewardAPR)
+        totalRewardsAPR = new Float(0).add(totalRewardsAPR, rewardAPR)
       } catch (error) {
         continue
       }
