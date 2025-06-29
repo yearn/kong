@@ -27,21 +27,38 @@ export const dbMigrate = async ({ postgres }: { postgres: StartedPostgreSqlConta
   })
 }
 
-export function setTestcontainersEnv({ postgres, redis }: { postgres: StartedPostgreSqlContainer, redis: StartedRedisContainer }) {
-  process.env.POSTGRES_HOST = postgres.getHost()
-  process.env.POSTGRES_PORT = postgres.getPort().toString()
-  process.env.POSTGRES_USER = postgres.getUsername()
-  process.env.POSTGRES_PASSWORD = postgres.getPassword()
-  process.env.POSTGRES_DB = postgres.getDatabase()
-  process.env.REDIS_HOST = redis.getHost()
-  process.env.REDIS_PORT = redis.getMappedPort(6379).toString()
-  return {
-    host: postgres.getHost(),
-    port: postgres.getPort(),
-    user: postgres.getUsername(),
-    password: postgres.getPassword(),
-    database: postgres.getDatabase(),
+export function setTestcontainersEnv({ postgres, redis }: { postgres?: StartedPostgreSqlContainer, redis: StartedRedisContainer }): {
+  redisHost: string
+  redisPort: string
+  host?: string
+  port?: number
+  user?: string
+  password?: string
+  database?: string
+} {
+  const env = {
     redisHost: redis.getHost(),
     redisPort: redis.getMappedPort(6379).toString()
   }
+
+  process.env.REDIS_HOST = redis.getHost()
+  process.env.REDIS_PORT = redis.getMappedPort(6379).toString()
+
+  if (postgres) {
+    process.env.POSTGRES_HOST = postgres.getHost()
+    process.env.POSTGRES_PORT = postgres.getPort().toString()
+    process.env.POSTGRES_USER = postgres.getUsername()
+    process.env.POSTGRES_PASSWORD = postgres.getPassword()
+    process.env.POSTGRES_DB = postgres.getDatabase()
+    return {
+      ...env,
+      host: postgres.getHost(),
+      port: postgres.getPort(),
+      user: postgres.getUsername(),
+      password: postgres.getPassword(),
+      database: postgres.getDatabase()
+    }
+  }
+
+  return env
 }

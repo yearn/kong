@@ -32,9 +32,9 @@ export const getCurveBoost = async (chainID: number, voter: Address, gauge: Addr
 
   if(balanceOf && BigNumber.from(balanceOf ?? '0').lte(BigNumber.from(0))) {
     if(chainID === 1) {
-      return new Float(2.5).toNumber()
+      return new Float(2.5)
     }
-    return new Float(1).toNumber()
+    return new Float(1)
   }
 
 
@@ -53,7 +53,7 @@ export const getCurveBoost = async (chainID: number, voter: Address, gauge: Addr
   )
 
 
-  return Number(boost)
+  return boost
 }
 
 

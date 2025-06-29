@@ -1,20 +1,30 @@
 import { StrategyWithIndicators } from '../types'
 import { getSnapshot } from './snapshot'
-import { getThingWithName } from './thing'
+import { getThing } from './thing'
 
-export async function getFullStrategy(chainId: number, address: `0x${string}`) {
-  const strategy = await getThingWithName(chainId, address, 'strategy')
-  const snapshot = await getSnapshot(chainId, address, 'strategy')
+export async function getFullStrategy({
+  chainId,
+  address,
+  vaultAddress
+}:{
+  chainId: number,
+  address: `0x${string}`,
+  vaultAddress: `0x${string}`
+}) {
+  const strategy = await getThing(chainId, address, 'strategy')
+  const strategySnapshot = await getSnapshot(chainId, address)
+  const snapshot = await getSnapshot(chainId, vaultAddress)
 
-  return {
+
+  return  {
     ...strategy,
-    ...snapshot?.snapshot,
-    name: snapshot?.snapshot.name,
-    token: snapshot?.snapshot.token,
-    symbol: snapshot?.snapshot.symbol,
-    rewards: snapshot?.snapshot.rewards,
-    guardian: snapshot?.snapshot.guardian,
-    blockTime: Number(snapshot?.snapshot.blockTime),
+    ...strategySnapshot?.snapshot,
+    name: strategySnapshot?.snapshot.name,
+    token: strategySnapshot?.snapshot.token,
+    symbol: strategySnapshot?.snapshot.symbol,
+    rewards: strategySnapshot?.snapshot.rewards,
+    guardian: strategySnapshot?.snapshot.guardian,
+    blockTime: Number(strategySnapshot?.snapshot.blockTime),
     totalDebt: BigInt(snapshot?.snapshot.totalDebt),
     totalIdle: BigInt(snapshot?.snapshot.totalIdle),
     debtRatio: Number(snapshot?.snapshot.debtRatio),
@@ -36,16 +46,16 @@ export async function getFullStrategy(chainId: number, address: `0x${string}`) {
     maxAvailableShares: BigInt(snapshot?.snapshot.maxAvailableShares),
     availableDepositLimit: BigInt(snapshot?.snapshot.availableDepositLimit),
     lockedProfitDegradation: BigInt(snapshot?.snapshot.lockedProfitDegradation),
-    localKeepCRV: BigInt(snapshot?.snapshot.localKeepCRV),
-    apiVersion: snapshot?.snapshot.apiVersion
+    localKeepCRV: BigInt(strategySnapshot?.snapshot.localKeepCRV),
+    apiVersion: strategySnapshot?.snapshot.apiVersion
   }
 
 }
 
 export async function getVaultStrategies(chainId: number, address: `0x${string}`): Promise<StrategyWithIndicators[]> {
-  const snapshot = await getSnapshot(chainId, address, 'vault')
-  const strategies = snapshot?.snapshot.hook.withdrawalQueue ?? snapshot?.snapshot.hook.strategies
-  return Promise.all(strategies.map(async (address: `0x${string}`) => {
-    return getFullStrategy(chainId, address)
+  const snapshot = await getSnapshot(chainId, address)
+  const strategies = snapshot?.hook?.withdrawalQueue ?? snapshot?.hook?.strategies
+  return Promise.all(strategies.map(async (strategyAddress: `0x${string}`) => {
+    return getFullStrategy({ chainId, address: strategyAddress, vaultAddress: address })
   }))
 }

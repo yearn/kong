@@ -35,32 +35,32 @@ export default async function process(chainId: number, address: `0x${string}`, d
     return OutputSchema.array().parse([
       {
         chainId, address, label: data.outputLabel, component: 'forwardAPRType',
-        blockNumber, blockTime: data.blockTime, value: vaultAPY.type
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.type ?? ''
       },
       {
         chainId, address, label: data.outputLabel, component: 'forwardNetAPY',
-        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.netAPY)
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.netAPR
       }, {
         chainId, address, label: data.outputLabel, component: 'forwardBoost',
-        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.boost)
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.boost
       }, {
         chainId, address, label: data.outputLabel, component: 'poolAPY',
-        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.poolAPY)
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.poolAPY
       }, {
         chainId, address, label: data.outputLabel, component: 'boostedAPR',
-        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.boostedAPR)
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.boostedAPR
       }, {
         chainId, address, label: data.outputLabel, component: 'baseAPR',
-        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.baseAPR)
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.baseAPR
       }, {
         chainId, address, label: data.outputLabel, component: 'rewardsAPY',
-        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.rewardsAPY)
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.rewardsAPY
       }, {
         chainId, address, label: data.outputLabel, component: 'cvxAPR',
-        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.cvxAPR)
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.cvxAPR
       }, {
         chainId, address, label: data.outputLabel, component: 'keepCRV',
-        blockNumber, blockTime: data.blockTime, value: Number(vaultAPY.keepCRV)
+        blockNumber, blockTime: data.blockTime, value: vaultAPY.keepCRV
       }])
   }
 

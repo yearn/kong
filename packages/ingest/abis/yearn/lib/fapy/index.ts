@@ -12,7 +12,7 @@ import { getSnapshot } from 'lib/queries/snapshot'
 
 export interface VaultAPY {
   type?: string;
-  netAPY?: number;
+  netAPR?: number;
   boost?: number;
   poolAPY?: number;
   boostedAPR?: number;
@@ -25,7 +25,7 @@ export interface VaultAPY {
 }
 
 export async function computeChainAPY(vault: Thing & { name: string }, chainId: number, strategies: StrategyWithIndicators[]) {
-  const snapshot = await getSnapshot(chainId, vault.address, 'vault')
+  const snapshot = await getSnapshot(chainId, vault.address)
   const chain = getChainByChainId(chainId)?.name?.toLowerCase()
   if (!chain) return null
   const gauges = await fetchGauges(chain)

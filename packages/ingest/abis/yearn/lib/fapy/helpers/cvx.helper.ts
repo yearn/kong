@@ -1,9 +1,11 @@
 import { erc20Abi } from 'viem'
-import { fetchErc20PriceUsd } from '../../prices'
+import { fetchErc20PriceUsd } from '../../../../../prices'
 import { convertFloatAPRToAPY } from './calculation.helper'
 import { CVX_TOKEN_ADDRESS } from './maps.helper'
 import { convexBaseStrategyAbi, cvxBoosterAbi, crvRewardsAbi } from '../abis'
 import { rpcs } from 'lib/rpcs'
+import { Float } from './bignumber-float'
+import { toNormalizedAmount, BigNumberInt } from './bignumber-int'
 
 export const getCVXForCRV = async (chainID: number, crvEarned: bigint): Promise<bigint> => {
   const cliffSize = BigInt('100000000000000000000000') // 1e23
@@ -38,9 +40,9 @@ export const getCVXForCRV = async (chainID: number, crvEarned: bigint): Promise<
 export const getConvexRewardAPY = async (
   chainID: number,
   strategy: `0x${string}`,
-  baseAssetPrice: number,
-  poolPrice: number
-): Promise<{ totalRewardsAPR: number; totalRewardsAPY: number }> => {
+  baseAssetPrice: Float,
+  poolPrice: Float
+): Promise<{ totalRewardsAPR: Float; totalRewardsAPY: Float }> => {
   const client = rpcs.next(chainID)
 
   // Get reward PID from strategy
@@ -66,7 +68,7 @@ export const getConvexRewardAPY = async (
           functionName: 'fraxPid',
         }) as bigint
       } catch (error) {
-        return { totalRewardsAPR: 0, totalRewardsAPY: 0 }
+        return { totalRewardsAPR: new Float(0), totalRewardsAPY: new Float(0) }
       }
     }
   }
@@ -81,18 +83,23 @@ export const getConvexRewardAPY = async (
       args: [rewardPID],
     }) as { crvRewards: `0x${string}` }
   } catch (error) {
-    return { totalRewardsAPR: 0, totalRewardsAPY: 0 }
+    return { totalRewardsAPR: new Float(0), totalRewardsAPY: new Float(0) }
   }
 
   // Get rewards length
-  const rewardsLength = await client.readContract({
-    address: poolInfo.crvRewards,
-    abi: crvRewardsAbi,
-    functionName: 'extraRewardsLength',
-  }) as bigint
+  let rewardsLength: bigint
+  try {
+    rewardsLength = await client.readContract({
+      address: poolInfo.crvRewards,
+      abi: crvRewardsAbi,
+      functionName: 'extraRewardsLength',
+    }) as bigint
+  } catch (error) {
+    return { totalRewardsAPR: new Float(0), totalRewardsAPY: new Float(0) }
+  }
 
   const now = BigInt(Math.floor(Date.now() / 1000))
-  let totalRewardsAPR = 0
+  const totalRewardsAPR = new Float(0)
 
   if (rewardsLength > BigInt(0)) {
     for (let i = 0; i < Number(rewardsLength); i++) {
@@ -126,40 +133,44 @@ export const getConvexRewardAPY = async (
           continue
         }
 
-        const rewardRate = await client.readContract({
+        const rewardRateInt = await client.readContract({
           address: virtualRewardsPool,
           abi: crvRewardsAbi,
           functionName: 'rewardRate',
         }) as bigint
 
-        const totalSupply = await client.readContract({
+        const totalSupplyInt = await client.readContract({
           address: virtualRewardsPool,
           abi: crvRewardsAbi,
           functionName: 'totalSupply',
         }) as bigint
 
-        const tokenPrice = rewardTokenPrice
-        const rewardRateNormalized = Number(rewardRate) / 1e18
-        const totalSupplyNormalized = Number(totalSupply) / 1e18
-        const secondPerYear = 31556952
+        // Convert to Float following Go implementation pattern exactly
+        const tokenPrice = new Float(rewardTokenPrice) // rewardTokenPrice.HumanizedPrice equivalent
 
-        // Following the Go implementation calculations
-        let rewardAPRTop = rewardRateNormalized * secondPerYear
-        rewardAPRTop = rewardAPRTop * tokenPrice
+        // helpers.ToNormalizedAmount equivalent - using the proper function
+        const rewardRate = toNormalizedAmount(new BigNumberInt(rewardRateInt), 18)
+        const totalSupply = toNormalizedAmount(new BigNumberInt(totalSupplyInt), 18)
+        const secondPerYear = new Float(0).setFloat64(31556952)
 
-        let rewardAPRBottom = Number(poolPrice) / 1e18
-        rewardAPRBottom = rewardAPRBottom * Number(baseAssetPrice)
-        rewardAPRBottom = rewardAPRBottom * totalSupplyNormalized
+        // Following the Go implementation calculations exactly
+        let rewardAPRTop = new Float(0).mul(rewardRate, secondPerYear)
+        rewardAPRTop = new Float(0).mul(rewardAPRTop, tokenPrice)
 
-        const rewardAPR = rewardAPRTop / rewardAPRBottom
-        totalRewardsAPR = totalRewardsAPR + rewardAPR
+        let rewardAPRBottom = new Float(0).div(poolPrice, new Float(1)) // storage.ONE equivalent
+        rewardAPRBottom = new Float(0).mul(rewardAPRBottom, baseAssetPrice)
+        rewardAPRBottom = new Float(0).mul(rewardAPRBottom, totalSupply)
+
+        const rewardAPR = new Float(0).div(rewardAPRTop, rewardAPRBottom)
+        totalRewardsAPR.add(totalRewardsAPR, rewardAPR)
       } catch (error) {
         continue
       }
     }
   }
 
-  const totalRewardsAPY = convertFloatAPRToAPY(totalRewardsAPR, 365/15)
+  const [totalRewardsAPRFloat64] = totalRewardsAPR.toFloat64()
+  const totalRewardsAPY = new Float(convertFloatAPRToAPY(totalRewardsAPRFloat64, 365/15))
 
   return {
     totalRewardsAPR: totalRewardsAPR,

@@ -14,8 +14,8 @@ async function spawnTestContainersAndRun() {
   return setTestcontainersEnv({ postgres, redis })
 }
 
-function shutdownTestcontainers() {
-  containers.forEach(container => container.stop())
+async function shutdownTestcontainers() {
+  await Promise.all(containers.map(container => container.stop()))
 }
 
 let mochaProcess: ChildProcess
@@ -23,11 +23,11 @@ let mochaProcess: ChildProcess
 
 spawnTestContainersAndRun().then((env) => {
   const customEnv = {
-    POSTGRES_HOST: env.host,
-    POSTGRES_PORT: env.port,
-    POSTGRES_USER: env.user,
-    POSTGRES_PASSWORD: env.password,
-    POSTGRES_DB: env.database,
+    POSTGRES_HOST: env?.host,
+    POSTGRES_PORT: env?.port,
+    POSTGRES_USER: env?.user,
+    POSTGRES_PASSWORD: env?.password,
+    POSTGRES_DB: env?.database,
     REDIS_HOST: env.redisHost,
     REDIS_PORT: env.redisPort,
   }
@@ -46,31 +46,36 @@ spawnTestContainersAndRun().then((env) => {
 
   // Handle process events
   mochaProcess.on('close', (code: number) => {
-    shutdownTestcontainers()
-    process.exit(code)
+    shutdownTestcontainers().then(() => {
+      process.exit(code)
+    })
   })
 
   mochaProcess.on('exit', (code: number) => {
-    shutdownTestcontainers()
-    process.exit(code)
+    shutdownTestcontainers().then(() => {
+      process.exit(code)
+    })
   })
 
   mochaProcess.on('error', (err) => {
-    shutdownTestcontainers()
-    process.exit(1)
+    shutdownTestcontainers().then(() => {
+      process.exit(1)
+    })
   })
 
 
   process.on('SIGINT', () => {
-    shutdownTestcontainers()
-    mochaProcess.kill()
-    process.exit(0)
+    shutdownTestcontainers().then(() => {
+      mochaProcess.kill()
+      process.exit(0)
+    })
   })
 
   process.on('SIGTERM', () => {
-    shutdownTestcontainers()
-    mochaProcess.kill()
-    process.exit(0)
+    shutdownTestcontainers().then(() => {
+      mochaProcess.kill()
+      process.exit(0)
+    })
   })
 })
 
