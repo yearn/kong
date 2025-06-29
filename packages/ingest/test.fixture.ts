@@ -21,6 +21,7 @@ export const mochaGlobalSetup = async function() {
 export const mochaGlobalTeardown = async () => {
   await Promise.all([db.end(), rpcs.down(), cache.down()])
   console.log('⬇', 'test fixture down')
+  process.exit(0)
 }
 
 process.on('SIGINT', async () => {

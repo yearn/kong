@@ -40,11 +40,10 @@ spawnTestContainersAndRun().then((env) => {
       ...customEnv,
       ...process.env
     },
-    stdio: 'inherit', // Pipe stdio to parent process
+    stdio: 'inherit',
     shell: true
   })
 
-  // Handle process events
   mochaProcess.on('close', (code: number) => {
     shutdownTestcontainers().then(() => {
       process.exit(code)
