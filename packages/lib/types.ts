@@ -292,7 +292,7 @@ export const OutputSchema = z.object({
   value: z.any().transform(val => {
     const result = z.number().safeParse(val)
     if(result.success && isFinite(result.data)) return result.data
-    return val
+    return undefined
   }).nullish(),
   blockNumber: z.bigint({ coerce: true }),
   blockTime: z.bigint({ coerce: true })

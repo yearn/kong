@@ -34,10 +34,6 @@ export default async function process(chainId: number, address: `0x${string}`, d
   if(vaultAPY) {
     return OutputSchema.array().parse([
       {
-        chainId, address, label: data.outputLabel, component: 'type',
-        blockNumber, blockTime: data.blockTime, value: vaultAPY.type ?? ''
-      },
-      {
         chainId, address, label: data.outputLabel, component: 'netAPR',
         blockNumber, blockTime: data.blockTime, value: vaultAPY.netAPR
       }, {
