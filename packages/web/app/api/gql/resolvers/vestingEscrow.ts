@@ -46,7 +46,11 @@ const vestingEscrowCreatedLogs = async (_: object, args: { recipient?: string })
       return true
     })
 
-    return filter
+    const sort = filter.sort((a, b) => {
+      return Number(b.vestingStart) - Number(a.vestingStart)
+    })
+
+    return sort
 
   } catch (error) {
     console.error(error)
