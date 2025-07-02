@@ -37,7 +37,8 @@ abis:
       { chainId: 8453, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 21261966 },
       { chainId: 42161, address: '0xff31A1B020c868F6eA3f61Eb953344920EeCA3af', inceptBlock: 171850013 },
       { chainId: 42161, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 265347635 },
-      { chainId: 80094, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 827648 }
+      { chainId: 80094, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 827648 },
+      { chainId: 747474, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 2236977 }
     ]
 
   - abiPath: 'yearn/3/registry3'
@@ -46,7 +47,8 @@ abis:
       { chainId: 137, address: '0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038', inceptBlock: 64224620 },
       { chainId: 146, address: '0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038', inceptBlock: 4459165},
       { chainId: 8453, address: '0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038', inceptBlock: 22344791 },
-      { chainId: 42161, address: '0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038', inceptBlock: 273947409 }
+      { chainId: 42161, address: '0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038', inceptBlock: 273947409 },
+      { chainId: 747474, address: '0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038', inceptBlock: 2852031 }
     ]
 
   - abiPath: 'yearn/3/vaultFactory'
@@ -107,7 +109,8 @@ abis:
       { chainId: 146, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 307805 },
       { chainId: 8453, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 25064422 },
       { chainId: 34443, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 4574184 },
-      { chainId: 80094, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 827660 }
+      { chainId: 80094, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 827660 },
+      { chainId: 747474, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 2909974 }
     ]
 
   - abiPath: 'yearn/3/roleManager'
