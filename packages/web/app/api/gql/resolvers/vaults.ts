@@ -9,7 +9,7 @@ const vaults = async (_: object, args: {
   v3?: boolean,
   yearn?: boolean,
   addresses?: string[],
-  vaultType?: string
+  vaultType?: number
 }) => {
   const { chainId, apiVersion, erc4626, v3, yearn, addresses: rawAddresses, vaultType } = args
 
@@ -77,7 +77,7 @@ const vaults = async (_: object, args: {
 
     if (vaultType !== undefined) {
       rows = rows.filter(row => {
-        return row.vaultType === vaultType
+        return Number(row.vaultType ?? 0) === vaultType
       })
     }
 
