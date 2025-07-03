@@ -8,9 +8,10 @@ const vaults = async (_: object, args: {
   erc4626?: boolean,
   v3?: boolean,
   yearn?: boolean,
-  addresses?: string[]
+  addresses?: string[],
+  vaultType?: number
 }) => {
-  const { chainId, apiVersion, erc4626, v3, yearn, addresses: rawAddresses } = args
+  const { chainId, apiVersion, erc4626, v3, yearn, addresses: rawAddresses, vaultType } = args
 
   try {
 
@@ -71,6 +72,12 @@ const vaults = async (_: object, args: {
     if (yearn !== undefined) {
       rows = rows.filter(row => {
         return Boolean(row.yearn ?? false) === yearn
+      })
+    }
+
+    if (vaultType !== undefined) {
+      rows = rows.filter(row => {
+        return Number(row.vaultType ?? 0) === vaultType
       })
     }
 
