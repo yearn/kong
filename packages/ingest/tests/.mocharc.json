@@ -3,13 +3,14 @@
     "ts"
   ],
   "spec": [
-    "**/*.spec.ts"
+    "**/*.integration.spec.ts"
   ],
   "ignore": [
-    "**/*.integration.spec.ts"
+    "**/*.spec.ts",
+    "!**/*.integration.spec.ts"
   ],
   "require": [
     "ts-node/register",
-    "./test.fixture.ts"
+    "../../test.fixture.ts"
   ]
 }
