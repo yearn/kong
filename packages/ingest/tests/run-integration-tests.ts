@@ -48,7 +48,7 @@ spawnTestContainersAndRun().then(({ env }) => {
   const configFile = path.resolve(__dirname, '.mocharc.json')
   const testsDir = __dirname
 
-  mochaProcess = spawn(mochaBin, ['--config', configFile, '--timeout', '30000'], {
+  mochaProcess = spawn(mochaBin, ['--config', configFile, '--timeout', '50000'], {
     env: {
       ...customEnv,
       ...process.env

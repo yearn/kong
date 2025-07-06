@@ -3,8 +3,10 @@
     "ts"
   ],
   "spec": [
-    "**/*.spec.ts",
-    "!**/integration/**"
+    "**/*.spec.ts"
+  ],
+  "ignore": [
+    "**/*.integration.spec.ts"
   ],
   "require": [
     "ts-node/register",

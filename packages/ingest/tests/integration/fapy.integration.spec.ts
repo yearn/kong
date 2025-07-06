@@ -18,9 +18,6 @@ describe('FAPY Integration', () => {
       blockTime: BigInt(Math.floor(Date.now() / 1000) - 3600)
     })
 
-    console.log('fapyAPY', fapy)
-    console.log('ydaemonAPY', ydaemonAPY)
-
     const kongAPY = fapy.reduce((acc, curr) => {
       if(curr.component) {
         acc[curr.component] = curr.value ?? 0
