@@ -1,5 +1,5 @@
-import { ethers } from 'ethers'
-import { createPublicClient, http } from 'viem'
+import { BigNumber } from '@ethersproject/bignumber'
+import { createPublicClient, http, zeroAddress } from 'viem'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { yprismaReceiverAbi } from '../abis/yprisma-receiver.abi'
 
@@ -13,7 +13,7 @@ export async function getPrismaAPY(chainID: number, prismaReceiver: string): Pro
       address: prismaReceiver as `0x${string}`,
       abi: yprismaReceiverAbi,
       functionName: 'rewardRate',
-      args: [ethers.constants.AddressZero, ethers.BigNumber.from(0)]
+      args: [zeroAddress, BigNumber.from(0)]
     }) as number
 
     const totalSupply = await client.readContract({
