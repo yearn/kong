@@ -23,11 +23,12 @@ export default async function process(chainId: number, address: `0x${string}`, d
     return []
   }
 
-  const vault = await getThingWithName(chainId, address, 'vault')
+  const [vault, strategies] = await Promise.all([
+    getThingWithName(chainId, address, 'vault'),
+    getVaultStrategies(chainId, address)
+  ])
 
-  if (!vault) return []
-
-  const strategies = await getVaultStrategies(chainId, address)
+  if(!vault) return []
 
   const vaultAPY = await computeChainAPY(vault, chainId, strategies)
 

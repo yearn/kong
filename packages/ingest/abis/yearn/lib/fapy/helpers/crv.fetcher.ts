@@ -3,55 +3,63 @@ import { CrvSubgraphPool } from '../types/crv-subgraph'
 import { FraxPool } from '../types/frax-pools'
 import { Gauge } from '../types/gauges'
 import { CURVE_SUBGRAPHDATA_URI } from './maps.helper'
+import { cache } from 'lib/cache'
 
 // API fetch functions
 export async function fetchGauges(chain: string) {
-  const gaugesResponse = await fetch(
-    `${process.env.CRV_GAUGE_REGISTRY_URL}?blockchainId=${chain}`
-  )
-  const gauges = await gaugesResponse.json()
-  return Object.values(gauges.data) as Gauge[]
+  const gauges = await cache.wrap(`fetchGauges:${chain}`, async () => {
+    const gaugesResponse = await fetch(
+      `${process.env.CRV_GAUGE_REGISTRY_URL}?blockchainId=${chain}`
+    )
+    const gauges = await gaugesResponse.json()
+    return Object.values(gauges.data) as Gauge[]
+  }, 1000 * 60 * 5)
+  return gauges
 }
 
 export async function fetchPools(chain: string) {
-  try {
+  const pools = await cache.wrap(`fetchPools:${chain}`, async () => {
+    try {
 
-    const poolsResponse = await fetch(
-      `${process.env.CRV_POOLS_URL}/${chain}`
-    )
-    const pools = await poolsResponse.json()
-    return pools.data?.poolData as CrvPool[]
-  }catch(err) {
-    console.error(err)
-    return []
-  }
+      const poolsResponse = await fetch(
+        `${process.env.CRV_POOLS_URL}/${chain}`
+      )
+      const pools = await poolsResponse.json()
+      return pools.data?.poolData as CrvPool[]
+    }catch(err) {
+      console.error(err)
+      return []
+    }
+  }, 1000 * 60 * 5)
+  return pools
 }
 
 export async function fetchSubgraph(chainId:number) {
-
-  try {
-    const subgraphResponse = await fetch(
-      `${CURVE_SUBGRAPHDATA_URI[chainId]}`
-    )
-    const subgraph = await subgraphResponse.json()
-    return subgraph.data.poolList as CrvSubgraphPool[]
-  }catch(err) {
-    console.error({
-      err,
-      chainId
-    })
-    return []
-  }
+  const subgraph = await cache.wrap(`fetchSubgraph:${chainId}`, async () => {
+    try {
+      const subgraphResponse = await fetch(
+        `${CURVE_SUBGRAPHDATA_URI[chainId]}`
+      )
+      const subgraph = await subgraphResponse.json()
+      return subgraph.data.poolList as CrvSubgraphPool[]
+    }catch(err) {
+      console.error(err)
+      return []
+    }
+  }, 1000 * 60 * 5)
+  return subgraph
 }
 
 export async function fetchFraxPools() {
-  const FRAX_POOL_API_URI = 'https://frax.convexfinance.com/api/frax/pools'
-  const fraxPoolsResponse = await fetch(
-    FRAX_POOL_API_URI
-  )
-  const fraxPools = await fraxPoolsResponse.json()
+  const fraxPools = await cache.wrap('fetchFraxPools', async () => {
+    const fraxPoolsResponse = await fetch(
+      'https://frax.convexfinance.com/api/frax/pools'
+    )
+    const fraxPools = await fraxPoolsResponse.json()
+    return fraxPools.pools.augmentedPoolData as FraxPool[]
+  }, 1000 * 60 * 5)
 
-  const pools = fraxPools.pools.augmentedPoolData	.map(pool => {
+  const pools = fraxPools.map(pool => {
     if(pool.type !== 'convex') {
       return null
     }

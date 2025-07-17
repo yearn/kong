@@ -27,11 +27,15 @@ export interface VaultAPY {
 export async function computeChainAPY(vault: Thing & { name: string }, chainId: number, strategies: StrategyWithIndicators[]) {
   const snapshot = await getSnapshot(chainId, vault.address)
   const chain = getChainByChainId(chainId)?.name?.toLowerCase()
+
   if (!chain) return null
-  const gauges = await fetchGauges(chain)
-  const pools = await fetchPools(chain)
-  const subgraph = await fetchSubgraph(chainId)
-  const fraxPools = await fetchFraxPools()
+
+  const [gauges, pools, subgraph, fraxPools] = await Promise.all([
+    fetchGauges(chain),
+    fetchPools(chain),
+    fetchSubgraph(chainId),
+    fetchFraxPools()
+  ])
   let vaultAPY: VaultAPY = {}
 
   if(isV3Vault(vault)) {

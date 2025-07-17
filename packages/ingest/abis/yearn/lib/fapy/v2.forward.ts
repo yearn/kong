@@ -4,12 +4,14 @@ import { VaultAPY } from '.'
 
 export async function computeV2ForwardAPY(vault: Thing): Promise<VaultAPY> {
 
-  const ppsToday = await fetchPPSToday({
-    chainId: vault.chainId,
-    vaultAddress: vault.address,
-    decimals: vault.defaults.decimals
-  })
-  const ppsMonthAgo = await fetchPPSLastMonth(vault.chainId, vault.address)
+  const [ppsToday, ppsMonthAgo] = await Promise.all([
+    fetchPPSToday({
+      chainId: vault.chainId,
+      vaultAddress: vault.address,
+      decimals: vault.defaults.decimals
+    }),
+    fetchPPSLastMonth(vault.chainId, vault.address)
+  ])
 
   const vaultAPR = {
     type:   'v2:averaged',

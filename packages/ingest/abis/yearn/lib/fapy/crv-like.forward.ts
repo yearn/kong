@@ -191,9 +191,11 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
     const crvPerUnderlyingPerYear = new Float().mul(crvPerUnderlying, new Float(31536000)) // seconds in a year
     const cvxPerYear = await getCVXForCRV(chainId, BigInt(crvPerUnderlyingPerYear.toNumber()))
 
-    // Get token prices
-    const { priceUsd: crvPrice } = await fetchErc20PriceUsd(chainId, CRV_TOKEN_ADDRESS[chainId], undefined, true)
-    const { priceUsd: cvxPrice } = await fetchErc20PriceUsd(chainId, CVX_TOKEN_ADDRESS[chainId], undefined, true)
+    // Get token prices in parallel
+    const [{ priceUsd: crvPrice }, { priceUsd: cvxPrice }] = await Promise.all([
+      fetchErc20PriceUsd(chainId, CRV_TOKEN_ADDRESS[chainId], undefined, true),
+      fetchErc20PriceUsd(chainId, CVX_TOKEN_ADDRESS[chainId], undefined, true)
+    ])
 
     // Calculate APRs
     crvAPR = new Float().mul(crvPerUnderlyingPerYear, new Float(crvPrice))
@@ -233,25 +235,27 @@ export async function determineCurveKeepCRV(strategy: StrategyWithIndicators, ch
   let keepCRV = BigInt(0)
 
   try {
-    keepCRV = await rpcs.next(chainId).readContract({
-      address: strategy.address,
-      abi: getStrategyContractAbi(strategy),
-      functionName: 'keepCRV',
-    }) as bigint
-
-    keepPercentage = await rpcs.next(chainId).readContract({
-      address: strategy.address,
-      abi: getStrategyContractAbi(strategy),
-      functionName: 'keepCRVPercentage',
-    }) as bigint
-
+    // Run both contract reads in parallel
+    const [keepCRVResult, keepPercentageResult] = await Promise.all([
+      rpcs.next(chainId).readContract({
+        address: strategy.address,
+        abi: getStrategyContractAbi(strategy),
+        functionName: 'keepCRV',
+      }) as Promise<bigint>,
+      rpcs.next(chainId).readContract({
+        address: strategy.address,
+        abi: getStrategyContractAbi(strategy),
+        functionName: 'keepCRVPercentage',
+      }) as Promise<bigint>
+    ])
+    keepCRV = keepCRVResult
+    keepPercentage = keepPercentageResult
   } catch (error) {
     return 0
   }
 
   const keepValue = new BigNumberInt(keepCRV).add(new BigNumberInt(keepPercentage))
   return toNormalizedAmount(keepValue, 4).toNumber()
-
 }
 
 
@@ -265,9 +269,11 @@ export async function calculateCurveForwardAPY(data: {
   lastDebtRatio: Float
 }) {
   const chainId = data.chainId
-  const yboost = await getCurveBoost(chainId, YEARN_VOTER_ADDRESS[chainId], data.gaugeAddress)
-
-  const keepCrv = await determineCurveKeepCRV(data.strategy, chainId)
+  // Run boost and keepCRV in parallel
+  const [yboost, keepCrv] = await Promise.all([
+    getCurveBoost(chainId, YEARN_VOTER_ADDRESS[chainId], data.gaugeAddress),
+    determineCurveKeepCRV(data.strategy, chainId)
+  ])
   const debtRatio = toNormalizedIntAmount(new BigNumberInt(data.lastDebtRatio.toNumber()), 4)
   const performanceFee = toNormalizedIntAmount(new BigNumberInt(data.strategy.performanceFee ?? 0), 4)
   const managementFee = toNormalizedIntAmount(new BigNumberInt(data.strategy.managementFee ?? 0), 4)
@@ -322,15 +328,22 @@ export async function calculateConvexForwardAPY(data: {
     chainId,
     lastDebtRatio
   } = data
-  const cvxBoost = await getCurveBoost(chainId, gaugeAddress, strategy.address)
-  const keepCRV = await determineConvexKeepCRV(chainId, strategy)
+
+  // Run boost and keepCRV in parallel
+  const [cvxBoost, keepCRV] = await Promise.all([
+    getCurveBoost(chainId, gaugeAddress, strategy.address),
+    determineConvexKeepCRV(chainId, strategy)
+  ])
   const debtRatio = toNormalizedIntAmount(new BigNumberInt(lastDebtRatio.toNumber()), 4)
   const performanceFee = toNormalizedIntAmount(new BigNumberInt(strategy.performanceFee ?? 0), 4)
   const managementFee = toNormalizedIntAmount(new BigNumberInt(strategy.managementFee ?? 0), 4)
   const oneMinusPerfFee = new Float().sub(new Float(1), performanceFee)
-  const {crvAPR, cvxAPR, crvAPY, cvxAPY} = await getCVXPoolAPY(chainId, strategy.address, baseAssetPrice)
 
-  const {totalRewardsAPY: rewardsAPY} = await getConvexRewardAPY(chainId, strategy.address, baseAssetPrice, poolPrice)
+  // Run getCVXPoolAPY and getConvexRewardAPY in parallel
+  const [{crvAPR, cvxAPR, crvAPY, cvxAPY}, {totalRewardsAPY: rewardsAPY}] = await Promise.all([
+    getCVXPoolAPY(chainId, strategy.address, baseAssetPrice),
+    getConvexRewardAPY(chainId, strategy.address, baseAssetPrice, poolPrice)
+  ])
 
   const keepCRVRatio = new Float().sub(new Float(1), keepCRV)
   let grossAPY = new Float().mul(crvAPY, keepCRVRatio)
@@ -338,14 +351,12 @@ export async function calculateConvexForwardAPY(data: {
   grossAPY = new Float().add(grossAPY, poolWeeklyAPY)
   grossAPY = new Float().add(grossAPY, cvxAPY)
 
-
   let netAPY = new Float().mul(grossAPY, oneMinusPerfFee)
   if(netAPY.gt(managementFee)) {
     netAPY = new Float().sub(netAPY, managementFee)
   } else {
     netAPY = new Float(0)
   }
-
 
   return {
     type: 'cvx',
@@ -418,19 +429,21 @@ export async function calculatePrismaForwardAPR(data: {
     return null
   }
 
-  const baseConvexStrategyData = await calculateConvexForwardAPY({
-    gaugeAddress: data.gaugeAddress,
-    strategy: data.strategy,
-    baseAssetPrice: data.baseAssetPrice,
-    poolPrice: data.poolPrice,
-    baseAPY: data.baseAPY,
-    rewardAPY: data.rewardAPY,
-    poolWeeklyAPY: data.poolWeeklyAPY,
-    chainId: data.chainId,
-    lastDebtRatio: new Float(data.strategy.debtRatio || 0)
-  })
-
-  const [, prismaAPY] = await getPrismaAPY(chainId, receiver)
+  // Run baseConvexStrategyData and getPrismaAPY in parallel
+  const [baseConvexStrategyData, [, prismaAPY]] = await Promise.all([
+    calculateConvexForwardAPY({
+      gaugeAddress: data.gaugeAddress,
+      strategy: data.strategy,
+      baseAssetPrice: data.baseAssetPrice,
+      poolPrice: data.poolPrice,
+      baseAPY: data.baseAPY,
+      rewardAPY: data.rewardAPY,
+      poolWeeklyAPY: data.poolWeeklyAPY,
+      chainId: data.chainId,
+      lastDebtRatio: new Float(data.strategy.debtRatio || 0)
+    }),
+    getPrismaAPY(chainId, receiver)
+  ])
 
   return {
     type: 'prisma',
@@ -541,22 +554,18 @@ export async function calculateCurveLikeStrategyAPR(
   **********************************************************************************************/
   const baseAssetPrice = new Float().setFloat64(gauge.lpTokenPrice || 0)
 
-  const { priceUsd } = await fetchErc20PriceUsd(chainId, CRV_TOKEN_ADDRESS[chainId], undefined, true)
+  // Fetch CRV price and calculateGaugeBaseAPR in parallel
+  const [{ priceUsd }, poolPrice] = await Promise.all([
+    fetchErc20PriceUsd(chainId, CRV_TOKEN_ADDRESS[chainId], undefined, true),
+    Promise.resolve(getPoolPrice(gauge))
+  ])
   const crvPrice = new Float(priceUsd)
-
-  const poolPrice = getPoolPrice(gauge)
 
   const { baseAPY } = await calculateGaugeBaseAPR(gauge, crvPrice, poolPrice, baseAssetPrice)
 
-
   const rewardAPY = getRewardsAPY(chainId, pool as CrvPool)
-
   const poolWeeklyAPY = getPoolWeeklyAPY(subgraphItem)
-
-
   const poolWeeklyAPYFloat = poolWeeklyAPY
-
-
 
   if (isPrismaStrategy(strategy)) {
     return calculatePrismaForwardAPR({
@@ -647,7 +656,8 @@ export async function computeCurveLikeForwardAPY({
   let rewardsAPY = new Float(0)
   let keepCRV = new Float(0)
 
-  await Promise.all(
+  // Run all strategy APR calculations in parallel and aggregate after
+  const strategyAPRs = await Promise.all(
     allStrategiesForVault
       .map(async (strategy) => {
         if (!strategy.debtRatio || strategy.debtRatio === 0) {
@@ -664,19 +674,22 @@ export async function computeCurveLikeForwardAPY({
           chainId
         )
 
-        typeOf += strategyAPR?.type
-        netAPY = new Float(0).add(netAPY, new Float(strategyAPR?.netAPY || 0))
-        boost = new Float(0).add(boost, new Float(strategyAPR?.boost || 0))
-        poolAPY = new Float(0).add(poolAPY, new Float(strategyAPR?.poolAPY || 0))
-        boostedAPR = new Float(0).add(boostedAPR, new Float(strategyAPR?.boostedAPR || 0))
-        baseAPR = new Float(0).add(baseAPR, new Float(strategyAPR?.baseAPR || 0))
-        cvxAPR = new Float(0).add(cvxAPR, new Float(strategyAPR?.cvxAPR || 0))
-        rewardsAPY = new Float(0).add(rewardsAPY, new Float(strategyAPR?.rewardsAPY || 0))
-        keepCRV = new Float(0).add(keepCRV, new Float(strategyAPR?.keepCRV || 0))
-
         return strategyAPR
       })
   )
+
+  for (const strategyAPR of strategyAPRs) {
+    if (!strategyAPR) continue
+    typeOf += strategyAPR?.type
+    netAPY = new Float(0).add(netAPY, new Float(strategyAPR?.netAPY || 0))
+    boost = new Float(0).add(boost, new Float(strategyAPR?.boost || 0))
+    poolAPY = new Float(0).add(poolAPY, new Float(strategyAPR?.poolAPY || 0))
+    boostedAPR = new Float(0).add(boostedAPR, new Float(strategyAPR?.boostedAPR || 0))
+    baseAPR = new Float(0).add(baseAPR, new Float(strategyAPR?.baseAPR || 0))
+    cvxAPR = new Float(0).add(cvxAPR, new Float(strategyAPR?.cvxAPR || 0))
+    rewardsAPY = new Float(0).add(rewardsAPY, new Float(strategyAPR?.rewardsAPY || 0))
+    keepCRV = new Float(0).add(keepCRV, new Float(strategyAPR?.keepCRV || 0))
+  }
 
   return {
     type: typeOf,

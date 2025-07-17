@@ -91,7 +91,7 @@ export const getConvexRewardAPY = async (
   }
 
   // Get pool info from booster
-  let poolInfo
+  let poolInfo: { crvRewards: `0x${string}` }
   try {
     poolInfo = await client.readContract({
       address: CVX_TOKEN_ADDRESS[chainID],
@@ -128,39 +128,39 @@ export const getConvexRewardAPY = async (
           args: [BigInt(i)],
         }) as `0x${string}`
 
-        const periodFinish = await client.readContract({
-          address: virtualRewardsPool,
-          abi: crvRewardsAbi,
-          functionName: 'periodFinish',
-        }) as bigint
+        // Parallelize reading from virtualRewardsPool
+        const [periodFinish, rewardToken, rewardRateInt, totalSupplyInt] = await Promise.all([
+          client.readContract({
+            address: virtualRewardsPool,
+            abi: crvRewardsAbi,
+            functionName: 'periodFinish',
+          }) as Promise<bigint>,
+          client.readContract({
+            address: virtualRewardsPool,
+            abi: crvRewardsAbi,
+            functionName: 'rewardToken',
+          }) as Promise<`0x${string}`>,
+          client.readContract({
+            address: virtualRewardsPool,
+            abi: crvRewardsAbi,
+            functionName: 'rewardRate',
+          }) as Promise<bigint>,
+          client.readContract({
+            address: virtualRewardsPool,
+            abi: crvRewardsAbi,
+            functionName: 'totalSupply',
+          }) as Promise<bigint>
+        ])
 
         if (periodFinish < now) {
           continue
         }
-
-        const rewardToken = await client.readContract({
-          address: virtualRewardsPool,
-          abi: crvRewardsAbi,
-          functionName: 'rewardToken',
-        }) as `0x${string}`
 
         // Fetch price with fallback if not available
         const { priceUsd: rewardTokenPrice } = await fetchErc20PriceUsd(chainID, rewardToken, undefined, true)
         if (!rewardTokenPrice) {
           continue
         }
-
-        const rewardRateInt = await client.readContract({
-          address: virtualRewardsPool,
-          abi: crvRewardsAbi,
-          functionName: 'rewardRate',
-        }) as bigint
-
-        const totalSupplyInt = await client.readContract({
-          address: virtualRewardsPool,
-          abi: crvRewardsAbi,
-          functionName: 'totalSupply',
-        }) as bigint
 
         // Convert to Float following Go implementation pattern exactly
         const tokenPrice = new Float(rewardTokenPrice) // rewardTokenPrice.HumanizedPrice equivalent

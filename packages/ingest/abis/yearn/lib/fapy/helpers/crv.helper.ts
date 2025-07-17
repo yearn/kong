@@ -67,26 +67,26 @@ export const determineConvexKeepCRV = async (chainID: number, strategy: Strategy
     })
 
     if (uselLocalCRV) {
-      try {
-        const cvxKeepCRV = await client.readContract({
+      // Try to read both keepCVX and localKeepCRV in parallel
+      const [cvxKeepCRVResult, localKeepCRVResult] = await Promise.allSettled([
+        client.readContract({
           address: strategy.address,
           abi: convexBaseStrategyAbi,
           functionName: 'keepCVX',
-        }) as bigint
+        }),
+        client.readContract({
+          address: strategy.address,
+          abi: convexBaseStrategyAbi,
+          functionName: 'localKeepCRV',
+        })
+      ])
 
-        return toNormalizedIntAmount(new BigNumberInt().set(BigInt(cvxKeepCRV)), 4)
-      } catch (err) {
-        try {
-          const localKeepCRV = await client.readContract({
-            address: strategy.address,
-            abi: convexBaseStrategyAbi,
-            functionName: 'localKeepCRV',
-          }) as bigint
-
-          return toNormalizedIntAmount(new BigNumberInt().set(BigInt(localKeepCRV)), 4)
-        } catch (err) {
-          return toNormalizedIntAmount(new BigNumberInt().set(BigInt(0)), 4)
-        }
+      if (cvxKeepCRVResult.status === 'fulfilled') {
+        return toNormalizedIntAmount(new BigNumberInt().set(BigInt(cvxKeepCRVResult.value as bigint)), 4)
+      } else if (localKeepCRVResult.status === 'fulfilled') {
+        return toNormalizedIntAmount(new BigNumberInt().set(BigInt(localKeepCRVResult.value as bigint)), 4)
+      } else {
+        return toNormalizedIntAmount(new BigNumberInt().set(BigInt(0)), 4)
       }
     }
 

@@ -9,37 +9,43 @@ export async function getPrismaAPY(chainID: number, prismaReceiver: string): Pro
   })
 
   try {
-    const rewardRate = await client.readContract({
-      address: prismaReceiver as `0x${string}`,
-      abi: yprismaReceiverAbi,
-      functionName: 'rewardRate',
-      args: [zeroAddress, BigNumber.from(0)]
-    }) as number
-
-    const totalSupply = await client.readContract({
-      address: prismaReceiver as `0x${string}`,
-      abi: yprismaReceiverAbi,
-      functionName: 'totalSupply',
-    }) as number
-
-    const lpToken = await client.readContract({
-      address: prismaReceiver as `0x${string}`,
-      abi: yprismaReceiverAbi,
-      functionName: 'lpToken',
-    }) as `0x${string}`
+    // Parallelize contract reads
+    const [rewardRate, totalSupply, lpToken] = await Promise.all([
+      client.readContract({
+        address: prismaReceiver as `0x${string}`,
+        abi: yprismaReceiverAbi,
+        functionName: 'rewardRate',
+        args: [zeroAddress, BigNumber.from(0)]
+      }) as Promise<number>,
+      client.readContract({
+        address: prismaReceiver as `0x${string}`,
+        abi: yprismaReceiverAbi,
+        functionName: 'totalSupply',
+      }) as Promise<number>,
+      client.readContract({
+        address: prismaReceiver as `0x${string}`,
+        abi: yprismaReceiverAbi,
+        functionName: 'lpToken',
+      }) as Promise<`0x${string}`>
+    ])
 
     const rate = Number(rewardRate.toString()) / 1e18
     const supply = Number(totalSupply.toString()) / 1e18
 
-    let prismaPrice = 0
     const prismaTokenAddress = '0xdA47862a83dac0c112BA89c6abC2159b95afd71C'
-    const tokenPricePrisma = await getTokenPrice(chainID, prismaTokenAddress)
+
+    // Parallelize token price fetches
+    const [tokenPricePrisma, tokenPriceLpToken] = await Promise.all([
+      getTokenPrice(chainID, prismaTokenAddress),
+      getTokenPrice(chainID, lpToken as `0x${string}`)
+    ])
+
+    let prismaPrice = 0
     if (tokenPricePrisma) {
       prismaPrice = Math.floor(parseFloat(tokenPricePrisma.toString()) * 1e18)
     }
 
     let lpTokenPrice = 0
-    const tokenPriceLpToken = await getTokenPrice(chainID, lpToken as `0x${string}`)
     if (tokenPriceLpToken) {
       lpTokenPrice = Math.floor(parseFloat(tokenPriceLpToken.toString()) * 1e18)
     }

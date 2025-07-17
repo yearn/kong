@@ -11,10 +11,11 @@ export async function getFullStrategy({
   address: `0x${string}`,
   vaultAddress: `0x${string}`
 }) {
-  const strategy = await getThing(chainId, address, 'strategy')
-  const strategySnapshot = await getSnapshot(chainId, address)
-  const snapshot = await getSnapshot(chainId, vaultAddress)
-
+  const [strategy, strategySnapshot, snapshot] = await Promise.all([
+    getThing(chainId, address, 'strategy'),
+    getSnapshot(chainId, address),
+    getSnapshot(chainId, vaultAddress)
+  ])
 
   return  {
     ...strategy,
