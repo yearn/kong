@@ -153,14 +153,14 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 `make down` - 'make' sure your dev environment is shutdown lol
 
 ### testing
-Be aware that given a limitation of bun working with mocha - tests can only be run through the root ofthe project, not on each workspace. If you want to run on each workspace make sure to use yarn, ie: `yarn test`
+Be aware that bun has a few limitations with yearn, despite using bun to leverage dependencies it's not suggested to be used as a test runner.
 
 `make test` - test everything
 
-`bun --filter <workspace> test` - test individual workspaces
+`yarn workspace <workspace> test` - test individual workspaces
 
 ```bash
-bun --filter ingest test
+yarn workspace ingest test
 ```
 
 ### tmux

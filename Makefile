@@ -23,8 +23,8 @@ dev:
 	@docker compose down
 
 test:
-	@bun run --elide-lines 0 --filter lib test
-	@bun run --elide-lines 0 --filter ingest test
+	@yarn workspace lib test
+	@yarn workspace ingest test
 
 
 down:

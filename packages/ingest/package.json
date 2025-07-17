@@ -7,7 +7,6 @@
     "dev": "ts-node index.ts",
     "production": "ts-node --transpile-only index.ts",
     "test": "ts-node run-tests.ts",
-    "test:integration": "ts-node ./tests/run-integration-tests.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
