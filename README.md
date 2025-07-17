@@ -153,7 +153,7 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 `make down` - 'make' sure your dev environment is shutdown lol
 
 ### testing
-Be aware that bun has a few limitations with yearn, despite using bun to leverage dependencies it's not suggested to be used as a test runner.
+Be aware that bun has a few limitations with mocha, despite using bun to leverage dependencies it's not suggested to be used as a test runner.
 
 `make test` - test everything
 
