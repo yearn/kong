@@ -153,6 +153,8 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 `make down` - 'make' sure your dev environment is shutdown lol
 
 ### testing
+Be aware that given a limitation of bun working with mocha - tests can only be run through the root ofthe project, not on each workspace. If you want to run on each workspace make sure to use yarn, ie: `yarn test`
+
 `make test` - test everything
 
 `bun --filter <workspace> test` - test individual workspaces
