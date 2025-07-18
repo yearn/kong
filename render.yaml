@@ -15,8 +15,8 @@ services:
     region: ohio
     runtime: node
     plan: standard
-    buildCommand: bun install
-    startCommand: (cd packages/ingest && bun run production)
+    buildCommand: yarn
+    startCommand: yarn workspace ingest production
     envVars:
       - fromGroup: kong
       - key: NODE_VERSION
