@@ -6,7 +6,9 @@ services:
     region: ohio
     plan: starter
     maxmemoryPolicy: noeviction # recommended for message queues
-    ipAllowList: []
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
 
   - type: worker
     name: ingest-v-2
