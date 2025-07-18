@@ -8,15 +8,6 @@ services:
     maxmemoryPolicy: noeviction # recommended for message queues
     ipAllowList: []
 
-  - type: redis
-    name: redis-starter-gql
-    region: ohio
-    plan: starter
-    maxmemoryPolicy: allkeys-lru # recommended for gql
-    ipAllowList:
-      - source: 0.0.0.0/0
-        description: everywhere
-
   - type: worker
     name: ingest-v-2
     region: ohio
