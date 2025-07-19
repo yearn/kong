@@ -1,5 +1,15 @@
 {
-  "extension": ["ts"],
-  "spec": "**/*.spec.ts",
-  "require": ["ts-node/register", "./test.fixture.ts"]
+  "extension": [
+    "ts"
+  ],
+  "spec": [
+    "**/*.spec.ts"
+  ],
+  "ignore": [
+    "**/*.integration.spec.ts"
+  ],
+  "require": [
+    "ts-node/register",
+    "./test.fixture.ts"
+  ]
 }
