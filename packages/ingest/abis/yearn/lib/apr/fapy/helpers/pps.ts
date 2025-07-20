@@ -31,7 +31,7 @@ export async function fetchPPSToday({
 }
 
 
-async function getPPSByPeriod(chainId: number, vaultAddress: string, period: number, unit: 'days' | 'weeks' | 'months' | 'years') {
+async function getPPSByPeriod(vaultAddress: string, period: number, unit: 'days' | 'weeks' | 'months' | 'years') {
   const request = await query(z.any(), `
     SELECT AVG(value) as value
     FROM "output"
@@ -43,12 +43,12 @@ async function getPPSByPeriod(chainId: number, vaultAddress: string, period: num
   return new Float(request[0].value)
 }
 
-export async function fetchPPSLastWeek(chainId: number, vaultAddress: string) {
-  return getPPSByPeriod(chainId, vaultAddress, 7, 'days')
+export async function fetchPPSLastWeek(vaultAddress: string) {
+  return getPPSByPeriod(vaultAddress, 7, 'days')
 }
 
-export async function fetchPPSLastMonth(chainId: number, vaultAddress: string) {
-  return getPPSByPeriod(chainId, vaultAddress, 30, 'days')
+export async function fetchPPSLastMonth(vaultAddress: string) {
+  return getPPSByPeriod(vaultAddress, 30, 'days')
 }
 
 export function calculateAPY(currentPPS: Float, historicalPPS: Float, days: number) {

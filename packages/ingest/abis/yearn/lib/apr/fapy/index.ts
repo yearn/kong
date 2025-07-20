@@ -6,19 +6,20 @@ import { fetchPools } from './helpers/crv.fetcher'
 import { fetchSubgraph } from './helpers/crv.fetcher'
 import { isCurveStrategy, computeCurveLikeForwardAPY } from './crv-like.forward'
 import { isV3Vault } from './helpers/general'
-import { computeV3ForwardAPY } from './v3.forward'
-import { computeV2ForwardAPY } from './v2.forward'
 import { getSnapshot } from 'lib/queries/snapshot'
+import { computeCurrentV2VaultAPY } from './v2.forward'
+import { computeV3ForwardAPY } from './v3.forward'
 
 export interface VaultAPY {
   type?: string;
   netAPR?: number;
+  netAPY?: number;
   boost?: number;
   poolAPY?: number;
   boostedAPR?: number;
   baseAPR?: number;
   cvxAPR?: number;
-  rewardsAPY?: number;
+  rewardsAPR?: number;
   keepCRV?: number;
   v3OracleCurrentAPR?: number;
   v3OracleStratRatioAPR?: number;
@@ -44,8 +45,13 @@ export async function computeChainAPY(vault: Thing & { name: string }, chainId: 
       chainId,
       snapshot
     })
-  }else {
-    vaultAPY = await computeV2ForwardAPY(vault)
+  } else {
+    vaultAPY = await computeCurrentV2VaultAPY({
+      ...vault,
+      activation: strategies[0].activation || 0n,
+      performanceFee: strategies[0].performanceFee || 0,
+      managementFee: strategies[0].managementFee || 0,
+    })
   }
 
   if (isCurveStrategy(vault)) {
@@ -65,3 +71,4 @@ export async function computeChainAPY(vault: Thing & { name: string }, chainId: 
   return null
 
 }
+

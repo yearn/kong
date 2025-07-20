@@ -1,6 +1,6 @@
 import { Output, OutputSchema } from 'lib/types'
 import { Data } from '../../../../../../extract/timeseries'
-import { computeChainAPY } from '../../../../lib/apr/fapy'
+import { computeChainAPY } from '../../../../lib/fapy'
 import { multicall3 } from 'lib'
 import { getBlock, estimateHeight } from 'lib/blocks'
 import { getThingWithName } from 'lib/queries/thing'

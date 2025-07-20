@@ -1,6 +1,6 @@
 import { StrategyWithIndicators, Thing } from 'lib/types'
 import { zeroAddress } from 'viem'
-import { fetchErc20PriceUsd } from '../../../../prices'
+import { fetchErc20PriceUsd } from '../../../../../prices'
 import {
   convexBaseStrategyAbi,
   crvRewardsAbi,
