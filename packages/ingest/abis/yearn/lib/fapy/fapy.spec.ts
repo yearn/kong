@@ -41,13 +41,12 @@ describe('fapy', () => {
 
     const result = await computeChainAPY(vault, 1, strategies)
 
-    expect(result).to.not.be.null
-    expect(result!.netAPR).to.be.closeTo(ydaemonExpected.apr.netAPR, 2e-3)
-    expect(result!.boostedAPR).to.be.closeTo(ydaemonExpected.apr.forwardAPR.composite.boostedAPR, 2e-3)
-    expect(result!.poolAPY).to.be.closeTo(ydaemonExpected.apr.forwardAPR.composite.poolAPY, 2e-3)
-    expect(result!.boost).to.be.closeTo(ydaemonExpected.apr.forwardAPR.composite.boost, 2e-3)
-    expect(result!.baseAPR).to.be.closeTo(ydaemonExpected.apr.forwardAPR.composite.baseAPR, 2e-3)
-    expect(result!.cvxAPR).to.be.closeTo(ydaemonExpected.apr.forwardAPR.composite.cvxAPR, 2e-3)
-    expect(result!.rewardsAPR).to.be.closeTo(ydaemonExpected.apr.forwardAPR.composite.rewardsAPR, 2e-3)
+    expect(result!.netAPR).to.be.closeTo(ydaemonExpected.apr.netAPR, 1e-5)
+    expect(result!.boostedAPR).to.be.closeTo(ydaemonExpected.apr.forwardAPR.composite.boostedAPR, 1e-5)
+    expect(result!.poolAPY).to.be.closeTo(ydaemonExpected.apr.forwardAPR.composite.poolAPY, 1e-5)
+    expect(result!.boost).to.be.closeTo(ydaemonExpected.apr.forwardAPR.composite.boost, 1e-5)
+    expect(result!.baseAPR).to.be.closeTo(ydaemonExpected.apr.forwardAPR.composite.baseAPR, 1e-5)
+    expect(result!.cvxAPR).to.be.closeTo(ydaemonExpected.apr.forwardAPR.composite.cvxAPR, 1e-5)
+    expect(result!.rewardsAPR).to.be.closeTo(ydaemonExpected.apr.forwardAPR.composite.rewardsAPR, 1e-5)
   }).timeout(10000)
 })
