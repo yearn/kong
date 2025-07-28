@@ -1,6 +1,6 @@
 import { BigNumber } from '@ethersproject/bignumber'
 import { createPublicClient, http, zeroAddress } from 'viem'
-import { fetchErc20PriceUsd } from '../../../../../../prices'
+import { fetchErc20PriceUsd } from 'ingest/prices'
 import { yprismaReceiverAbi } from '../abis/yprisma-receiver.abi'
 
 export async function getPrismaAPY(chainID: number, prismaReceiver: string): Promise<[number, number]> {

@@ -25,7 +25,6 @@ import { YEARN_VAULT_ABI_04, YEARN_VAULT_V022_ABI, YEARN_VAULT_V030_ABI } from '
 import { Float } from './helpers/bignumber-float'
 import { BigNumberInt, toNormalizedAmount } from './helpers/bignumber-int'
 import { CVXPoolInfo } from './types/cvx'
-import { getErrorMessage } from 'lib'
 // Strategy type detection functions
 export function isCurveStrategy(vault: Thing & { name: string }) {
   const vaultName = vault?.name.toLowerCase()
@@ -133,7 +132,6 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
         functionName: 'PID',
       })
     } catch (error) {
-      console.error('Error fetching CVX pool APY:', getErrorMessage(error), strategyAddress)
       try {
         rewardPID = await client.readContract({
           address: strategyAddress,
@@ -141,7 +139,6 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
           functionName: 'ID',
         })
       } catch (innerError) {
-        console.error('Error fetching CVX pool APY:', getErrorMessage(innerError), strategyAddress)
         try {
           rewardPID = await client.readContract({
             address: strategyAddress,
@@ -149,7 +146,6 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
             functionName: 'fraxPid',
           })
         } catch (deepError) {
-          console.error('Error fetching CVX pool APY:', getErrorMessage(deepError), strategyAddress)
           return { crvAPR, cvxAPR, crvAPY, cvxAPY }
         }
       }
@@ -165,7 +161,6 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
         args: [rewardPID],
       }) as CVXPoolInfo
     } catch (error) {
-      console.error('Error fetching CVX pool APY:', getErrorMessage(error), strategyAddress)
       return { crvAPR, cvxAPR, crvAPY, cvxAPY }
     }
 
@@ -214,7 +209,7 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
     crvAPY = new Float().setFloat64(convertFloatAPRToAPY(crvAPRFloat64, 365/15))
     cvxAPY = new Float().setFloat64(convertFloatAPRToAPY(cvxAPRFloat64, 365/15))
   } catch (error) {
-    console.error('Error calculating CVX pool APY:', error, strategyAddress)
+    // Error handled silently
   }
 
   return {
@@ -258,7 +253,6 @@ export async function determineCurveKeepCRV(strategy: StrategyWithIndicators, ch
     keepCRV = keepCRVResult
     keepPercentage = keepPercentageResult
   } catch (error) {
-    console.error('Error determining Curve keepCRV:', getErrorMessage(error), strategy.address)
     return 0
   }
 

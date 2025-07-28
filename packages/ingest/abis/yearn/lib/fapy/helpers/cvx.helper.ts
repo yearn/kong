@@ -1,5 +1,5 @@
 import { erc20Abi } from 'viem'
-import { fetchErc20PriceUsd } from '../../../../../../prices'
+import { fetchErc20PriceUsd } from 'ingest/prices'
 import { convertFloatAPRToAPY } from './calculation.helper'
 import { CVX_TOKEN_ADDRESS } from './maps.helper'
 import { convexBaseStrategyAbi, cvxBoosterAbi, crvRewardsAbi } from '../abis'
