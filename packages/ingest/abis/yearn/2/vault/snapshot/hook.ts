@@ -1,13 +1,13 @@
 import { z } from 'zod'
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
-import { rpcs } from '../../../../../rpcs'
+import { rpcs } from 'ingest/rpcs'
 import { RiskScoreSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
-import db, { getLatestApy, getSparkline } from '../../../../../db'
-import { fetchErc20PriceUsd } from '../../../../../prices'
+import db, { getLatestApy, getLatestFapy, getSparkline } from 'ingest/db'
+import { fetchErc20PriceUsd } from 'ingest/prices'
 import { priced } from 'lib/math'
-import { getRiskScore } from '../../../lib/risk'
-import { getTokenMeta, getVaultMeta } from '../../../lib/meta'
-import { fetchOrExtractErc20, thingRisk, throwOnMulticallError } from '../../../lib'
+import { getRiskScore } from 'ingest/abis/yearn/lib/risk'
+import { getTokenMeta, getVaultMeta } from 'ingest/abis/yearn/lib/meta'
+import { fetchOrExtractErc20, thingRisk, throwOnMulticallError } from 'ingest/abis/yearn/lib'
 import { mq } from 'lib'
 import { compare } from 'compare-versions'
 
@@ -54,6 +54,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   }
 
   const apy = await getLatestApy(chainId, address)
+  const fapy = await getLatestFapy(chainId, address)
 
   await thingRisk(risk)
 
@@ -67,6 +68,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     sparklines,
     tvl: sparklines.tvl[0],
     apy,
+    fapy
   }
 }
 

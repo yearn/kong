@@ -144,6 +144,54 @@ export async function getLatestApy(chainId: number, address: string) {
   }).parse(first)
 }
 
+export async function getLatestFapy(chainId: number, address: string) {
+  const first = await firstRow(`
+  SELECT
+    chain_id as "chainId",
+    address,
+    label,
+    MAX(CASE WHEN component = 'netAPR' THEN value END) AS "netAPR",
+    MAX(CASE WHEN component = 'forwardBoost' THEN value END) AS "forwardBoost",
+    MAX(CASE WHEN component = 'poolAPY' THEN value END) AS "poolAPY",
+    MAX(CASE WHEN component = 'boostedAPR' THEN value END) AS "boostedAPR",
+    MAX(CASE WHEN component = 'baseAPR' THEN value END) AS "baseAPR",
+    MAX(CASE WHEN component = 'rewardsAPR' THEN value END) AS "rewardsAPR",
+    MAX(CASE WHEN component = 'cvxAPR' THEN value END) AS "cvxAPR",
+    MAX(CASE WHEN component = 'keepCRV' THEN value END) AS "keepCRV",
+    block_number as "blockNumber",
+    block_time as "blockTime"
+  FROM output
+  WHERE block_time = (
+      SELECT MAX(block_time) FROM output
+      WHERE chain_id = $1
+      AND address = $2
+      AND label = 'fapy'
+    )
+    AND chain_id = $1
+    AND address = $2
+    AND label = 'fapy'
+  GROUP BY chain_id, address, label, block_number, block_time;
+  `, [chainId, address])
+
+  if (!first) return undefined
+
+  return z.object({
+    chainId: z.number().default(chainId),
+    address: z.string().default(address),
+    label: z.string().default('fapy'),
+    netAPR: z.number().nullish(),
+    forwardBoost: z.number().nullish(),
+    poolAPY: z.number().nullish(),
+    boostedAPR: z.number().nullish(),
+    baseAPR: z.number().nullish(),
+    rewardsAPR: z.number().nullish(),
+    cvxAPR: z.number().nullish(),
+    keepCRV: z.number().nullish(),
+    blockNumber: z.bigint({ coerce: true }),
+    blockTime: z.bigint({ coerce: true })
+  }).parse(first)
+}
+
 export function toUpsertSql(table: string, pk: string, data: object, where?: string) {
   const timestampConversionExceptions = [ 'profit_max_unlock_time' ]
 
