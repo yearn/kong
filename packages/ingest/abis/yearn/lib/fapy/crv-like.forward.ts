@@ -1,6 +1,6 @@
 import { StrategyWithIndicators, Thing } from 'lib/types'
 import { zeroAddress } from 'viem'
-import { fetchErc20PriceUsd } from '../../../../../prices'
+import { fetchErc20PriceUsd } from 'ingest/prices'
 import {
   convexBaseStrategyAbi,
   crvRewardsAbi,
@@ -258,6 +258,7 @@ export async function determineCurveKeepCRV(strategy: StrategyWithIndicators, ch
     keepCRV = keepCRVResult
     keepPercentage = keepPercentageResult
   } catch (error) {
+    console.error('Error determining Curve keepCRV:', getErrorMessage(error), strategy.address)
     return 0
   }
 
