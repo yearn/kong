@@ -3,7 +3,7 @@
     "ts"
   ],
   "spec": [
-    "**/fapy.spec.ts"
+    "**/*.spec.ts"
   ],
   "require": [
     "ts-node/register",
