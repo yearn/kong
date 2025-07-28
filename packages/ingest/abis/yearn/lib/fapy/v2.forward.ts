@@ -45,8 +45,7 @@ export async function computeCurrentV2VaultAPY(
 ) {
   const chainId = vault.chainId
   const yieldVault = vault.address
-  const vaultToken =vault.defaults.asset
-  const vaultDecimals = Number(vaultToken.defaults.decimals ?? 18)
+  const vaultDecimals = Number(vault.defaults.decimals ?? 18)
 
   const [estBlockToday, estBlockLastWeek, estBlockLastMonth] = await Promise.all([
     getBlockNumberByPeriod(chainId, 0),
@@ -104,6 +103,6 @@ export async function computeCurrentV2VaultAPY(
 
 
   return {
-    netAPY: monthlyAPY.toFloat64()[0],
+    netAPR: monthlyAPY.toFloat64()[0],
   }
 }

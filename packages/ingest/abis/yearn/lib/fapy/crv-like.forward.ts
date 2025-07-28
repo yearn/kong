@@ -23,8 +23,9 @@ import { FraxPool } from './types/frax-pools'
 import { rpcs } from 'lib/rpcs'
 import { YEARN_VAULT_ABI_04, YEARN_VAULT_V022_ABI, YEARN_VAULT_V030_ABI } from './abis/0xAbis.abi'
 import { Float } from './helpers/bignumber-float'
-import { BigNumberInt, toNormalizedAmount, toNormalizedAmount as toNormalizedIntAmount } from './helpers/bignumber-int'
+import { BigNumberInt, toNormalizedAmount } from './helpers/bignumber-int'
 import { CVXPoolInfo } from './types/cvx'
+import { getErrorMessage } from 'lib'
 // Strategy type detection functions
 export function isCurveStrategy(vault: Thing & { name: string }) {
   const vaultName = vault?.name.toLowerCase()
@@ -98,7 +99,7 @@ export function getPoolPrice(gauge: Gauge): Float {
   if (gauge.swap_data?.virtual_price) {
     virtualPrice = new BigNumberInt(gauge.swap_data.virtual_price)
   }
-  return toNormalizedIntAmount(virtualPrice, 18)
+  return toNormalizedAmount(virtualPrice, 18)
 }
 
 export function getRewardsAPY(chainId: number, pool: CrvPool) {
@@ -132,6 +133,7 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
         functionName: 'PID',
       })
     } catch (error) {
+      console.error('Error fetching CVX pool APY:', getErrorMessage(error), strategyAddress)
       try {
         rewardPID = await client.readContract({
           address: strategyAddress,
@@ -139,6 +141,7 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
           functionName: 'ID',
         })
       } catch (innerError) {
+        console.error('Error fetching CVX pool APY:', getErrorMessage(innerError), strategyAddress)
         try {
           rewardPID = await client.readContract({
             address: strategyAddress,
@@ -146,6 +149,7 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
             functionName: 'fraxPid',
           })
         } catch (deepError) {
+          console.error('Error fetching CVX pool APY:', getErrorMessage(deepError), strategyAddress)
           return { crvAPR, cvxAPR, crvAPY, cvxAPY }
         }
       }
@@ -161,6 +165,7 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
         args: [rewardPID],
       }) as CVXPoolInfo
     } catch (error) {
+      console.error('Error fetching CVX pool APY:', getErrorMessage(error), strategyAddress)
       return { crvAPR, cvxAPR, crvAPY, cvxAPY }
     }
 
@@ -170,25 +175,27 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
         address: poolInfo.crvRewards,
         abi: crvRewardsAbi,
         functionName: 'rewardRate',
+        args: []
       }),
       client.readContract({
         address: poolInfo.crvRewards,
         abi: crvRewardsAbi,
         functionName: 'totalSupply',
+        args: []
       })
     ]) as [bigint, bigint]
 
     // Convert results to normalized amounts
-    const rate = toNormalizedIntAmount(new BigNumberInt(rateResult), 18)
-    const supply = toNormalizedIntAmount(new BigNumberInt(totalSupply), 18)
-    const crvPerUnderlying = new Float(0)
-    const virtualSupply = new Float().mul(supply, baseAssetPrice)
+    const rate = toNormalizedAmount(new BigNumberInt(rateResult), 18)
+    const supply = toNormalizedAmount(new BigNumberInt(totalSupply), 18)
+    let crvPerUnderlying = new Float(0)
+    const virtualSupply = new Float(0).mul(supply, baseAssetPrice)
 
     if (virtualSupply.gt(new Float(0))) {
-      crvPerUnderlying.div(rate, virtualSupply)
+      crvPerUnderlying = new Float(0).div(rate, virtualSupply)
     }
 
-    const crvPerUnderlyingPerYear = new Float().mul(crvPerUnderlying, new Float(31536000)) // seconds in a year
+    const crvPerUnderlyingPerYear = new Float(0).mul(crvPerUnderlying, new Float(31536000)) // seconds in a year
     const cvxPerYear = await getCVXForCRV(chainId, BigInt(crvPerUnderlyingPerYear.toNumber()))
 
     // Get token prices in parallel
@@ -198,8 +205,8 @@ export async function getCVXPoolAPY(chainId: number, strategyAddress: `0x${strin
     ])
 
     // Calculate APRs
-    crvAPR = new Float().mul(crvPerUnderlyingPerYear, new Float(crvPrice))
-    cvxAPR = new Float().mul(cvxPerYear, new Float(cvxPrice))
+    crvAPR = new Float(0).mul(crvPerUnderlyingPerYear, new Float(crvPrice))
+    cvxAPR = new Float(0).mul(cvxPerYear, new Float(cvxPrice))
 
     const [crvAPRFloat64] = crvAPR.toFloat64()
     const [cvxAPRFloat64] = cvxAPR.toFloat64()
@@ -274,9 +281,9 @@ export async function calculateCurveForwardAPY(data: {
     getCurveBoost(chainId, YEARN_VOTER_ADDRESS[chainId], data.gaugeAddress),
     determineCurveKeepCRV(data.strategy, chainId)
   ])
-  const debtRatio = toNormalizedIntAmount(new BigNumberInt(data.lastDebtRatio.toNumber()), 4)
-  const performanceFee = toNormalizedIntAmount(new BigNumberInt(data.strategy.performanceFee ?? 0), 4)
-  const managementFee = toNormalizedIntAmount(new BigNumberInt(data.strategy.managementFee ?? 0), 4)
+  const debtRatio = toNormalizedAmount(new BigNumberInt(data.lastDebtRatio.toNumber()), 4)
+  const performanceFee = toNormalizedAmount(new BigNumberInt(data.strategy.performanceFee ?? 0), 4)
+  const managementFee = toNormalizedAmount(new BigNumberInt(data.strategy.managementFee ?? 0), 4)
   const oneMinusPerfFee = new Float().sub(new Float(1), performanceFee)
 
   let crvAPY = new Float().mul(data.baseAPY, yboost)
@@ -334,9 +341,9 @@ export async function calculateConvexForwardAPY(data: {
     getCurveBoost(chainId, gaugeAddress, strategy.address),
     determineConvexKeepCRV(chainId, strategy)
   ])
-  const debtRatio = toNormalizedIntAmount(new BigNumberInt(lastDebtRatio.toNumber()), 4)
-  const performanceFee = toNormalizedIntAmount(new BigNumberInt(strategy.performanceFee ?? 0), 4)
-  const managementFee = toNormalizedIntAmount(new BigNumberInt(strategy.managementFee ?? 0), 4)
+  const debtRatio = toNormalizedAmount(new BigNumberInt(lastDebtRatio.toNumber()), 4)
+  const performanceFee = toNormalizedAmount(new BigNumberInt(strategy.performanceFee ?? 0), 4)
+  const managementFee = toNormalizedAmount(new BigNumberInt(strategy.managementFee ?? 0), 4)
   const oneMinusPerfFee = new Float().sub(new Float(1), performanceFee)
 
   // Run getCVXPoolAPY and getConvexRewardAPY in parallel
@@ -467,18 +474,18 @@ export async function calculateGaugeBaseAPR(
   // Initialize inflation rate
   let inflationRate = new Float(0)
   if (typeof gauge.gauge_controller.inflation_rate === 'string') {
-    inflationRate = toNormalizedIntAmount(new BigNumberInt(gauge.gauge_controller.inflation_rate), 18)
+    inflationRate = toNormalizedAmount(new BigNumberInt(gauge.gauge_controller.inflation_rate), 18)
   } else {
     inflationRate = new Float().setFloat64(gauge.gauge_controller.inflation_rate)
   }
 
   // Convert parameters to Float objects
-  const gaugeWeight = toNormalizedIntAmount(
+  const gaugeWeight = toNormalizedAmount(
     new BigNumberInt(gauge.gauge_controller.gauge_relative_weight),
     18
   )
   const secondsPerYear = new Float(31556952)
-  const workingSupply = toNormalizedIntAmount(
+  const workingSupply = toNormalizedAmount(
     new BigNumberInt(gauge.gauge_data.working_supply),
     18
   )
@@ -538,23 +545,9 @@ export async function calculateCurveLikeStrategyAPR(
     cvxAPR?: number;
     keepCRV?: number;
   } | null > {
-  /**********************************************************************************************
-  ** First thing is to retrieve the data we need from curve API. This includes the pool, the
-  ** gauges and some APY data from their subgraph.
-  **********************************************************************************************/
-  // if (!subgraphItem?.latestWeeklyApy) {
-  //   console.warn(`No APY data for vault ${vault.address}`)
-  // }
 
-  /**********************************************************************************************
-  ** We will need a bunch of prices to calculate the APY.
-  ** - We get the base asset price from the gauge LpTokenPrice field, which is in base 2.
-  ** - We get the CRV price from our price package, which is in base 6 but converted in 2.
-  ** - We get the pool price from the curve API, which is in base 18 but converted in 2.
-  **********************************************************************************************/
   const baseAssetPrice = new Float().setFloat64(gauge.lpTokenPrice || 0)
 
-  // Fetch CRV price and calculateGaugeBaseAPR in parallel
   const [{ priceUsd }, poolPrice] = await Promise.all([
     fetchErc20PriceUsd(chainId, CRV_TOKEN_ADDRESS[chainId], undefined, true),
     Promise.resolve(getPoolPrice(gauge))

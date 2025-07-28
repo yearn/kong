@@ -2,7 +2,7 @@ import { rpcs } from 'lib/rpcs'
 import { Float } from './bignumber-float'
 import { BigNumberInt, toNormalizedAmount } from './bignumber-int'
 import { yearnVaultMetadataAbi } from '../abis/yearn-vault-metadata.abi'
-import { query } from '../../../../../db'
+import { query } from '../../../../../../db'
 import { z } from 'zod'
 
 

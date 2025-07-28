@@ -10,12 +10,12 @@ INSERT INTO "public"."snapshot" ("chain_id", "address", "snapshot", "hook", "blo
 `
 export const crvStrategy1Insert = `
   INSERT INTO "public"."thing" ("chain_id", "address", "label", "defaults") VALUES
-(1, '0x163C59dd67bBF0Dd61A1aE91E2a41f14137734b9', 'strategy', '{"asset": {"name": "reUSD/scrvUSD", "symbol": "reusdscrv", "address": "0xc522A6606BBA746d7960404F22a3DB936B6F4F50", "chainId": 1, "decimals": "18"}, "vault": "0xf165a634296800812B8B0607a75DeDdcD4D3cC88", "yearn": true, "decimals": "18", "apiVersion": "0.4.6", "inceptTime": "1742462999", "inceptBlock": "22087184"}');
+(1, '0x163C59dd67bBF0Dd61A1aE91E2a41f14137734b9', 'strategy', '{"name": "StrategyConvexFactory-reusdscrv", "asset": {"name": "reUSD/scrvUSD", "symbol": "reusdscrv", "address": "0xc522A6606BBA746d7960404F22a3DB936B6F4F50", "chainId": 1, "decimals": "18"}, "vault": "0xf165a634296800812B8B0607a75DeDdcD4D3cC88", "yearn": true, "decimals": "18", "apiVersion": "0.4.6", "inceptTime": "1742462999", "inceptBlock": "22087184", "debtRatio": 0, "performanceFee": 1000, "managementFee": 0}');
 `
 
 export const crvStrategy2Insert = `
 INSERT INTO "public"."thing" ("chain_id", "address", "label", "defaults") VALUES
-(1, '0x9Df207D6b2d5e917e4a3125F2F475FAA665834BD', 'strategy', '{"asset": {"name": "reUSD/scrvUSD", "symbol": "reusdscrv", "address": "0xc522A6606BBA746d7960404F22a3DB936B6F4F50", "chainId": 1, "decimals": "18"}, "vault": "0xf165a634296800812B8B0607a75DeDdcD4D3cC88", "yearn": true, "decimals": "18", "apiVersion": "0.4.6", "inceptTime": "1742462999", "inceptBlock": "22087184"}');
+(1, '0x9Df207D6b2d5e917e4a3125F2F475FAA665834BD', 'strategy', '{"name": "StrategyCurveBoostedFactory-reusdscrv", "asset": {"name": "reUSD/scrvUSD", "symbol": "reusdscrv", "address": "0xc522A6606BBA746d7960404F22a3DB936B6F4F50", "chainId": 1, "decimals": "18"}, "vault": "0xf165a634296800812B8B0607a75DeDdcD4D3cC88", "yearn": true, "decimals": "18", "apiVersion": "0.4.6", "inceptTime": "1742462999", "inceptBlock": "22087184", "debtRatio": 10000, "performanceFee": 1000, "managementFee": 0}');
 `
 
 export const crvStrategy1SnapshotInsert = `
@@ -25,7 +25,104 @@ export const crvStrategy1SnapshotInsert = `
 
 export const crvStrategy2SnapshotInsert = `
 INSERT INTO "public"."snapshot" ("chain_id", "address", "snapshot", "hook", "block_number", "block_time") VALUES
-(1, '0x9Df207D6b2d5e917e4a3125F2F475FAA665834BD', '{"crv": "0xD533a949740bb3306d119CC777fa900bA034cd52", "name": "StrategyCurveBoostedFactory-reusdscrv", "want": "0xc522A6606BBA746d7960404F22a3DB936B6F4F50", "gauge": "0xaF01d68714E7eA67f43f08b5947e367126B889b1", "proxy": "0x78eDcb307AC1d1F8F5Fd070B377A6e69C8dcFC34", "vault": "0xf165a634296800812B8B0607a75DeDdcD4D3cC88", "keeper": "0x0D26E894C2371AB6D20d99A65E991775e3b5CAd7", "rewards": "0x93A62dA5a14C80f265DAbC077fCEE437B1a0Efde", "isActive": true, "blockTime": "1743790559", "apiVersion": "0.4.6", "curveVoter": "0xF147b8125d2ef93FB6965Db97D6746952a133934", "isOriginal": false, "strategist": "0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7", "blockNumber": "22197287", "healthCheck": "0xDDCea799fF1699e98EDF118e0629A974Df7DF012", "metadataURI": "", "localKeepCRV": "0", "tradeFactory": "0xb634316E06cC0B358437CbadD4dC94F1D3a92B3b", "balanceOfWant": "2187743408971746866778", "baseFeeOracle": "0xfeCA6895DcF50d6350ad0b5A8232CF657C316dA7", "doHealthCheck": true, "emergencyExit": false, "stakedBalance": "2900545682247319133712717", "maxReportDelay": "3153600000", "minReportDelay": "172800", "creditThreshold": "10000000000000000000000", "delegatedAssets": "0", "isBaseFeeAcceptable": true, "estimatedTotalAssets": "2902733425656290880579495", "forceHarvestTriggerOnce": false}', '{"meta": {"protocols": [], "description": "", "displayName": ""}, "claims": [{"name": "Curve DAO Token", "symbol": "CRV", "address": "0xD533a949740bb3306d119CC777fa900bA034cd52", "balance": "1", "chainId": 1, "decimals": "18", "balanceUsd": 0}], "totalDebt": "2900545682247319133712717", "totalDebtUsd": 2886196.682710157, "lenderStatuses": [], "lastReportDetail": {"apr": {"net": 0, "gross": 0}, "loss": "0", "profit": "0", "address": "0x9Df207D6b2d5e917e4a3125F2F475FAA665834BD", "chainId": 1, "lossUsd": 0, "blockTime": "1743760979", "profitUsd": 0, "blockNumber": "22194833", "debtPayment": "0", "debtPaymentUsd": 0, "debtOutstanding": "0", "transactionHash": "0xd07d9ee745b7a9bc7660d607012ae2021d851f47bda358f732cc738d23d9fe86", "debtOutstandingUsd": 0}}', 22197287, '2025-04-04 18:15:59+00');
+(1, '0x9Df207D6b2d5e917e4a3125F2F475FAA665834BD', '{"crv": "0xD533a949740bb3306d119CC777fa900bA034cd52", "name": "StrategyCurveBoostedFactory-reusdscrv", "want": "0xc522A6606BBA746d7960404F22a3DB936B6F4F50", "gauge": "0xaF01d68714E7eA67f43f08b5947e367126B889b1", "proxy": "0x78eDcb307AC1d1F8F5Fd070B377A6e69C8dcFC34", "vault": "0xf165a634296800812B8B0607a75DeDdcD4D3cC88", "keeper": "0x0D26E894C2371AB6D20d99A65E991775e3b5CAd7", "rewards": "0x93A62dA5a14C80f265DAbC077fCEE437B1a0Efde", "isActive": true, "blockTime": "1743790559", "apiVersion": "0.4.6", "curveVoter": "0xF147b8125d2ef93FB6965Db97D6746952a133934", "isOriginal": false, "strategist": "0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7", "blockNumber": "22197287", "healthCheck": "0xDDCea799fF1699e98EDF118e0629A974Df7DF012", "metadataURI": "", "localKeepCRV": "0", "tradeFactory": "0xb634316E06cC0B358437CbadD4dC94F1D3a92B3b", "balanceOfWant": "2187743408971746866778", "baseFeeOracle": "0xfeCA6895DcF50d6350ad0b5A8232CF657C316dA7", "doHealthCheck": true, "emergencyExit": false, "stakedBalance": "2900545682247319133712717", "maxReportDelay": "3153600000", "minReportDelay": "172800", "creditThreshold": "10000000000000000000000", "delegatedAssets": "0", "isBaseFeeAcceptable": true, "estimatedTotalAssets": "2902733425656290880579495", "forceHarvestTriggerOnce": false}', '{"meta": {"protocols": [], "description": "", "displayName": ""}, "claims": [{"name": "Curve DAO Token", "symbol": "CRV", "address": "0xD533a949740bb3306d119CC777fa900bA034cd52", "balance": "1", "chainId": 1, "decimals": "18", "balanceUsd": 0}], "totalDebt": "2900545682247319133712717", "totalDebtUsd": 2886196.682710157, "lenderStatuses": [], "lastReportDetail": {"apr": {"net": 0, "gross": 0}, "loss": "0", "profit": "0", "address": "0x9Df207D6b2d5e917e4a3125F2F475FAA665834BD", "chainId": 1, "lossUsd": 0, "blockTime": "1743760979", "profitUsd": 0, "blockNumber": "22194833", "debtPayment": "0", "debtPaymentUsd": 0, "debtOutstanding": "0", "transactionHash": "0x0000000000000000000000000000000000000000000000000000000000000000"}}', 22197287, '2024-01-31T12:00:00Z');
 `
+
+// Mock HTTP responses for Curve API calls
+export const mockGaugeData = {
+  '0xaF01d68714E7eA67f43f08b5947e367126B889b1': {
+    'swap': '0x0CD6f267b2086bea681E922E19D40512511BE538',
+    'swap_token': '0xc522A6606BBA746d7960404F22a3DB936B6F4F50',
+    'gauge': '0xaF01d68714E7eA67f43f08b5947e367126B889b1',
+    'lpTokenPrice': 1.0012,
+    'swap_data': {
+      'virtual_price': '1001200000000000000'
+    },
+    'gauge_data': {
+      'working_supply': '2900545682247319133712717'
+    },
+    'gauge_controller': {
+      'inflation_rate': '5000000000000000',
+      'gauge_relative_weight': '1000000000000000'
+    }
+  }
+}
+
+export const mockPoolData = {
+  'poolData': [{
+    'id': 'factory-stable-ng-146',
+    'address': '0x0CD6f267b2086bea681E922E19D40512511BE538',
+    'lpTokenAddress': '0xc522A6606BBA746d7960404F22a3DB936B6F4F50',
+    'gaugeAddress': '0xaF01d68714E7eA67f43f08b5947e367126B889b1',
+    'gaugeRewards': [{
+      'gaugeAddress': '0xaF01d68714E7eA67f43f08b5947e367126B889b1',
+      'tokenAddress': '0xD533a949740bb3306d119CC777fa900bA034cd52',
+      'symbol': 'CRV',
+      'APY': 2.5
+    }]
+  }]
+}
+
+export const mockSubgraphData = {
+  'data': {
+    'poolList': [{
+      'address': '0x0CD6f267b2086bea681E922E19D40512511BE538',
+      'latestWeeklyApy': 8.5,
+      'latestDailyApy': 8.2
+    }]
+  }
+}
+
+export const mockFraxPoolData = {
+  'pools': {
+    'augmentedPoolData': []
+  }
+}
+
+// Mock contract call responses
+export const mockContractCalls = {
+  // Strategy keepCRV calls
+  keepCRV: '0',
+  keepCRVPercentage: '0',
+
+  // Gauge boost calculation
+  gaugeBoost: '2500000000000000000', // 2.5x boost
+
+  // CVX Booster poolInfo
+  poolInfo: {
+    lptoken: '0xc522A6606BBA746d7960404F22a3DB936B6F4F50',
+    token: '0xc522A6606BBA746d7960404F22a3DB936B6F4F50',
+    gauge: '0xaF01d68714E7eA67f43f08b5947e367126B889b1',
+    crvRewards: '0x7091dbb7fcbA54569eF1387Ac89Eb2a5C9F6d2EA',
+    stash: '0x0000000000000000000000000000000000000000',
+    shutdown: false
+  },
+
+  // CRV rewards contract
+  rewardRate: '1000000000000000000', // 1 CRV per second
+  totalSupply: '2900545682247319133712717',
+
+  // Price data
+  crvPrice: 0.505,
+  cvxPrice: 2.05,
+  assetPrice: 1.0012
+}
+
+export const mockSubgraphDataEthereum = {
+  'data': {
+    'poolList': [{
+      'address': '0x0CD6f267b2086bea681E922E19D40512511BE538',
+      'latestWeeklyApy': 8.5,
+      'latestDailyApy': 8.2
+    }]
+  }
+}
+
+// Mock environment variables
+export const mockEnvVars = {
+  CRV_GAUGE_REGISTRY_URL: 'https://api.curve.fi/api/getGauges',
+  CRV_POOLS_URL: 'https://api.curve.fi/api/getPools',
+  YDAEMON_API: 'https://ydaemon.yearn.fi/1'
+}
 
 

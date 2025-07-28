@@ -56,7 +56,7 @@ export async function fetchFraxPools() {
       'https://frax.convexfinance.com/api/frax/pools'
     )
     const fraxPools = await fraxPoolsResponse.json()
-    return fraxPools.pools.augmentedPoolData as FraxPool[]
+    return fraxPools?.pools?.augmentedPoolData as FraxPool[]
   }, 1000 * 60 * 5)
 
   const pools = fraxPools.map(pool => {

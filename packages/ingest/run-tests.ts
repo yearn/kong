@@ -1,3 +1,4 @@
+process.env.NOCK_DEBUG = 'true'
 import { Redis, Postgres, dbMigrate, setTestcontainersEnv } from 'lib/helpers/tests'
 import { ChildProcess, spawn } from 'child_process'
 import path from 'path'
@@ -33,8 +34,7 @@ spawnTestContainersAndRun().then((env) => {
   }
 
   const mochaBin = path.resolve(__dirname, '../../node_modules/.bin/mocha')
-
-  mochaProcess = spawn(mochaBin, ['--timeout 5000'], {
+  mochaProcess = spawn(mochaBin, ['--timeout 5000', ...process.argv.slice(2)], {
     // @ts-expect-error env is not typed
     env: {
       ...customEnv,

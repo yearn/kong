@@ -7,7 +7,6 @@ import { fetchSubgraph } from './helpers/crv.fetcher'
 import { isCurveStrategy, computeCurveLikeForwardAPY } from './crv-like.forward'
 import { isV3Vault } from './helpers/general'
 import { getSnapshot } from 'lib/queries/snapshot'
-import { computeCurrentV2VaultAPY } from './v2.forward'
 import { computeV3ForwardAPY } from './v3.forward'
 
 export interface VaultAPY {
@@ -44,13 +43,6 @@ export async function computeChainAPY(vault: Thing & { name: string }, chainId: 
       strategies,
       chainId,
       snapshot
-    })
-  } else {
-    vaultAPY = await computeCurrentV2VaultAPY({
-      ...vault,
-      activation: strategies[0].activation || 0n,
-      performanceFee: strategies[0].performanceFee || 0,
-      managementFee: strategies[0].managementFee || 0,
     })
   }
 

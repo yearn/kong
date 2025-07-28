@@ -3,7 +3,7 @@ import { curveGaugeAbi } from '../abis/crv-gauge.abi'
 import { strategyBaseAbi } from '../abis/strategy-base.abi'
 import { rpcs } from 'lib/rpcs'
 import { StrategyWithIndicators } from 'lib/types'
-import { BigNumberInt, toNormalizedAmount as toNormalizedIntAmount } from './bignumber-int'
+import { BigNumberInt, toNormalizedAmount } from './bignumber-int'
 import { BigNumber } from '@ethersproject/bignumber'
 import { Float } from './bignumber-float'
 
@@ -39,13 +39,13 @@ export const getCurveBoost = async (chainID: number, voter: Address, gauge: Addr
 
 
   const boost = new Float().div(
-    toNormalizedIntAmount(
+    toNormalizedAmount(
       new BigNumberInt().set(workingBalance ?? 0n),
       18
     ),
     new Float().mul(
       new Float(0.4),
-      toNormalizedIntAmount(
+      toNormalizedAmount(
         new BigNumberInt().set(balanceOf ?? 0n),
         18
       )
@@ -82,11 +82,11 @@ export const determineConvexKeepCRV = async (chainID: number, strategy: Strategy
       ])
 
       if (cvxKeepCRVResult.status === 'fulfilled') {
-        return toNormalizedIntAmount(new BigNumberInt().set(BigInt(cvxKeepCRVResult.value as bigint)), 4)
+        return toNormalizedAmount(new BigNumberInt().set(BigInt(cvxKeepCRVResult.value as bigint)), 4)
       } else if (localKeepCRVResult.status === 'fulfilled') {
-        return toNormalizedIntAmount(new BigNumberInt().set(BigInt(localKeepCRVResult.value as bigint)), 4)
+        return toNormalizedAmount(new BigNumberInt().set(BigInt(localKeepCRVResult.value as bigint)), 4)
       } else {
-        return toNormalizedIntAmount(new BigNumberInt().set(BigInt(0)), 4)
+        return toNormalizedAmount(new BigNumberInt().set(BigInt(0)), 4)
       }
     }
 
@@ -107,11 +107,11 @@ export const determineConvexKeepCRV = async (chainID: number, strategy: Strategy
         functionName: 'keepCRV',
       }) as bigint
 
-      return toNormalizedIntAmount(new BigNumberInt().set(keepCRV), 4)
+      return toNormalizedAmount(new BigNumberInt().set(keepCRV), 4)
     } catch (err) {
-      return toNormalizedIntAmount(new BigNumberInt().set(0n), 4)
+      return toNormalizedAmount(new BigNumberInt().set(0n), 4)
     }
   } catch (err) {
-    return toNormalizedIntAmount(new BigNumberInt().set(0n), 4)
+    return toNormalizedAmount(new BigNumberInt().set(0n), 4)
   }
 }
