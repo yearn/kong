@@ -4,6 +4,7 @@ import vault from './vault'
 import output from './output'
 import strategy from './strategy'
 import transfer from './transfer'
+import deposit from './deposit'
 import latestBlock from './latestBlock'
 import monitor from './monitor'
 import accountRole from './accountRole'
@@ -51,6 +52,7 @@ const query = gql`
     strategy(chainId: Int, address: String): Strategy
     strategyReports(chainId: Int, address: String): [StrategyReport]
     transfers(chainId: Int, address: String): [Transfer]
+    deposits(chainId: Int, address: String): [Deposit]
     timeseries(chainId: Int, address: String, label: String!, component: String, period: String, limit: Int, timestamp: BigInt, yearn: Boolean): [Output]
     tvls(chainId: Int!, address: String, period: String, limit: Int, timestamp: BigInt): [Tvl]
     accountRoles(chainId: Int, account: String!): [AccountRole]
@@ -74,6 +76,7 @@ const typeDefs = [
   strategy,
   strategyReport,
   transfer,
+  deposit,
   output,
   tvl,
   price,
