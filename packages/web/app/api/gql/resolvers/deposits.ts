@@ -5,6 +5,8 @@ const deposits = async (_: object, args: { chainId: number, address: string }) =
   try {
     const result = await db.query(`
     SELECT
+      chain_id AS "chainId",
+      address AS "vaultAddress",
       args->>'assets' AS amount,
       args->>'shares' AS shares,
       args->>'owner' AS recipient
