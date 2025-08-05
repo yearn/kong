@@ -84,7 +84,7 @@ export async function getSparkline(chainId: number, address: string, label: stri
       CAST($3 AS text) AS label,
       CAST($4 AS text) AS component,
       time_bucket(CAST('7 day' AS interval), block_time) AS "blockTime",
-      COALESCE(LAST(NULLIF(value, 0), block_time), 0) AS close
+      COALESCE(LAST(NULLIF(value, 0), block_number), 0) AS close
     FROM output
     WHERE chain_id = $1 AND address = $2 AND label = $3 AND (component = $4 OR $4 IS NULL)
     GROUP BY "blockTime"
