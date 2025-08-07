@@ -1,13 +1,6 @@
-import path from 'path'
-import dotenv from 'dotenv'
-const envPath = path.join(__dirname, '../../.env')
-dotenv.config({ path: envPath })
-
-
-
 import 'lib/global'
 import BigDecimal from 'js-big-decimal'
-import processFapy from './abis/yearn/3/vault/timeseries/fapy/hook'
+import processFapy from 'ingest/abis/yearn/3/vault/timeseries/fapy/hook'
 import { rpcs } from 'lib/rpcs'
 import { cache } from 'lib'
 
@@ -15,8 +8,13 @@ async function validateFapy() {
   console.time('⏱️  Total execution time')
 
   console.time('⏱️  RPC initialization')
-  await rpcs.up()
-  await cache.up()
+  try {
+    await rpcs.up()
+    await cache.up()
+  } catch (error) {
+    console.error('RPC initialization error:', error)
+    throw error
+  }
   console.timeEnd('⏱️  RPC initialization')
 
   const VAULT_ADDRESS = ('0xf165a634296800812B8B0607a75DeDdcD4D3cC88') as `0x${string}`

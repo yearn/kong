@@ -2,6 +2,9 @@
   "name": "scripts",
   "module": "src/index.ts",
   "type": "module",
+  "scripts": {
+    "validate:fapy": "bun --env-file ../../.env src/issue-229/index.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^22.13.14"

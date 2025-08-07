@@ -8,8 +8,7 @@
     "production": "ts-node --transpile-only index.ts",
     "test": "ts-node run-tests.ts",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "validate:fapy": "ts-node ydaemon-validation.ts"
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@ethersproject/bignumber": "^5.8.0",
