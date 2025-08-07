@@ -6,7 +6,7 @@ export const q = {
   fanout: 'fanout',
   extract: 'extract',
   load: 'load',
-  probe: 'probe'
+  probe: 'probe',
 }
 
 export const job: { [queue: string]: { [job: string]: Job } } = {
@@ -37,7 +37,7 @@ export const job: { [queue: string]: { [job: string]: Job } } = {
 
   probe: {
     all: { queue: 'probe', name: 'all' }
-  }
+  },
 }
 
 // -= job priority in bullmq =-

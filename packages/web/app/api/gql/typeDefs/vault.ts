@@ -56,6 +56,19 @@ type Apy {
   blockTime: String!
 }
 
+type Fapy {
+  netAPR: Float
+  forwardBoost: Float
+  poolAPY: Float
+  boostedAPR: Float
+  baseAPR: Float
+  rewardsAPR: Float
+  cvxAPR: Float
+  keepCRV: Float
+  blockNumber: String!
+  blockTime: String!
+}
+
 type Vault {
   DOMAIN_SEPARATOR: String
   FACTORY: String
@@ -124,6 +137,7 @@ type Vault {
   sparklines: Sparklines
   tvl: SparklinePoint
   apy: Apy
+  fapy: Fapy
   roles: [Role]
   v3: Boolean
   yearn: Boolean
