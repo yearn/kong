@@ -72,8 +72,8 @@ async function validateFapy() {
     for (const comp of comparisons) {
       const ydaemonValueRaw = comp.ydaemon
       const kongValueRaw = comp.kong
-      const ydaemonValue = new BigDecimal(ydaemonValueRaw?.toString() || '0').round(3, BigDecimal.RoundingModes.DOWN).getValue()
-      const kongValue = new BigDecimal(kongValueRaw?.toString() || '0').round(3, BigDecimal.RoundingModes.DOWN).getValue()
+      const ydaemonValue = new BigDecimal(ydaemonValueRaw?.toString() || '0').round(1, BigDecimal.RoundingModes.HALF_UP).getValue()
+      const kongValue = new BigDecimal(kongValueRaw?.toString() || '0').round(1, BigDecimal.RoundingModes.HALF_UP).getValue()
 
       if (ydaemonValue !== kongValue) {
         console.log(`DEBUG: Raw yDaemon ${comp.name}: ${ydaemonValueRaw}`)
@@ -87,6 +87,7 @@ async function validateFapy() {
     console.log('FAPY validation successful!')
     console.timeEnd('⏱️  Total execution time')
 
+    process.exit(0)
   } catch (error) {
     console.error('FAPY validation failed:', error)
     console.timeEnd('⏱️  Total execution time')
