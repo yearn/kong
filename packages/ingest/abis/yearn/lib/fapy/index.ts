@@ -5,9 +5,6 @@ import { fetchGauges } from './helpers/crv.fetcher'
 import { fetchPools } from './helpers/crv.fetcher'
 import { fetchSubgraph } from './helpers/crv.fetcher'
 import { isCurveStrategy, computeCurveLikeForwardAPY } from './crv-like.forward'
-import { isV3Vault } from './helpers/general'
-import { getSnapshot } from 'lib/queries/snapshot'
-import { computeV3ForwardAPY } from './v3.forward'
 
 export interface VaultAPY {
   type?: string;
@@ -25,7 +22,6 @@ export interface VaultAPY {
 }
 
 export async function computeChainAPY(vault: Thing & { name: string }, chainId: number, strategies: StrategyWithIndicators[]) {
-  const snapshot = await getSnapshot(chainId, vault.address)
   const chain = getChainByChainId(chainId)?.name?.toLowerCase()
 
   if (!chain) return null
@@ -38,13 +34,6 @@ export async function computeChainAPY(vault: Thing & { name: string }, chainId: 
   ])
   let vaultAPY: VaultAPY = {}
 
-  if(isV3Vault(vault)) {
-    vaultAPY = await computeV3ForwardAPY({
-      strategies,
-      chainId,
-      snapshot
-    })
-  }
 
   if (isCurveStrategy(vault)) {
     vaultAPY = await computeCurveLikeForwardAPY({
