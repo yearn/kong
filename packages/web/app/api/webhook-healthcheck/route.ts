@@ -6,7 +6,7 @@ const AddressSchema = z.custom<`0x${string}`>(
   'invalid evm address'
 )
 
-export const KongWebhookSchema = z.object({
+const KongWebhookSchema = z.object({
   abiPath: z.string(),
   chainId: z.number(),
   address: AddressSchema,
@@ -21,7 +21,7 @@ export const KongWebhookSchema = z.object({
   })
 })
 
-export const OutputSchema = z.object({
+const OutputSchema = z.object({
   chainId: z.number(),
   address: AddressSchema,
   label: z.string(),
