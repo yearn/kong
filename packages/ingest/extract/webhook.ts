@@ -52,6 +52,11 @@ export class WebhookExtractor {
       throw new Error(`Unexpected labels. Expected: ${subscription.label}, Got: ${outputs.map(output => output.label).join(', ')}`)
     }
 
+    const MAX_OUTPUTS = 20
+    if (outputs.length > MAX_OUTPUTS) {
+      throw new Error(`Max outputs exceeded: ${outputs.length} > ${MAX_OUTPUTS}`)
+    }
+
     await mq.add(mq.job.load.output, { batch: outputs })
   }
 }
