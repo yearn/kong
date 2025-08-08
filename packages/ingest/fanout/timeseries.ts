@@ -21,7 +21,7 @@ export default class TimeseriesFanout {
       const outputLabel = hook.module.outputLabel
 
       const from = startBlock !== undefined
-        ? startBlock 
+        ? startBlock
         : math.max(inceptBlock, defaultStartBlockNumber, multicall3Activation)
       const to = endBlock !== undefined ? endBlock : await getBlockNumber(chainId)
       const start = endOfDay(await getBlockTime(chainId, from))
@@ -31,7 +31,7 @@ export default class TimeseriesFanout {
       SELECT DISTINCT block_time
       FROM output
       WHERE chain_id = $1 AND address = $2 AND label = $3
-      ORDER BY block_time ASC`, 
+      ORDER BY block_time ASC`,
       [chainId, address, outputLabel]))
         .rows.map(row => BigInt(row.block_time))
 

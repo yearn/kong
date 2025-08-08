@@ -10,6 +10,7 @@ export default class AbisFanout {
         await mq.add(mq.job.fanout.events, _data)
         await mq.add(mq.job.extract.snapshot, _data)
         await mq.add(mq.job.fanout.timeseries, _data)
+        await mq.add(mq.job.fanout.webhooks, _data)
       }
 
       if (abi.things) {
@@ -29,6 +30,7 @@ export default class AbisFanout {
           await mq.add(mq.job.fanout.events, _data)
           await mq.add(mq.job.extract.snapshot, _data)
           await mq.add(mq.job.fanout.timeseries, _data)
+          await mq.add(mq.job.fanout.webhooks, _data)
         }
       }
     }
