@@ -1,0 +1,6 @@
+subscriptions:
+  - id: 's-0e70a395'
+    url: 'https://kong.yearn.farm/api/webhook-healthcheck'
+    abiPath: 'yearn/3/vault'
+    type: 'timeseries'
+    label: 'webhook-healthcheck'

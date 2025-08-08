@@ -1,0 +1,17 @@
+manuals:
+
+  - chainId: 1
+    address: '0x182863131F9a4630fF9E27830d945B1413e347E8'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      cove: false,
+      yearn: true,
+      apiVersion: '3.0.3',
+      registry: '0xff31A1B020c868F6eA3f61Eb953344920EeCA3af',
+      asset: '0xdC035D45d973E3EC169d2276DDab16f1e407384F',
+      decimals: 18,
+      inceptBlock: 20917639,
+      inceptTime: 1722813995
+    }

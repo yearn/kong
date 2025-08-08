@@ -7,6 +7,7 @@ import { WaveyDbExtractor } from './waveydb'
 import { SnapshotExtractor } from './snapshot'
 import { TimeseriesExtractor } from './timeseries'
 import { ManualsExtractor } from './manuals'
+import { WebhookExtractor } from './webhook'
 
 export default class Extract implements Processor {
   workers: Worker[] = []
@@ -17,7 +18,8 @@ export default class Extract implements Processor {
     [mq.job.extract.waveydb.name]: new WaveyDbExtractor(),
     [mq.job.extract.snapshot.name]: new SnapshotExtractor(),
     [mq.job.extract.timeseries.name]: new TimeseriesExtractor(),
-    [mq.job.extract.manuals.name]: new ManualsExtractor()
+    [mq.job.extract.manuals.name]: new ManualsExtractor(),
+    [mq.job.extract.webhook.name]: new WebhookExtractor()
   }
 
   async up() {

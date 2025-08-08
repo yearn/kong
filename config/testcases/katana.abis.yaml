@@ -1,0 +1,51 @@
+cron:
+  name: AbiFanout
+  queue: fanout
+  job: abis
+  schedule: '*/15 * * * *'
+  start: false
+
+abis:
+  - abiPath: 'yearn/3/registry2'
+    sources: [
+      { chainId: 747474, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 2236977 }
+    ]
+
+  - abiPath: 'yearn/3/registry3'
+    sources: [
+      { chainId: 747474, address: '0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038', inceptBlock: 2852031 }
+    ]
+
+  - abiPath: 'yearn/3/vaultFactory'
+    sources: [
+      { chainId: 747474, address: '0x770D0d1Fb036483Ed4AbB6d53c1C88fb277D812F', inceptBlock: 2236950 }
+    ]
+
+  - abiPath: 'yearn/3/vault'
+    things: {
+      label: 'vault',
+      filter: [{ field: 'apiVersion', op: '>=', value: '3.0.0' }]
+    }
+
+  - abiPath: 'yearn/3/strategy'
+    things: {
+      label: 'strategy',
+      filter: [{ field: 'apiVersion', op: '>=', value: '3.0.0' }]
+    }
+
+  - abiPath: 'yearn/3/accountant'
+    things: {
+      label: 'accountant',
+      filter: []
+    }
+
+  - abiPath: 'yearn/3/roleManagerFactory'
+    sources: [
+      { chainId: 747474, address: '0xca12459a931643BF28388c67639b3F352fe9e5Ce', inceptBlock: 2909974 }
+    ]
+
+  - abiPath: 'yearn/3/roleManager'
+    things: {
+      label: 'roleManager',
+      filter: []
+    }

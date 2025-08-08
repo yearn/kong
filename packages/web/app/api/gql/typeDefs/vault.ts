@@ -69,9 +69,9 @@ type Vault {
   chainId: Int
   creditAvailable: BigInt
   debtOutstanding: BigInt
-  debtRatio: BigInt 
+  debtRatio: BigInt
   decimals: BigInt
-  depositLimit: BigInt 
+  depositLimit: BigInt
   deposit_limit: BigInt
   deposit_limit_module: String
   emergencyShutdown: Boolean
@@ -101,6 +101,7 @@ type Vault {
   profitUnlockingRate: BigInt
   projectId: String
   projectName: String
+  registry: String
   rewards: String
   role_manager: String
   symbol: String
