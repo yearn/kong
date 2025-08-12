@@ -47,7 +47,7 @@ async function fetchResponse(subscription: WebhookSubscription, data: Data): Pro
       body
     })
   } catch (error) {
-    console.error('🤬', 'webhook failed', subscription.url)
+    console.error('🤬', 'webhook failed', subscription)
     throw error
   }
 }
@@ -57,27 +57,107 @@ export class WebhookExtractor {
     data = DataSchema.parse(data)
     const { subscription } = data
 
-    const label = `🔌 ${mq.job.extract.webhook.name} ${subscription.id} ${subscription.url} ${subscription.label}`
-    console.time(label)
-    const response = await fetchResponse(subscription, data)
-    console.timeEnd(label)
+    const semaphore = getWebhookSemaphore(subscription.url)
+    await semaphore.acquire()
 
-    if (!response.ok) {
-      throw new Error(`Webhook returned ${response.status}: ${response.statusText}`)
+    try {
+      const label = `🔌 ${mq.job.extract.webhook.name} ${subscription.id} ${subscription.url} ${subscription.label}`
+      console.time(label)
+      const response = await fetchResponse(subscription, data)
+      console.timeEnd(label)
+
+      if (!response.ok) {
+        throw new Error(`Webhook returned ${response.status}: ${response.statusText}`)
+      }
+
+      const body = await response.json()
+      const outputs = OutputSchema.array().parse(body)
+
+      if (outputs.some(output => output.label !== subscription.label)) {
+        throw new Error(`Unexpected labels. Expected: ${subscription.label}, Got: ${outputs.map(output => output.label).join(', ')}`)
+      }
+
+      const MAX_OUTPUTS = 20
+      if (outputs.length > MAX_OUTPUTS) {
+        throw new Error(`Max outputs exceeded: ${outputs.length} > ${MAX_OUTPUTS}`)
+      }
+
+      await mq.add(mq.job.load.output, { batch: outputs })
+    } finally {
+      semaphore.release()
     }
-
-    const body = await response.json()
-    const outputs = OutputSchema.array().parse(body)
-
-    if (outputs.some(output => output.label !== subscription.label)) {
-      throw new Error(`Unexpected labels. Expected: ${subscription.label}, Got: ${outputs.map(output => output.label).join(', ')}`)
-    }
-
-    const MAX_OUTPUTS = 20
-    if (outputs.length > MAX_OUTPUTS) {
-      throw new Error(`Max outputs exceeded: ${outputs.length} > ${MAX_OUTPUTS}`)
-    }
-
-    await mq.add(mq.job.load.output, { batch: outputs })
   }
 }
+
+class Semaphore {
+  private permits: number
+  private waiting: Array<{ resolve: () => void, timeout: NodeJS.Timeout }>
+
+  constructor(permits: number) {
+    this.permits = permits
+    this.waiting = []
+  }
+
+  async acquire(timeoutMs = 60 * 1000): Promise<void> { // 1 minute timeout
+    return new Promise((resolve, reject) => {
+      if (this.permits > 0) {
+        this.permits--
+        resolve()
+        return
+      }
+
+      const timeout = setTimeout(() => {
+        const index = this.waiting.findIndex(w => w.resolve === resolve)
+        if (index !== -1) {
+          this.waiting.splice(index, 1)
+          reject(new Error('Semaphore acquire timeout'))
+        }
+      }, timeoutMs)
+
+      this.waiting.push({ resolve, timeout })
+    })
+  }
+
+  release(): void {
+    if (this.waiting.length > 0) {
+      const { resolve, timeout } = this.waiting.shift()!
+      clearTimeout(timeout)
+      resolve()
+    } else {
+      this.permits++
+    }
+  }
+}
+
+const webhookSemaphores = new Map<string, Semaphore>()
+
+function getWebhookSemaphore(url: string, maxConcurrency = 1): Semaphore {
+  if (!webhookSemaphores.has(url)) {
+    webhookSemaphores.set(url, new Semaphore(maxConcurrency))
+  }
+  return webhookSemaphores.get(url)!
+}
+
+// Cleanup functions for graceful shutdown
+export function cleanupWebhookSemaphores(): void {
+  for (const [_, semaphore] of webhookSemaphores.entries()) {
+    // Release all waiting promises to prevent hanging
+    while (semaphore['waiting'].length > 0) {
+      const { resolve, timeout } = semaphore['waiting'].shift()!
+      clearTimeout(timeout)
+      resolve()
+    }
+  }
+  webhookSemaphores.clear()
+}
+
+setInterval(() => {
+  let cleaned = 0
+  for (const [url, semaphore] of webhookSemaphores.entries()) {
+    if (semaphore['waiting'].length === 0 && semaphore['permits'] === 1) {
+      webhookSemaphores.delete(url)
+      cleaned++
+    }
+  }
+  if (cleaned > 0) { console.log('🧹', 'cleaned up', cleaned, 'unused webhook semaphores') }
+}, 30 * 60 * 1000)
