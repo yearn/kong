@@ -1,7 +1,8 @@
 import { z } from 'zod'
+import { createHmac } from 'crypto'
 import { mq } from 'lib'
 import { OutputSchema, zhexstring } from 'lib/types'
-import { getWebhookSubscriptionApiKeys, WebhookSubscription, WebhookSubscriptionSchema } from 'lib/subscriptions'
+import { WebhookSubscription, WebhookSubscriptionSchema } from 'lib/subscriptions'
 
 export const DataSchema = z.object({
   abiPath: z.string(),
@@ -14,11 +15,36 @@ export const DataSchema = z.object({
 
 export type Data = z.infer<typeof DataSchema>
 
+function generateWebhookSignature(secret: string, timestamp: number, body: string): string {
+  const payload = `${timestamp}.${body}`
+  const signature = createHmac('sha256', secret)
+    .update(payload, 'utf8')
+    .digest('hex')
+  return `t=${timestamp},v1=${signature}`
+}
+
+function getWebhookSecret(subscriptionId: string): string {
+  const secret = process.env[`WEBHOOK_SECRET_${subscriptionId}`]
+  if (!secret) {
+    throw new Error(`Webhook secret not found, ${subscriptionId}`)
+  }
+  return secret
+}
+
 async function fetchResponse(subscription: WebhookSubscription, data: Data): Promise<Response> {
   try {
+    const timestamp = Math.floor(Date.now() / 1000)
+    const body = JSON.stringify(data)
+    const secret = getWebhookSecret(subscription.id)
+    const signature = generateWebhookSignature(secret, timestamp, body)
+
     return await fetch(subscription.url, {
       method: 'POST',
-      body: JSON.stringify(data)
+      headers: {
+        'Content-Type': 'application/json',
+        'Kong-Signature': signature
+      },
+      body
     })
   } catch (error) {
     console.error('🤬', 'webhook failed', subscription.url)
@@ -36,14 +62,9 @@ export class WebhookExtractor {
     const response = await fetchResponse(subscription, data)
     console.timeEnd(label)
 
-    const apikey = response.headers.get('Kong-Api-Key')
-    if (!apikey) { throw new Error('Missing apikey') }
-
-    const subscriberApiKeys = getWebhookSubscriptionApiKeys()
-    const validateApiKey = subscriberApiKeys.find(
-      item => item.subscriptionId === subscription.id && item.apiKey === apikey
-    ) || false
-    if (!validateApiKey) { throw new Error('Invalid apikey') }
+    if (!response.ok) {
+      throw new Error(`Webhook returned ${response.status}: ${response.statusText}`)
+    }
 
     const body = await response.json()
     const outputs = OutputSchema.array().parse(body)

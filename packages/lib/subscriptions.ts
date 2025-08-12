@@ -29,23 +29,3 @@ const config = YamlConfigSchema.parse(yaml.load(yamlFile))
 const { subscriptions: webhookSubscriptions } = config
 
 export default webhookSubscriptions
-
-export interface WebhookSubscriptionApiKey {
-  subscriptionId: string
-  apiKey: string
-}
-
-export function getWebhookSubscriptionApiKeys(): WebhookSubscriptionApiKey[] {
-  const envValue = process.env.WEBHOOK_SUBSCRIBER_API_KEYS
-  if (!envValue) return []
-
-  return envValue
-    .split(',')
-    .map(item => item.trim())
-    .filter(item => item.length > 0)
-    .map(item => {
-      const [subscriptionId, apiKey] = item.split('|').map(part => part.trim())
-      return { subscriptionId, apiKey }
-    })
-    .filter(item => item.subscriptionId && item.apiKey)
-}
