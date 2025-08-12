@@ -7,6 +7,36 @@ Kong is an integrated set of services and tools that make it easy to index EVM l
 
 Kong comes configured with an index over Yearn Finance's v2 and v3 vault ecosystems.
 
+## Table of Contents
+
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Yearn Vaults Index](#yearn-vaults-index)
+- [Index with Kong](#index-with-kong)
+  - [abis.yaml x ingest/abis](#abisyaml-x-ingestabis)
+  - [Run an index](#run-an-index)
+  - [Replay an index](#replay-an-index)
+  - [Postgres schema](#postgres-schema)
+- [Webhooks](#webhooks)
+  - [Managing Webhooks](#managing-webhooks)
+  - [Implementing Webhook Endpoints](#implementing-webhook-endpoints)
+- [Cheats](#cheats)
+  - [make](#make)
+  - [testing](#testing)
+  - [tmux](#tmux)
+  - [database migrations](#database-migrations)
+  - [timescale](#timescale)
+- [Monorepo layout](#monorepo-layout)
+- [Architecture](#architecture)
+- [Schema](#schema)
+  - [thing](#thing)
+  - [snapshot](#snapshot)
+  - [evmlog](#evmlog)
+  - [evmlog_strides](#evmlog_strides)
+- [Motivation](#motivation)
+- [Gratefully Informed by and borrowed from](#gratefully-informed-by-and-borrowed-from)
+- [Dev Notes](#dev-notes)
+- [Production](#production)
 
 ## Requirements
 - node, yarn, bun, make, tmux, docker, docker compose, postgresql-client
@@ -141,6 +171,88 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 `latest_block` - latest block numbers
 
 `monitor` - system stats
+
+
+## Webhooks
+Kong supports real-time webhook notifications that are triggered during the indexing process. Webhooks allow external services to receive and react to blockchain events as they're processed by the indexer.
+
+## Managing webhook subscriptions
+Webhooks are configured via `config/subscriptions.yaml` and can be filtered by chains and specific contract addresses:
+
+```yaml
+subscriptions:
+  - id: 'S_YOUR_SUBSCRIPTION_ID'
+    url: 'https://your-service.com/webhook'
+    abiPath: 'yearn/3/vault'
+    type: 'timeseries'
+    label: 'your-data-label'
+    filter:
+      # Option 1: Filter by specific contracts
+      contracts:
+        - chainId: 1
+          address: '0x182863131F9a4630fF9E27830d945B1413e347E8'
+      # Option 2: Filter by chain IDs
+      chainIds: [1, 137, 42161]
+      # Option 3: Omit filter to receive all contracts matching abiPath
+```
+
+**Concurrency**: Kong limits webhook calls to 3 concurrent requests per URL to prevent overwhelming external services. Different webhook URLs run independently.
+
+**Authentication**: Webhooks use HMAC-SHA256 signatures for security. Subscription secrets are stored in envars like this:
+```bash
+WEBHOOK_SECRET_S_SUBSCRIBER_ID=secret
+WEBHOOK_SECRET_S_SUBSCRIBER_ID=secret
+WEBHOOK_SECRET_S_SUBSCRIBER_ID=secret
+```
+
+**Generating Secrets**: When Use a cryptographically secure method to generate webhook secrets for subscribers:
+
+```bash
+# Generate a 32-byte hex secret
+openssl rand -hex 32
+
+# Or use Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+## Implementing a webhook subscriber
+
+**Example Implementation**: See `packages/web/app/api/webhook-healthcheck/route.ts` for a complete webhook subscriber example.
+
+**Authentication**: Verify it's Kong that is calling your webhook by verifying the HMAC signature in the `Kong-Signature` header.
+
+Your webhook endpoint will receive POST requests with Kong indexing data. Here's the expected payload structure:
+
+```typescript
+interface WebhookPayload {
+  abiPath: string
+  chainId: number
+  address: `0x${string}`
+  blockNumber: bigint
+  blockTime: bigint
+  subscription: {
+    id: string
+    url: string
+    abiPath: string
+    type: 'timeseries'
+    label: string
+  }
+}
+```
+
+**Required Response**: Return an array of timeseries outputs:
+
+```typescript
+interface WebhookResponse {
+  chainId: number
+  address: `0x${string}`
+  label: string           // Must match subscription.label
+  component?: string      // Optional component name
+  value?: number         // Numeric value (must be finite)
+  blockNumber: bigint
+  blockTime: bigint
+}[]
+```
 
 
 ## Cheats
