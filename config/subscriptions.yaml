@@ -4,3 +4,7 @@ subscriptions:
     abiPath: 'yearn/3/vault'
     type: 'timeseries'
     label: 'webhook-healthcheck'
+    filter:
+      contracts:
+        - chainId: 1
+          address: '0x182863131F9a4630fF9E27830d945B1413e347E8'  # yUSDS vault

@@ -57,12 +57,6 @@ export async function POST(request: NextRequest) {
 
   const hook = KongWebhookSchema.parse(JSON.parse(body))
 
-  // This healthcheck only runs when the address is yUSDS
-  const yUSDS = '0x182863131F9a4630fF9E27830d945B1413e347E8'
-  if(hook.address !== yUSDS) {
-    return new Response(JSON.stringify([]))
-  }
-
   const outputs = OutputSchema.array().parse([
     OutputSchema.parse({
       chainId: hook.chainId,
