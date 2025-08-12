@@ -57,7 +57,7 @@ export class WebhookExtractor {
     data = DataSchema.parse(data)
     const { subscription } = data
 
-    const semaphore = getWebhookSemaphore(subscription.url)
+    const semaphore = getWebhookSemaphore(subscription.url, 3) // throttle to 3 concurrent webhooks per url
     await semaphore.acquire()
 
     try {
