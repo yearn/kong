@@ -61,6 +61,7 @@ const query = gql`
     accountants(chainId: Int): [Accountant]
     accountant(chainId: Int!, address: String!): Accountant
     things(chainId: Int, labels: [String]!): [Thing]
+    tokens(chainId: Int): [Erc20]
     newSplitterLogs(chainId: Int, address: String, splitter: String, manager: String, managerRecipient: String): [NewSplitterLog]
     newYieldSplitterLogs(chainId: Int, address: String, splitter: String, vault: String, want: String): [NewYieldSplitterLog]
     vestingEscrowCreatedLogs(recipient: String): [VestingEscrowCreatedLog]
