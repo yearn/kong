@@ -1,0 +1,41 @@
+cron:
+  name: AbiFanout
+  queue: fanout
+  job: abis
+  schedule: '*/15 * * * *'
+  start: false
+
+abis:
+  - abiPath: 'yearn/2/registry'
+    sources: [
+      { chainId: 1, address: '0xe15461b18ee31b7379019dc523231c57d1cbc18c', inceptBlock: 11563389 },
+      { chainId: 1, address: '0x50c1a2eA0a861A967D9d0FFE2AE4012c2E053804', inceptBlock: 12045555 },
+      { chainId: 10, address: '0x1ba4eB0F44AB82541E56669e18972b0d6037dfE0', inceptBlock: 18097341 },
+      { chainId: 250, address: '0x727fe1759430df13655ddb0731dE0D0FDE929b04', inceptBlock: 18455565 },
+      { chainId: 42161, address: '0x3199437193625DCcD6F9C9e98BDf93582200Eb1f', inceptBlock: 4841854 }
+    ]
+
+  - abiPath: 'yearn/2/registry2'
+    sources: [
+      { chainId: 1, address: '0xaF1f5e1c19cB68B30aAD73846eFfDf78a5863319', inceptBlock: 16215519 },
+      { chainId: 10, address: '0x79286Dd38C9017E5423073bAc11F53357Fc5C128', inceptBlock: 22451152 },
+      { chainId: 8453, address: '0xF3885eDe00171997BFadAa98E01E167B53a78Ec5', inceptBlock: 3263730 }
+    ]
+
+  - abiPath: 'yearn/2/vault'
+    things: {
+      label: 'vault',
+      filter: [{ field: 'apiVersion', op: '<', value: '3.0.0' }]
+    }
+
+  - abiPath: 'yearn/2/strategy'
+    things: {
+      label: 'strategy',
+      filter: [{ field: 'apiVersion', op: '<', value: '3.0.0' }]
+    }
+
+  - abiPath: 'yearn/2/tradeHandler'
+    things: {
+      label: 'tradeHandler',
+      filter: []
+    }
