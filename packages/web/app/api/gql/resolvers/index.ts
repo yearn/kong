@@ -22,6 +22,7 @@ import projects from './projects'
 import accountants from './accountants'
 import accountant from './accountant'
 import things from './things'
+import tokens from './tokens'
 import tvls from './tvls'
 import allocator from './allocator'
 import newSplitterLogs from './splitter'
@@ -56,6 +57,7 @@ const resolvers = {
     accountant,
     allocator,
     things,
+    tokens,
     newSplitterLogs,
     newYieldSplitterLogs,
     vestingEscrowCreatedLogs
