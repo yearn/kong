@@ -120,7 +120,7 @@ type Vault {
   allocator: String
   debts: [Debt]
   fees: Fees
-  risk: RiskScoreLegacy # LEGACY: see riskScore for latest risk data
+  risk: RiskScore
   meta: VaultMeta
   sparklines: Sparklines
   tvl: SparklinePoint

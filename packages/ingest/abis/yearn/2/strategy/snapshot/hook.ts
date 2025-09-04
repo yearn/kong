@@ -7,9 +7,8 @@ import { rpcs } from '../../../../../rpcs'
 import * as things from '../../../../../things'
 import { mq } from 'lib'
 import { estimateCreationBlock } from 'lib/blocks'
-import { fetchOrExtractErc20, thingRisk, throwOnMulticallError } from '../../../lib'
+import { fetchOrExtractErc20, throwOnMulticallError } from '../../../lib'
 import db, { firstRow } from '../../../../../db'
-import { getRiskScore } from '../../../lib/risk'
 import { getStrategyMeta } from '../../../lib/meta'
 import vaultAbi from '../../vault/abi'
 
@@ -53,10 +52,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const lenderStatuses = await extractLenderStatuses(chainId, address)
   const lastReportDetail = await fetchLastReportDetail(chainId, address)
   const claims = await computeRewards(chainId, address, snapshot)
-  const risk = await getRiskScore(chainId, address)
   const meta = await getStrategyMeta(chainId, address)
-  await thingRisk(risk)
-  return { totalDebt, totalDebtUsd, lenderStatuses, lastReportDetail, claims, risk, meta }
+  return { totalDebt, totalDebtUsd, lenderStatuses, lastReportDetail, claims, meta }
 }
 
 async function processTradeFactory(chainId: number, snapshot: Snapshot) {

@@ -36,6 +36,26 @@ type RiskScoreLegacy {
   testingScore: Float
 }
 
+type RiskScore {
+  riskLevel: Int
+  riskScore: RiskScoreDetails
+}
+
+type RiskScoreDetails {
+  review: Int
+  testing: Int
+  complexity: Int
+  riskExposure: Int
+  protocolIntegration: Int
+  centralizationRisk: Int
+  externalProtocolAudit: Int
+  externalProtocolCentralisation: Int
+  externalProtocolTvl: Int
+  externalProtocolLongevity: Int
+  externalProtocolType: Int
+  comment: String
+}
+
 type TokenMeta {
   type: String
   category: String

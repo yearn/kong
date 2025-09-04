@@ -1,48 +1,27 @@
 import { cache } from 'lib'
-import { RiskGroup, RiskGroupSchema, RiskScore, RiskScoreSchema } from 'lib/types'
-import { getAddress } from 'viem'
+import { RiskScore, RiskScoreSchema } from 'lib/types'
 
-export async function getRiskScore(chainId: number, address: `0x${string}`) : Promise<RiskScore | undefined> {
-  return undefined
-
-  // try {
-  //   address = getAddress(address)
-  //   const groups = await getRiskGroups(chainId)
-  //   const group = groups.find(g => g.strategies.includes(address))
-  //   return group ? RiskScoreSchema.parse(group) : undefined
-
-  // } catch (error) {
-  //   console.error('🤬', error)
-  //   return undefined
-
-  // }
+export async function getRiskScore(chainId: number, address: `0x${string}`): Promise<RiskScore | undefined> {
+  return cache.wrap(`abis/yearn/lib/risk/${chainId}/${address.toLowerCase()}`, async () => {
+    return await fetchRiskScore(chainId, address)
+  }, 5 * 60 * 1000)
 }
 
-async function getRiskGroups(chainId: number): Promise<RiskGroup[]> {
-  return cache.wrap(`abis/yearn/lib/risk/${chainId}`, async () => {
-    return await extractRiskGroups(chainId)
-  }, 30 * 60 * 1000)
-}
+async function fetchRiskScore(chainId: number, address: `0x${string}`): Promise<RiskScore | undefined> {
+  try {
+    const baseUrl = process.env.RISK_CDN_URL || 'https://risk.yearn.fi'
+    const url = `${baseUrl}/cdn/vaults/${chainId}/${address.toLowerCase()}.json`
+    const response = await fetch(url)
 
-async function extractRiskGroups(chainId: number) {
-  if(!process.env.GITHUB_PERSONAL_ACCESS_TOKEN) throw new Error('!process.env.GITHUB_PERSONAL_ACCESS_TOKEN')
+    if (!response.ok) {
+      console.warn('⚠️', '!risk, status code', response.status, chainId, address)
+      return undefined
+    }
 
-  const response = await fetch(
-    `https://api.github.com/repos/yearn/ydaemon/contents/data/risks/networks/${chainId}`,
-    { headers: { Authorization: `Bearer ${process.env.GITHUB_PERSONAL_ACCESS_TOKEN}` } }
-  )
-
-  const json = await response.json()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const files = json.map((file: any) => file.path)
-  const paths = files.filter((path: string) => path.endsWith('.json'))
-  const responses = await Promise.all(paths.map((path: string) => fetch(
-    `https://raw.githubusercontent.com/yearn/ydaemon/main/${path}`,
-    { headers: { Authorization: `Bearer ${process.env.GITHUB_PERSONAL_ACCESS_TOKEN}` } }
-  )))
-
-  const jsons = await Promise.all(responses.map(response => response.json()))
-  return jsons.map(json => RiskGroupSchema.parse({
-    ...json, strategies: json.strategies.map((s: string) => getAddress(s))
-  }))
+    const json = await response.json()
+    return RiskScoreSchema.parse(json)
+  } catch (error) {
+    console.warn('⚠️', '!risk', error, chainId, address)
+    return undefined
+  }
 }
