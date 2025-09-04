@@ -211,6 +211,24 @@ export const RiskScoreSchema = z.object({
 
 export type RiskScore = z.infer<typeof RiskScoreSchema>
 
+export const DefaultRiskScore = RiskScoreSchema.parse({
+  riskLevel: 0,
+  riskScore: {
+    review: 0,
+    testing: 0,
+    complexity: 0,
+    riskExposure: 0,
+    protocolIntegration: 0,
+    centralizationRisk: 0,
+    externalProtocolAudit: 0,
+    externalProtocolCentralisation: 0,
+    externalProtocolTvl: 0,
+    externalProtocolLongevity: 0,
+    externalProtocolType: 0,
+    comment: 'unrated'
+  }
+})
+
 export const TokenMetaSchema = z.object({
   type: z.string(),
   category: z.string(),
