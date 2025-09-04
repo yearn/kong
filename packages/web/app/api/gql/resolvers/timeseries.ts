@@ -1,5 +1,6 @@
 import db from '@/app/api/db'
 import { snakeToCamelCols } from '@/lib/strings'
+import { getAddress } from 'viem'
 
 const timeseries = async (_: object, args: {
   chainId?: number,
@@ -49,7 +50,7 @@ async function alltimeseries(args: {
     GROUP BY chain_id, address, component, time
     ORDER BY time ASC
     LIMIT $6`,
-  [chainId, address, label, component, period ?? '1 day', limit ?? 100, timestamp])
+  [chainId, address ? getAddress(address) : null, label, component, period ?? '1 day', limit ?? 100, timestamp])
 }
 
 async function yearntimeseries(args: {

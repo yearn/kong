@@ -1,5 +1,6 @@
 import db from '@/app/api/db'
 import { snakeToCamelCols } from '@/lib/strings'
+import { getAddress } from 'viem'
 
 const tvls = async (_: object, args: {
   chainId: number,
@@ -54,7 +55,7 @@ const tvls = async (_: object, args: {
       ON t.chain_id = p.chain_id
       AND t.asset_address = p.address
       AND t.block_number = p.block_number`,
-    [chainId, address, period ?? '1 day', timestamp, limit ?? 100])
+    [chainId, address ? getAddress(address) : null, period ?? '1 day', timestamp, limit ?? 100])
 
     return snakeToCamelCols(result.rows)
 

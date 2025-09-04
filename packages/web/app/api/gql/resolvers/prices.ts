@@ -1,5 +1,5 @@
 import db from '@/app/api/db'
-import { snakeToCamelCols } from '@/lib/strings'
+import { getAddress } from 'viem'
 
 const prices = async (_: object, args: { chainId?: number, address?: `0x${string}`, timestamp?: bigint }) => {
   const { chainId, address, timestamp } = args
@@ -18,7 +18,7 @@ const prices = async (_: object, args: { chainId?: number, address?: `0x${string
       AND (address = $2 OR $2 IS NULL)
       AND (block_time > to_timestamp($3) OR $3 IS NULL)
     ORDER BY block_time ASC`,
-    [chainId, address, timestamp])
+    [chainId, address ? getAddress(address) : null, timestamp])
 
     return result.rows
 

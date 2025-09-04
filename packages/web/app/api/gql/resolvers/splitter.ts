@@ -1,6 +1,7 @@
 import db from '@/app/api/db'
 import { snakeToCamelObject } from '@/lib/strings'
 import { EvmAddressSchema } from 'lib/types'
+import { getAddress } from 'viem'
 import { z } from 'zod'
 
 const NewSplitterLogSchema = z.object({
@@ -29,7 +30,7 @@ const newSplitterLogs = async (_: object, args: { chainId?: number, address?: st
     WHERE
       (chain_id = $1 OR $1 IS NULL) AND (address = $2 OR $2 IS NULL)
       AND event_name = 'NewSplitter';`,
-    [chainId, address])
+    [chainId, address ? getAddress(address) : null])
 
     const results = NewSplitterLogSchema.array().parse(result.rows.map(row => ({
       chainId: row.chain_id,

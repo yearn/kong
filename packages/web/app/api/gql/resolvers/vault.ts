@@ -1,4 +1,5 @@
 import db from '@/app/api/db'
+import { getAddress } from 'viem'
 
 const vault = async (_: object, args: { chainId: number, address: `0x${string}` }) => {
   const { chainId, address } = args
@@ -18,7 +19,7 @@ const vault = async (_: object, args: { chainId: number, address: `0x${string}` 
     WHERE thing.chain_id = $1
       AND thing.address = $2
       AND thing.label = $3`,
-    [chainId, address, 'vault'])
+    [chainId, getAddress(address), 'vault'])
 
     const [first] = result.rows.map(row => ({
       chainId: row.chain_id,
