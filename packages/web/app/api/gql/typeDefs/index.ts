@@ -47,7 +47,7 @@ const query = gql`
     vaultStrategies(chainId: Int, vault: String): [Strategy]
     prices(chainId: Int, address: String, timestamp: BigInt): [Price]
     projects(chainId: Int): [Project]
-    riskScores: [RiskScore]
+    riskScores: [RiskScoreLegacy]
     strategies(chainId: Int, apiVersion: String, erc4626: Boolean): [Strategy]
     strategy(chainId: Int, address: String): Strategy
     strategyReports(chainId: Int, address: String): [StrategyReport]

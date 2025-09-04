@@ -26,7 +26,7 @@ type LenderStatus {
   address: String
 }
 
-type RiskScore {
+type RiskScoreLegacy {
   label: String
   auditScore: Float
   codeReviewScore: Float

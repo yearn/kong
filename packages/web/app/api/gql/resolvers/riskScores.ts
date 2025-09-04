@@ -1,5 +1,6 @@
 import db from '@/app/api/db'
 
+// LEGACY: This is the legacy risk scores resolver
 const riskScores = async () => {
   try {
     const result = await db.query(`
