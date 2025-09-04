@@ -9,9 +9,11 @@ const vaults = async (_: object, args: {
   v3?: boolean,
   yearn?: boolean,
   addresses?: string[],
-  vaultType?: number
+  vaultType?: number,
+  riskLevel?: number,
+  unratedOnly?: boolean
 }) => {
-  const { chainId, apiVersion, erc4626, v3, yearn, addresses: rawAddresses, vaultType } = args
+  const { chainId, apiVersion, erc4626, v3, yearn, addresses: rawAddresses, vaultType, riskLevel, unratedOnly } = args
 
   try {
 
@@ -78,6 +80,17 @@ const vaults = async (_: object, args: {
     if (vaultType !== undefined) {
       rows = rows.filter(row => {
         return Number(row.vaultType ?? 0) === vaultType
+      })
+    }
+
+    if (unratedOnly === true) {
+      rows = rows.filter(row => {
+        return row.risk?.riskLevel === undefined
+      })
+    } else if (riskLevel !== undefined) {
+      rows = rows.filter(row => {
+        const rowRiskLevel = row.risk?.riskLevel
+        return rowRiskLevel !== undefined && rowRiskLevel <= riskLevel
       })
     }
 
