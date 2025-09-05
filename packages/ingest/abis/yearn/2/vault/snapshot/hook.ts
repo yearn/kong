@@ -1,13 +1,13 @@
 import { z } from 'zod'
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { rpcs } from '../../../../../rpcs'
-import { RiskScoreSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
+import { ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
 import db, { getLatestApy, getSparkline } from '../../../../../db'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { priced } from 'lib/math'
 import { getRiskScore } from '../../../lib/risk'
 import { getTokenMeta, getVaultMeta } from '../../../lib/meta'
-import { fetchOrExtractErc20, thingRisk, throwOnMulticallError } from '../../../lib'
+import { fetchOrExtractErc20, throwOnMulticallError } from '../../../lib'
 import { mq } from 'lib'
 import { compare } from 'compare-versions'
 
@@ -29,7 +29,6 @@ export const ResultSchema = z.object({
     totalLoss: z.bigint(),
     totalLossUsd: z.number()
   })),
-  risk: RiskScoreSchema,
   meta: VaultMetaSchema.merge(z.object({ token: TokenMetaSchema }))
 })
 
@@ -54,8 +53,6 @@ export default async function process(chainId: number, address: `0x${string}`, d
   }
 
   const apy = await getLatestApy(chainId, address)
-
-  await thingRisk(risk)
 
   return {
     asset: erc20,

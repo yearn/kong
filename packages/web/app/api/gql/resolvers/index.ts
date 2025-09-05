@@ -14,7 +14,7 @@ import accountStrategies from './accountStrategies'
 import vaultReports from './vaultReports'
 import strategyReports from './strategyReports'
 import strategy from './strategy'
-import riskScores from './riskScores'
+import riskScores from './riskScores' // LEGACY
 import vaultStrategies from './vaultStrategies'
 import vaultAccounts from './vaultAccounts'
 import prices from './prices'
@@ -42,7 +42,7 @@ const resolvers = {
     vaultStrategies,
     prices,
     projects,
-    riskScores,
+    riskScores, // LEGACY
     strategies,
     strategy,
     strategyReports,

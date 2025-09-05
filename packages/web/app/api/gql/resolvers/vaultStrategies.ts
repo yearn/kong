@@ -1,4 +1,5 @@
 import db from '@/app/api/db'
+import { getAddress } from 'viem'
 
 const vaultStrategies = async (_: object, args: { chainId: number, vault: string }) => {
   const { chainId, vault } = args
@@ -31,7 +32,7 @@ const vaultStrategies = async (_: object, args: { chainId: number, vault: string
         )
       )
     ORDER BY snapshot.hook->>'totalDebtUsd' DESC;`,
-    [chainId, vault])
+    [chainId, getAddress(vault)])
 
     return result.rows.map(row => ({
       chainId: row.chain_id,

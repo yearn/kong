@@ -40,14 +40,14 @@ const query = gql`
     latestBlocks(chainId: Int): [LatestBlock] @cacheControl(maxAge: 2)
     monitor: Monitor @cacheControl(maxAge: 2)
     allocator(chainId: Int!, vault: String!): Allocator
-    vaults(chainId: Int, apiVersion: String, erc4626: Boolean, v3: Boolean, yearn: Boolean, addresses: [String], vaultType: Int): [Vault]
+    vaults(chainId: Int, apiVersion: String, erc4626: Boolean, v3: Boolean, yearn: Boolean, addresses: [String], vaultType: Int, riskLevel: Int, unratedOnly: Boolean): [Vault]
     vault(chainId: Int, address: String): Vault
     vaultAccounts(chainId: Int, vault: String): [AccountRole]
     vaultReports(chainId: Int, address: String): [VaultReport]
     vaultStrategies(chainId: Int, vault: String): [Strategy]
     prices(chainId: Int, address: String, timestamp: BigInt): [Price]
     projects(chainId: Int): [Project]
-    riskScores: [RiskScore]
+    riskScores: [RiskScoreLegacy]
     strategies(chainId: Int, apiVersion: String, erc4626: Boolean): [Strategy]
     strategy(chainId: Int, address: String): Strategy
     strategyReports(chainId: Int, address: String): [StrategyReport]

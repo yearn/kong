@@ -1,4 +1,5 @@
 import db from '@/app/api/db'
+import { getAddress } from 'viem'
 
 const strategyReports = async (_: object, args: { chainId?: number, address?: string }) => {
   const { chainId, address } = args
@@ -37,7 +38,7 @@ const strategyReports = async (_: object, args: { chainId?: number, address?: st
     ORDER BY
       block_time DESC, log_index DESC
     LIMIT 1000;`,
-    [chainId, address])
+    [chainId, address ? getAddress(address) : null])
 
     return result.rows
   } catch (error) {

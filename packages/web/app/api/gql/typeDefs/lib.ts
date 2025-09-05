@@ -26,7 +26,7 @@ type LenderStatus {
   address: String
 }
 
-type RiskScore {
+type RiskScoreLegacy {
   label: String
   auditScore: Float
   codeReviewScore: Float
@@ -34,6 +34,26 @@ type RiskScore {
   protocolSafetyScore: Float
   teamKnowledgeScore: Float
   testingScore: Float
+}
+
+type RiskScore {
+  riskLevel: Int
+  riskScore: RiskScoreDetails
+}
+
+type RiskScoreDetails {
+  review: Int
+  testing: Int
+  complexity: Int
+  riskExposure: Int
+  protocolIntegration: Int
+  centralizationRisk: Int
+  externalProtocolAudit: Int
+  externalProtocolCentralisation: Int
+  externalProtocolTvl: Int
+  externalProtocolLongevity: Int
+  externalProtocolType: Int
+  comment: String
 }
 
 type TokenMeta {

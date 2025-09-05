@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { rpcs } from '../../../../../rpcs'
-import { EvmAddressSchema, RiskScoreSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
+import { EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
 import { mq } from 'lib'
 import { estimateCreationBlock } from 'lib/blocks'
 import db, { getLatestApy, getSparkline } from '../../../../../db'
@@ -10,7 +10,7 @@ import { priced } from 'lib/math'
 import { getRiskScore } from '../../../lib/risk'
 import { getTokenMeta, getVaultMeta } from '../../../lib/meta'
 import { snakeToCamelCols } from 'lib/strings'
-import { fetchOrExtractErc20, thingRisk } from '../../../lib'
+import { fetchOrExtractErc20 } from '../../../lib'
 import { Roles } from '../../../lib/types'
 import accountantAbi from '../../accountant/abi'
 import * as things from '../../../../../things'
@@ -31,7 +31,6 @@ export const ResultSchema = z.object({
     managementFee: z.number(),
     performanceFee: z.number()
   }),
-  risk: RiskScoreSchema,
   meta: VaultMetaSchema.merge(z.object({ token: TokenMetaSchema }))
 })
 
@@ -81,8 +80,6 @@ export default async function process(chainId: number, address: `0x${string}`, d
   }
 
   const apy = await getLatestApy(chainId, address)
-
-  await thingRisk(risk)
 
   return {
     asset, strategies, allocator, roles, debts, fees,

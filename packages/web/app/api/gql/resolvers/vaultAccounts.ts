@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import db from '@/app/api/db'
 import { zhexstring } from 'lib/types'
+import { getAddress } from 'viem'
 
 const vaultAccounts = async (_: object, args: { chainId?: number, vault: `0x${string}` }) => {
   const { chainId, vault } = args
@@ -15,7 +16,7 @@ const vaultAccounts = async (_: object, args: { chainId?: number, vault: `0x${st
     FROM snapshot,
       jsonb_to_recordset(hook->'roles') AS role_record(account text, "roleMask" text)
     WHERE chain_id = $1 AND address = $2;`,
-    [chainId, vault])
+    [chainId, getAddress(vault)])
 
     return z.object({
       chainId: z.number(),

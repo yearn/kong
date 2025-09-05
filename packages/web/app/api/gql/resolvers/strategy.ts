@@ -1,4 +1,5 @@
 import db from '@/app/api/db'
+import { getAddress } from 'viem'
 
 const strategy = async (_: object, args: { chainId: number, address: `0x${string}` }) => {
   const { chainId, address } = args
@@ -17,7 +18,7 @@ const strategy = async (_: object, args: { chainId: number, address: `0x${string
       AND thing.address = snapshot.address
     WHERE thing.label = $1 AND thing.chain_id = $2 AND thing.address = $3
     ORDER BY snapshot.hook->>'totalDebtUsd' DESC`,
-    ['strategy', chainId, address])
+    ['strategy', chainId, getAddress(address)])
 
     const [first] = result.rows.map(row => ({
       chainId: row.chain_id,

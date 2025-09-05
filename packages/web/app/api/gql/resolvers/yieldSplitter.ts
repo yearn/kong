@@ -1,5 +1,6 @@
 import db from '@/app/api/db'
 import { compareEvmAddresses, EvmAddressSchema } from 'lib/types'
+import { getAddress } from 'viem'
 import { z } from 'zod'
 
 const NewYieldSplitterLogSchema = z.object({
@@ -27,7 +28,7 @@ const newYieldSplitterLogs = async (_: object, args: { chainId?: number, address
     WHERE
       (chain_id = $1 OR $1 IS NULL) AND (address = $2 OR $2 IS NULL)
       AND event_name = 'NewYieldSplitter';`,
-    [chainId, address])
+    [chainId, address ? getAddress(address) : null])
 
     const results = NewYieldSplitterLogSchema.array().parse(result.rows.map(row => ({
       chainId: row.chain_id,

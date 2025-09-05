@@ -1,4 +1,5 @@
 import db from '@/app/api/db'
+import { getAddress } from 'viem'
 
 const vaultReports = async (_: object, args: { chainId?: number, address?: string }) => {
   const { chainId, address } = args
@@ -47,7 +48,7 @@ const vaultReports = async (_: object, args: { chainId?: number, address?: strin
     ORDER BY
       block_time DESC, log_index DESC
     LIMIT 1000;`,
-    [chainId, address])
+    [chainId, address ? getAddress(address) : null])
 
     return result.rows
   } catch (error) {

@@ -192,22 +192,42 @@ export interface Transfer {
 }
 
 export const RiskScoreSchema = z.object({
-  label: z.string(),
-  auditScore: z.number(),
-  codeReviewScore: z.number(),
-  complexityScore: z.number(),
-  protocolSafetyScore: z.number(),
-  teamKnowledgeScore: z.number(),
-  testingScore: z.number()
+  riskLevel: z.number(),
+  riskScore: z.object({
+    review: z.number(),
+    testing: z.number(),
+    complexity: z.number(),
+    riskExposure: z.number(),
+    protocolIntegration: z.number(),
+    centralizationRisk: z.number(),
+    externalProtocolAudit: z.number(),
+    externalProtocolCentralisation: z.number(),
+    externalProtocolTvl: z.number(),
+    externalProtocolLongevity: z.number(),
+    externalProtocolType: z.number(),
+    comment: z.string().optional()
+  })
 })
 
 export type RiskScore = z.infer<typeof RiskScoreSchema>
 
-export const RiskGroupSchema = RiskScoreSchema.merge(z.object({
-  strategies: zhexstring.array()
-}))
-
-export type RiskGroup = z.infer<typeof RiskGroupSchema>
+export const DefaultRiskScore = RiskScoreSchema.parse({
+  riskLevel: 0,
+  riskScore: {
+    review: 0,
+    testing: 0,
+    complexity: 0,
+    riskExposure: 0,
+    protocolIntegration: 0,
+    centralizationRisk: 0,
+    externalProtocolAudit: 0,
+    externalProtocolCentralisation: 0,
+    externalProtocolTvl: 0,
+    externalProtocolLongevity: 0,
+    externalProtocolType: 0,
+    comment: 'unrated'
+  }
+})
 
 export const TokenMetaSchema = z.object({
   type: z.string(),

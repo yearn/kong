@@ -71,7 +71,7 @@ type Strategy {
   totalDebtUsd: Float
   lenderStatuses: [LenderStatus]
   claims: [Reward]
-  risk: RiskScore
+  risk: RiskScoreLegacy # LEGACY: Returns legacy risk data at the strategy level
   meta: StrategyMeta
   v3: Boolean
   yearn: Boolean
