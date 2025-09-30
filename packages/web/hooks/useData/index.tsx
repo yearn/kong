@@ -64,10 +64,10 @@ export default function DataProvider({ children }: { children: ReactNode }) {
 
   const { data: status } = useSWR(
     `${endpoint}?status`,
-    (...args) => fetch(...args, { 
+    (...args) => fetch(...args, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         query: STATUS_QUERY
       })
     }).then(res => res.json()).catch(reason => {

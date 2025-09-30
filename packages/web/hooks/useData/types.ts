@@ -22,33 +22,6 @@ export const VaultSchema = z.object({
   })
 })
 
-const TransferSchema = z.object({
-  chainId: z.number(),
-  address: z.string(),
-  sender: z.string(),
-  receiver: z.string(),
-  valueUsd: z.number().nullish(),
-  blockTime: z.bigint({ coerce: true }),
-  transactionHash: z.string()
-})
-
-export type Transfer = z.infer<typeof TransferSchema>
-
-const HarvestSchema = z.object({
-  chainId: z.number(),
-  address: z.string(),
-  lossUsd: z.number().nullish(),
-  profitUsd: z.number().nullish(),
-  apr: z.object({
-    gross: z.number(),
-    net: z.number()
-  }).nullish(),
-  blockTime: z.string(),
-  transactionHash: z.string()
-})
-
-export type Harvest = z.infer<typeof HarvestSchema>
-
 const QueueSchema = z.object({
   name: z.string(),
   waiting: z.number(),
@@ -81,18 +54,6 @@ const CpuSchema = z.object({
 const IngestSchema = z.object({
   cpu: CpuSchema,
   memory: MemorySchema
-})
-
-const NetworksSchema = z.object({
-  chainId: z.number(),
-  count: z.number()
-})
-
-const ApetaxSchema = z.object({
-  stealth: z.number(),
-  new: z.number(),
-  active: z.number(),
-  withdraw: z.number()
 })
 
 const MonitorSchema = z.object({

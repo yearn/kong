@@ -13,7 +13,7 @@ type QueueStatus {
   name: String!
   waiting: Int!
   active: Int!
-  failed: Int!    
+  failed: Int!
 }
 
 type RedisMemory {
@@ -25,7 +25,7 @@ type RedisMemory {
 
 type RedisInfo {
   version: String!
-  mode: String!
+  mode: String
   os: String!
   uptime: Int!
   clients: Int!
