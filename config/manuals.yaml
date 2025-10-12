@@ -116,3 +116,101 @@ manuals:
     defaults: {
       yearn: true
     }
+
+  # Missing vaults from yDaemon parity check (2025-10-10)
+
+  - chainId: 1
+    address: '0x888239ffa9a0613f9142c808aa9f7d1948a14f75'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      yearn: true,
+      asset: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+      apiVersion: '3.0.4',
+      decimals: 18,
+      inceptBlock: 22895856
+    }
+
+  - chainId: 42161
+    address: '0x3ce71021cca8a2902764a43c60ff5f8a312245f9'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      yearn: true,
+      asset: '0x35751007a407ca6feffe80b3cb397736d2cf4dbe',
+      apiVersion: '3.0.2',
+      decimals: 18,
+      inceptBlock: 223548905
+    }
+
+  - chainId: 42161
+    address: '0x45aceaa535830c921316085e355e4a32385e53f2'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      yearn: true,
+      asset: '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9',
+      apiVersion: '3.0.1',
+      decimals: 18,
+      inceptBlock: 233239437
+    }
+
+  - chainId: 100
+    address: '0x39b68451f05aaa020611cf887a7338f0991ffd60'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      yearn: false,
+      asset: '0xcb444e90d8198415266c6a2724b7900fb12fc56e',
+      apiVersion: '3.0.2',
+      decimals: 18,
+      inceptBlock: 33279667
+    }
+
+  - chainId: 137
+    address: '0x0fefee13864c431717f5b2678607b6ce532a170c'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      yearn: true,
+      asset: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f',
+      apiVersion: '3.0.1',
+      decimals: 18,
+      inceptBlock: 59497050
+    }
+
+  - chainId: 8453
+    address: '0x630db4ae19219025df594c943b638b5acb5e9d18'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      yearn: true,
+      asset: '0x4200000000000000000000000000000000000006',
+      apiVersion: '3.0.2',
+      decimals: 18,
+      inceptBlock: 18127728
+    }
+
+  - chainId: 8453
+    address: '0x70fffbacb53ef74903ac074aae769414a70970d1'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      yearn: true,
+      asset: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+      apiVersion: '3.0.4',
+      decimals: 18,
+      inceptBlock: 34341223
+    }
+
+  - chainId: 8453
+    address: '0xd80c675366966ef42b175125bbf1acb1db4151ac'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      yearn: true,
+      asset: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+      apiVersion: '3.0.2',
+      decimals: 18,
+      inceptBlock: 18127728
+    }
