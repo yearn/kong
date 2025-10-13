@@ -148,7 +148,8 @@ abis:
 
   - abiPath: 'yearn/3/yieldSplitter/factory'
     sources: [
-      { chainId: 747474, address: '0x72bd640a903DAE71E1eaA315f31F4dA33C82872d', inceptBlock: 3426919 }
+      { chainId: 747474, address: '0x72bd640a903DAE71E1eaA315f31F4dA33C82872d', inceptBlock: 3426919, comment: 'test implementation, obsolete' },
+      { chainId: 747474, address: '0xfb277c7DfDa414aF824AF08c3596d6c28570347d', inceptionBlock: 12596938 }
     ]
 
   - abiPath: 'yearn/2/registry'
