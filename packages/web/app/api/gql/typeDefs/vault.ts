@@ -48,8 +48,11 @@ type Role {
 
 type Apy {
   net: Float
+  pricePerShare: BigInt
   weeklyNet: Float
+  weeklyPricePerShare: BigInt
   monthlyNet: Float
+  monthlyPricePerShare: BigInt
   inceptionNet: Float
   grossApr: Float
   blockNumber: String!
