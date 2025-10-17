@@ -113,6 +113,9 @@ export async function getLatestApy(chainId: number, address: string) {
     MAX(CASE WHEN component = 'monthlyNet' THEN value END) AS "monthlyNet",
     MAX(CASE WHEN component = 'inceptionNet' THEN value END) AS "inceptionNet",
     MAX(CASE WHEN component = 'grossApr' THEN value END) AS "grossApr",
+    MAX(CASE WHEN component = 'pricePerShare' THEN value END) AS "pricePerShare",
+    MAX(CASE WHEN component = 'weeklyPricePerShare' THEN value END) AS "weeklyPricePerShare",
+    MAX(CASE WHEN component = 'monthlyPricePerShare' THEN value END) AS "monthlyPricePerShare",
     block_number as "blockNumber",
     block_time as "blockTime"
   FROM output
@@ -139,6 +142,9 @@ export async function getLatestApy(chainId: number, address: string) {
     monthlyNet: z.number().nullish(),
     inceptionNet: z.number().nullish(),
     grossApr: z.number().nullish(),
+    pricePerShare: z.bigint({ coerce: true }).nullish(),
+    weeklyPricePerShare: z.bigint({ coerce: true }).nullish(),
+    monthlyPricePerShare: z.bigint({ coerce: true }).nullish(),
     blockNumber: z.bigint({ coerce: true }),
     blockTime: z.bigint({ coerce: true })
   }).parse(first)
