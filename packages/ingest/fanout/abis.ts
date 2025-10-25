@@ -1,4 +1,4 @@
-import { abisConfig, mq } from 'lib'
+import { abisConfig, chains, mq } from 'lib'
 import * as things from '../things'
 
 export default class AbisFanout {
@@ -14,7 +14,8 @@ export default class AbisFanout {
       }
 
       if (abi.things) {
-        const _things = await things.get(abi.things)
+        const chainIds = chains.map(chain => chain.id) as number[]
+        const _things = (await things.get(abi.things)).filter(thing => chainIds.includes(thing.chainId))
         for (const _thing of _things) {
           console.info('🤝', 'thing', 'abiPath', abi.abiPath, _thing.chainId, _thing.address)
           const _data = {
