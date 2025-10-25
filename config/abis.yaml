@@ -86,14 +86,17 @@ abis:
       label: 'vault',
       filter: [
         { field: 'apiVersion', op: '>=', value: '3.0.0' },
-        { field: 'yearn', op: '=', value: 'true' }
+        { field: 'origin', op: '=', value: 'yearn' }
       ]
     }
 
   - abiPath: 'yearn/3/strategy'
     things: {
       label: 'strategy',
-      filter: [{ field: 'apiVersion', op: '>=', value: '3.0.0' }]
+      filter: [
+        { field: 'apiVersion', op: '>=', value: '3.0.0' },
+        { field: 'origin', op: '=', value: 'yearn' }
+      ]
     }
 
   - abiPath: 'yearn/3/accountant'
