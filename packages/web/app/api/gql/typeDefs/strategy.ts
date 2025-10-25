@@ -75,5 +75,6 @@ type Strategy {
   meta: StrategyMeta
   v3: Boolean
   yearn: Boolean
+  origin: String
 }
 `

@@ -41,6 +41,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     label: 'strategy',
     defaults: {
       yearn: true,
+      origin: 'yearn',
       vault,
       asset: erc20,
       decimals,

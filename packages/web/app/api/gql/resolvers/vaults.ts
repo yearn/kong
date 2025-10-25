@@ -1,6 +1,6 @@
 import db from '@/app/api/db'
 import { compare } from '@/lib/compare'
-import { DefaultRiskScore, EvmAddressSchema, RiskScoreSchema } from 'lib/types'
+import { DefaultRiskScore, EvmAddressSchema } from 'lib/types'
 
 const vaults = async (_: object, args: {
   chainId?: number,
@@ -8,12 +8,13 @@ const vaults = async (_: object, args: {
   erc4626?: boolean,
   v3?: boolean,
   yearn?: boolean,
+  origin?: string,
   addresses?: string[],
   vaultType?: number,
   riskLevel?: number,
   unratedOnly?: boolean
 }) => {
-  const { chainId, apiVersion, erc4626, v3, yearn, addresses: rawAddresses, vaultType, riskLevel, unratedOnly } = args
+  const { chainId, apiVersion, erc4626, v3, yearn, origin, addresses: rawAddresses, vaultType, riskLevel, unratedOnly } = args
 
   try {
 
@@ -74,8 +75,24 @@ const vaults = async (_: object, args: {
 
     if (yearn !== undefined) {
       rows = rows.filter(row => {
-        return Boolean(row.yearn ?? false) === yearn
+        if (yearn === true) {
+          return Boolean(row.yearn ?? false) === true || row.origin === 'yearn'
+        } else {
+          return Boolean(row.yearn ?? false) === false || row.origin !== 'yearn'
+        }
       })
+    }
+
+    if (origin !== undefined) {
+      if (origin === 'yearn') {
+        rows = rows.filter(row => {
+          return Boolean(row.yearn ?? false) === true || row.origin === 'yearn'
+        })
+      } else {
+        rows = rows.filter(row => {
+          return row.origin === origin
+        })
+      }
     }
 
     if (vaultType !== undefined) {
