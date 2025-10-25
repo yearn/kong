@@ -131,5 +131,6 @@ type Vault {
   roles: [Role]
   v3: Boolean
   yearn: Boolean
+  origin: String
 }
 `

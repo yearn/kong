@@ -1,0 +1,14 @@
+manuals:
+
+  - chainId: 8453
+    address: '0x944766f715b51967E56aFdE5f0Aa76cEaCc9E7f9'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: false,
+      yearn: false,
+      asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      decimals: 6,
+      inceptBlock: 120449927,
+      inceptTime: 1746475979
+    }

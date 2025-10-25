@@ -5,6 +5,7 @@ manuals:
     defaults: {
       erc4626: true,
       yearn: true,
+      origin: 'yearn',
       asset: '0x0CA1C1eC4EBf3CC67a9f545fF90a3795b318cA4a',
       apiVersion: '3.0.2',
       decimals: 18,
@@ -18,6 +19,7 @@ manuals:
     defaults: {
       erc4626: true,
       yearn: true,
+      origin: 'yearn',
       asset: '0x0CA1C1eC4EBf3CC67a9f545fF90a3795b318cA4a',
       apiVersion: '3.0.2',
       decimals: 18,
@@ -31,6 +33,7 @@ manuals:
     defaults: {
       erc4626: true,
       yearn: false,
+      origin: 'yearn',
       asset: '0xcB444e90D8198415266c6a2724b7900fb12FC56E',
       apiVersion: '3.0.1',
       decimals: 18,
@@ -44,6 +47,7 @@ manuals:
     defaults: {
       erc4626: true,
       yearn: false,
+      origin: 'yearn',
       asset: '0xcB444e90D8198415266c6a2724b7900fb12FC56E',
       apiVersion: '3.0.1',
       decimals: 18,
@@ -57,6 +61,7 @@ manuals:
     defaults: {
       erc4626: true,
       yearn: true,
+      origin: 'yearn',
       asset: '0xcB444e90D8198415266c6a2724b7900fb12FC56E',
       apiVersion: '3.0.2',
       decimals: 18,
@@ -70,6 +75,7 @@ manuals:
     defaults: {
       erc4626: true,
       yearn: true,
+      origin: 'yearn',
       asset: '0xcB444e90D8198415266c6a2724b7900fb12FC56E',
       apiVersion: '3.0.2',
       decimals: 18,
@@ -83,6 +89,7 @@ manuals:
     defaults: {
       erc4626: true,
       yearn: true,
+      origin: 'yearn',
       asset: '0xcB444e90D8198415266c6a2724b7900fb12FC56E',
       apiVersion: '3.0.2',
       decimals: 18,
@@ -96,6 +103,7 @@ manuals:
     defaults: {
       erc4626: true,
       yearn: true,
+      origin: 'yearn',
       asset: '0xcB444e90D8198415266c6a2724b7900fb12FC56E',
       apiVersion: '3.0.2',
       decimals: 18,
@@ -107,12 +115,14 @@ manuals:
     address: '0x982940eBfC5caa2F5b5a82AAc2Dfa99F18BB7dA4'
     label: 'vault'
     defaults: {
-      yearn: true
+      yearn: true,
+      origin: 'yearn',
     }
 
   - chainId: 80094
     address: '0xC82971BcFF09171e16Ac08AEE9f4EA3fB16C3BDC'
     label: 'vault'
     defaults: {
-      yearn: true
+      yearn: true,
+      origin: 'yearn',
     }

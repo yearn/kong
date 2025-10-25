@@ -7,7 +7,6 @@ chains: [
   'sonic',
   'fantom',
   'base',
-  'mode',
   'arbitrum',
   'bera',
   'katana'

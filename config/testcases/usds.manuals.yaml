@@ -6,8 +6,8 @@ manuals:
     defaults: {
       erc4626: true,
       v3: true,
-      cove: false,
       yearn: true,
+      origin: 'yearn',
       apiVersion: '3.0.3',
       registry: '0xff31A1B020c868F6eA3f61Eb953344920EeCA3af',
       asset: '0xdC035D45d973E3EC169d2276DDab16f1e407384F',

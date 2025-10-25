@@ -76,7 +76,7 @@ async function yearntimeseries(args: {
     JOIN thing ON
       output.chain_id = thing.chain_id
       AND output.address = thing.address
-      AND thing.defaults->>'yearn' = 'true'
+      AND (thing.defaults->>'origin' = 'yearn' OR thing.defaults->>'yearn' = 'true')
     WHERE (output.chain_id = $1 OR $1 IS NULL)
       AND (output.address = $2 OR $2 IS NULL)
       AND output.label = $3
