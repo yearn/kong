@@ -9,7 +9,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
   const sparklines = {
     tvl: await getSparkline(chainId, address, 'tvl'),
-    apy: await getSparkline(chainId, address, 'apy-bwd-delta-pps', 'net')
+    apy: await getSparkline(chainId, address, 'apy-bwd-delta-pps', 'net'),
+    pps: await getSparkline(chainId, address, 'pps', 'raw')
   }
 
   const apy = await getLatestApy(chainId, address)
@@ -23,6 +24,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     asset: erc20,
     sparklines,
     tvl: sparklines.tvl[0],
-    apy
+    apy,
+    pricePerShare: sparklines.pps[0].close
   }
 }
