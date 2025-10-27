@@ -258,7 +258,7 @@ interface WebhookResponse {
 ## Cheats
 
 ### make
-`make dev` - run eveything in dev
+`make dev` - run everything in dev
 
 `make test` - test everything
 
@@ -317,7 +317,7 @@ Kong resources are managed monorepo style using a workspace.
 
 ## Architecture
 
-`Ingest` - Ingest is a nodejs service that orchestrates and excutes all the various indexing activities. It's designed to scale horizontally, no need for beefy infra.
+`Ingest` - Ingest is a nodejs service that orchestrates and executes all the various indexing activities. It's designed to scale horizontally, no need for beefy infra.
 
 `Message Queue` - Indexing activities are coordinated using BullMQ message queues on Redis. This provides a simple, observable concurrency plane, decouples moving parts, and paves the way to scaling and non-TS language integration.
 
@@ -451,7 +451,7 @@ Robust indexing is tough. Some observations,
 - It's hard to separate domain from indexer logic, but crucial for testing and growth. Kong uses indexer hooks to separate these concerns.
 
 
-## Greatfully Informed by and borrowed from
+## Gratefully Informed by and borrowed from
 Kong is the result of hours spent reviewing and contributing on other indexing projects. Kong chest pounds with pride atop these shoulders: [ydaemon](https://github.com/yearn/ydaemon), [yexporter](https://github.com/yearn/yearn-exporter), (subsquid)[https://github.com/subsquid/squid-sdk], (The Graph)[https://github.com/graphprotocol], various projects by (BobTheBuidler)[https://github.com/BobTheBuidler].
 
 
