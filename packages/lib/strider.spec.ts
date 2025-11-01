@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { add, contains, plan, remove } from './strider'
+import { add, contains, plan, remove, rollback } from './strider'
 
 describe.only('strider', function() {
   it('plans new strides', async function() {
@@ -47,5 +47,13 @@ describe.only('strider', function() {
     expect(contains({ from: 0n, to: 10n }, { from: 2n, to: 9n })).to.be.true
     expect(contains({ from: 0n, to: 10n }, { from: 11n, to: 12n })).to.be.false
     expect(contains({ from: 0n, to: 10n }, { from: 0n, to: 12n })).to.be.false
+  })
+
+  it.only('rolls back ending blocks', async function() {
+    expect(rollback([], 9n)).to.deep.equal([])
+    expect(rollback([{ from: 0n, to: 10n }], 9n)).to.deep.equal([{ from: 0n, to: 9n }])
+    expect(rollback([{ from: 0n, to: 4n }, { from: 6n, to: 10n }], 9n)).to.deep.equal([{ from: 0n, to: 4n }, { from: 6n, to: 9n }])
+    expect(rollback([{ from: 0n, to: 10n }], 11n)).to.deep.equal([{ from: 0n, to: 10n }])
+    expect(rollback([{ from: 0n, to: 4n }, { from: 6n, to: 10n }], 11n)).to.deep.equal([{ from: 0n, to: 4n }, { from: 6n, to: 10n }])
   })
 })
