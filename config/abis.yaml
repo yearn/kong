@@ -86,7 +86,7 @@ abis:
       label: 'vault',
       filter: [
         { field: 'apiVersion', op: '>=', value: '3.0.0' },
-        { field: 'origin', op: '=', value: 'yearn' }
+        { field: 'origin', op: '!=', value: 'ydaemon' }
       ]
     }
 
@@ -95,7 +95,7 @@ abis:
       label: 'strategy',
       filter: [
         { field: 'apiVersion', op: '>=', value: '3.0.0' },
-        { field: 'origin', op: '=', value: 'yearn' }
+        { field: 'origin', op: '!=', value: 'ydaemon' }
       ]
     }
 
