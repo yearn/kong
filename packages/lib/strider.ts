@@ -105,3 +105,22 @@ export function remove(stride: Stride, strides: Stride[] | undefined): Stride[] 
 export function contains(a: Stride, b: Stride) {
   return a.from <= b.from && a.to >= b.to
 }
+
+export function rollback(strides: Stride[], endBlock: bigint): Stride[] {
+  if (!strides || strides.length === 0) return []
+
+  // Find the last stride
+  const sorted = [...strides].sort((a, b) => Number(a.from - b.from))
+  const lastStride = sorted[sorted.length - 1]
+
+  // If the last stride ends after endBlock, truncate it
+  if (lastStride.to > endBlock) {
+    return [
+      ...sorted.slice(0, -1),
+      { from: lastStride.from, to: endBlock }
+    ]
+  }
+
+  // Otherwise return strides as-is
+  return sorted
+}
