@@ -76,5 +76,8 @@ type Strategy {
   v3: Boolean
   yearn: Boolean
   origin: String
+  sparklines: Sparklines
+  tvl: SparklinePoint
+  apy: Apy
 }
 `
