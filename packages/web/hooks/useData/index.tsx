@@ -78,9 +78,15 @@ export default function DataProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
+    // Filter out null values from GraphQL response to preserve defaults
+    const responseData = status?.data || {}
+    const filteredData = Object.fromEntries(
+      Object.entries(responseData).filter(([_, value]) => value !== null)
+    )
+
     const update = DataContextSchema.parse({
       ...DEFAULT_CONTEXT,
-      ...status?.data
+      ...filteredData
     })
     setData(update)
   }, [status, setData])
