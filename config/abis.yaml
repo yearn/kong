@@ -151,7 +151,8 @@ abis:
   - abiPath: 'yearn/3/yieldSplitter/factory'
     sources: [
       { chainId: 747474, address: '0x72bd640a903DAE71E1eaA315f31F4dA33C82872d', inceptBlock: 3426919, comment: 'test implementation, obsolete' },
-      { chainId: 747474, address: '0xfb277c7DfDa414aF824AF08c3596d6c28570347d', inceptBlock: 12596938 }
+      { chainId: 747474, address: '0xfb277c7DfDa414aF824AF08c3596d6c28570347d', inceptBlock: 12596938, comment: 'reward bug, obsolete' },
+      { chainId: 747474, address: '0x3E13dB939c03c03852407Ca90D5A59183D28dA62', inceptBlock: 14510307 }
     ]
 
   - abiPath: 'yearn/2/registry'
