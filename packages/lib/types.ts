@@ -18,7 +18,7 @@ export function compareEvmAddresses(a?: string, b?: string) {
     return false
   }
 }
-
+export const AddressSchema = z.string().regex(/^0x[0-9a-fA-F]{40}$/)
 export const JobSchema = z.object({
   queue: z.string(),
   name: z.string(),
@@ -230,29 +230,132 @@ export const DefaultRiskScore = RiskScoreSchema.parse({
 })
 
 export const TokenMetaSchema = z.object({
-  type: z.string(),
-  category: z.string(),
-  description: z.string(),
-  displayName: z.string(),
-  displaySymbol: z.string(),
-  icon: z.string()
+  // Legacy fields
+  type: z.string().optional(),
+  icon: z.string().optional(),
+  // Core fields from yCMS
+  address: AddressSchema.optional(),
+  chainId: z.number().int().positive().optional(),
+  name: z.string().optional(),
+  symbol: z.string().optional(),
+  decimals: z.number().int().min(0).max(255).optional(),
+  // Display fields
+  displayName: z.string().optional(),
+  displaySymbol: z.string().optional(),
+  description: z.string().optional(),
+  category: z.string().optional(),
 })
 
 export type TokenMeta = z.infer<typeof TokenMetaSchema>
 
 export const VaultMetaSchema = z.object({
-  displayName: z.string(),
-  displaySymbol: z.string(),
-  description: z.string(),
-  protocols: z.string().array().nullish()
+  chainId: z.number(),
+  address: AddressSchema,
+  name: z.string(),
+  registry: AddressSchema.optional(),
+  type: z.enum(['Yearn Vault', 'Experimental Yearn Vault', 'Automated Yearn Vault', 'Single Strategy', 'None']),
+  kind: z.enum(['Multi Strategy', 'Legacy', 'Single Strategy', 'None']),
+  isRetired: z.boolean(),
+  isHidden: z.boolean(),
+  isAggregator: z.boolean(),
+  isBoosted: z.boolean(),
+  isAutomated: z.boolean(),
+  isHighlighted: z.boolean(),
+  isPool: z.boolean(),
+  shouldUseV2APR: z.boolean(),
+  migration: z.object({
+    available: z.boolean(),
+    target: AddressSchema.optional(),
+    contract: AddressSchema.optional(),
+  }),
+  stability: z.object({
+    stability: z.enum(['Unknown', 'Correlated', 'Stable', 'Volatile', 'Unstable']),
+    stableBaseAsset: z.string().optional(),
+  }),
+  category: z.string().optional(),
+  displayName: z.string().optional(),
+  displaySymbol: z.string().optional(),
+  description: z.string().optional(),
+  sourceURI: z.string().optional(),
+  uiNotice: z.string().optional(),
+  protocols: z.array(z.enum(['Curve', 'BeethovenX', 'Gamma', 'Balancer', 'Yearn'])),
+  inclusion: z.object({
+    isSet: z.boolean(),
+    isYearn: z.boolean(),
+    isYearnJuiced: z.boolean(),
+    isGimme: z.boolean(),
+    isPoolTogether: z.boolean(),
+    isCove: z.boolean(),
+    isMorpho: z.boolean(),
+    isKatana: z.boolean(),
+    isPublicERC4626: z.boolean(),
+  }),
 })
 
 export type VaultMeta = z.infer<typeof VaultMetaSchema>
 
 export const StrategyMetaSchema = z.object({
-  displayName: z.string(),
-  description: z.string(),
-  protocols: z.string().array().transform(v => v ? v : []).nullish()
+  chainId: z.number(),
+  address: AddressSchema,
+  name: z.string(),
+  isRetired: z.boolean().optional(),
+  displayName: z.string().optional(),
+  description: z.string().optional(),
+  protocols: z.array(
+    z.enum([
+      '0xDAO',
+      '88 MPH',
+      'Aave',
+      'Alpha Homora',
+      'Angle',
+      'Arrakis Finance',
+      'Aura Finance',
+      'Balancer',
+      'Beethoven-X',
+      'Blockchain Adventurers Guild',
+      'C.R.E.A.M. Finance',
+      'Compound Finance',
+      'Convex Finance',
+      'Cream Finance',
+      'Curve Finance',
+      'Fiat DAO',
+      'Flux Finance',
+      'Frax Finance',
+      'Geist Finance',
+      'Goldfinch Finance',
+      'Hegic',
+      'Hop Exchange',
+      'Idle Finance',
+      'Inverse Finance',
+      'Iron Bank',
+      'KeeperDAO',
+      'LIDO',
+      'League DAO',
+      'Lido Finance',
+      'MakerDAO',
+      'Mushroom Finance',
+      'Notional Finance',
+      'Pool Together',
+      'Scream',
+      'Solidex Finance',
+      'Sonne Finance',
+      'SpiritSwap',
+      'SpookySwap',
+      'Stargate Finance',
+      'Sturdy Finance',
+      'Sushi',
+      'Synthetix',
+      'Tokemak',
+      'Uniswap',
+      'Universe',
+      'Velodrome Finance',
+      'Vesper Finance',
+      'Yearn',
+      'dYdX',
+      'stMATIC',
+      'veDAO',
+    ]),
+  ),
 })
 
 export type StrategyMeta = z.infer<typeof StrategyMetaSchema>

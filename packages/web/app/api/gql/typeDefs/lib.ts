@@ -57,12 +57,20 @@ type RiskScoreDetails {
 }
 
 type TokenMeta {
+  # Legacy fields
   type: String
-  category: String
-  description: String
+  icon: String
+  # Core fields from yCMS
+  chainId: Int
+  address: String
+  name: String
+  symbol: String
+  decimals: Int
+  # Display fields
   displayName: String
   displaySymbol: String
-  icon: String
+  description: String
+  category: String
 }
 
 type SparklinePoint {

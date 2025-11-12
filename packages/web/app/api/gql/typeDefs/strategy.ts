@@ -2,6 +2,8 @@ import gql from 'graphql-tag'
 
 export default gql`
 type StrategyMeta {
+  name: String
+  isRetired: Boolean
   displayName: String
   description: String
   protocols: [String]
