@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const zhexstring = z.custom<`0x${string}`>((val: any) => /^0x/.test(val))
-export const zvaultType = z.enum(['vault', 'strategy'])
+export const zvaultType = z.string()
 export type HexString = z.infer<typeof zhexstring>
 
 export const EvmAddressSchema = zhexstring.transform(s => getAddress(s))
@@ -250,8 +250,8 @@ export const VaultMetaSchema = z.object({
   address: AddressSchema,
   name: z.string(),
   registry: AddressSchema.optional(),
-  type: z.enum(['Yearn Vault', 'Experimental Yearn Vault', 'Automated Yearn Vault', 'Single Strategy', 'None']),
-  kind: z.enum(['Multi Strategy', 'Legacy', 'Single Strategy', 'None']),
+  type: z.string(),
+  kind: z.string(),
   isRetired: z.boolean(),
   isHidden: z.boolean(),
   isAggregator: z.boolean(),
@@ -266,7 +266,7 @@ export const VaultMetaSchema = z.object({
     contract: AddressSchema.optional(),
   }),
   stability: z.object({
-    stability: z.enum(['Unknown', 'Correlated', 'Stable', 'Volatile', 'Unstable']),
+    stability: z.string(),
     stableBaseAsset: z.string().optional(),
   }),
   category: z.string().optional(),
@@ -275,7 +275,7 @@ export const VaultMetaSchema = z.object({
   description: z.string().optional(),
   sourceURI: z.string().optional(),
   uiNotice: z.string().optional(),
-  protocols: z.array(z.enum(['Curve', 'BeethovenX', 'Gamma', 'Balancer', 'Yearn'])),
+  protocols: z.array(z.string()),
   inclusion: z.object({
     isSet: z.boolean(),
     isYearn: z.boolean(),
