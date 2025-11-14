@@ -49,23 +49,17 @@ export async function getTokenMeta(chainId: number, address: `0x${string}`) {
 async function getMetas<T>(schema: z.ZodType<T>, chainId: number, type: 'tokens' | 'vaults' | 'strategies'): Promise<Metas<T>> {
   return cache.wrap(`abis/yearn/lib/meta/${type}/${chainId}`, async () => {
     return await extractMetas<T>(schema, chainId, type)
-  }, 30 * 60 * 1000)
+  }, 5 * 60 * 1000)
 }
 
 async function extractMetas<T>(schema: z.ZodType<T>, chainId: number, type: 'tokens' | 'vaults' | 'strategies'): Promise<Metas<T>> {
-  if(!process.env.GITHUB_PERSONAL_ACCESS_TOKEN) throw new Error('!process.env.GITHUB_PERSONAL_ACCESS_TOKEN')
-
   const json = await (await fetch(
-    `https://raw.githubusercontent.com/yearn/ydaemon/main/data/meta/${type}/${chainId}.json`,
-    { headers: { Authorization: `Bearer ${process.env.GITHUB_PERSONAL_ACCESS_TOKEN}` } }
+    `https://cms.yearn.fi/cdn/${type}/${chainId}.json`
   )).json()
 
   const results: { [address: `0x${string}`]: T } = {}
-  for (const key of Object.keys(json[type])) {
-    const [address] = key.split('_')
-    results[getAddress(address)] = json[type][key].metadata
-      ? schema.parse(json[type][key].metadata)
-      : schema.parse(json[type][key])
+  for (const item of json) {
+    results[getAddress(item.address)] = schema.parse(item)
   }
 
   return results

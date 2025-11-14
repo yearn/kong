@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const zhexstring = z.custom<`0x${string}`>((val: any) => /^0x/.test(val))
-export const zvaultType = z.enum(['vault', 'strategy'])
+export const zvaultType = z.string()
 export type HexString = z.infer<typeof zhexstring>
 
 export const EvmAddressSchema = zhexstring.transform(s => getAddress(s))
@@ -18,7 +18,7 @@ export function compareEvmAddresses(a?: string, b?: string) {
     return false
   }
 }
-
+export const AddressSchema = z.string().regex(/^0x[0-9a-fA-F]{40}$/)
 export const JobSchema = z.object({
   queue: z.string(),
   name: z.string(),
@@ -230,29 +230,77 @@ export const DefaultRiskScore = RiskScoreSchema.parse({
 })
 
 export const TokenMetaSchema = z.object({
-  type: z.string(),
-  category: z.string(),
-  description: z.string(),
-  displayName: z.string(),
-  displaySymbol: z.string(),
-  icon: z.string()
+  type: z.string().optional(),
+  icon: z.string().optional(),
+  address: AddressSchema.optional(),
+  chainId: z.number().int().positive().optional(),
+  name: z.string().optional(),
+  symbol: z.string().optional(),
+  decimals: z.number().int().min(0).max(255).optional(),
+  displayName: z.string().optional(),
+  displaySymbol: z.string().optional(),
+  description: z.string().optional(),
+  category: z.string().optional(),
 })
 
 export type TokenMeta = z.infer<typeof TokenMetaSchema>
 
 export const VaultMetaSchema = z.object({
-  displayName: z.string(),
-  displaySymbol: z.string(),
-  description: z.string(),
-  protocols: z.string().array().nullish()
+  chainId: z.number(),
+  address: AddressSchema,
+  name: z.string(),
+  registry: AddressSchema.optional(),
+  type: z.string(),
+  kind: z.string(),
+  isRetired: z.boolean(),
+  isHidden: z.boolean(),
+  isAggregator: z.boolean(),
+  isBoosted: z.boolean(),
+  isAutomated: z.boolean(),
+  isHighlighted: z.boolean(),
+  isPool: z.boolean(),
+  shouldUseV2APR: z.boolean(),
+  migration: z.object({
+    available: z.boolean(),
+    target: AddressSchema.optional(),
+    contract: AddressSchema.optional(),
+  }),
+  stability: z.object({
+    stability: z.string(),
+    stableBaseAsset: z.string().optional(),
+  }),
+  category: z.string().optional(),
+  displayName: z.string().optional(),
+  displaySymbol: z.string().optional(),
+  description: z.string().optional(),
+  sourceURI: z.string().optional(),
+  uiNotice: z.string().optional(),
+  protocols: z.array(z.string()),
+  inclusion: z.object({
+    isSet: z.boolean(),
+    isYearn: z.boolean(),
+    isYearnJuiced: z.boolean(),
+    isGimme: z.boolean(),
+    isPoolTogether: z.boolean(),
+    isCove: z.boolean(),
+    isMorpho: z.boolean(),
+    isKatana: z.boolean(),
+    isPublicERC4626: z.boolean(),
+  }),
 })
 
 export type VaultMeta = z.infer<typeof VaultMetaSchema>
 
 export const StrategyMetaSchema = z.object({
-  displayName: z.string(),
-  description: z.string(),
-  protocols: z.string().array().transform(v => v ? v : []).nullish()
+  chainId: z.number(),
+  address: AddressSchema,
+  name: z.string(),
+  isRetired: z.boolean().optional(),
+  displayName: z.string().optional(),
+  description: z.string().optional(),
+  protocols: z.array(
+    z.string()
+  ),
 })
 
 export type StrategyMeta = z.infer<typeof StrategyMetaSchema>
