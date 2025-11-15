@@ -33,6 +33,7 @@ Kong comes configured with an index over Yearn Finance's v2 and v3 vault ecosyst
   - [snapshot](#snapshot)
   - [evmlog](#evmlog)
   - [evmlog_strides](#evmlog_strides)
+- [More documentation](#more-documentation)
 - [Motivation](#motivation)
 - [Gratefully Informed by and borrowed from](#gratefully-informed-by-and-borrowed-from)
 - [Dev Notes](#dev-notes)
@@ -440,6 +441,10 @@ A strides array that looks like `[{"from":"19419991","to":"19813291"}]` tells th
 A strides array that looks like `[{"from":"19419991","to":"19800000"}, {"from":"19800100","to":"19813291"}]` tells the indexer there's a gap between 19800000 and 19800100 that needs to be indexed.
 
 
+## More documentation
+
+- [**Outputs (Timeseries)**](docs/outputs.md) - Comprehensive guide to Kong's timeseries outputs including TVL, APY, and PPS calculations. Covers the `tvl` → `tvl-c` migration, component schemas, and query examples.
+
 
 ## Motivation
 Robust indexing is tough. Some observations,
@@ -452,7 +457,7 @@ Robust indexing is tough. Some observations,
 
 
 ## Greatfully Informed by and borrowed from
-Kong is the result of hours spent reviewing and contributing on other indexing projects. Kong chest pounds with pride atop these shoulders: [ydaemon](https://github.com/yearn/ydaemon), [yexporter](https://github.com/yearn/yearn-exporter), (subsquid)[https://github.com/subsquid/squid-sdk], (The Graph)[https://github.com/graphprotocol], various projects by (BobTheBuidler)[https://github.com/BobTheBuidler].
+Kong is the result of hours spent reviewing and contributing on other indexing projects. Kong chest pounds with pride atop these shoulders: [ydaemon](https://github.com/yearn/ydaemon), [yexporter](https://github.com/yearn/yearn-exporter), [subsquid](https://github.com/subsquid/squid-sdk), [The Graph](https://github.com/graphprotocol), various projects by [BobTheBuidler](https://github.com/BobTheBuidler).
 
 
 ## Dev Notes
