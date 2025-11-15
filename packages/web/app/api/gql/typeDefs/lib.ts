@@ -58,11 +58,13 @@ type RiskScoreDetails {
 
 type TokenMeta {
   type: String
-  category: String
-  description: String
+  icon: String
+  symbol: String
+  decimals: Int
   displayName: String
   displaySymbol: String
-  icon: String
+  description: String
+  category: String
 }
 
 type SparklinePoint {

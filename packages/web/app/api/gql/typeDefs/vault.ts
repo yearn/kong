@@ -1,11 +1,48 @@
 import gql from 'graphql-tag'
 
 export default gql`
+type VaultMetaMigration {
+  available: Boolean!
+  target: String
+  contract: String
+}
+
+type VaultMetaStability {
+  stability: String!
+  stableBaseAsset: String
+}
+
+type VaultMetaInclusion {
+  isYearn: Boolean
+  isGimme: Boolean
+  isPoolTogether: Boolean
+  isCove: Boolean
+  isMorpho: Boolean
+  isKatana: Boolean
+  isPublicERC4626: Boolean
+}
+
 type VaultMeta {
   displayName: String
   displaySymbol: String
   description: String
+  type: String
+  kind: String
+  category: String
+  isRetired: Boolean
+  isHidden: Boolean
+  isAggregator: Boolean
+  isBoosted: Boolean
+  isAutomated: Boolean
+  isHighlighted: Boolean
+  isPool: Boolean
+  shouldUseV2APR: Boolean
   protocols: [String]
+  migration: VaultMetaMigration
+  stability: VaultMetaStability
+  inclusion: VaultMetaInclusion
+  sourceURI: String
+  uiNotice: String
   token: TokenMeta
 }
 
