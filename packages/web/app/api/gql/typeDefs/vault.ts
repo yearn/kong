@@ -23,8 +23,6 @@ type VaultMetaInclusion {
 }
 
 type VaultMeta {
-  name: String
-  registry: String
   displayName: String
   displaySymbol: String
   description: String
