@@ -11,18 +11,34 @@ const strategy = async (_: object, args: { chainId: number, address: `0x${string
       thing.address,
       thing.defaults,
       snapshot.snapshot,
-      snapshot.hook
+      snapshot.hook,
+      (
+        SELECT vault_snapshot.address
+        FROM snapshot AS vault_snapshot
+        JOIN thing AS vault_thing
+          ON vault_thing.chain_id = vault_snapshot.chain_id
+          AND vault_thing.address = vault_snapshot.address
+        WHERE vault_thing.label = 'vault'
+          AND vault_thing.chain_id = thing.chain_id
+          AND (
+            vault_snapshot.hook->'strategies' @> jsonb_build_array(thing.address)
+            OR vault_snapshot.snapshot->'withdrawalQueue' @> jsonb_build_array(thing.address)
+            OR vault_snapshot.snapshot->'get_default_queue' @> jsonb_build_array(thing.address)
+          )
+        LIMIT 1
+      ) AS vault
     FROM thing
     JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
     WHERE thing.label = $1 AND thing.chain_id = $2 AND thing.address = $3
-    ORDER BY snapshot.hook->>'totalDebtUsd' DESC`,
+    ORDER BY snapshot.hook->>'totalDebtUsd' DESC NULLS LAST`,
     ['strategy', chainId, getAddress(address)])
 
     const [first] = result.rows.map(row => ({
       chainId: row.chain_id,
       address: row.address,
+      vault: row.vault,
       ...row.defaults,
       ...row.snapshot,
       ...row.hook
