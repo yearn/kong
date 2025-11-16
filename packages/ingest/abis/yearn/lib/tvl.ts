@@ -71,13 +71,9 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
 
   const { priceUsd } = await fetchErc20PriceUsd(chainId, asset, blockNumber, latest)
 
-  const totalAssets = await rpcs.next(chainId, blockNumber).readContract({
-    address, functionName: 'totalAssets',
-    abi: parseAbi(['function totalAssets() view returns (uint256)']),
-    blockNumber
-  }) as bigint
+  const totalAssets = await extractTotalAssets(chainId, address, blockNumber)
 
-  if(totalAssets === 0n) return { priceUsd, tvl: 0, totalAssets, delegatedAssets: 0n }
+  if(!totalAssets) return { priceUsd, tvl: 0, totalAssets, delegatedAssets: 0n }
 
   const delegatedAssets = compare(apiVersion, '3.0.0', '<')
     ? await extractTotalDelegatedAssets(chainId, address, blockNumber)
@@ -113,4 +109,23 @@ async function extractDelegatedAssets(chainId: number, addresses: `0x${string}` 
   })
 
   return results
+}
+
+export async function extractTotalAssets(chainId: number, address: `0x${string}`, blockNumber: bigint) {
+  const multicall = await rpcs.next(chainId, blockNumber).multicall({
+    contracts: [
+      { address, functionName: 'totalAssets', abi: parseAbi(['function totalAssets() view returns (uint256)']) },
+      { address, functionName: 'estimatedTotalAssets', abi: parseAbi(['function estimatedTotalAssets() view returns (uint256)']) }
+    ],
+    blockNumber
+  })
+
+  if (!multicall.some(result => result.status === 'success')) {
+    console.warn('🚨', 'extractTotalAssets', 'multicall fail', chainId, address, blockNumber)
+    return undefined
+  }
+
+  const totalAssets = multicall[0].status === 'success' ? BigInt(multicall[0].result as bigint) : undefined
+  const estimated = multicall[1].status === 'success' ? BigInt(multicall[1].result as bigint) : undefined
+  return totalAssets ?? estimated ?? undefined
 }

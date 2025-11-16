@@ -7,6 +7,7 @@ import { first } from '../../../../db'
 import { fetchErc20PriceUsd } from '../../../../prices'
 import { rpcs } from '../../../../rpcs'
 import abi from '../../abi'
+import { extractTotalAssets } from '../../../yearn/lib/tvl'
 
 export const outputLabel = 'tvl'
 
@@ -47,11 +48,9 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
 
   const { priceUsd } = await fetchErc20PriceUsd(chainId, asset, blockNumber, latest)
 
-  const totalAssets = await rpcs.next(chainId, blockNumber).readContract({
-    abi, address, functionName: 'totalAssets', blockNumber
-  }) as bigint
+  const totalAssets = await extractTotalAssets(chainId, address, blockNumber)
 
-  if(totalAssets === 0n) return { priceUsd, tvl: 0, totalAssets, delegatedAssets: 0n }
+  if(!totalAssets) return { priceUsd, tvl: 0, totalAssets, delegatedAssets: 0n }
 
   const tvl = priced(totalAssets, decimals, priceUsd)
 

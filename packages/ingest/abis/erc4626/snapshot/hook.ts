@@ -25,6 +25,6 @@ export default async function process(chainId: number, address: `0x${string}`, d
     sparklines,
     tvl: sparklines.tvl[0],
     apy,
-    pricePerShare: sparklines.pps[0].close
+    pricePerShare: sparklines.pps[0]?.close ?? undefined
   }
 }
