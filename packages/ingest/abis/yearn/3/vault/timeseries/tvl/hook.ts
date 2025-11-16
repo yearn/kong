@@ -1,6 +1,6 @@
 import { Output } from 'lib/types'
 import { Data } from '../../../../../../extract/timeseries'
-import _process, { _compute } from '../../../../lib/tvl'
+import _process from '../../../../lib/tvl'
 
 export const outputLabel = 'tvl'
 

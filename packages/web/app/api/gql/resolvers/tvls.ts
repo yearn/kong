@@ -21,6 +21,7 @@ const tvls = async (_: object, args: {
       FROM thing
       WHERE chain_id = $1
         AND (address = $2 OR $2 IS NULL)
+        AND label = 'vault'
     ),
     tvl_data AS (
       SELECT
@@ -35,7 +36,8 @@ const tvls = async (_: object, args: {
       JOIN asset_info a ON o.chain_id = a.chain_id AND o.address = a.address
       WHERE o.chain_id = $1
         AND (o.address = $2 OR $2 IS NULL)
-        AND o.label = 'tvl'
+        AND o.label = 'tvl-c'
+        AND o.component = 'tvl'
         AND (o.block_time > to_timestamp($4) OR $4 IS NULL)
       GROUP BY o.chain_id, o.address, time, a.asset_address
       ORDER BY time ASC

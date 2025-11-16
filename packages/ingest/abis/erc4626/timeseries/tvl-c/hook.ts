@@ -9,7 +9,7 @@ import { rpcs } from '../../../../rpcs'
 import abi from '../../abi'
 import { extractTotalAssets } from '../../../yearn/lib/tvl'
 
-export const outputLabel = 'tvl'
+export const outputLabel = 'tvl-c'
 
 export default async function _process(chainId: number, address: `0x${string}`, data: Data): Promise<Output[]> {
   console.info('🧮', data.outputLabel, chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())
@@ -31,12 +31,15 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 
   if (!vault) return []
 
-  const { tvl } = await _compute(vault, blockNumber, latest)
+  const { tvl, totalAssets, priceUsd } = await _compute(vault, blockNumber, latest)
 
-  return OutputSchema.array().parse([{
-    chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-    component: 'tvl', value: tvl
-  }])
+  return OutputSchema.array().parse([
+    { chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel, component: 'tvl', value: tvl },
+    { chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel, component: 'delegated', value: 0n },
+    { chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel, component: 'totalAssets', value: totalAssets },
+    { chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel, component: 'delegatedAssets', value: 0n },
+    { chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel, component: 'priceUsd', value: priceUsd }
+  ])
 }
 
 export async function _compute(vault: Thing, blockNumber: bigint, latest = false) {
@@ -54,5 +57,5 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
 
   const tvl = priced(totalAssets, decimals, priceUsd)
 
-  return { priceUsd, tvl }
+  return { priceUsd, tvl, totalAssets }
 }

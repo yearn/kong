@@ -1,0 +1,13 @@
+
+cron:
+  name: AbiFanout
+  queue: fanout
+  job: abis
+  schedule: '*/15 * * * *'
+  start: false
+
+abis:
+  - abiPath: 'yearn/2/vault'
+    sources: [
+      { chainId: 1, address: '0xdA816459F1AB5631232FE5e97a05BBBb94970c95', inceptBlock: 12796965 }
+    ]
