@@ -22,6 +22,11 @@ export function max(...args: bigint[]): bigint {
   return args.reduce((a, b) => (a > b ? a : b))
 }
 
+export function normalize(value: bigint | undefined, decimals: number | undefined, precision: number = 18): number | undefined {
+  if (value === undefined || decimals === undefined) { return undefined }
+  return scaleDown(value, decimals, precision)
+}
+
 export function scaleDown(value: bigint, decimals: number, precision: number = 18): number {
   const factor = BigInt(10 ** precision)
   return Number(value * factor / BigInt(10 ** decimals)) / Number(factor)
