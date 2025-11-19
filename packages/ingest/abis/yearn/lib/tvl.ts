@@ -4,7 +4,7 @@ import { fetchErc20PriceUsd } from '../../../prices'
 import { rpcs } from '../../../rpcs'
 import { parseAbi } from 'viem'
 import { compare } from 'compare-versions'
-import { priced } from 'lib/math'
+import { normalize, priced } from 'lib/math'
 import { extractWithdrawalQueue } from '../2/vault/snapshot/hook'
 import { Data } from '../../../extract/timeseries'
 import { estimateHeight, getBlock } from 'lib/blocks'
@@ -42,10 +42,10 @@ export default async function _process(chainId: number, address: `0x${string}`, 
       component: 'delegated', value: delegatedTvl
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'totalAssets', value: totalAssets
+      component: 'totalAssets', value: normalize(totalAssets, vault.defaults.decimals) || 0
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'delegatedAssets', value: delegatedAssets
+      component: 'delegatedAssets', value: normalize(delegatedAssets, vault.defaults.decimals) || 0
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
       component: 'priceUsd', value: priceUsd
