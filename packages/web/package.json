@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "mocha ./**/*.test.[jt]s?(x)",
+    "test": "TS_NODE_COMPILER_OPTIONS='{ \"module\": \"CommonJS\", \"moduleResolution\": \"node\" }' TS_NODE_TRANSPILE_ONLY=1 mocha --require ts-node/register --extension ts,tsx,js,jsx \"./**/*.{test,spec}.{js,jsx,ts,tsx}\"",
     "clean": "rm -rf .next && rm -rf node_modules",
     "lint": "next lint"
   },
