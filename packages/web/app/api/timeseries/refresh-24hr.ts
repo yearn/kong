@@ -14,8 +14,11 @@ export async function refresh24hr(deps: Refresh24HrDeps = {}): Promise<void> {
   const loadVaults = deps.getVaults ?? getVaults
   const loadFullTimeseries = deps.getFullTimeseries ?? getFullTimeseries
 
+  console.log('Fetching vaults...')
   const vaults = await loadVaults()
+  console.log(`Found ${vaults.length} vaults`)
 
+  let processed = 0
   for (const vault of vaults) {
     const addressLower = vault.address.toLowerCase()
 
@@ -35,7 +38,14 @@ export async function refresh24hr(deps: Refresh24HrDeps = {}): Promise<void> {
       const cacheKey = getTimeseriesKey(label, vault.chainId, addressLower)
       await keyv.set(cacheKey, JSON.stringify(minimal))
     }
+
+    processed++
+    if (processed % 10 === 0) {
+      console.log(`Processed ${processed}/${vaults.length} vaults`)
+    }
   }
+
+  console.log(`✓ Completed: ${processed} vaults processed`)
 }
 
 if (require.main === module) {

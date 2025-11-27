@@ -36,8 +36,11 @@ export async function refresh15min(deps: Refresh15MinDeps = {}): Promise<void> {
   const loadVaults = deps.getVaults ?? getVaults
   const loadLatestTimeseries = deps.getLatestTimeseries ?? getLatestTimeseries
 
+  console.log('Fetching vaults...')
   const vaults = await loadVaults()
+  console.log(`Found ${vaults.length} vaults`)
 
+  let processed = 0
   for (const vault of vaults) {
     const addressLower = vault.address.toLowerCase()
 
@@ -55,7 +58,14 @@ export async function refresh15min(deps: Refresh15MinDeps = {}): Promise<void> {
       const updated = upsertPoints(parsed, latestRows)
       await keyv.set(cacheKey, JSON.stringify(updated))
     }
+
+    processed++
+    if (processed % 10 === 0) {
+      console.log(`Processed ${processed}/${vaults.length} vaults`)
+    }
   }
+
+  console.log(`✓ Completed: ${processed} vaults processed`)
 }
 
 if (require.main === module) {
