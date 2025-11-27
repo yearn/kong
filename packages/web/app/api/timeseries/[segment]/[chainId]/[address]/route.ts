@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { labels } from '../../../labels'
 import { createTimeseriesKeyv, getTimeseriesKey } from '../../../redis'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 const corsHeaders = {
   'access-control-allow-origin': '*',
