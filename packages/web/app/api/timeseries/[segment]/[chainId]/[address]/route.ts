@@ -4,18 +4,33 @@ import { createTimeseriesKeyv, getTimeseriesKey } from '../../../redis'
 
 export const runtime = 'nodejs'
 
+type RouteParams = {
+  segment?: string | string[]
+  chainId?: string | string[]
+  address?: string | string[]
+}
+
 const corsHeaders = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET,OPTIONS',
 }
 
-export const timeseriesKeyv = createTimeseriesKeyv()
+const timeseriesKeyv = createTimeseriesKeyv()
 
 export async function GET(
   request: NextRequest,
-  context: { params: { segment: string; chainId: string; address: string } },
+  context: { params: Promise<RouteParams> },
 ) {
-  const { segment, chainId, address } = context.params
+  const { segment, chainId, address } = (await context.params) ?? {}
+
+  if (
+    typeof segment !== 'string' ||
+    typeof chainId !== 'string' ||
+    typeof address !== 'string'
+  ) {
+    return new NextResponse('Invalid params', { status: 400, headers: corsHeaders })
+  }
+
   const entry = labels.find((label) => label.segment === segment)
 
   if (!entry) {
