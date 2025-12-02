@@ -1,24 +1,15 @@
-import Keyv from 'keyv'
 import { labels } from './labels'
 import { getFullTimeseries, getVaults, TimeseriesRow } from './db'
 import { createTimeseriesKeyv, getTimeseriesKey } from './redis'
 
 const BATCH_SIZE = 5
 
-type Refresh24HrDeps = {
-  keyv?: Keyv
-  getVaults?: typeof getVaults
-  getFullTimeseries?: typeof getFullTimeseries
-}
-
-export async function refresh24hr(deps: Refresh24HrDeps = {}): Promise<void> {
+async function refresh24hr(): Promise<void> {
   console.time('refresh24hr')
-  const keyv = deps.keyv ?? createTimeseriesKeyv()
-  const loadVaults = deps.getVaults ?? getVaults
-  const loadFullTimeseries = deps.getFullTimeseries ?? getFullTimeseries
+  const keyv = createTimeseriesKeyv()
 
   console.log('Fetching vaults...')
-  const vaults = await loadVaults()
+  const vaults = await getVaults()
   console.log(`Found ${vaults.length} vaults (batch size: ${BATCH_SIZE})`)
 
   let processed = 0
@@ -27,7 +18,7 @@ export async function refresh24hr(deps: Refresh24HrDeps = {}): Promise<void> {
     const addressLower = vault.address.toLowerCase()
 
     await Promise.all(labels.map(async ({ label }) => {
-      const rows: TimeseriesRow[] = await loadFullTimeseries(
+      const rows: TimeseriesRow[] = await getFullTimeseries(
         vault.chainId,
         vault.address,
         label,
