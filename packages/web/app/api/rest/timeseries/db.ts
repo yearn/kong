@@ -1,4 +1,4 @@
-import db from '../db'
+import db from '../../db'
 import { getAddress } from 'viem'
 
 export type VaultRow = {

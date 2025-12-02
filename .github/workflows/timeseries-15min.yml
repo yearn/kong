@@ -22,4 +22,4 @@ jobs:
           POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
           POSTGRES_SSL: ${{ secrets.POSTGRES_SSL }}
           GQL_CACHE_REDIS_URL: ${{ secrets.GQL_CACHE_REDIS_URL }}
-        run: bun packages/web/app/api/timeseries/refresh-15min.ts
+        run: bun packages/web/app/api/rest/timeseries/refresh-15min.ts
