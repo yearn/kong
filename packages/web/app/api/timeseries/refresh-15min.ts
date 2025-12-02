@@ -2,7 +2,7 @@ import { labels } from './labels'
 import { getLatestTimeseries, getVaults, TimeseriesRow } from './db'
 import { createTimeseriesKeyv, getTimeseriesKey } from './redis'
 
-const BATCH_SIZE = 5
+const BATCH_SIZE = 10
 
 type MinimalPoint = { time: number; component: string; value: number }
 

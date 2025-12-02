@@ -2,7 +2,7 @@ import { labels } from './labels'
 import { getFullTimeseries, getVaults, TimeseriesRow } from './db'
 import { createTimeseriesKeyv, getTimeseriesKey } from './redis'
 
-const BATCH_SIZE = 5
+const BATCH_SIZE = 10
 
 async function refresh24hr(): Promise<void> {
   console.time('refresh24hr')
