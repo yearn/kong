@@ -150,6 +150,34 @@ export async function getLatestApy(chainId: number, address: string) {
   }).parse(first)
 }
 
+export async function getLatestOracleApr(chainId: number, address: string): Promise<[number, number]> {
+  const result = await firstRow(`
+  SELECT
+    chain_id as "chainId",
+    address,
+    label,
+    MAX(CASE WHEN component = 'apr' THEN value END) AS apr,
+    MAX(CASE WHEN component = 'apy' THEN value END) AS apy,
+    block_number as "blockNumber",
+    block_time as "blockTime"
+  FROM output
+  WHERE block_time = (
+      SELECT MAX(block_time) FROM output
+      WHERE chain_id = $1
+      AND address = $2
+      AND label = 'apr-oracle'
+    )
+    AND chain_id = $1
+    AND address = $2
+    AND label = 'apr-oracle'
+  GROUP BY chain_id, address, label, block_number, block_time;
+  `, [chainId, address])
+
+  if (!result) return [0, 0]
+
+  return [result.apr || 0, result.apy || 0]
+}
+
 export function toUpsertSql(table: string, pk: string, data: object, where?: string) {
   const timestampConversionExceptions = [ 'profit_max_unlock_time' ]
 
