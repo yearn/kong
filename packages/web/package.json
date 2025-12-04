@@ -23,7 +23,7 @@
     "framer-motion": "^10.16.1",
     "graphql": "^16.8.1",
     "graphql-tag": "^2.12.6",
-    "next": "^15.3.2",
+    "next": "15.3.6",
     "pg": "^8.11.3",
     "postcss": "8.4.28",
     "pretty-bytes": "^6.1.1",
