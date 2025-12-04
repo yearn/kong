@@ -175,7 +175,7 @@ export async function getLatestOracleApr(chainId: number, address: string): Prom
 
   if (!result) return [0, 0]
 
-  return [result.apr || 0, result.apy || 0];
+  return [result.apr || 0, result.apy || 0]
 }
 
 export function toUpsertSql(table: string, pk: string, data: object, where?: string) {

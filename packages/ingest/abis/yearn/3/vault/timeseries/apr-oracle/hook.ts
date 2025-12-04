@@ -1,31 +1,36 @@
-import { Output, OutputSchema } from 'lib/types';
-import { estimateHeight, getBlock } from 'lib/blocks';
-import { rpcs } from 'lib/rpcs';
-import { Data } from '../../../../../../extract/timeseries';
-import { V3_ORACLE_ABI } from './abi';
-import { getOracleConfig } from './constants';
+import { Output, OutputSchema } from 'lib/types'
+import { estimateHeight, getBlock } from 'lib/blocks'
+import { rpcs } from 'lib/rpcs'
+import { Data } from '../../../../../../extract/timeseries'
+import { V3_ORACLE_ABI } from './abi'
+import { getOracleConfig } from './constants'
+import console from 'console'
 
-export const outputLabel = 'apr-oracle';
+export const outputLabel = 'apr-oracle'
 
-export default async function (chainId: number, address: `0x${string}`, data: Data): Promise<Output[]> {
-  const oracleConfig = getOracleConfig(chainId);
+export default async function (
+  chainId: number,
+  address: `0x${string}`,
+  data: Data,
+): Promise<Output[]> {
+  const oracleConfig = getOracleConfig(chainId)
   if (!oracleConfig) {
-    return [];
+    return []
   }
 
-  let blockNumber: bigint;
+  let blockNumber: bigint
 
   if (data.blockTime >= BigInt(Math.floor(Date.now() / 1000))) {
-    blockNumber = (await getBlock(chainId)).number;
+    blockNumber = (await getBlock(chainId)).number
   } else {
-    blockNumber = await estimateHeight(chainId, data.blockTime);
+    blockNumber = await estimateHeight(chainId, data.blockTime)
   }
 
   if (blockNumber < oracleConfig.inceptBlock) {
-    return [];
+    return []
   }
 
-  let apr = 0;
+  let apr = 0
   try {
     const rawApr = await rpcs.next(chainId).readContract({
       abi: V3_ORACLE_ABI,
@@ -33,17 +38,18 @@ export default async function (chainId: number, address: `0x${string}`, data: Da
       functionName: 'getStrategyApr',
       args: [address, 0n],
       blockNumber,
-    });
-    apr = Number(rawApr) / 1e18;
+    })
+    apr = Number(rawApr) / 1e18
   } catch (error) {
-    return [];
+    console.error(error)
+    return []
   }
 
   if (isNaN(apr) || !isFinite(apr)) {
-    apr = 0;
+    apr = 0
   }
 
-  const apy = (1 + apr / 52) ** 52 - 1;
+  const apy = (1 + apr / 52) ** 52 - 1
 
   const outputs: Output[] = [
     {
@@ -64,7 +70,7 @@ export default async function (chainId: number, address: `0x${string}`, data: Da
       blockNumber,
       blockTime: data.blockTime,
     },
-  ];
+  ]
 
-  return OutputSchema.array().parse(outputs);
+  return OutputSchema.array().parse(outputs)
 }
