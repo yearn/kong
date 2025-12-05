@@ -1,13 +1,8 @@
-import Keyv from 'keyv'
 import { labels } from './labels'
 import { getLatestTimeseries, getVaults, TimeseriesRow } from './db'
 import { createTimeseriesKeyv, getTimeseriesKey } from './redis'
 
-type Refresh15MinDeps = {
-  keyv?: Keyv
-  getVaults?: typeof getVaults
-  getLatestTimeseries?: typeof getLatestTimeseries
-}
+const BATCH_SIZE = 10
 
 type MinimalPoint = { time: number; component: string; value: number }
 
@@ -31,25 +26,25 @@ function upsertPoints(existing: MinimalPoint[], latest: TimeseriesRow[]): Minima
   return updated
 }
 
-export async function refresh15min(deps: Refresh15MinDeps = {}): Promise<void> {
-  const keyv = deps.keyv ?? createTimeseriesKeyv()
-  const loadVaults = deps.getVaults ?? getVaults
-  const loadLatestTimeseries = deps.getLatestTimeseries ?? getLatestTimeseries
+async function refresh15min(): Promise<void> {
+  console.time('refresh15min')
+  const keyv = createTimeseriesKeyv()
 
   console.log('Fetching vaults...')
-  const vaults = await loadVaults()
-  console.log(`Found ${vaults.length} vaults`)
+  const vaults = await getVaults()
+  console.log(`Found ${vaults.length} vaults (batch size: ${BATCH_SIZE})`)
 
   let processed = 0
-  for (const vault of vaults) {
+
+  async function processVault(vault: { chainId: number; address: string }) {
     const addressLower = vault.address.toLowerCase()
 
-    for (const { label } of labels) {
+    await Promise.all(labels.map(async ({ label }) => {
       const cacheKey = getTimeseriesKey(label, vault.chainId, addressLower)
       const cached = await keyv.get(cacheKey)
       const parsed: MinimalPoint[] = cached ? JSON.parse(cached as string) : []
 
-      const latestRows: TimeseriesRow[] = await loadLatestTimeseries(
+      const latestRows: TimeseriesRow[] = await getLatestTimeseries(
         vault.chainId,
         vault.address,
         label,
@@ -57,7 +52,7 @@ export async function refresh15min(deps: Refresh15MinDeps = {}): Promise<void> {
 
       const updated = upsertPoints(parsed, latestRows)
       await keyv.set(cacheKey, JSON.stringify(updated))
-    }
+    }))
 
     processed++
     if (processed % 10 === 0) {
@@ -65,7 +60,13 @@ export async function refresh15min(deps: Refresh15MinDeps = {}): Promise<void> {
     }
   }
 
+  for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
+    const batch = vaults.slice(i, i + BATCH_SIZE)
+    await Promise.all(batch.map(processVault))
+  }
+
   console.log(`✓ Completed: ${processed} vaults processed`)
+  console.timeEnd('refresh15min')
 }
 
 if (require.main === module) {

@@ -1,29 +1,24 @@
-import Keyv from 'keyv'
 import { labels } from './labels'
 import { getFullTimeseries, getVaults, TimeseriesRow } from './db'
 import { createTimeseriesKeyv, getTimeseriesKey } from './redis'
 
-type Refresh24HrDeps = {
-  keyv?: Keyv
-  getVaults?: typeof getVaults
-  getFullTimeseries?: typeof getFullTimeseries
-}
+const BATCH_SIZE = 10
 
-export async function refresh24hr(deps: Refresh24HrDeps = {}): Promise<void> {
-  const keyv = deps.keyv ?? createTimeseriesKeyv()
-  const loadVaults = deps.getVaults ?? getVaults
-  const loadFullTimeseries = deps.getFullTimeseries ?? getFullTimeseries
+async function refresh24hr(): Promise<void> {
+  console.time('refresh24hr')
+  const keyv = createTimeseriesKeyv()
 
   console.log('Fetching vaults...')
-  const vaults = await loadVaults()
-  console.log(`Found ${vaults.length} vaults`)
+  const vaults = await getVaults()
+  console.log(`Found ${vaults.length} vaults (batch size: ${BATCH_SIZE})`)
 
   let processed = 0
-  for (const vault of vaults) {
+
+  async function processVault(vault: { chainId: number; address: string }) {
     const addressLower = vault.address.toLowerCase()
 
-    for (const { label } of labels) {
-      const rows: TimeseriesRow[] = await loadFullTimeseries(
+    await Promise.all(labels.map(async ({ label }) => {
+      const rows: TimeseriesRow[] = await getFullTimeseries(
         vault.chainId,
         vault.address,
         label,
@@ -37,7 +32,7 @@ export async function refresh24hr(deps: Refresh24HrDeps = {}): Promise<void> {
 
       const cacheKey = getTimeseriesKey(label, vault.chainId, addressLower)
       await keyv.set(cacheKey, JSON.stringify(minimal))
-    }
+    }))
 
     processed++
     if (processed % 10 === 0) {
@@ -45,7 +40,13 @@ export async function refresh24hr(deps: Refresh24HrDeps = {}): Promise<void> {
     }
   }
 
+  for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
+    const batch = vaults.slice(i, i + BATCH_SIZE)
+    await Promise.all(batch.map(processVault))
+  }
+
   console.log(`✓ Completed: ${processed} vaults processed`)
+  console.timeEnd('refresh24hr')
 }
 
 if (require.main === module) {
