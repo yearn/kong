@@ -92,6 +92,8 @@ async function fetchYPriceUsd(chainId: number, token: `0x${string}`, blockNumber
   }
 }
 
+const BLOCK_TOLERANCE = 4
+
 async function fetchDbPriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint, toleranceSeconds?: number) {
   if (toleranceSeconds) {
     const targetBlockTime = await getBlockTime(chainId, blockNumber)
@@ -123,8 +125,13 @@ async function fetchDbPriceUsd(chainId: number, token: `0x${string}`, blockNumbe
       price_source as "priceSource",
       block_number as "blockNumber",
       block_time as "blockTime"
-    FROM price WHERE chain_id = $1 AND address = $2 AND block_number = $3`,
-    [chainId, token, blockNumber]
+    FROM price
+    WHERE chain_id = $1
+      AND address = $2
+      AND block_number BETWEEN $3::bigint - $4 AND $3::bigint + $4
+    ORDER BY ABS(block_number - $3::bigint)
+    LIMIT 1`,
+    [chainId, token, blockNumber.toString(), BLOCK_TOLERANCE]
   )
   if(result.rows.length === 0) return undefined
   return PriceSchema.parse(result.rows[0])
