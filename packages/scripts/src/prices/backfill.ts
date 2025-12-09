@@ -1,5 +1,10 @@
 import { Pool, types as pgTypes } from 'pg'
 import { parseArgs } from 'util'
+import { readFileSync, writeFileSync } from 'fs'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // ============================================================================
 // Chain ID to DefiLlama Name Mapping
@@ -41,6 +46,21 @@ interface PriceRecord {
   priceSource: string
   blockNumber: bigint
   blockTime: Date
+}
+
+interface SkipToken {
+  chainId: number
+  address: string
+}
+
+function loadSkipTokens(): Set<string> {
+  try {
+    const skipPath = join(__dirname, 'skip-tokens.json')
+    const data = JSON.parse(readFileSync(skipPath, 'utf-8')) as SkipToken[]
+    return new Set(data.map(t => `${t.chainId}:${t.address.toLowerCase()}`))
+  } catch {
+    return new Set()
+  }
 }
 
 // ============================================================================
@@ -252,13 +272,27 @@ async function fetchBlockNumber(chainId: number, timestamp: number): Promise<big
   if (!chainName) return null
 
   const url = `${DEFILLAMA_API}/block/${chainName}/${timestamp}`
-  const data = await fetchWithRetry<DefillamaBlockResponse>(url, `Block fetch for ${chainName}`)
 
-  if (!data) return null
-
-  const blockNumber = BigInt(data.height)
-  blockCache.set(cacheKey, blockNumber)
-  return blockNumber
+  // Custom fetch for block numbers - 500 means chain not supported at this time
+  try {
+    const response = await fetch(url)
+    if (response.status === 500) {
+      console.warn(`    Block fetch for ${chainName}: 500 error, chain not supported at timestamp ${timestamp}`)
+      blockCache.set(cacheKey, 0n)
+      return 0n
+    }
+    if (!response.ok) {
+      console.error(`    Block fetch for ${chainName} failed: HTTP ${response.status}`)
+      return null
+    }
+    const data = await response.json() as DefillamaBlockResponse
+    const blockNumber = BigInt(data.height)
+    blockCache.set(cacheKey, blockNumber)
+    return blockNumber
+  } catch (error) {
+    console.error(`    Block fetch for ${chainName} failed: ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  }
 }
 
 async function fetchHistoricalPrices(
@@ -367,8 +401,13 @@ async function main() {
 
   try {
     // Fetch tokens from CLI override or database
-    const tokens = tokensOverride ?? await fetchErc20Tokens(db)
-    console.log(`Found ${tokens.length} ERC20 tokens`)
+    const allTokens = tokensOverride ?? await fetchErc20Tokens(db)
+    console.log(`Found ${allTokens.length} ERC20 tokens`)
+
+    // Filter out skip tokens
+    const skipTokens = loadSkipTokens()
+    const tokens = allTokens.filter(t => !skipTokens.has(`${t.chainId}:${t.address.toLowerCase()}`))
+    console.log(`Skipping ${skipTokens.size} tokens, ${tokens.length} remaining`)
 
     // Build coin IDs and chunk into batches
     const coinIds = buildCoinIds(tokens)
@@ -507,15 +546,23 @@ async function main() {
     console.log(`Total missing:  ${grandTotalMissing}`)
     console.log('='.repeat(60))
 
-    // Print missing tokens
-    // if (allMissingTokens.length > 0) {
-    //   console.log('\nMissing Prices:')
-    //   console.log('-'.repeat(60))
-    //   for (const { day, chainId, address, symbol } of allMissingTokens) {
-    //     console.log(`  [${day}] ${chainId}:${address} (${symbol ?? 'unknown'})`)
-    //   }
-    //   console.log('-'.repeat(60))
-    // }
+    // Print and save missing tokens
+    if (allMissingTokens.length > 0) {
+      // console.log('\nMissing Prices:')
+      // console.log('-'.repeat(60))
+      // for (const { day, chainId, address, symbol } of allMissingTokens) {
+      //   console.log(`  [${day}] ${chainId}:${address} (${symbol ?? 'unknown'})`)
+      // }
+      // console.log('-'.repeat(60))
+
+      // Save missing tokens to JSON file
+      // const filename = `missing-prices-${startDate}-to-${endDate}.json`
+      // const uniqueTokens = [...new Map(
+      //   allMissingTokens.map(t => [`${t.chainId}:${t.address}`, { chainId: t.chainId, address: t.address }])
+      // ).values()]
+      // writeFileSync(filename, JSON.stringify(uniqueTokens, null, 2))
+      // console.log(`\nMissing tokens saved to ${filename} (${uniqueTokens.length} unique)`)
+    }
 
     console.log('Done!')
 
