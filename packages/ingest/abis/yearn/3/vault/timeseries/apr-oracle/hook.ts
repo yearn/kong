@@ -40,9 +40,8 @@ export default async function (
       blockNumber,
     })
     apr = Number(rawApr) / 1e18
-  } catch (error) {
-    console.error(error)
-    return []
+  } catch {
+    apr = 0
   }
 
   if (isNaN(apr) || !isFinite(apr)) {
