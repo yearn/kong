@@ -39,7 +39,7 @@ export async function getFullTimeseries(
     SELECT
       chain_id AS "chainId",
       address,
-      label,
+      $3::text AS label,
       component,
       COALESCE(AVG(NULLIF(value, 0)), 0) AS value,
       '1 day'::text AS period,
