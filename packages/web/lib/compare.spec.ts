@@ -1,20 +1,20 @@
-import { strict as assert } from 'node:assert'
+import { expect } from 'chai'
 import { extractVersion } from './compare'
 
 describe('extractVersion', () => {
   it('should extract version numbers correctly', () => {
-    assert.equal(extractVersion('0.3.3.Edited'), '0.3.3')
-    assert.equal(extractVersion('1.2.3'), '1.2.3')
-    assert.equal(extractVersion('2.4'), '2.4')
-    assert.equal(extractVersion('3'), '3')
-    assert.equal(extractVersion('4.5.6.7.8'), '4.5.6')
-    assert.equal(extractVersion('1.2.3-alpha'), '1.2.3')
-    assert.equal(extractVersion('v2.3.4'), '2.3.4')
+    expect(extractVersion('0.3.3.Edited')).to.equal('0.3.3')
+    expect(extractVersion('1.2.3')).to.equal('1.2.3')
+    expect(extractVersion('2.4')).to.equal('2.4')
+    expect(extractVersion('3')).to.equal('3')
+    expect(extractVersion('4.5.6.7.8')).to.equal('4.5.6')
+    expect(extractVersion('1.2.3-alpha')).to.equal('1.2.3')
+    expect(extractVersion('v2.3.4')).to.equal('2.3.4')
   })
 
   it('should return "0" for invalid versions', () => {
-    assert.equal(extractVersion('Invalid'), '0')
-    assert.equal(extractVersion(''), '0')
-    assert.equal(extractVersion('a.b.c'), '0')
+    expect(extractVersion('Invalid')).to.equal('0')
+    expect(extractVersion('')).to.equal('0')
+    expect(extractVersion('a.b.c')).to.equal('0')
   })
 })
