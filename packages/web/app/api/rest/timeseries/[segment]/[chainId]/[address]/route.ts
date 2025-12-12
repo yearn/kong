@@ -45,7 +45,13 @@ export async function GET(
 
   const addressLower = address.toLowerCase()
   const cacheKey = getTimeseriesKey(entry.label, Number(chainId), addressLower)
-  const cached = await timeseriesKeyv.get(cacheKey)
+  let cached
+  try {
+    cached = await timeseriesKeyv.get(cacheKey)
+  } catch (err) {
+    console.error(`Redis read failed for ${cacheKey}:`, err)
+    throw err
+  }
   const parsed: Array<{ time: number; component: string; value: number }> = cached
     ? JSON.parse(cached as string)
     : []
