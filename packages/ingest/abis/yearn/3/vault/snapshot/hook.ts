@@ -4,7 +4,7 @@ import { rpcs } from '../../../../../rpcs'
 import { EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
 import { mq } from 'lib'
 import { estimateCreationBlock } from 'lib/blocks'
-import db, { getLatestApy, getSparkline } from '../../../../../db'
+import db, { getLatestApy, getLatestOracleApr, getSparkline } from '../../../../../db'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { priced } from 'lib/math'
 import { getRiskScore } from '../../../lib/risk'
@@ -80,13 +80,26 @@ export default async function process(chainId: number, address: `0x${string}`, d
   }
 
   const apy = await getLatestApy(chainId, address)
+  const [oracleApr, oracleApy] = await getLatestOracleApr(chainId, address)
 
   return {
     asset, strategies, allocator, roles, debts, fees,
     risk, meta: { ...meta, token },
     sparklines,
     tvl: sparklines.tvl[0],
-    apy
+    apy,
+    performance: {
+      oracle: {
+        apr: oracleApr,
+        apy: oracleApy
+      },
+      historical: apy ? {
+        net: apy.net,
+        weeklyNet: apy.weeklyNet,
+        monthlyNet: apy.monthlyNet,
+        inceptionNet: apy.inceptionNet
+      } : undefined
+    }
   }
 }
 
@@ -271,17 +284,26 @@ export async function extractFeesBps(chainId: number, address: `0x${string}`, sn
       }
     } else {
       // No accountant, try to call performanceFee directly on vault
-      const performanceFee = await rpcs.next(chainId).readContract({
-        address,
-        abi: parseAbi(['function performanceFee() view returns (uint16)']),
-        functionName: 'performanceFee'
-      })
+      try {
+        const performanceFee = await rpcs.next(chainId).readContract({
+          address,
+          abi: parseAbi(['function performanceFee() view returns (uint16)']),
+          functionName: 'performanceFee'
+        })
 
-      return {
-        managementFee: 0,
-        performanceFee: performanceFee
+        return {
+          managementFee: 0,
+          performanceFee: performanceFee
+        }
+
+      } catch {
+        return {
+          managementFee: 0,
+          performanceFee: 0
+        }
       }
     }
+
   } catch(err) {
     console.error('🤬', '!extractFeesBps', err)
     return {

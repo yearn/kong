@@ -96,6 +96,23 @@ type Apy {
   blockTime: String!
 }
 
+type Oracle {
+  apr: Float
+  apy: Float
+}
+
+type Historical {
+  net: Float
+  weeklyNet: Float
+  monthlyNet: Float
+  inceptionNet: Float
+}
+
+type Performance {
+  oracle: Oracle
+  historical: Historical
+}
+
 type Vault {
   DOMAIN_SEPARATOR: String
   FACTORY: String
@@ -165,6 +182,7 @@ type Vault {
   sparklines: Sparklines
   tvl: SparklinePoint
   apy: Apy
+  performance: Performance
   roles: [Role]
   v3: Boolean
   yearn: Boolean

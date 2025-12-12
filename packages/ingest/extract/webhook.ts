@@ -112,7 +112,7 @@ class Semaphore {
           this.waiting.splice(index, 1)
           reject(new Error('Semaphore acquire timeout'))
         }
-      }, timeoutMs)
+      }, timeoutMs) as NodeJS.Timeout
 
       this.waiting.push({ resolve, timeout })
     })
