@@ -284,17 +284,26 @@ export async function extractFeesBps(chainId: number, address: `0x${string}`, sn
       }
     } else {
       // No accountant, try to call performanceFee directly on vault
-      const performanceFee = await rpcs.next(chainId).readContract({
-        address,
-        abi: parseAbi(['function performanceFee() view returns (uint16)']),
-        functionName: 'performanceFee'
-      })
+      try {
+        const performanceFee = await rpcs.next(chainId).readContract({
+          address,
+          abi: parseAbi(['function performanceFee() view returns (uint16)']),
+          functionName: 'performanceFee'
+        })
 
-      return {
-        managementFee: 0,
-        performanceFee: performanceFee
+        return {
+          managementFee: 0,
+          performanceFee: performanceFee
+        }
+
+      } catch {
+        return {
+          managementFee: 0,
+          performanceFee: 0
+        }
       }
     }
+
   } catch(err) {
     console.error('🤬', '!extractFeesBps', err)
     return {
