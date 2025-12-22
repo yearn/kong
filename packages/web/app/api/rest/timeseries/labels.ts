@@ -16,6 +16,11 @@ export const labels: TimeseriesLabel[] = [
     defaultComponent: 'net',
   },
   {
+    label: 'apr-oracle',
+    segment: 'apr-oracle',
+    defaultComponent: 'apr',
+  },
+  {
     label: 'tvl-c',
     segment: 'tvl',
     defaultComponent: 'tvl',
