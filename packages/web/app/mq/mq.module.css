@@ -1,0 +1,160 @@
+.container {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+  margin: 20px;
+  background: #1a1a2e;
+  color: #eee;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.container h1,
+.container h2 {
+  color: #fff;
+}
+
+.container a {
+  color: #4da6ff;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.table th,
+.table td {
+  border: 1px solid #333;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.table th {
+  background: #16213e;
+}
+
+.table tr:hover {
+  background: #1f3460;
+}
+
+.warning {
+  background: #665c00;
+}
+
+.danger {
+  background: #5c0000;
+  color: #ff6b6b;
+}
+
+.info {
+  background: #003d5c;
+}
+
+.note {
+  color: #888;
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.stats {
+  background: #16213e;
+  padding: 15px;
+  border-radius: 8px;
+  margin: 15px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.stat {
+  display: inline-block;
+}
+
+.stat strong {
+  margin-left: 4px;
+}
+
+.statWarning {
+  color: #ffd93d;
+}
+
+.statDanger {
+  color: #ff6b6b;
+}
+
+.links {
+  margin: 15px 0;
+}
+
+.links a {
+  margin-right: 12px;
+}
+
+.jobsTable {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+.jobsTable th,
+.jobsTable td {
+  border: 1px solid #333;
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.jobsTable th {
+  background: #16213e;
+  position: sticky;
+  top: 0;
+}
+
+.jobsTable tr:hover {
+  background: #1f3460;
+}
+
+.dataCell {
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.errorCell {
+  color: #ff6b6b;
+  max-width: 300px;
+}
+
+.pagination {
+  margin: 15px 0;
+  display: flex;
+  gap: 10px;
+}
+
+.pagination a {
+  padding: 5px 10px;
+  background: #16213e;
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+.pagination a:hover {
+  background: #1f3460;
+}
+
+.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.count {
+  color: #888;
+  margin-left: 10px;
+  font-size: 14px;
+}
+
+.backLink {
+  margin-bottom: 15px;
+}

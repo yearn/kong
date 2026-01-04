@@ -20,12 +20,12 @@ This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-opti
 
 ## MQ Dashboard (Dev Only)
 
-A queue dashboard is available at [http://localhost:3000/api/mq](http://localhost:3000/api/mq) for browsing BullMQ queues during development.
+A queue dashboard is available at [http://localhost:3000/mq](http://localhost:3000/mq) for browsing BullMQ queues during development.
 
 **Features:**
 - View all queue stats (waiting, active, completed, failed)
 - Browse jobs by status with pagination
-- Auto-refreshes every 5 seconds
+- JSON API at `/api/mq`
 
 **Configuration** (only needed if not using default localhost Redis):
 ```
