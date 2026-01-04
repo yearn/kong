@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Queue } from 'bullmq'
-import { bull } from '../../mq/bull'
+import { bull } from '../bull'
+import chains from '@/chains'
 
 // Only allow in development
 const isDev = process.env.NODE_ENV === 'development'
-
-// Chain IDs for queue names
-const chainIds = [1, 10, 100, 137, 146, 250, 8453, 42161, 80094, 747474]
 
 // Queue definitions
 const queueNames = [
   'fanout',
   'extract',
-  ...chainIds.map(id => `extract-${id}`),
+  ...chains.map(c => `extract-${c.id}`),
   'load',
   'probe'
 ]
+
+// Escape HTML to prevent XSS
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
 
 // Cache queues
 const queues: Map<string, Queue> = new Map()
@@ -27,13 +35,25 @@ function getQueue(name: string): Queue {
   return queues.get(name)!
 }
 
-async function getQueueStats(name: string) {
+interface QueueStats {
+  name: string
+  waiting: number
+  active: number
+  completed: number
+  failed: number
+  delayed: number
+  paused: number
+  prioritized: number
+  isPaused: boolean
+}
+
+async function getQueueStats(name: string): Promise<QueueStats> {
   const queue = getQueue(name)
   const [counts, isPaused] = await Promise.all([
     queue.getJobCounts(),
     queue.isPaused()
   ])
-  return { name, ...counts, isPaused }
+  return { name, ...counts, isPaused } as QueueStats
 }
 
 async function getQueueJobs(name: string, status: string, start = 0, end = 20) {
@@ -61,16 +81,16 @@ async function getQueueJobs(name: string, status: string, start = 0, end = 20) {
 async function handler(req: NextRequest) {
   if (!isDev) {
     return NextResponse.json(
-      { error: 'Bull Board is only available in development' },
+      { error: 'Queue dashboard is only available in development' },
       { status: 403 }
     )
   }
 
   const url = new URL(req.url)
-  const pathParts = url.pathname.replace('/api/bull-board', '').split('/').filter(Boolean)
+  const pathParts = url.pathname.replace('/api/mq', '').split('/').filter(Boolean)
 
   try {
-    // GET /api/bull-board - list all queues with stats
+    // GET /api/mq - list all queues with stats
     if (pathParts.length === 0) {
       const stats = await Promise.all(queueNames.map(getQueueStats))
       const html = renderDashboard(stats)
@@ -79,13 +99,13 @@ async function handler(req: NextRequest) {
       })
     }
 
-    // GET /api/bull-board/json - JSON stats
+    // GET /api/mq/json - JSON stats
     if (pathParts[0] === 'json') {
       const stats = await Promise.all(queueNames.map(getQueueStats))
       return NextResponse.json(stats)
     }
 
-    // GET /api/bull-board/:queue - queue details
+    // GET /api/mq/:queue - queue details
     if (pathParts.length === 1) {
       const queueName = decodeURIComponent(pathParts[0])
       if (!queueNames.includes(queueName)) {
@@ -98,7 +118,7 @@ async function handler(req: NextRequest) {
       })
     }
 
-    // GET /api/bull-board/:queue/:status - jobs by status
+    // GET /api/mq/:queue/:status - jobs by status
     if (pathParts.length === 2) {
       const queueName = decodeURIComponent(pathParts[0])
       const status = pathParts[1]
@@ -107,7 +127,7 @@ async function handler(req: NextRequest) {
       }
       const pageSize = 50
       const stats = await getQueueStats(queueName)
-      const total = (stats as Record<string, number>)[status] || 0
+      const total = stats[status as keyof QueueStats] as number || 0
 
       let start = parseInt(url.searchParams.get('start') || '0')
       let end = parseInt(url.searchParams.get('end') || String(pageSize))
@@ -143,11 +163,11 @@ async function handler(req: NextRequest) {
 
 function renderDashboard(stats: Awaited<ReturnType<typeof getQueueStats>>[]) {
   const rows = stats.map(q => {
-    const prioritized = (q as Record<string, unknown>).prioritized as number || 0
+    const prioritized = q.prioritized || 0
     const waiting = q.waiting + prioritized
     return `
     <tr>
-      <td><a href="/api/bull-board/${encodeURIComponent(q.name)}">${q.name}</a></td>
+      <td><a href="/api/mq/${encodeURIComponent(q.name)}">${q.name}</a></td>
       <td class="${waiting > 0 ? 'warning' : ''}">${waiting}</td>
       <td class="${q.active > 0 ? 'info' : ''}">${q.active}</td>
       <td>${q.completed}</td>
@@ -160,7 +180,7 @@ function renderDashboard(stats: Awaited<ReturnType<typeof getQueueStats>>[]) {
   return `<!DOCTYPE html>
 <html>
 <head>
-  <title>Bull Board - Dev</title>
+  <title>MQ Dashboard</title>
   <meta http-equiv="refresh" content="5">
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; margin: 20px; background: #1a1a2e; color: #eee; }
@@ -177,7 +197,7 @@ function renderDashboard(stats: Awaited<ReturnType<typeof getQueueStats>>[]) {
   </style>
 </head>
 <body>
-  <h1>Bull Board (Dev Only)</h1>
+  <h1>MQ Dashboard</h1>
   <table>
     <tr>
       <th>Queue</th>
@@ -190,22 +210,22 @@ function renderDashboard(stats: Awaited<ReturnType<typeof getQueueStats>>[]) {
     </tr>
     ${rows}
   </table>
-  <p class="note">Auto-refreshes every 5 seconds. <a href="/api/bull-board/json">JSON API</a></p>
+  <p class="note">Auto-refreshes every 5 seconds. <a href="/api/mq/json">JSON API</a></p>
 </body>
 </html>`
 }
 
 function renderQueueDetail(name: string, stats: Awaited<ReturnType<typeof getQueueStats>>) {
-  const prioritized = (stats as Record<string, unknown>).prioritized as number || 0
-  const statuses = ['prioritized', 'waiting', 'active', 'failed', 'delayed', 'completed']
+  const prioritized = stats.prioritized || 0
+  const statuses: (keyof QueueStats)[] = ['prioritized', 'waiting', 'active', 'failed', 'delayed', 'completed']
   const links = statuses.map(s =>
-    `<a href="/api/bull-board/${encodeURIComponent(name)}/${s}">${s} (${(stats as Record<string, unknown>)[s] || 0})</a>`
+    `<a href="/api/mq/${encodeURIComponent(name)}/${s}">${s} (${stats[s]})</a>`
   ).join(' | ')
 
   return `<!DOCTYPE html>
 <html>
 <head>
-  <title>${name} - Bull Board</title>
+  <title>${name} - MQ Dashboard</title>
   <meta http-equiv="refresh" content="5">
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; margin: 20px; background: #1a1a2e; color: #eee; }
@@ -219,7 +239,7 @@ function renderQueueDetail(name: string, stats: Awaited<ReturnType<typeof getQue
   </style>
 </head>
 <body>
-  <p><a href="/api/bull-board">&larr; Back to all queues</a></p>
+  <p><a href="/api/mq">&larr; Back to all queues</a></p>
   <h1>${name}</h1>
   <div class="stats">
     <span>Prioritized: <strong class="${prioritized > 0 ? 'warning' : ''}">${prioritized}</strong></span>
@@ -260,23 +280,25 @@ function renderJobsList(queueName: string, status: string, jobs: JobInfo[], star
   const rows = jobs.map(job => {
     const age = job.timestamp ? Math.floor((Date.now() - job.timestamp) / 1000) : 0
     const ageStr = age > 3600 ? `${Math.floor(age / 3600)}h` : age > 60 ? `${Math.floor(age / 60)}m` : `${age}s`
-    const dataPreview = JSON.stringify(job.data).slice(0, 200)
+    const dataJson = JSON.stringify(job.data)
+    const dataPreview = escapeHtml(dataJson.slice(0, 200))
+    const dataFull = escapeHtml(JSON.stringify(job.data, null, 2))
 
     return `
     <tr>
       <td>${job.id}</td>
-      <td>${job.name}</td>
+      <td>${escapeHtml(job.name)}</td>
       <td title="${new Date(job.timestamp || 0).toISOString()}">${ageStr} ago</td>
       <td>${job.attemptsMade}</td>
-      <td class="data" title='${JSON.stringify(job.data, null, 2).replace(/'/g, "&#39;")}'>${dataPreview}${dataPreview.length >= 200 ? '...' : ''}</td>
-      ${status === 'failed' ? `<td class="error">${job.failedReason || ''}</td>` : ''}
+      <td class="data" title="${dataFull}">${dataPreview}${dataJson.length > 200 ? '...' : ''}</td>
+      ${status === 'failed' ? `<td class="error">${escapeHtml(job.failedReason || '')}</td>` : ''}
     </tr>`
   }).join('')
 
   return `<!DOCTYPE html>
 <html>
 <head>
-  <title>${queueName} - ${status} - Bull Board</title>
+  <title>${queueName} - ${status} - MQ Dashboard</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; margin: 20px; background: #1a1a2e; color: #eee; }
     h1 { color: #fff; }
@@ -296,7 +318,7 @@ function renderJobsList(queueName: string, status: string, jobs: JobInfo[], star
   </style>
 </head>
 <body>
-  <p><a href="/api/bull-board/${encodeURIComponent(queueName)}">&larr; Back to ${queueName}</a></p>
+  <p><a href="/api/mq/${encodeURIComponent(queueName)}">&larr; Back to ${queueName}</a></p>
   <h1>${queueName} / ${status} <span class="count">(${start + 1}-${start + jobs.length} of ${total})</span></h1>
   <div class="pagination">
     <a href="?start=0&end=${pageSize}" class="${start === 0 ? 'disabled' : ''}">&laquo; First</a>

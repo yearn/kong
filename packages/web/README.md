@@ -18,9 +18,9 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
 
-## Bull Board (Dev Only)
+## MQ Dashboard (Dev Only)
 
-A queue dashboard is available at [http://localhost:3000/api/bull-board](http://localhost:3000/api/bull-board) for browsing BullMQ queues during development.
+A queue dashboard is available at [http://localhost:3000/api/mq](http://localhost:3000/api/mq) for browsing BullMQ queues during development.
 
 **Features:**
 - View all queue stats (waiting, active, completed, failed)
@@ -29,11 +29,11 @@ A queue dashboard is available at [http://localhost:3000/api/bull-board](http://
 
 **Configuration** (only needed if not using default localhost Redis):
 ```
-BULLMQ_REDIS_HOST=your-redis-host
-BULLMQ_REDIS_PORT=6379
-BULLMQ_REDIS_USERNAME=...
-BULLMQ_REDIS_PASSWORD=...
-BULLMQ_REDIS_TLS=true
+MQ_REDIS_HOST=your-redis-host
+MQ_REDIS_PORT=6379
+MQ_REDIS_USERNAME=...
+MQ_REDIS_PASSWORD=...
+MQ_REDIS_TLS=true
 ```
 
 Only available when `NODE_ENV=development`.
