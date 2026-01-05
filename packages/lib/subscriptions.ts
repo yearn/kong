@@ -16,7 +16,7 @@ export const WebhookSubscriptionSchema = z.object({
   url: z.string().url(),
   abiPath: z.string(),
   type: z.enum(['timeseries']),
-  label: z.string(),
+  labels: z.array(z.string()),
   filter: WebhookFilterSchema.optional()
 })
 

@@ -61,7 +61,7 @@ export class WebhookExtractor {
     await semaphore.acquire()
 
     try {
-      const label = `🔌 ${mq.job.extract.webhook.name} ${subscription.id} ${subscription.url} ${subscription.label}`
+      const label = `🔌 ${mq.job.extract.webhook.name} ${subscription.id} ${subscription.url} ${subscription.labels.join(', ')}`
       console.time(label)
       const response = await fetchResponse(subscription, data)
       console.timeEnd(label)
@@ -73,8 +73,8 @@ export class WebhookExtractor {
       const body = await response.json()
       const outputs = OutputSchema.array().parse(body)
 
-      if (outputs.some(output => output.label !== subscription.label)) {
-        throw new Error(`Unexpected labels. Expected: ${subscription.label}, Got: ${outputs.map(output => output.label).join(', ')}`)
+      if (outputs.some(output => !subscription.labels.includes(output.label))) {
+        throw new Error(`Unexpected labels. Expected one of: ${subscription.labels.join(', ')}, Got: ${outputs.map(output => output.label).join(', ')}`)
       }
 
       const MAX_OUTPUTS = 20
