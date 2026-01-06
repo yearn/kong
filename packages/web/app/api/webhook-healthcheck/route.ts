@@ -18,7 +18,7 @@ const KongWebhookSchema = z.object({
     url: z.string().url(),
     abiPath: z.string(),
     type: z.enum(['timeseries']),
-    label: z.string()
+    labels: z.array(z.string())
   })
 })
 
@@ -57,24 +57,26 @@ export async function POST(request: NextRequest) {
 
   const hook = KongWebhookSchema.parse(JSON.parse(body))
 
-  const outputs = OutputSchema.array().parse([
-    OutputSchema.parse({
-      chainId: hook.chainId,
-      address: hook.address,
-      label: hook.subscription.label,
-      component: 'health', value: 0,
-      blockNumber: hook.blockNumber,
-      blockTime: hook.blockTime
-    }),
-    OutputSchema.parse({
-      chainId: hook.chainId,
-      address: hook.address,
-      label: hook.subscription.label,
-      component: 'check', value: 1,
-      blockNumber: hook.blockNumber,
-      blockTime: hook.blockTime
-    })
-  ])
+  const outputs = OutputSchema.array().parse(
+    hook.subscription.labels.flatMap(label => [
+      OutputSchema.parse({
+        chainId: hook.chainId,
+        address: hook.address,
+        label: label,
+        component: 'health', value: 0,
+        blockNumber: hook.blockNumber,
+        blockTime: hook.blockTime
+      }),
+      OutputSchema.parse({
+        chainId: hook.chainId,
+        address: hook.address,
+        label: label,
+        component: 'check', value: 1,
+        blockNumber: hook.blockNumber,
+        blockTime: hook.blockTime
+      })
+    ])
+  )
 
   const replacer = (_: string, v: unknown) => typeof v === 'bigint' ? v.toString() : v
   return new Response(JSON.stringify(outputs, replacer))
