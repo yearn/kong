@@ -1,40 +1,57 @@
 import { NextResponse } from 'next/server'
-import { createKeyv } from '@keyv/redis'
+import { createRedisClient } from '../redis'
 
 export const runtime = 'nodejs'
 
-const REDIS_LIST_KEY = 'list:vaults'
+type VaultListItem = {
+  chainId: number
+  address: string
+  name: string
+}
 
 const corsHeaders = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET,OPTIONS',
 }
 
-const redisUrl = process.env.REST_CACHE_REDIS_URL || 'redis://localhost:6379'
-const listsKeyv = createKeyv(redisUrl)
-
 export async function GET() {
-  let cached
+  const client = await createRedisClient()
+
   try {
-    cached = await listsKeyv.get(REDIS_LIST_KEY)
+    // Scan for all keys matching pattern list:vaults:*
+    const pattern = 'list:vaults:*'
+    const keys = await client.keys(pattern)
+
+    if (keys.length === 0) {
+      await client.quit()
+      return new NextResponse('Not found', { status: 404, headers: corsHeaders })
+    }
+
+    // Fetch all chain-specific lists
+    const allVaults: VaultListItem[] = []
+    for (const key of keys) {
+      const data = await client.get(key)
+      if (data) {
+        const wrapped = JSON.parse(data)
+        const chainVaults: VaultListItem[] = JSON.parse(wrapped.value)
+        allVaults.push(...chainVaults)
+      }
+    }
+
+    await client.quit()
+
+    return NextResponse.json(allVaults, {
+      status: 200,
+      headers: {
+        'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
+        ...corsHeaders,
+      },
+    })
   } catch (err) {
-    console.error(`Redis read failed for ${REDIS_LIST_KEY}:`, err)
+    console.error('Redis operation failed:', err)
+    await client.quit()
     throw err
   }
-
-  if (!cached) {
-    return new NextResponse('Not found', { status: 404, headers: corsHeaders })
-  }
-
-  const parsed = JSON.parse(cached as string)
-
-  return NextResponse.json(parsed, {
-    status: 200,
-    headers: {
-      'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
-      ...corsHeaders,
-    },
-  })
 }
 
 export function OPTIONS() {
