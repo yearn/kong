@@ -18,6 +18,26 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
 
+## MQ Dashboard (Dev Only)
+
+A queue dashboard is available at [http://localhost:3000/mq](http://localhost:3000/mq) for browsing BullMQ queues during development.
+
+**Features:**
+- View all queue stats (waiting, active, completed, failed)
+- Browse jobs by status with pagination
+- JSON API at `/api/mq`
+
+**Configuration** (only needed if not using default localhost Redis):
+```
+MQ_REDIS_HOST=your-redis-host
+MQ_REDIS_PORT=6379
+MQ_REDIS_USERNAME=...
+MQ_REDIS_PASSWORD=...
+MQ_REDIS_TLS=true
+```
+
+Only available when `NODE_ENV=development`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

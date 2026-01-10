@@ -3,7 +3,7 @@ subscriptions:
     url: 'https://kong.yearn.farm/api/webhook-healthcheck'
     abiPath: 'yearn/3/vault'
     type: 'timeseries'
-    label: 'webhook-healthcheck'
+    labels: ['webhook-healthcheck']
     filter:
       contracts:
         - chainId: 1
@@ -13,6 +13,6 @@ subscriptions:
     url: 'https://v2-estimated-apr-hook.vercel.app/webhook'
     abiPath: 'yearn/2/vault'
     type: 'timeseries'
-    label: 'crv-estimated-apr'
+    labels: ['crv-estimated-apr', 'aero-estimated-apr', 'velodrome-estimated-apr']
     filter:
-      chains: [1, 10, 250, 42161]
+      chainIds: [1, 10, 250, 42161]
