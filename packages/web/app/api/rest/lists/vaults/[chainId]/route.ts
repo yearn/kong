@@ -39,8 +39,7 @@ export async function GET(
     return new NextResponse('Not found', { status: 404, headers: corsHeaders })
   }
 
-  const wrapped = JSON.parse(cached as string)
-  const vaults: VaultListItem[] = JSON.parse(wrapped.value)
+  const vaults: VaultListItem[] = JSON.parse(cached as string)
 
   return NextResponse.json(vaults, {
     status: 200,
