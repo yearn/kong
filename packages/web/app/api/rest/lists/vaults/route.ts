@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createListsKeyv } from '../redis'
+import type { VaultListItem } from '../db'
 
 export const runtime = 'nodejs'
-
-type VaultListItem = {
-  chainId: number
-  address: string
-  name: string
-}
 
 const corsHeaders = {
   'access-control-allow-origin': '*',
