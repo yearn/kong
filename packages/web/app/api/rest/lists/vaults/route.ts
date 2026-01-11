@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createRedisClient } from '../redis'
+import { createListsKeyv } from '../redis'
 
 export const runtime = 'nodejs'
 
@@ -15,30 +15,21 @@ const corsHeaders = {
 }
 
 export async function GET() {
-  const client = await createRedisClient()
+  const keyv = createListsKeyv('list:vaults')
 
   try {
-    // Scan for all keys matching pattern list:vaults:*
-    const pattern = 'list:vaults:*'
-    const keys = await client.keys(pattern)
-
-    if (keys.length === 0) {
-      await client.quit()
-      return new NextResponse('Not found', { status: 404, headers: corsHeaders })
+    if (!keyv.iterator) {
+      return new NextResponse('Iterator not supported', { status: 500, headers: corsHeaders })
     }
 
-    // Fetch all chain-specific lists
     const allVaults: VaultListItem[] = []
-    for (const key of keys) {
-      const data = await client.get(key)
-      if (data) {
-        const wrapped = JSON.parse(data)
-        const chainVaults: VaultListItem[] = JSON.parse(wrapped.value)
+
+    for await (const [, value] of keyv.iterator(keyv.namespace)) {
+      if (value) {
+        const chainVaults: VaultListItem[] = JSON.parse(value)
         allVaults.push(...chainVaults)
       }
     }
-
-    await client.quit()
 
     return NextResponse.json(allVaults, {
       status: 200,
@@ -49,7 +40,6 @@ export async function GET() {
     })
   } catch (err) {
     console.error('Redis operation failed:', err)
-    await client.quit()
     throw err
   }
 }

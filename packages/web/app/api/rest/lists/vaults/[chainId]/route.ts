@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createListsKeyv, getListKey } from '../../redis'
+import { createListsKeyv } from '../../redis'
 
 export const runtime = 'nodejs'
 
@@ -14,7 +14,7 @@ const corsHeaders = {
   'access-control-allow-methods': 'GET,OPTIONS',
 }
 
-const listsKeyv = createListsKeyv()
+const listsKeyv = createListsKeyv('list:vaults')
 
 type RouteParams = {
   chainId?: string | string[]
@@ -26,12 +26,11 @@ export async function GET(
 ) {
   const { chainId: chainIdParam } = (await context.params) ?? {}
   const chainId = parseInt(chainIdParam as string, 10)
-  const listKey = getListKey('vaults', chainId)
   let cached
   try {
-    cached = await listsKeyv.get(listKey)
+    cached = await listsKeyv.get(String(chainId))
   } catch (err) {
-    console.error(`Redis read failed for ${listKey}:`, err)
+    console.error(`Redis read failed for chainId ${chainId}:`, err)
     throw err
   }
 

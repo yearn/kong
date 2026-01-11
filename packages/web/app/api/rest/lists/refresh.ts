@@ -1,18 +1,13 @@
 import { getVaultsList } from './db'
-import { createListsKeyv, getListKey } from './redis'
+import { createListsKeyv } from './redis'
 
 async function refresh(): Promise<void> {
   console.time('refresh')
 
-  const keyv = createListsKeyv()
+  const keyv = createListsKeyv('list:vaults')
 
-  console.log('Fetching vaults list...')
   const vaults = await getVaultsList()
-  console.log(`Found ${vaults.length} vaults`)
 
-  console.log('Storing per-chain lists in Redis...')
-
-  // Group vaults by chainId
   const vaultsByChain = vaults.reduce((acc, vault) => {
     if (!acc[vault.chainId]) {
       acc[vault.chainId] = []
@@ -21,12 +16,10 @@ async function refresh(): Promise<void> {
     return acc
   }, {} as Record<number, typeof vaults>)
 
-  // Store per-chain lists only
   const chainIds = Object.keys(vaultsByChain).map(Number)
   for (const chainId of chainIds) {
     const chainVaults = vaultsByChain[chainId]
-    const chainKey = getListKey('vaults', chainId)
-    await keyv.set(chainKey, JSON.stringify(chainVaults))
+    await keyv.set(String(chainId), JSON.stringify(chainVaults))
   }
 
   console.log(`✓ Completed: ${vaults.length} vaults cached across ${chainIds.length} chains`)
