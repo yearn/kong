@@ -1,5 +1,6 @@
 name: refresh-lists
 
+# Trigger scheduler re-registration
 on:
   schedule:
     - cron: '*/15 * * * *'
