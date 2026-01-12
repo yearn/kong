@@ -15,18 +15,22 @@ export const lens = {
   [arbitrum.id]: '0x043518AB266485dC085a1DB095B8d9C2Fc78E9b9' as `0x${string}`
 }
 
-export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber?: bigint, latest = false): Promise<{ priceUsd: number, priceSource: string }>{
+export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber?: bigint, latest = false, toleranceSeconds?: number): Promise<{ priceUsd: number, priceSource: string }>{
   if (!blockNumber) {
     blockNumber = await getBlockNumber(chainId)
     latest = true
   }
 
-  return cache.wrap(`fetchErc20PriceUsd:${chainId}:${token}:${blockNumber}`, async () => {
-    return await __fetchErc20PriceUsd(chainId, token, blockNumber!, latest)
+  const cacheKey = toleranceSeconds
+    ? `fetchErc20PriceUsd:${chainId}:${token}:${blockNumber}:tol${toleranceSeconds}`
+    : `fetchErc20PriceUsd:${chainId}:${token}:${blockNumber}`
+
+  return cache.wrap(cacheKey, async () => {
+    return await __fetchErc20PriceUsd(chainId, token, blockNumber!, latest, toleranceSeconds)
   }, 30_000)
 }
 
-async function __fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint, latest = false) {
+async function __fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint, latest = false, toleranceSeconds?: number) {
   let result: Price | undefined
 
   if(latest) {
@@ -35,7 +39,7 @@ async function __fetchErc20PriceUsd(chainId: number, token: `0x${string}`, block
     if(result) return result
   }
 
-  result = await fetchDbPriceUsd(chainId, token, blockNumber)
+  result = await fetchDbPriceUsd(chainId, token, blockNumber, toleranceSeconds)
   if(result) return result
 
   result = await fetchLensPriceUsd(chainId, token, blockNumber)
@@ -88,7 +92,29 @@ async function fetchYPriceUsd(chainId: number, token: `0x${string}`, blockNumber
   }
 }
 
-async function fetchDbPriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
+async function fetchDbPriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint, toleranceSeconds?: number) {
+  if (toleranceSeconds) {
+    const targetBlockTime = await getBlockTime(chainId, blockNumber)
+    const minBlockTime = new Date(Number(targetBlockTime) * 1000 - toleranceSeconds * 1000)
+
+    const result = await db.query(
+      `SELECT
+        chain_id as "chainId",
+        address,
+        price_usd as "priceUsd",
+        price_source as "priceSource",
+        block_number as "blockNumber",
+        block_time as "blockTime"
+      FROM price
+      WHERE chain_id = $1 AND address = $2
+      AND block_number <= $3 AND block_time >= $4
+      ORDER BY block_number DESC LIMIT 1`,
+      [chainId, token, blockNumber, minBlockTime]
+    )
+    if(result.rows.length === 0) return undefined
+    return PriceSchema.parse(result.rows[0])
+  }
+
   const result = await db.query(
     `SELECT
       chain_id as "chainId",
