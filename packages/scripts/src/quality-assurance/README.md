@@ -83,3 +83,23 @@ Summary:
   Total gaps found: 25
   Total gap days: 180
 ```
+
+---
+
+## Backfill Scripts
+
+Backfill scripts are located in `packages/ingest/scripts/` since they need direct access to the indexer's internal modules (RPC clients, price fetching, tvl computation).
+
+### tvl-c Backfill
+
+```bash
+# Generate gaps report
+bun packages/scripts/src/quality-assurance/timeseries-gaps.ts \
+  --chain 1 --label tvl-c --json gaps.json
+
+# Run backfill (dry run first)
+bun packages/ingest/scripts/backfill-tvl-c.ts --input gaps.json --dry-run
+bun packages/ingest/scripts/backfill-tvl-c.ts --input gaps.json
+```
+
+See `packages/ingest/scripts/README.md` for full documentation.

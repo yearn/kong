@@ -61,7 +61,7 @@ export default async function _process(chainId: number, address: `0x${string}`, 
   }
 }
 
-export async function _compute(vault: Thing, blockNumber: bigint, latest = false) {
+export async function _compute(vault: Thing, blockNumber: bigint, latest = false, toleranceSeconds?: number) {
   const { chainId, address, defaults } = vault
   const { apiVersion, asset, decimals } = z.object({
     apiVersion: z.string(),
@@ -69,7 +69,7 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
     decimals: z.number({ coerce: true })
   }).parse(defaults)
 
-  const { priceUsd } = await fetchErc20PriceUsd(chainId, asset, blockNumber, latest)
+  const { priceUsd } = await fetchErc20PriceUsd(chainId, asset, blockNumber, latest, toleranceSeconds)
 
   const totalAssets = await extractTotalAssets(chainId, address, blockNumber)
 
