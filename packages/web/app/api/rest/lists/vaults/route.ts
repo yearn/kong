@@ -21,8 +21,12 @@ export async function GET() {
 
     for await (const [, value] of keyv.iterator(keyv.namespace)) {
       if (value) {
-        const chainVaults: VaultListItem[] = JSON.parse(value)
-        allVaults.push(...chainVaults)
+        try {
+          const chainVaults: VaultListItem[] = JSON.parse(value)
+          allVaults.push(...chainVaults)
+        } catch (e) {
+          console.error('Failed to parse vault list from Redis:', e)
+        }
       }
     }
 
