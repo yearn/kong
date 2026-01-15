@@ -4,17 +4,17 @@ import { readFileSync, writeFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
-// Load .env from repo root BEFORE importing modules that use env vars
+// Load .env from same directory BEFORE importing modules that use env vars
 const __dirname = dirname(fileURLToPath(import.meta.url))
-config({ path: resolve(__dirname, '../../../.env') })
+config({ path: resolve(__dirname, '.env') })
 
 import { Thing, ThingSchema } from 'lib/types'
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { normalize } from 'lib/math'
 import { rpcs } from 'lib/rpcs'
-import { first } from '../db'
-import db from '../db'
-import { _compute } from '../abis/yearn/lib/tvl'
+import { first } from 'ingest/db'
+import db from 'ingest/db'
+import { _compute } from 'ingest/abis/yearn/lib/tvl'
 
 const { values } = parseArgs({
   args: process.argv.slice(2),
@@ -168,7 +168,7 @@ async function processDate(
 
 async function main() {
   if (!values.input) {
-    console.error('Usage: bun packages/ingest/scripts/backfill-tvl-c.ts --input <gaps.json> [--output <report.json>] [--dry-run] [--price-tolerance 86400] [--concurrency 5]')
+    console.error('Usage: bun packages/scripts/src/quality-assurance/timeseries-backfill-tvl-c-tvl.ts --input <gaps.json> [--output <report.json>] [--dry-run] [--price-tolerance 86400] [--concurrency 5]')
     process.exit(1)
   }
 
