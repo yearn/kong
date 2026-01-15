@@ -28,7 +28,7 @@ export default function Evmlogs() {
 
   return <div className={'w-full flex flex-col items-start'}>
     <div className="w-full flex items-center justify-between">
-      <div className="font-bold text-lg">Evmlogs</div>
+      <div id="evmlogs" className="font-bold text-lg">Evmlogs</div>
       <Frosty _key={`thing_total-${indexStats.evmlog_total}`} disabled={indexStats.evmlog_total < 1}>{formatLineItemValue(indexStats.evmlog_total)}</Frosty>
     </div>
 

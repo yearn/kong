@@ -28,7 +28,7 @@ export default function Outputs() {
 
   return <div className={'w-full flex flex-col items-start'}>
     <div className="w-full flex items-center justify-between">
-      <div className="font-bold text-lg">Outputs</div>
+      <div id="outputs" className="font-bold text-lg">Outputs</div>
       <Frosty _key={`thing_total-${indexStats.output_total}`} disabled={indexStats.output_total < 1}>{formatLineItemValue(indexStats.output_total)}</Frosty>
     </div>
   </div>
