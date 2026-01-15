@@ -103,6 +103,7 @@ function parseCliArgs() {
       end: { type: 'string', short: 'e' },
       upsert: { type: 'string', short: 'u' },
       tokens: { type: 'string', short: 't' },
+      'dry-run': { type: 'boolean', short: 'd' },
     },
   })
 
@@ -120,8 +121,9 @@ function parseCliArgs() {
 
   const upsertFlag = values.upsert === 'true'
   const tokensOverride = values.tokens ? parseTokensArg(values.tokens) : null
+  const dryRun = values['dry-run'] ?? false
 
-  return { startDate, endDate, upsertFlag, tokensOverride }
+  return { startDate, endDate, upsertFlag, tokensOverride, dryRun }
 }
 
 // ============================================================================
@@ -312,9 +314,15 @@ async function fetchHistoricalPrices(
 async function insertPrices(
   db: Pool,
   prices: PriceRecord[],
-  upsert: boolean
+  upsert: boolean,
+  dryRun: boolean
 ): Promise<{ inserted: number; skipped: number }> {
   if (prices.length === 0) return { inserted: 0, skipped: 0 }
+
+  if (dryRun) {
+    console.log(`  [DRY RUN] Would insert ${prices.length} prices`)
+    return { inserted: prices.length, skipped: 0 }
+  }
 
   // Build batch insert query
   const values: unknown[] = []
@@ -384,7 +392,7 @@ function* dateRange(startDate: string, endDate: string): Generator<string> {
 // ============================================================================
 
 async function main() {
-  const { startDate, endDate, upsertFlag, tokensOverride } = parseCliArgs()
+  const { startDate, endDate, upsertFlag, tokensOverride, dryRun } = parseCliArgs()
 
   console.log('='.repeat(60))
   console.log('DefiLlama Daily Price Backfill')
@@ -392,6 +400,7 @@ async function main() {
   console.log(`Start date:  ${startDate}`)
   console.log(`End date:    ${endDate}`)
   console.log(`Upsert mode: ${upsertFlag}`)
+  console.log(`Dry run:     ${dryRun}`)
   console.log(`Tokens:      ${tokensOverride ? `${tokensOverride.length} from CLI` : 'from database'}`)
   console.log(`API:         ${process.env.DEFILLAMA_API ?? 'https://coins.llama.fi'}`)
   console.log('='.repeat(60))
@@ -525,7 +534,7 @@ async function main() {
 
       // Insert all prices for this day
       if (dayPrices.length > 0) {
-        const { inserted, skipped } = await insertPrices(db, dayPrices, upsertFlag)
+        const { inserted, skipped } = await insertPrices(db, dayPrices, upsertFlag, dryRun)
         grandTotalInserted += inserted
         grandTotalSkipped += skipped
         grandTotalMissing += totalMissing
