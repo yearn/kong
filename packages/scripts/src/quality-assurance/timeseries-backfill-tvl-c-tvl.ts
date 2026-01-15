@@ -22,7 +22,7 @@ const { values } = parseArgs({
     input: { type: 'string', short: 'i' },
     output: { type: 'string', short: 'o' },
     'dry-run': { type: 'boolean', short: 'd', default: false },
-    'price-tolerance': { type: 'string', short: 't', default: '86400' },
+    'price-tolerance': { type: 'string', short: 't', default: '0' },
     concurrency: { type: 'string', short: 'c', default: '5' },
   },
 })
