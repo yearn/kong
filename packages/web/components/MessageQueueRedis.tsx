@@ -7,7 +7,7 @@ import prettyBytes from 'pretty-bytes'
 export default function MessageQueueRedis() {
   const { monitor } = useData()
   return <div className="w-full flex flex-col gap-2">
-    <div className="font-bold text-xl">Redis</div>
+    <div id="redis" className="font-bold text-xl">Redis</div>
     <div className="w-full flex flex-col justify-between gap-4">
       <AsciiMeter
         current={monitor.redis.memory.used}

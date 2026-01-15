@@ -43,7 +43,7 @@ export default function Things() {
 
   return <div className={'w-full flex flex-col items-start'}>
     <div className="w-full flex items-center justify-between">
-      <div className="font-bold text-lg">Things</div>
+      <div id="things" className="font-bold text-lg">Things</div>
       <Frosty _key={`thing_total-${indexStats.things_total}`} disabled={indexStats.things_total < 1}>{formatLineItemValue(indexStats.things_total)}</Frosty>
     </div>
     {lineItems.map(({ label, value }) => (

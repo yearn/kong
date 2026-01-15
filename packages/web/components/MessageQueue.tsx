@@ -32,7 +32,7 @@ function MessageQueueContent() {
 
 export default function MessageQueue() {
   return <div className={'w-full flex flex-col gap-2'}>
-    <div className="font-bold text-xl">Message Queue</div>
+    <div id="message-queue" className="font-bold text-xl">Message Queue</div>
     <Suspense fallback={<div className="flex flex-col gap-4" />}>
       <MessageQueueContent />
     </Suspense>
