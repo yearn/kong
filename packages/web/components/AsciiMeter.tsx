@@ -16,7 +16,9 @@ export default function AsciiMeter(
     leftLabel = '',
     rightLabel = '',
     panels = 24,
-    className = ''
+    className = '',
+    errorCount,
+    errorMax
   } : {
     current: number,
     current2?: number,
@@ -24,7 +26,9 @@ export default function AsciiMeter(
     leftLabel?: string,
     rightLabel?: string,
     panels?: number,
-    className?: string
+    className?: string,
+    errorCount?: number,
+    errorMax?: number
   }
 ) {
   const meterRef = useRef<HTMLDivElement>(null)
@@ -46,9 +50,11 @@ export default function AsciiMeter(
   }, [panels])
 
   const hasTwo = current2 !== undefined
+  const hasError = errorCount !== undefined && errorMax !== undefined
   const maxPanels = useMemo(() => Math.round((max / max) * panels), [max, panels])
   const filledPanels = useMemo(() => Math.round((current / max) * panels), [current, max, panels])
   const filledPanels2 = useMemo(() => hasTwo ? Math.round((current2 / max) * panels) : 0, [hasTwo, current2, max, panels])
+  const errorPanels = useMemo(() => hasError ? Math.round((errorCount / errorMax) * panels) : 0, [hasError, errorCount, errorMax, panels])
 
   const title = useMemo(() => {
     return `${leftLabel} ${rightLabel}`
@@ -64,6 +70,11 @@ export default function AsciiMeter(
       <div className="text-emerald-950">
         {'░'.repeat(panels)}
       </div>
+      {hasError && errorPanels > 0 && (
+        <div className="absolute z-5 inset-0 text-red-500">
+          {'░'.repeat(Math.min(errorPanels, maxPanels))}
+        </div>
+      )}
       <div className="absolute z-10 inset-0 text-yellow-600">
         {'▒'.repeat(Math.min(filledPanels2, maxPanels))}
       </div>
