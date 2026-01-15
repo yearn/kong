@@ -151,6 +151,7 @@ function detectGaps(data: TimeseriesPoint[]): { gaps: Gap[]; zeroPoints: number;
   // Check for zero-value gaps (zeros appearing after non-zero data)
   let inZeroPeriod = false
   let zeroStart: number | null = null
+  let zeroEnd: number | null = null
 
   for (let i = firstNonZeroIndex; i < sorted.length; i++) {
     const isZero = parseFloat(sorted[i].value) === 0
@@ -158,29 +159,32 @@ function detectGaps(data: TimeseriesPoint[]): { gaps: Gap[]; zeroPoints: number;
     if (isZero && !inZeroPeriod) {
       inZeroPeriod = true
       zeroStart = sorted[i].time
+      zeroEnd = sorted[i].time
+    } else if (isZero && inZeroPeriod) {
+      zeroEnd = sorted[i].time
     } else if (!isZero && inZeroPeriod) {
       inZeroPeriod = false
-      const days = Math.floor((sorted[i].time - zeroStart!) / DAY_SECONDS)
+      const days = Math.floor((zeroEnd! - zeroStart!) / DAY_SECONDS) + 1
       if (days >= 1) {
         gaps.push({
           from: zeroStart!,
-          to: sorted[i].time,
+          to: zeroEnd!,
           days,
           type: 'zero',
         })
       }
       zeroStart = null
+      zeroEnd = null
     }
   }
 
   // Handle trailing zeros (zero period at the end)
-  if (inZeroPeriod && zeroStart !== null) {
-    const lastTime = sorted[sorted.length - 1].time
-    const days = Math.floor((lastTime - zeroStart) / DAY_SECONDS) + 1
+  if (inZeroPeriod && zeroStart !== null && zeroEnd !== null) {
+    const days = Math.floor((zeroEnd - zeroStart) / DAY_SECONDS) + 1
     if (days >= 1) {
       gaps.push({
         from: zeroStart,
-        to: lastTime,
+        to: zeroEnd,
         days,
         type: 'zero',
       })
@@ -191,7 +195,9 @@ function detectGaps(data: TimeseriesPoint[]): { gaps: Gap[]; zeroPoints: number;
 }
 
 function formatDate(timestamp: number): string {
-  return new Date(timestamp * 1000).toISOString().split('T')[0]
+  // Timestamps at midnight UTC represent end of previous day, so subtract 1 second
+  const adjusted = timestamp - 1
+  return new Date(adjusted * 1000).toISOString().split('T')[0]
 }
 
 function formatReport(allGaps: VaultGaps[]): void {

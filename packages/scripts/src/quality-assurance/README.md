@@ -135,7 +135,7 @@ bun packages/scripts/src/quality-assurance/timeseries-backfill-tvl-c-tvl.ts --in
 | `--input <file>` | `-i` | Path to gaps JSON file (required) |
 | `--output <file>` | `-o` | Path to write results report JSON |
 | `--dry-run` | `-d` | Preview changes without updating database |
-| `--price-tolerance` | `-t` | Max age in seconds for price lookup (default: 86400) |
+| `--price-tolerance` | `-t` | Max age in seconds for price lookup (default: 0) |
 | `--concurrency` | `-c` | Number of dates to process in parallel (default: 5) |
 
 ### Notes
