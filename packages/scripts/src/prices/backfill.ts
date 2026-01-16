@@ -348,7 +348,8 @@ async function insertPrices(
     ? `ON CONFLICT (chain_id, address, block_number) DO UPDATE SET
          price_usd = EXCLUDED.price_usd,
          price_source = EXCLUDED.price_source,
-         block_time = EXCLUDED.block_time`
+         block_time = EXCLUDED.block_time
+       WHERE price.price_usd = 0`
     : 'ON CONFLICT (chain_id, address, block_number) DO NOTHING'
 
   const query = `
