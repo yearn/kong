@@ -49,7 +49,7 @@ interface Gap {
   from: number
   to: number
   days: number
-  type: 'missing' | 'zero'
+  type: 'missing' | 'zero' | 'incomplete'
   classification: 'missing' | 'price' | 'snapshot' | 'computation'
 }
 
@@ -112,7 +112,6 @@ async function fetchTimeseries(chainId: number, address: string): Promise<Timese
 }
 
 function classifyZero(row: TimeseriesRow): 'price' | 'snapshot' | 'computation' | 'legitimate' {
-  const tvl = row.tvl !== null ? parseFloat(row.tvl) : null
   const priceUsd = row.price_usd !== null ? parseFloat(row.price_usd) : null
   const totalAssets = row.total_assets !== null ? parseFloat(row.total_assets) : null
 
@@ -135,6 +134,12 @@ function classifyZero(row: TimeseriesRow): 'price' | 'snapshot' | 'computation' 
   return 'computation'
 }
 
+function isIncomplete(row: TimeseriesRow): boolean {
+  const totalAssets = row.total_assets !== null ? parseFloat(row.total_assets) : null
+  // Incomplete: tvl > 0 but totalAssets is null
+  return totalAssets === null
+}
+
 function detectGaps(data: TimeseriesRow[]): { gaps: Gap[]; zeroPoints: number; nonZeroPoints: number } {
   if (data.length === 0) return { gaps: [], zeroPoints: 0, nonZeroPoints: 0 }
 
@@ -147,6 +152,11 @@ function detectGaps(data: TimeseriesRow[]): { gaps: Gap[]; zeroPoints: number; n
   let zeroStart: number | null = null
   let zeroEnd: number | null = null
   let currentClassification: 'price' | 'snapshot' | 'computation' | null = null
+
+  // Track incomplete periods (tvl > 0 but totalAssets is null)
+  let inIncompletePeriod = false
+  let incompleteStart: number | null = null
+  let incompleteEnd: number | null = null
 
   for (let i = 0; i < data.length; i++) {
     const row = data[i]
@@ -186,6 +196,21 @@ function detectGaps(data: TimeseriesRow[]): { gaps: Gap[]; zeroPoints: number; n
     }
 
     if (isZero) {
+      // Close any open incomplete period when we hit a zero
+      if (inIncompletePeriod && incompleteStart !== null && incompleteEnd !== null) {
+        const days = Math.floor((incompleteEnd - incompleteStart) / DAY_SECONDS) + 1
+        gaps.push({
+          from: incompleteStart,
+          to: incompleteEnd,
+          days,
+          type: 'incomplete',
+          classification: 'snapshot',
+        })
+        inIncompletePeriod = false
+        incompleteStart = null
+        incompleteEnd = null
+      }
+
       const classification = classifyZero(row)
 
       // Skip legitimate zeros
@@ -254,6 +279,32 @@ function detectGaps(data: TimeseriesRow[]): { gaps: Gap[]; zeroPoints: number; n
         zeroEnd = null
         currentClassification = null
       }
+
+      // Check for incomplete records (tvl > 0 but totalAssets is null)
+      if (isIncomplete(row)) {
+        if (!inIncompletePeriod) {
+          inIncompletePeriod = true
+          incompleteStart = timestamp
+          incompleteEnd = timestamp
+        } else {
+          incompleteEnd = timestamp
+        }
+      } else {
+        // Close any open incomplete period
+        if (inIncompletePeriod && incompleteStart !== null && incompleteEnd !== null) {
+          const days = Math.floor((incompleteEnd - incompleteStart) / DAY_SECONDS) + 1
+          gaps.push({
+            from: incompleteStart,
+            to: incompleteEnd,
+            days,
+            type: 'incomplete',
+            classification: 'snapshot',
+          })
+          inIncompletePeriod = false
+          incompleteStart = null
+          incompleteEnd = null
+        }
+      }
     }
   }
 
@@ -266,6 +317,18 @@ function detectGaps(data: TimeseriesRow[]): { gaps: Gap[]; zeroPoints: number; n
       days,
       type: 'zero',
       classification: currentClassification,
+    })
+  }
+
+  // Handle trailing incomplete periods
+  if (inIncompletePeriod && incompleteStart !== null && incompleteEnd !== null) {
+    const days = Math.floor((incompleteEnd - incompleteStart) / DAY_SECONDS) + 1
+    gaps.push({
+      from: incompleteStart,
+      to: incompleteEnd,
+      days,
+      type: 'incomplete',
+      classification: 'snapshot',
     })
   }
 
@@ -303,12 +366,13 @@ function formatReport(allGaps: VaultGaps[]): void {
     for (const v of vaults) {
       const zeroGaps = v.gaps.filter((g) => g.type === 'zero')
       const missingGaps = v.gaps.filter((g) => g.type === 'missing')
+      const incompleteGaps = v.gaps.filter((g) => g.type === 'incomplete')
       console.log(`  ${v.address}:`)
       console.log(
-        `    ${zeroGaps.length} zero-value gap(s), ${missingGaps.length} missing gap(s) (${v.totalGapDays} total gap days, ${v.zeroPoints}/${v.dataPoints} zeros)`
+        `    ${zeroGaps.length} zero gap(s), ${incompleteGaps.length} incomplete gap(s), ${missingGaps.length} missing gap(s) (${v.totalGapDays} total gap days)`
       )
       for (const gap of v.gaps.slice(0, 5)) {
-        const typeLabel = gap.type === 'zero' ? `ZERO:${gap.classification}` : 'MISSING'
+        const typeLabel = gap.type === 'zero' ? `ZERO:${gap.classification}` : gap.type === 'incomplete' ? 'INCOMPLETE' : 'MISSING'
         console.log(`      - [${typeLabel}] ${formatDate(gap.from)} to ${formatDate(gap.to)} (${gap.days} days)`)
       }
       if (v.gaps.length > 5) {
