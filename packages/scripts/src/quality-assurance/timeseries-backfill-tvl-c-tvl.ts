@@ -44,7 +44,7 @@ interface GapInput {
     nonZeroPoints: number
     totalGapDays: number
     gaps: Array<{
-      type: 'missing' | 'zero'
+      type: 'missing' | 'zero' | 'incomplete'
       from: string
       to: string
       days: number
@@ -216,13 +216,13 @@ async function main() {
     }
 
     for (const gap of gaps) {
-      if (gap.type !== 'zero') {
+      if (gap.type !== 'zero' && gap.type !== 'incomplete') {
         console.error(`  Skipping ${gap.type} gap (${gap.from} to ${gap.to})`)
         continue
       }
 
       const gapDates = generateGapDates(gap.from, gap.to)
-      console.error(`  Processing zero gap: ${gap.from} to ${gap.to} (${gapDates.length} days)`)
+      console.error(`  Processing ${gap.type} gap: ${gap.from} to ${gap.to} (${gapDates.length} days)`)
 
       // Process dates in batches with concurrency
       for (let i = 0; i < gapDates.length; i += concurrency) {
