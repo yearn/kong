@@ -144,7 +144,7 @@ async function processDate(
       return
     }
 
-    if (!computed.totalAssets) {
+    if (computed.totalAssets === undefined || computed.totalAssets === null) {
       result.skippedNoTotalAssets++
       return
     }
