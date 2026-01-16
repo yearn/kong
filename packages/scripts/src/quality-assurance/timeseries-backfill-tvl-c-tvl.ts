@@ -210,7 +210,7 @@ async function main() {
 
     const vault = await getVault(chainId, address)
     if (!vault) {
-      console.error(`  Vault not found in thing table, skipping`)
+      console.error('  Vault not found in thing table, skipping')
       result.skippedNoVault++
       continue
     }
