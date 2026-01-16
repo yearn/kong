@@ -195,9 +195,8 @@ function detectGaps(data: TimeseriesPoint[]): { gaps: Gap[]; zeroPoints: number;
 }
 
 function formatDate(timestamp: number): string {
-  // Timestamps at midnight UTC represent end of previous day, so subtract 1 second
-  const adjusted = timestamp - 1
-  return new Date(adjusted * 1000).toISOString().split('T')[0]
+  const endOfDay = timestamp + 86399
+  return new Date(endOfDay * 1000).toISOString().split('T')[0]
 }
 
 function formatReport(allGaps: VaultGaps[]): void {
