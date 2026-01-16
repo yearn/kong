@@ -77,7 +77,7 @@ async function fetchYPriceUsd(chainId: number, token: `0x${string}`, blockNumber
     const priceUsd = Number(await result.json())
     if(priceUsd === 0) return undefined
 
-    return PriceSchema.parse({ 
+    return PriceSchema.parse({
       chainId,
       address: token,
       priceUsd,
@@ -110,6 +110,7 @@ async function fetchDbPriceUsd(chainId: number, token: `0x${string}`, blockNumbe
       FROM price
       WHERE chain_id = $1 AND address = $2
       AND block_number <= $3 AND block_time >= $4
+      AND price_usd > 0
       ORDER BY block_number DESC LIMIT 1`,
       [chainId, token, blockNumber, minBlockTime]
     )
@@ -129,6 +130,7 @@ async function fetchDbPriceUsd(chainId: number, token: `0x${string}`, blockNumbe
     WHERE chain_id = $1
       AND address = $2
       AND block_number BETWEEN $3::bigint - $4 AND $3::bigint + $4
+      AND price_usd > 0
     ORDER BY ABS(block_number - $3::bigint)
     LIMIT 1`,
     [chainId, token, blockNumber.toString(), BLOCK_TOLERANCE]
@@ -154,9 +156,9 @@ async function fetchLensPriceUsd(chainId: number, token: `0x${string}`, blockNum
     return PriceSchema.parse({
       chainId,
       address: token,
-      priceUsd: Number(priceUSDC * 10_000n / BigInt(10 ** 6)) / 10_000, 
+      priceUsd: Number(priceUSDC * 10_000n / BigInt(10 ** 6)) / 10_000,
       priceSource: 'lens',
-      blockNumber, 
+      blockNumber,
       blockTime: await getBlockTime(chainId, blockNumber)
     })
 
@@ -201,9 +203,9 @@ async function fetchYDaemonPriceUsd(chainId: number, token: `0x${string}`, block
     return PriceSchema.parse({
       chainId,
       address: token,
-      priceUsd: price, 
+      priceUsd: price,
       priceSource: 'ydaemon',
-      blockNumber, 
+      blockNumber,
       blockTime: await getBlockTime(chainId, blockNumber)
     })
   } catch(error) {
