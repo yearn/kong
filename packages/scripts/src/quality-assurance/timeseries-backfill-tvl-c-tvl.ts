@@ -1,3 +1,4 @@
+import 'lib/global'
 import { config } from 'dotenv'
 import { parseArgs } from 'util'
 import { readFileSync, writeFileSync } from 'fs'
@@ -118,6 +119,13 @@ async function processDate(
   result: BackfillResult
 ): Promise<void> {
   const { dateStr, vault, chainId, address } = task
+
+  // Check required vault defaults before calling _compute
+  if (!vault.defaults?.apiVersion || !vault.defaults?.asset) {
+    console.warn(`  Skipping ${dateStr}: vault missing required defaults (apiVersion or asset)`)
+    return
+  }
+
   const blockTime = BigInt(Math.floor(new Date(dateStr + 'T23:59:59Z').getTime() / 1000))
 
   let blockNumber: bigint
