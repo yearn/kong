@@ -1,6 +1,11 @@
 import db from '../../db'
 import { z } from 'zod'
 
+const CoerceNumber = z.preprocess(
+  (val) => (val === null || val === undefined) ? null : Number(val),
+  z.number().nullable()
+)
+
 export const VaultListItemSchema = z.object({
   // Core identification
   chainId: z.number(),
@@ -15,12 +20,25 @@ export const VaultListItemSchema = z.object({
     address: z.string(),
     name: z.string(),
     symbol: z.string(),
-    decimals: z.number(),
-  }).nullable(),
+    decimals: CoerceNumber,
+  }).nullish(),
 
   // Financial metrics
   tvl: z.number().nullable(), // USD value
-  apy: z.number().nullable(), // Net APY as decimal
+
+  // Performance (APY/APR measures)
+  performance: z.object({
+    oracle: z.object({
+      apr: CoerceNumber,
+      apy: CoerceNumber,
+    }).nullish(),
+    historical: z.object({
+      net: CoerceNumber,
+      weeklyNet: CoerceNumber,
+      monthlyNet: CoerceNumber,
+      inceptionNet: CoerceNumber,
+    }).nullish(),
+  }).nullish(),
 
   // Fees (basis points)
   fees: z.object({
@@ -87,25 +105,16 @@ export async function getVaultsList(): Promise<VaultListItem[]> {
         (snapshot.snapshot->>'decimals')::int
       ) AS decimals,
 
-      -- Asset (as JSON object)
-      jsonb_build_object(
-        'address', snapshot.hook->'asset'->>'address',
-        'name', snapshot.hook->'asset'->>'name',
-        'symbol', snapshot.hook->'asset'->>'symbol',
-        'decimals', (snapshot.hook->'asset'->>'decimals')::int
-      ) AS asset,
+      -- Asset
+      snapshot.hook->'asset' AS asset,
 
       -- TVL (USD)
-      (snapshot.hook->'tvl'->>'close')::numeric AS tvl,
+      (snapshot.hook->'tvl'->>'close')::double precision AS tvl,
 
-      -- APY (net)
-      (snapshot.hook->'apy'->>'net')::numeric AS apy,
+      -- Performance (APY/APR measures)
+      snapshot.hook->'performance' AS performance,
 
-      -- Fees
-      jsonb_build_object(
-        'management', COALESCE((snapshot.hook->'fees'->>'managementFee')::int, 0),
-        'performance', COALESCE((snapshot.hook->'fees'->>'performanceFee')::int, 0)
-      ) AS fees,
+      snapshot.hook->'fees' AS fees,
 
       -- Classification
       snapshot.hook->'meta'->>'category' AS category,
