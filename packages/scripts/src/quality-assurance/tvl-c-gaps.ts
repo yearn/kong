@@ -36,6 +36,7 @@ const DAY_SECONDS = 86400
 interface Vault {
   chain_id: number
   address: string
+  defaults: Record<string, unknown> | null
 }
 
 interface TimeseriesRow {
@@ -75,7 +76,7 @@ const pool = new Pool({
 })
 
 async function getVaults(): Promise<Vault[]> {
-  let query = 'SELECT chain_id, address FROM thing WHERE label = $1'
+  let query = 'SELECT chain_id, address, defaults FROM thing WHERE label = $1'
   const params: (string | number)[] = ['vault']
 
   if (values.chain) {
@@ -441,7 +442,11 @@ async function main() {
     console.error('Connected.')
 
     console.error('Fetching vaults...')
-    const vaults = await getVaults()
+    const allVaults = await getVaults()
+    const vaults = allVaults.filter((v) => v.defaults?.apiVersion && v.defaults?.yearn === true)
+    if (vaults.length < allVaults.length) {
+      console.warn(`Skipping ${allVaults.length - vaults.length} vault(s) without required defaults (apiVersion, yearn)`)
+    }
     console.error(`Found ${vaults.length} vault(s).`)
 
     const concurrency = Number(values.concurrency)
