@@ -44,6 +44,7 @@ interface GapInput {
     zeroPoints: number
     nonZeroPoints: number
     totalGapDays: number
+    backfilled?: boolean
     gaps: Array<{
       type: 'missing' | 'zero' | 'incomplete'
       from: string
@@ -216,6 +217,11 @@ async function main() {
     const { chainId, address, gaps } = vaultGap
     console.error(`\nProcessing ${chainId}:${address}`)
 
+    if (vaultGap.backfilled) {
+      console.error('  Already backfilled, skipping')
+      continue
+    }
+
     const vault = await getVault(chainId, address)
     if (!vault) {
       console.error('  Vault not found in thing table, skipping')
@@ -249,6 +255,13 @@ async function main() {
           console.error(`    Processed ${processed}/${gapDates.length} days...`)
         }
       }
+    }
+
+    // Mark vault as backfilled and save progress
+    if (!dryRun) {
+      vaultGap.backfilled = true
+      writeFileSync(values.input, JSON.stringify(inputData, null, 2))
+      console.error('  Marked as backfilled')
     }
   }
 
