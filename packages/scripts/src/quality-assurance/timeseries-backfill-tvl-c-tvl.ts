@@ -179,9 +179,11 @@ async function processDate(
 // Simple mutex for synchronized file writes
 let writeLock = Promise.resolve()
 async function syncWriteFile(path: string, data: string): Promise<void> {
-  writeLock = writeLock.then(() => {
-    writeFileSync(path, data)
-  })
+  const currentLock = writeLock
+  writeLock = currentLock.then(
+    () => writeFileSync(path, data),
+    () => writeFileSync(path, data) // Recover from previous rejection
+  )
   await writeLock
 }
 
@@ -197,8 +199,8 @@ async function main() {
 
   const priceTolerance = Number(values['price-tolerance'])
   const dryRun = values['dry-run'] ?? false
-  const gapConcurrency = Number(values['gap-concurrency'])
-  const vaultConcurrency = Number(values['vault-concurrency'])
+  const gapConcurrency = Math.max(1, Number(values['gap-concurrency']) || 1)
+  const vaultConcurrency = Math.max(1, Number(values['vault-concurrency']) || 1)
 
   console.error(`Reading input file: ${values.input}`)
   const inputData: GapInput = JSON.parse(readFileSync(values.input, 'utf-8'))
