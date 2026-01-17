@@ -24,7 +24,8 @@ const { values } = parseArgs({
     output: { type: 'string', short: 'o' },
     'dry-run': { type: 'boolean', short: 'd', default: false },
     'price-tolerance': { type: 'string', short: 't', default: '0' },
-    concurrency: { type: 'string', short: 'c', default: '5' },
+    'gap-concurrency': { type: 'string', short: 'g', default: '5' },
+    'vault-concurrency': { type: 'string', short: 'v', default: '1' },
   },
 })
 
@@ -175,9 +176,18 @@ async function processDate(
   }
 }
 
+// Simple mutex for synchronized file writes
+let writeLock = Promise.resolve()
+async function syncWriteFile(path: string, data: string): Promise<void> {
+  writeLock = writeLock.then(() => {
+    writeFileSync(path, data)
+  })
+  await writeLock
+}
+
 async function main() {
   if (!values.input) {
-    console.error('Usage: bun packages/scripts/src/quality-assurance/timeseries-backfill-tvl-c-tvl.ts --input <gaps.json> [--output <report.json>] [--dry-run] [--price-tolerance 86400] [--concurrency 5]')
+    console.error('Usage: bun packages/scripts/src/quality-assurance/timeseries-backfill-tvl-c-tvl.ts --input <gaps.json> [--output <report.json>] [--dry-run] [--price-tolerance 86400] [--gap-concurrency 5] [--vault-concurrency 1]')
     process.exit(1)
   }
 
@@ -187,7 +197,8 @@ async function main() {
 
   const priceTolerance = Number(values['price-tolerance'])
   const dryRun = values['dry-run'] ?? false
-  const concurrency = Number(values.concurrency)
+  const gapConcurrency = Number(values['gap-concurrency'])
+  const vaultConcurrency = Number(values['vault-concurrency'])
 
   console.error(`Reading input file: ${values.input}`)
   const inputData: GapInput = JSON.parse(readFileSync(values.input, 'utf-8'))
@@ -200,7 +211,7 @@ async function main() {
 
   console.error(`Found ${tvlGaps.length} vault(s) with tvl-c gaps`)
   console.error(`Price tolerance: ${priceTolerance} seconds (${(priceTolerance / 3600).toFixed(1)} hours)`)
-  console.error(`Concurrency: ${concurrency}`)
+  console.error(`Gap concurrency: ${gapConcurrency}, Vault concurrency: ${vaultConcurrency}`)
   if (dryRun) {
     console.error('DRY RUN MODE - no changes will be made')
   }
@@ -213,20 +224,20 @@ async function main() {
     priceFailures: [],
   }
 
-  for (const vaultGap of tvlGaps) {
+  async function processVault(vaultGap: GapInput['gaps'][number]): Promise<void> {
     const { chainId, address, gaps } = vaultGap
     console.error(`\nProcessing ${chainId}:${address}`)
 
     if (vaultGap.backfilled) {
       console.error('  Already backfilled, skipping')
-      continue
+      return
     }
 
     const vault = await getVault(chainId, address)
     if (!vault) {
       console.error('  Vault not found in thing table, skipping')
       result.skippedNoVault++
-      continue
+      return
     }
 
     for (const gap of gaps) {
@@ -238,9 +249,9 @@ async function main() {
       const gapDates = generateGapDates(gap.from, gap.to)
       console.error(`  Processing ${gap.type} gap: ${gap.from} to ${gap.to} (${gapDates.length} days)`)
 
-      // Process dates in batches with concurrency
-      for (let i = 0; i < gapDates.length; i += concurrency) {
-        const batch = gapDates.slice(i, i + concurrency)
+      // Process dates in batches with gap concurrency
+      for (let i = 0; i < gapDates.length; i += gapConcurrency) {
+        const batch = gapDates.slice(i, i + gapConcurrency)
         const tasks: DateTask[] = batch.map(dateStr => ({
           dateStr,
           vault,
@@ -250,7 +261,7 @@ async function main() {
 
         await Promise.all(tasks.map(task => processDate(task, priceTolerance, dryRun, result)))
 
-        const processed = Math.min(i + concurrency, gapDates.length)
+        const processed = Math.min(i + gapConcurrency, gapDates.length)
         if (gapDates.length > 10 && (processed % 50 === 0 || processed === gapDates.length)) {
           console.error(`    Processed ${processed}/${gapDates.length} days...`)
         }
@@ -260,9 +271,15 @@ async function main() {
     // Mark vault as backfilled and save progress
     if (!dryRun) {
       vaultGap.backfilled = true
-      writeFileSync(values.input, JSON.stringify(inputData, null, 2))
+      await syncWriteFile(values.input, JSON.stringify(inputData, null, 2))
       console.error('  Marked as backfilled')
     }
+  }
+
+  // Process vaults in batches with vault concurrency
+  for (let i = 0; i < tvlGaps.length; i += vaultConcurrency) {
+    const batch = tvlGaps.slice(i, i + vaultConcurrency)
+    await Promise.all(batch.map(vaultGap => processVault(vaultGap)))
   }
 
   console.error('\n=== Summary ===')
