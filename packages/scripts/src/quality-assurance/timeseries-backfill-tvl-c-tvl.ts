@@ -121,8 +121,8 @@ async function processDate(
   const { dateStr, vault, chainId, address } = task
 
   // Check required vault defaults before calling _compute
-  if (!vault.defaults?.apiVersion || !vault.defaults?.asset) {
-    console.warn(`  Skipping ${dateStr}: vault missing required defaults (apiVersion or asset)`)
+  if (!vault.defaults?.apiVersion || !vault.defaults?.asset || vault.defaults?.yearn !== true) {
+    console.warn(`  Skipping ${dateStr}: vault missing required defaults (apiVersion, asset, yearn)`)
     return
   }
 
