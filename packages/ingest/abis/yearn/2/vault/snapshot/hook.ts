@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { rpcs } from '../../../../../rpcs'
 import { ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
-import db, { getLatestApy, getSparkline } from '../../../../../db'
+import db, { getLatestApy, getSparkline, getLatestEstimatedApr } from '../../../../../db'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { priced } from 'lib/math'
 import { getRiskScore } from '../../../lib/risk'
@@ -53,6 +53,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   }
 
   const apy = await getLatestApy(chainId, address)
+  const estimated = await getLatestEstimatedApr(chainId, address)
 
   return {
     asset: erc20,
@@ -63,7 +64,16 @@ export default async function process(chainId: number, address: `0x${string}`, d
     meta: { ...meta, token },
     sparklines,
     tvl: sparklines.tvl[0],
-    apy
+    apy,
+    performance: {
+      estimated,
+      historical: apy ? {
+        net: apy.net,
+        weeklyNet: apy.weeklyNet,
+        monthlyNet: apy.monthlyNet,
+        inceptionNet: apy.inceptionNet
+      } : undefined
+    }
   }
 }
 

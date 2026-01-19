@@ -439,3 +439,22 @@ export const InceptSchema = z.object({
 })
 
 export type Incept = z.infer<typeof InceptSchema>
+
+export const EstimatedAprSchema = z.object({
+  apr: z.number(),
+  apy: z.number(),
+  type: z.string(),
+  components: z.object({
+    boost: z.number().optional(),
+    poolAPY: z.number().optional(),
+    boostedAPR: z.number().optional(),
+    baseAPR: z.number().optional(),
+    rewardsAPR: z.number().optional(),
+    rewardsAPY: z.number().optional(),
+    cvxAPR: z.number().optional(),
+    keepCRV: z.number().optional(),
+    keepVelo: z.number().optional()
+  })
+})
+
+export type EstimatedApr = z.infer<typeof EstimatedAprSchema>
