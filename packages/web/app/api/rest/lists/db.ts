@@ -42,8 +42,8 @@ export const VaultListItemSchema = z.object({
 
   // Fees (basis points)
   fees: z.object({
-    management: z.number(),
-    performance: z.number(),
+    managementFee: z.number(),
+    performanceFee: z.number(),
   }).nullable(),
 
   // Classification
@@ -114,7 +114,17 @@ export async function getVaultsList(): Promise<VaultListItem[]> {
       -- Performance (APY/APR measures)
       snapshot.hook->'performance' AS performance,
 
-      snapshot.hook->'fees' AS fees,
+      -- Fees (coalesce v2 and v3 sources)
+      COALESCE(
+        snapshot.hook->'fees',
+        CASE WHEN snapshot.snapshot->>'managementFee' IS NOT NULL
+             OR snapshot.snapshot->>'performanceFee' IS NOT NULL
+        THEN jsonb_build_object(
+          'managementFee', COALESCE((snapshot.snapshot->>'managementFee')::int, 0),
+          'performanceFee', COALESCE((snapshot.snapshot->>'performanceFee')::int, 0)
+        )
+        ELSE NULL END
+      ) AS fees,
 
       -- Classification
       snapshot.hook->'meta'->>'category' AS category,
