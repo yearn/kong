@@ -445,15 +445,15 @@ export const EstimatedAprSchema = z.object({
   apy: z.number(),
   type: z.string(),
   components: z.object({
-    boost: z.number().optional(),
-    poolAPY: z.number().optional(),
-    boostedAPR: z.number().optional(),
-    baseAPR: z.number().optional(),
-    rewardsAPR: z.number().optional(),
-    rewardsAPY: z.number().optional(),
-    cvxAPR: z.number().optional(),
-    keepCRV: z.number().optional(),
-    keepVelo: z.number().optional()
+    boost: z.number().nullish(),
+    poolAPY: z.number().nullish(),
+    boostedAPR: z.number().nullish(),
+    baseAPR: z.number().nullish(),
+    rewardsAPR: z.number().nullish(),
+    rewardsAPY: z.number().nullish(),
+    cvxAPR: z.number().nullish(),
+    keepCRV: z.number().nullish(),
+    keepVelo: z.number().nullish()
   })
 })
 
