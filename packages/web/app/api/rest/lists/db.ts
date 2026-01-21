@@ -82,15 +82,15 @@ export async function getVaultsList(): Promise<VaultListItem[]> {
 
       -- Name with fallback
       COALESCE(
+        snapshot.snapshot->>'name',
         snapshot.hook->'meta'->>'displayName',
-        thing.defaults->>'name',
-        snapshot.snapshot->>'name'
+        thing.defaults->>'name'
       ) AS name,
 
       -- Symbol
       COALESCE(
-        snapshot.hook->'meta'->>'displaySymbol',
-        snapshot.snapshot->>'symbol'
+        snapshot.snapshot->>'symbol',
+        snapshot.hook->'meta'->>'displaySymbol'
       ) AS symbol,
 
       -- Version
