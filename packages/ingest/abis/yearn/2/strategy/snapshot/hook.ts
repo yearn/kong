@@ -9,7 +9,7 @@ import { mq } from 'lib'
 import { estimateCreationBlock } from 'lib/blocks'
 import { fetchOrExtractErc20, throwOnMulticallError } from '../../../lib'
 import db, { firstRow } from '../../../../../db'
-import { getStrategyMeta } from '../../../lib/meta'
+import { getStrategyMeta, getVaultMeta } from '../../../lib/meta'
 import vaultAbi from '../../vault/abi'
 
 const borkedVaults = [
@@ -52,7 +52,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const lenderStatuses = await extractLenderStatuses(chainId, address)
   const lastReportDetail = await fetchLastReportDetail(chainId, address)
   const claims = await computeRewards(chainId, address, snapshot)
-  const meta = await getStrategyMeta(chainId, address)
+  const vaultMeta = await getVaultMeta(chainId, address)
+  const meta = vaultMeta ?? await getStrategyMeta(chainId, address)
   return { totalDebt, totalDebtUsd, lenderStatuses, lastReportDetail, claims, meta }
 }
 
