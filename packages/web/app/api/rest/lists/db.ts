@@ -84,7 +84,7 @@ export async function getVaultsList(): Promise<VaultListItem[]> {
       COALESCE(
         thing.defaults->>'name',
         snapshot.snapshot->>'name',
-        snapshot.hook->'meta'->>'displayName',
+        snapshot.hook->'meta'->>'displayName'
       ) AS name,
 
       -- Symbol
@@ -102,7 +102,7 @@ export async function getVaultsList(): Promise<VaultListItem[]> {
       -- Decimals
       COALESCE(
         (thing.defaults->>'decimals')::int,
-        (snapshot.snapshot->>'decimals')::int,
+        (snapshot.snapshot->>'decimals')::int
       ) AS decimals,
 
       -- Asset
