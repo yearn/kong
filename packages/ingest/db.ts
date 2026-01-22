@@ -178,6 +178,7 @@ export async function getLatestOracleApr(chainId: number, address: string): Prom
   return [result.apr || 0, result.apy || 0]
 }
 
+
 export function toUpsertSql(table: string, pk: string, data: object, where?: string) {
   const timestampConversionExceptions = [ 'profit_max_unlock_time' ]
 

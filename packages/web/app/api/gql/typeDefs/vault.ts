@@ -101,6 +101,25 @@ type Oracle {
   apy: Float
 }
 
+type EstimatedAprComponents {
+  boost: Float
+  poolAPY: Float
+  boostedAPR: Float
+  baseAPR: Float
+  rewardsAPR: Float
+  rewardsAPY: Float
+  cvxAPR: Float
+  keepCRV: Float
+  keepVelo: Float
+}
+
+type EstimatedApr {
+  apr: Float!
+  apy: Float!
+  type: String!
+  components: EstimatedAprComponents!
+}
+
 type Historical {
   net: Float
   weeklyNet: Float
@@ -110,6 +129,7 @@ type Historical {
 
 type Performance {
   oracle: Oracle
+  estimated: EstimatedApr
   historical: Historical
 }
 
