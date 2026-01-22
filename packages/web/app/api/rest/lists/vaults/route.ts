@@ -10,19 +10,23 @@ const corsHeaders = {
 }
 
 export async function GET() {
-  const keyv = createListsKeyv('list:vaults')
+  const listsKeyv = createListsKeyv('list:vaults')
 
   try {
-    if (!keyv.iterator) {
+    if (!listsKeyv.iterator) {
       return new NextResponse('Iterator not supported', { status: 500, headers: corsHeaders })
     }
 
     const allVaults: VaultListItem[] = []
 
-    for await (const [, value] of keyv.iterator(keyv.namespace)) {
+    for await (const [, value] of listsKeyv.iterator(listsKeyv.namespace)) {
       if (value) {
-        const chainVaults: VaultListItem[] = JSON.parse(value)
-        allVaults.push(...chainVaults)
+        try {
+          const chainVaults: VaultListItem[] = JSON.parse(value)
+          allVaults.push(...chainVaults)
+        } catch (e) {
+          console.error('Failed to parse vault list from Redis:', e)
+        }
       }
     }
 
