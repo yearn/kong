@@ -1,5 +1,5 @@
-import db from '../../db'
 import { z } from 'zod'
+import db from '../../db'
 
 const CoerceNumber = z.preprocess(
   (val) => (val === null || val === undefined) ? null : Number(val),
@@ -101,8 +101,8 @@ export async function getVaultsList(): Promise<VaultListItem[]> {
 
       -- Decimals
       COALESCE(
-        (thing.defaults->>'decimals')::int,
-        (snapshot.snapshot->>'decimals')::int
+        (snapshot.snapshot->>'decimals')::int,
+        (thing.defaults->>'decimals')::int
       ) AS decimals,
 
       -- Asset
