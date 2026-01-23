@@ -35,7 +35,6 @@ export async function GET(
   try {
     data = typeof cached === 'string' ? JSON.parse(cached) : cached
 
-    console.log(data)
     const vaultReports = data.find((report: VaultReport) => report.address.toLowerCase() === address.toLowerCase())
 
     if (!vaultReports) {
