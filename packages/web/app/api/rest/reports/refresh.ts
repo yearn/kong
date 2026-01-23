@@ -1,61 +1,55 @@
 import { getStrategyReports, VaultReport } from './db'
 import { createReportsKeyv, getReportKey } from './redis'
-import { getVaults } from '../timeseries/db'
 
-const REFRESH_BATCH_SIZE = Number(process.env.REFRESH_BATCH_SIZE || 10)
+type SerializedVaultReport = {
+  [K in keyof VaultReport]: VaultReport[K] extends bigint
+    ? string
+    : VaultReport[K] extends bigint | undefined
+    ? string | undefined
+    : VaultReport[K]
+}
+
+function serializeReport(report: VaultReport): SerializedVaultReport {
+  const serialized = { ...report } as unknown as SerializedVaultReport
+
+  // Convert BigInts to strings for JSON serialization
+  (Object.keys(serialized) as Array<keyof VaultReport>).forEach(key => {
+    const value = report[key]
+    if (typeof value === 'bigint') {
+      // @ts-ignore - we know what we are doing here
+      serialized[key] = value.toString()
+    }
+  })
+
+  return serialized
+}
 
 async function refreshReports() {
   console.time('refreshReports')
   const keyv = createReportsKeyv()
 
-  console.log('Fetching vaults...')
-  const vaults = await getVaults()
-  console.log(`Found ${vaults.length} vaults (batch size: ${REFRESH_BATCH_SIZE})`)
+  // Define the chains to process
+  const chainIds = [1, 10, 137, 250, 8453, 42161]
 
-  let processed = 0
+  console.log(`Processing ${chainIds.length} chains...`)
 
-  async function processVault(vault: { chainId: number; address: string }) {
-    const reports = await getStrategyReports(vault.chainId, vault.address)
+  for (const chainId of chainIds) {
+    console.log(`Fetching reports for chain ${chainId}...`)
+    const reports = await getStrategyReports(chainId)
 
-    // Explicitly iterate through reports and handle BigInt serialization
-    type SerializedVaultReport = {
-      [K in keyof VaultReport]: VaultReport[K] extends bigint
-        ? string
-        : VaultReport[K] extends bigint | undefined
-        ? string | undefined
-        : VaultReport[K]
+    if (reports.length === 0) {
+      console.log(`  No reports found for chain ${chainId}`)
+      continue
     }
 
-    const serializedReports = reports.map(report => {
-      const serialized = { ...report } as unknown as SerializedVaultReport
+    const serializedReports = reports.map(serializeReport)
+    const cacheKey = getReportKey(chainId)
 
-      // Convert BigInts to strings for JSON serialization
-      (Object.keys(serialized) as Array<keyof VaultReport>).forEach(key => {
-        const value = report[key]
-        if (typeof value === 'bigint') {
-          // @ts-ignore - we know what we are doing here
-          serialized[key] = value.toString()
-        }
-      })
-
-      return serialized
-    })
-
-    const cacheKey = getReportKey(vault.chainId, vault.address)
     await keyv.set(cacheKey, JSON.stringify(serializedReports))
-
-    processed++
-    if (processed % 10 === 0) {
-      console.log(`Processed ${processed}/${vaults.length} vaults`)
-    }
+    console.log(`  ✓ Cached ${serializedReports.length} reports for chain ${chainId}`)
   }
 
-  for (let i = 0; i < vaults.length; i += REFRESH_BATCH_SIZE) {
-    const batch = vaults.slice(i, i + REFRESH_BATCH_SIZE)
-    await Promise.all(batch.map(processVault))
-  }
-
-  console.log(`✓ Completed: ${processed} vaults processed`)
+  console.log('✓ Refresh completed')
   console.timeEnd('refreshReports')
 }
 

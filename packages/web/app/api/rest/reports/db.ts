@@ -91,7 +91,8 @@ export const getStrategyReports = async (chainId?: number, address?: string) => 
       (chain_id = $1 OR $1 IS NULL) AND (address = $2 OR $2 IS NULL)
       AND event_name = 'StrategyReported'
     ORDER BY
-      block_time DESC, log_index DESC;`,
+      block_time DESC, log_index DESC
+      LIMIT 1000;`,
     [chainId, address ? getAddress(address) : null])
 
     return result.rows as VaultReport[]

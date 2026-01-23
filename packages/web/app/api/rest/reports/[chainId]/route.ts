@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createReportsKeyv, getReportKey} from '../../redis'
-import { VaultReport } from '../../db'
+import { createReportsKeyv, getReportKey } from '../redis'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { chainId: string; address: string } }
+  { params }: { params: { chainId: string } }
 ) {
   const chainId = parseInt(params.chainId)
-  const address = params.address.toLowerCase()
 
   if (isNaN(chainId)) {
     return NextResponse.json(
@@ -17,12 +15,9 @@ export async function GET(
   }
 
   const keyv = createReportsKeyv()
-
   const key = getReportKey(chainId)
 
-
   const cached = await keyv.get(key)
-
   if (!cached) {
     return NextResponse.json(
       { error: 'Not found' },
@@ -33,23 +28,6 @@ export async function GET(
   let data
   try {
     data = typeof cached === 'string' ? JSON.parse(cached) : cached
-
-    const vaultReports = data.find((report: VaultReport) => report.address === address)
-
-    if (!vaultReports) {
-      return NextResponse.json(
-        { error: 'Not found' },
-        { status: 404 }
-      )
-    }
-
-    return NextResponse.json(vaultReports, {
-      headers: {
-        'Cache-Control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS'
-      }
-    })
   } catch (e) {
     console.error('Failed to parse cached report', e)
     return NextResponse.json(
@@ -57,6 +35,14 @@ export async function GET(
       { status: 500 }
     )
   }
+
+  return NextResponse.json(data, {
+    headers: {
+      'Cache-Control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS'
+    }
+  })
 }
 
 export async function OPTIONS() {
