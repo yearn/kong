@@ -1,13 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createListsKeyv } from '../../redis'
 
-export const runtime = 'nodejs'
+import type { VaultListItem } from '../../db'
 
-type VaultListItem = {
-  chainId: number
-  address: string
-  name: string
-}
+export const runtime = 'nodejs'
 
 const corsHeaders = {
   'access-control-allow-origin': '*',
@@ -21,11 +17,19 @@ type RouteParams = {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<RouteParams> },
 ) {
+  const { searchParams } = new URL(request.url)
+  const origin = searchParams.get('origin')
+
   const { chainId: chainIdParam } = (await context.params) ?? {}
   const chainId = parseInt(chainIdParam as string, 10)
+
+  if (isNaN(chainId)) {
+    return new NextResponse('Invalid chainId', { status: 400, headers: corsHeaders })
+  }
+
   let cached
   try {
     cached = await listsKeyv.get(String(chainId))
@@ -38,9 +42,19 @@ export async function GET(
     return new NextResponse('Not found', { status: 404, headers: corsHeaders })
   }
 
-  const vaults: VaultListItem[] = JSON.parse(cached as string)
+  let vaults: VaultListItem[]
+  try {
+    vaults = JSON.parse(cached as string)
+  } catch (e) {
+    console.error(`Failed to parse vault list for chain ${chainId}:`, e)
+    return new NextResponse('Internal Server Error', { status: 500, headers: corsHeaders })
+  }
 
-  return NextResponse.json(vaults, {
+  const filtered = origin
+    ? vaults.filter(v => v.origin === origin)
+    : vaults
+
+  return NextResponse.json(filtered, {
     status: 200,
     headers: {
       'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',

@@ -126,3 +126,17 @@ manuals:
       yearn: true,
       origin: 'yearn',
     }
+
+  - chainId: 1
+    address: '0xAb9018A699003a777d690c156045DfC4A7ef3A96'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      apiVersion: '3.0.4',
+      name: 'Locked yvUSD',
+      asset: '0x696d02Db93291651ED510704c9b286841d506987',
+      decimals: 6,
+      inceptBlock: 24271831,
+      inceptTime: 1768861991
+    }
