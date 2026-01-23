@@ -3,9 +3,10 @@ import { createReportsKeyv, getReportKey } from '../redis'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { chainId: string } }
+  { params }: { params: Promise<{ chainId: string }> }
 ) {
-  const chainId = parseInt(params.chainId)
+  const { chainId: chainIdParam } = await params
+  const chainId = parseInt(chainIdParam)
 
   if (isNaN(chainId)) {
     return NextResponse.json(
