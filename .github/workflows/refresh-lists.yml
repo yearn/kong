@@ -24,4 +24,4 @@ jobs:
           POSTGRES_SSL: ${{ secrets.POSTGRES_SSL }}
           POSTGRES_POOL_MAX: ${{ vars.POSTGRES_POOL_MAX }}
           REST_CACHE_REDIS_URL: ${{ secrets.REST_CACHE_REDIS_URL }}
-        run: bun packages/web/app/api/rest/lists/refresh.ts
+        run: bun packages/web/app/api/rest/list/refresh.ts
