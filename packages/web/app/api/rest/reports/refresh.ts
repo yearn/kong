@@ -1,55 +1,30 @@
-import { getStrategyReports, VaultReport } from './db'
+import 'lib/global'
+import { getStrategyReports } from './db'
 import { createReportsKeyv, getReportKey } from './redis'
-
-type SerializedVaultReport = {
-  [K in keyof VaultReport]: VaultReport[K] extends bigint
-    ? string
-    : VaultReport[K] extends bigint | undefined
-    ? string | undefined
-    : VaultReport[K]
-}
-
-function serializeReport(report: VaultReport): SerializedVaultReport {
-  const serialized = { ...report } as unknown as SerializedVaultReport
-
-  // Convert BigInts to strings for JSON serialization
-  (Object.keys(serialized) as Array<keyof VaultReport>).forEach(key => {
-    const value = report[key]
-    if (typeof value === 'bigint') {
-      // @ts-ignore - we know what we are doing here
-      serialized[key] = value.toString()
-    }
-  })
-
-  return serialized
-}
 
 async function refreshReports() {
   console.time('refreshReports')
+
   const keyv = createReportsKeyv()
 
-  // Define the chains to process
-  const chainIds = [1, 10, 137, 250, 8453, 42161]
+  const reports = await getStrategyReports()
 
-  console.log(`Processing ${chainIds.length} chains...`)
-
-  for (const chainId of chainIds) {
-    console.log(`Fetching reports for chain ${chainId}...`)
-    const reports = await getStrategyReports(chainId)
-
-    if (reports.length === 0) {
-      console.log(`  No reports found for chain ${chainId}`)
-      continue
+  const reportsByChain = reports.reduce((acc, report) => {
+    if (!acc[report.chainId]) {
+      acc[report.chainId] = []
     }
+    acc[report.chainId].push(report)
+    return acc
+  }, {} as Record<number, typeof reports>)
 
-    const serializedReports = reports.map(serializeReport)
+  const chainIds = Object.keys(reportsByChain).map(Number)
+  for (const chainId of chainIds) {
+    const chainReports = reportsByChain[chainId]
     const cacheKey = getReportKey(chainId)
-
-    await keyv.set(cacheKey, JSON.stringify(serializedReports))
-    console.log(`  ✓ Cached ${serializedReports.length} reports for chain ${chainId}`)
+    await keyv.set(cacheKey, JSON.stringify(chainReports))
   }
 
-  console.log('✓ Refresh completed')
+  console.log(`✓ Completed: ${reports.length} reports cached across ${chainIds.length} chains`)
   console.timeEnd('refreshReports')
 }
 
