@@ -38,6 +38,22 @@ export const VaultListItemSchema = z.object({
       monthlyNet: CoerceNumber,
       inceptionNet: CoerceNumber,
     }).nullish(),
+    estimated: z.object({
+      apr: z.number(),
+      apy: z.number(),
+      type: z.string(),
+      components: z.object({
+        boost: z.number().nullish(),
+        poolAPY: z.number().nullish(),
+        boostedAPR: z.number().nullish(),
+        baseAPR: z.number().nullish(),
+        rewardsAPR: z.number().nullish(),
+        rewardsAPY: z.number().nullish(),
+        cvxAPR: z.number().nullish(),
+        keepCRV: z.number().nullish(),
+        keepVelo: z.number().nullish()
+      })
+    }).nullish(),
   }).nullish(),
 
   // Fees (basis points)
@@ -53,17 +69,23 @@ export const VaultListItemSchema = z.object({
 
   // Flags
   v3: z.boolean(),
-  yearn: z.boolean(),
   isRetired: z.boolean(),
   isHidden: z.boolean(),
   isBoosted: z.boolean(),
   isHighlighted: z.boolean(),
+
+  // Inclusion
+  inclusion: z.record(z.string(), z.boolean()),
 
   // Strategies
   strategiesCount: z.number(),
 
   // Risk
   riskLevel: z.number().nullable(),
+
+  migration: z.boolean(),
+
+  origin: z.string().nullable(),
 })
 
 export type VaultListItem = z.infer<typeof VaultListItemSchema>
@@ -133,17 +155,25 @@ export async function getVaultsList(): Promise<VaultListItem[]> {
 
       -- Flags
       COALESCE((thing.defaults->>'v3')::boolean, false) AS v3,
-      COALESCE((thing.defaults->>'yearn')::boolean, false) AS yearn,
       COALESCE((snapshot.hook->'meta'->>'isRetired')::boolean, false) AS "isRetired",
       COALESCE((snapshot.hook->'meta'->>'isHidden')::boolean, false) AS "isHidden",
       COALESCE((snapshot.hook->'meta'->>'isBoosted')::boolean, false) AS "isBoosted",
       COALESCE((snapshot.hook->'meta'->>'isHighlighted')::boolean, false) AS "isHighlighted",
 
+      -- Inclusion
+      COALESCE(snapshot.hook->'meta'->'inclusion', '{}'::jsonb) AS inclusion,
+
       -- Strategies count
       COALESCE(jsonb_array_length(snapshot.hook->'strategies'), 0) AS "strategiesCount",
 
       -- Risk
-      (snapshot.hook->'risk'->>'riskLevel')::int AS "riskLevel"
+      (snapshot.hook->'risk'->>'riskLevel')::int AS "riskLevel",
+
+      -- Migration
+      COALESCE((snapshot.hook->'meta'->'migration'->>'available')::boolean, false) AS "migration",
+
+      -- Origin
+      thing.defaults->>'origin' AS origin
 
     FROM thing
     LEFT JOIN snapshot
