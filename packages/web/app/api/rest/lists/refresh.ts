@@ -22,6 +22,8 @@ async function refresh(): Promise<void> {
     await keyv.set(String(chainId), JSON.stringify(chainVaults))
   }
 
+  await keyv.set('all', JSON.stringify(vaults))
+
   console.log(`✓ Completed: ${vaults.length} vaults cached across ${chainIds.length} chains`)
   console.timeEnd('refresh')
 }

@@ -9,28 +9,25 @@ const corsHeaders = {
   'access-control-allow-methods': 'GET,OPTIONS',
 }
 
+const listsKeyv = createListsKeyv('list:vaults')
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const origin = searchParams.get('origin')
 
-  const listsKeyv = createListsKeyv('list:vaults')
-
   try {
-    if (!listsKeyv.iterator) {
-      return new NextResponse('Iterator not supported', { status: 500, headers: corsHeaders })
+    const cached = await listsKeyv.get('all')
+
+    if (!cached) {
+      return new NextResponse('Not found', { status: 404, headers: corsHeaders })
     }
 
-    const allVaults: VaultListItem[] = []
-
-    for await (const [, value] of listsKeyv.iterator(listsKeyv.namespace)) {
-      if (value) {
-        try {
-          const chainVaults: VaultListItem[] = JSON.parse(value)
-          allVaults.push(...chainVaults)
-        } catch (e) {
-          console.error('Failed to parse vault list from Redis:', e)
-        }
-      }
+    let allVaults: VaultListItem[]
+    try {
+      allVaults = JSON.parse(cached as string)
+    } catch (e) {
+      console.error('Failed to parse vault list from Redis:', e)
+      return new NextResponse('Internal Server Error', { status: 500, headers: corsHeaders })
     }
 
     const filtered = origin
