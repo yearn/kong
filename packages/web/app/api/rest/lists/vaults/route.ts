@@ -9,7 +9,10 @@ const corsHeaders = {
   'access-control-allow-methods': 'GET,OPTIONS',
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const origin = searchParams.get('origin')
+
   const listsKeyv = createListsKeyv('list:vaults')
 
   try {
@@ -30,7 +33,11 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json(allVaults, {
+    const filtered = origin
+      ? allVaults.filter(v => v.origin === origin)
+      : allVaults
+
+    return NextResponse.json(filtered, {
       status: 200,
       headers: {
         'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',

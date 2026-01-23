@@ -17,9 +17,12 @@ type RouteParams = {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<RouteParams> },
 ) {
+  const { searchParams } = new URL(request.url)
+  const origin = searchParams.get('origin')
+
   const { chainId: chainIdParam } = (await context.params) ?? {}
   const chainId = parseInt(chainIdParam as string, 10)
 
@@ -47,7 +50,11 @@ export async function GET(
     return new NextResponse('Internal Server Error', { status: 500, headers: corsHeaders })
   }
 
-  return NextResponse.json(vaults, {
+  const filtered = origin
+    ? vaults.filter(v => v.origin === origin)
+    : vaults
+
+  return NextResponse.json(filtered, {
     status: 200,
     headers: {
       'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
