@@ -133,6 +133,25 @@ type Performance {
   historical: Historical
 }
 
+type StakingReward {
+  address: String!
+  name: String!
+  symbol: String!
+  decimals: Int!
+  price: Float!
+  isFinished: Boolean!
+  finishedAt: BigInt!
+  apr: Float!
+  perWeek: Float!
+}
+
+type Staking {
+  address: String!
+  available: Boolean!
+  source: String!
+  rewards: [StakingReward!]!
+}
+
 type Vault {
   DOMAIN_SEPARATOR: String
   FACTORY: String
@@ -207,5 +226,6 @@ type Vault {
   v3: Boolean
   yearn: Boolean
   origin: String
+  staking: Staking
 }
 `

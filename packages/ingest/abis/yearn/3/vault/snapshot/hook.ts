@@ -82,6 +82,17 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const apy = await getLatestApy(chainId, address)
   const [oracleApr, oracleApy] = await getLatestOracleApr(chainId, address)
 
+  // Query DB for staking pool associated with this vault
+  const stakingPool = await db.query(`
+    SELECT s.hook FROM snapshot s
+    JOIN thing t ON s.chain_id = t.chain_id AND s.address = t.address
+    WHERE t.label = 'stakingPool'
+      AND t.chain_id = $1
+      AND t.defaults->>'vault' = $2
+    ORDER BY t.incept_block ASC
+    LIMIT 1
+  `, [chainId, address])
+
   return {
     asset, strategies, allocator, roles, debts, fees,
     risk, meta: { ...meta, token },
@@ -99,7 +110,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
         monthlyNet: apy.monthlyNet,
         inceptionNet: apy.inceptionNet
       } : undefined
-    }
+    },
+    staking: stakingPool?.rows[0]?.hook ?? { available: false, rewards: [] }
   }
 }
 

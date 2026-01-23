@@ -20,6 +20,36 @@ abis:
       { chainId: 1, address: '0x200C92Dd85730872Ab6A1e7d5E40A067066257cF', inceptBlock: 18370588 }
     ]
 
+  - abiPath: 'yearn/staking/registry/juiced'
+    sources: [
+      { chainId: 1, address: '0x85d324Bc55D1143B6a0f6310CE18A07dCF779f53', inceptBlock: 19265999 },
+      { chainId: 42161, address: '0x0BA5E8eAAb5F17318dB93292BA394F87EF7C3c54', inceptBlock: 208888788 },
+      { chainId: 137, address: '0xfA98eF08d2f75BF24c01a5DF906b0E8fC8f0c139', inceptBlock: 59619068 }
+    ]
+
+  - abiPath: 'yearn/staking/registry/v3'
+    sources: [
+      { chainId: 1, address: '0x7D8DAc450dF7E222aE1d591046Eb7b5324C9d44f', inceptBlock: 20573647 },
+      { chainId: 42161, address: '0xB6bdd1DbB9961F12e73aC3692ea24cdBA36A0B6C', inceptBlock: 260251048 },
+      { chainId: 137, address: '0xD14A919aa62a64052F4ff8702d0f5cda6fF8f9F6', inceptBlock: 63749548 }
+    ]
+
+  - abiPath: 'yearn/staking/registry/opboost'
+    sources: [
+      { chainId: 10, address: '0x8ED9f6343f057870F1DeF47AaE7CD88dfAA049A8', inceptBlock: 105896194 }
+    ]
+
+  - abiPath: 'yearn/staking/registry/veyfi'
+    sources: [
+      { chainId: 1, address: '0x1D0fdCb628b2f8c0e22354d45B3B2D4cE9936F8B', inceptBlock: 19573915 }
+    ]
+
+  - abiPath: 'yearn/staking/pool'
+    things: {
+      label: 'stakingPool',
+      filter: []
+    }
+
   - abiPath: 'yearn/3/registry'
     sources: [
       { chainId: 137, address: '0xfF5e3A7C4cBfA9Dd361385c24C3a0A4eE63CE500', inceptBlock: 49100596 }
