@@ -4,10 +4,11 @@ import { VaultReport } from '../../db'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { chainId: string; address: string } }
+  { params }: { params: Promise<{ chainId: string; address: string }> }
 ) {
-  const chainId = parseInt(params.chainId)
-  const address = params.address.toLowerCase()
+  const { chainId: chainIdStr, address: addressStr } = await params
+  const chainId = parseInt(chainIdStr)
+  const address = addressStr.toLowerCase()
 
   if (isNaN(chainId)) {
     return NextResponse.json(
@@ -34,7 +35,8 @@ export async function GET(
   try {
     data = typeof cached === 'string' ? JSON.parse(cached) : cached
 
-    const vaultReports = data.find((report: VaultReport) => report.address === address)
+    console.log(data)
+    const vaultReports = data.find((report: VaultReport) => report.address.toLowerCase() === address.toLowerCase())
 
     if (!vaultReports) {
       return NextResponse.json(
