@@ -4,7 +4,6 @@ import { rpcs } from 'lib/rpcs'
 import { Data } from '../../../../../../extract/timeseries'
 import { V3_ORACLE_ABI } from './abi'
 import { getOracleConfig } from './constants'
-import console from 'console'
 
 export const outputLabel = 'apr-oracle'
 
