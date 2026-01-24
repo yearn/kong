@@ -7,6 +7,7 @@ export function createReportsKeyv() {
 
 export function getReportKey(
   chainId: number,
+  address: string,
 ): string {
-  return `chain_reports:${chainId}`
+  return `vault_reports:${chainId}:${address.toLowerCase()}`
 }

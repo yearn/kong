@@ -1,6 +1,11 @@
 import db from '@/app/api/db'
 import { getAddress } from 'viem'
 
+export type VaultRow = {
+  chainId: number
+  address: string
+}
+
 export interface ReportApr {
   gross?: number
   net?: number
@@ -47,6 +52,33 @@ export interface VaultReport {
   transactionHash: string
 }
 
+/**
+ * Get all vaults
+ * Used by refresh workflow to iterate over all vaults
+ *
+ * @returns All vaults with chainId and address
+ */
+export async function getVaults(): Promise<VaultRow[]> {
+  const result = await db.query(`
+    SELECT DISTINCT
+      chain_id AS "chainId",
+      address
+    FROM thing
+    WHERE label = 'vault'
+    ORDER BY chain_id, address
+  `)
+
+  return result.rows as VaultRow[]
+}
+
+/**
+ * Get strategy reports for a vault
+ * Used by both API endpoint and refresh script
+ *
+ * @param chainId - Chain ID (optional for refresh, required for API)
+ * @param address - Vault address (optional for refresh, required for API)
+ * @returns Array of vault reports
+ */
 export const getStrategyReports = async (chainId?: number, address?: string) => {
   try {
     const result = await db.query(`

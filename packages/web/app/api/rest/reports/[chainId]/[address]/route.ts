@@ -18,9 +18,7 @@ export async function GET(
   }
 
   const keyv = createReportsKeyv()
-
-  const key = getReportKey(chainId)
-
+  const key = getReportKey(chainId, address)
 
   const cached = await keyv.get(key)
 
@@ -35,16 +33,7 @@ export async function GET(
   try {
     data = typeof cached === 'string' ? JSON.parse(cached) : cached
 
-    const vaultReports = data.filter((report: VaultReport) => report.address.toLowerCase() === address.toLowerCase())
-
-    if (!vaultReports || vaultReports.length === 0) {
-      return NextResponse.json(
-        { error: 'Not found' },
-        { status: 404 }
-      )
-    }
-
-    return NextResponse.json(vaultReports, {
+    return NextResponse.json(data, {
       headers: {
         'Cache-Control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
         'Access-Control-Allow-Origin': '*',
