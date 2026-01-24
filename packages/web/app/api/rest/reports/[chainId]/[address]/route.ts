@@ -35,9 +35,9 @@ export async function GET(
   try {
     data = typeof cached === 'string' ? JSON.parse(cached) : cached
 
-    const vaultReports = data.find((report: VaultReport) => report.address.toLowerCase() === address.toLowerCase())
+    const vaultReports = data.filter((report: VaultReport) => report.address.toLowerCase() === address.toLowerCase())
 
-    if (!vaultReports) {
+    if (!vaultReports || vaultReports.length === 0) {
       return NextResponse.json(
         { error: 'Not found' },
         { status: 404 }
