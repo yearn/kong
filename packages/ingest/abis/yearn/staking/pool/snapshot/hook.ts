@@ -1,10 +1,10 @@
 import { z } from 'zod'
 import { parseAbi, zeroAddress } from 'viem'
-import { rpcs } from '../../../../rpcs'
+import { rpcs } from '../../../../../rpcs'
 import { zhexstring } from 'lib/types'
 import { fetchOrExtractErc20 } from '../../../lib'
-import { fetchErc20PriceUsd } from '../../../../prices'
-import db from '../../../../db'
+import { fetchErc20PriceUsd } from '../../../../../prices'
+import db from '../../../../../db'
 
 export const ResultSchema = z.object({
   address: zhexstring,
@@ -56,7 +56,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
   // Fetch vault price and decimals
   const vaultToken = await fetchOrExtractErc20(chainId, vaultAddress)
-  const vaultPrice = await fetchErc20PriceUsd(chainId, vaultAddress)
+  const { priceUsd: vaultPrice } = await fetchErc20PriceUsd(chainId, vaultAddress)
 
   // Fetch reward tokens
   const rewardTokens: `0x${string}`[] = []
@@ -96,7 +96,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
     // Fetch reward token metadata
     const rewardTokenData = await fetchOrExtractErc20(chainId, rewardToken)
-    const rewardPrice = await fetchErc20PriceUsd(chainId, rewardToken)
+    const { priceUsd: rewardPrice } = await fetchErc20PriceUsd(chainId, rewardToken)
 
     // Calculate APR
     const now = BigInt(Math.floor(Date.now() / 1000))
@@ -110,15 +110,15 @@ export default async function process(chainId: number, address: `0x${string}`, d
       const rewardPerDuration = rate * duration
 
       // Normalize total supply
-      const normalizedTotalSupply = Number(snapshot.total_supply) / (10 ** vaultToken.decimals)
+      const normalizedTotalSupply = Number(snapshot.total_supply) / (10 ** Number(vaultToken.decimals))
 
       // Calculate APR
-      const rewardPerDurationNormalized = Number(rewardPerDuration) / (10 ** rewardTokenData.decimals)
+      const rewardPerDurationNormalized = Number(rewardPerDuration) / (10 ** Number(rewardTokenData.decimals))
       apr = (rewardPerDurationNormalized * rewardPrice) / (vaultPrice * normalizedTotalSupply)
       apr = (apr / Number(duration)) * SECONDS_PER_YEAR
 
       // Calculate per week
-      perWeek = (Number(rate) / (10 ** rewardTokenData.decimals)) * SECONDS_PER_WEEK
+      perWeek = (Number(rate) / (10 ** Number(rewardTokenData.decimals))) * SECONDS_PER_WEEK
     }
 
     return {

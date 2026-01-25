@@ -89,7 +89,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     WHERE t.label = 'stakingPool'
       AND t.chain_id = $1
       AND t.defaults->>'vault' = $2
-    ORDER BY t.incept_block ASC
+    ORDER BY (t.defaults->>'inceptBlock')::bigint ASC
     LIMIT 1
   `, [chainId, address])
 
