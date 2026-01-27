@@ -24,8 +24,9 @@ export const ResultSchema = z.object({
 })
 
 export const SnapshotSchema = z.object({
-  total_supply: z.bigint({ coerce: true }),
-  staking_token: zhexstring
+  totalSupply: z.bigint({ coerce: true }),
+  stakingToken: zhexstring.optional(),
+  asset: zhexstring.optional()
 })
 
 const SECONDS_PER_YEAR = 31_556_952
@@ -58,41 +59,82 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const vaultToken = await fetchOrExtractErc20(chainId, vaultAddress)
   const { priceUsd: vaultPrice } = await fetchErc20PriceUsd(chainId, vaultAddress)
 
-  // Fetch reward tokens
+  // Fetch reward tokens - VeYFI gauges use different interface
   const rewardTokens: `0x${string}`[] = []
-  let index = 0
 
-  while (true) {
+  if (source === 'VeYFI') {
+    // VeYFI gauges use REWARD_TOKEN() (singular, uppercase)
     try {
       const token = await rpcs.next(chainId).readContract({
         address,
-        functionName: 'rewardTokens',
-        args: [BigInt(index)],
-        abi: parseAbi(['function rewardTokens(uint256) view returns (address)'])
+        functionName: 'REWARD_TOKEN',
+        abi: parseAbi(['function REWARD_TOKEN() view returns (address)'])
       })
-
-      if (token === zeroAddress) break
-      rewardTokens.push(token)
-      index++
-
-      // Safety limit
-      if (index > 20) break
+      if (token !== zeroAddress) {
+        rewardTokens.push(token)
+      }
     } catch {
-      break
+      // No reward token
+    }
+  } else {
+    // Juiced/V3 Staking use rewardTokens(uint256) (plural, with index)
+    let index = 0
+    while (true) {
+      try {
+        const token = await rpcs.next(chainId).readContract({
+          address,
+          functionName: 'rewardTokens',
+          args: [BigInt(index)],
+          abi: parseAbi(['function rewardTokens(uint256) view returns (address)'])
+        })
+
+        if (token === zeroAddress) break
+        rewardTokens.push(token)
+        index++
+
+        // Safety limit
+        if (index > 20) break
+      } catch {
+        break
+      }
     }
   }
 
   // Process each reward token
   const rewards = await Promise.all(rewardTokens.map(async (rewardToken) => {
-    // Fetch reward data
-    const rewardData = await rpcs.next(chainId).readContract({
-      address,
-      functionName: 'rewardData',
-      args: [rewardToken],
-      abi: parseAbi(['function rewardData(address) view returns (uint256 periodFinish, uint256 rate, uint256 duration, uint256 receivedReward)'])
-    })
+    // Fetch reward data - VeYFI uses individual functions, others use rewardData(address)
+    let periodFinish: bigint
+    let rate: bigint
+    let duration: bigint
 
-    const [periodFinish, rate, duration] = rewardData
+    if (source === 'VeYFI') {
+      // VeYFI gauges use individual functions
+      periodFinish = await rpcs.next(chainId).readContract({
+        address,
+        functionName: 'periodFinish',
+        abi: parseAbi(['function periodFinish() view returns (uint256)'])
+      })
+
+      rate = await rpcs.next(chainId).readContract({
+        address,
+        functionName: 'rewardRate',
+        abi: parseAbi(['function rewardRate() view returns (uint256)'])
+      })
+
+      // VeYFI doesn't have duration function, calculate from period
+      const now = BigInt(Math.floor(Date.now() / 1000))
+      duration = periodFinish > now ? periodFinish - now : 0n
+    } else {
+      // Juiced/V3 Staking use rewardData(address)
+      const rewardData = await rpcs.next(chainId).readContract({
+        address,
+        functionName: 'rewardData',
+        args: [rewardToken],
+        abi: parseAbi(['function rewardData(address) view returns (uint256 periodFinish, uint256 rate, uint256 duration, uint256 receivedReward)'])
+      })
+
+      ;[periodFinish, rate, duration] = rewardData
+    }
 
     // Fetch reward token metadata
     const rewardTokenData = await fetchOrExtractErc20(chainId, rewardToken)
@@ -105,12 +147,12 @@ export default async function process(chainId: number, address: `0x${string}`, d
     let apr = 0
     let perWeek = 0
 
-    if (!isFinished && snapshot.total_supply > 0n) {
+    if (!isFinished && snapshot.totalSupply > 0n) {
       // Calculate reward per duration
       const rewardPerDuration = rate * duration
 
       // Normalize total supply
-      const normalizedTotalSupply = Number(snapshot.total_supply) / (10 ** Number(vaultToken.decimals))
+      const normalizedTotalSupply = Number(snapshot.totalSupply) / (10 ** Number(vaultToken.decimals))
 
       // Calculate APR
       const rewardPerDurationNormalized = Number(rewardPerDuration) / (10 ** Number(rewardTokenData.decimals))

@@ -146,10 +146,10 @@ type StakingReward {
 }
 
 type Staking {
-  address: String!
-  available: Boolean!
-  source: String!
-  rewards: [StakingReward!]!
+  address: String
+  available: Boolean
+  source: String
+  rewards: [StakingReward!]
 }
 
 type Vault {

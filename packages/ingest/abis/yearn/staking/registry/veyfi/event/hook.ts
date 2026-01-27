@@ -14,11 +14,12 @@ export default async function process(chainId: number, address: `0x${string}`, d
     gauge: zhexstring
   }).parse(data.args)
 
-  // Query the gauge contract to get the staking token (vault address)
+  // Query the gauge contract to get the asset (vault address)
+  // VeYFI gauges are ERC4626 vaults, so they use asset() not stakingToken()
   const stakingToken = await rpcs.next(chainId).readContract({
     address: gauge,
-    functionName: 'stakingToken',
-    abi: parseAbi(['function stakingToken() view returns (address)'])
+    functionName: 'asset',
+    abi: parseAbi(['function asset() view returns (address)'])
   })
 
   await mq.add(mq.job.load.thing, ThingSchema.parse({
