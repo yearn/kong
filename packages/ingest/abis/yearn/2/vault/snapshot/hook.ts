@@ -337,10 +337,10 @@ export async function extractComposition(
 
     // Fetch strategy metadata (try vault meta first for dual-role addresses)
     const vaultMeta = await getVaultMeta(chainId, strategy)
-    const meta = vaultMeta.displayName ? vaultMeta : await getStrategyMeta(chainId, strategy)
+    const meta = vaultMeta?.displayName ? vaultMeta : await getStrategyMeta(chainId, strategy)
 
     // Coalesce name: meta.name → snapshot.name → "Unknown"
-    const name = meta.displayName || snapshot?.name || 'Unknown'
+    const name = meta?.displayName || snapshot?.name || 'Unknown'
 
     // Parse netAPR
     const netAPR = snapshot?.netAPR ? parseFloat(snapshot.netAPR) : null
