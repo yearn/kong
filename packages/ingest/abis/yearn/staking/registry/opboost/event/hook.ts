@@ -4,7 +4,7 @@ import { toEventSelector } from 'viem'
 import { ThingSchema, zhexstring } from 'lib/types'
 
 export const topics = [
-  'event StakingPoolAdded(address indexed token, address stakingPool)'
+  'event StakingPoolAdded(address indexed token, address indexed stakingPool)'
 ].map(e => toEventSelector(e))
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

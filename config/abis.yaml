@@ -36,7 +36,7 @@ abis:
 
   - abiPath: 'yearn/staking/registry/opboost'
     sources: [
-      { chainId: 10, address: '0x8ED9f6343f057870F1DeF47AaE7CD88dfAA049A8', inceptBlock: 105896194 }
+      { chainId: 10, address: '0x8ED9f6343f057870F1DeF47AaE7CD88dfAA049A8', inceptBlock: 85969071 }
     ]
 
   - abiPath: 'yearn/staking/registry/veyfi'

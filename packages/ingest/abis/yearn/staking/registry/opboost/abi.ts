@@ -9,7 +9,7 @@ const abi = [
         type: 'address'
       },
       {
-        indexed: false,
+        indexed: true,
         internalType: 'address',
         name: 'stakingPool',
         type: 'address'
