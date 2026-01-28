@@ -8,25 +8,65 @@ import db, { getLatestApy, getLatestOracleApr, getSparkline } from '../../../../
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { priced } from 'lib/math'
 import { getRiskScore } from '../../../lib/risk'
-import { getTokenMeta, getVaultMeta } from '../../../lib/meta'
+import { getTokenMeta, getVaultMeta, getStrategyMeta } from '../../../lib/meta'
 import { snakeToCamelCols } from 'lib/strings'
 import { fetchOrExtractErc20 } from '../../../lib'
 import { Roles } from '../../../lib/types'
 import accountantAbi from '../../accountant/abi'
 import * as things from '../../../../../things'
 
+export const CompositionSchema = z.object({
+  address: zhexstring,
+  name: z.string(),
+  status: z.enum(['active', 'inactive', 'unallocated']),
+  latestReportApr: z.number().nullish(),
+  performance: z.object({
+    oracle: z.object({
+      apr: z.number().nullish(),
+      apy: z.number().nullish()
+    }).nullish(),
+    historical: z.object({
+      net: z.number().nullish(),
+      weeklyNet: z.number().nullish(),
+      monthlyNet: z.number().nullish(),
+      inceptionNet: z.number().nullish()
+    }).nullish()
+  }).nullish(),
+  activation: z.bigint(),
+  lastReport: z.bigint(),
+  currentDebt: z.bigint(),
+  currentDebtUsd: z.number(),
+  maxDebt: z.bigint(),
+  maxDebtUsd: z.number(),
+  performanceFee: z.bigint(),
+  totalGain: z.bigint(),
+  totalGainUsd: z.number(),
+  totalLoss: z.bigint(),
+  totalLossUsd: z.number(),
+  targetDebtRatio: z.number().optional(),
+  maxDebtRatio: z.number().optional()
+})
+
 export const ResultSchema = z.object({
   strategies: z.array(zhexstring),
   allocator: zhexstring.optional(),
   debts: z.array(z.object({
     strategy: zhexstring,
+    activation: z.bigint(),
+    lastReport: z.bigint(),
     currentDebt: z.bigint(),
     currentDebtUsd: z.number(),
     maxDebt: z.bigint(),
     maxDebtUsd: z.number(),
+    performanceFee: z.bigint(),
+    totalGain: z.bigint(),
+    totalGainUsd: z.number(),
+    totalLoss: z.bigint(),
+    totalLossUsd: z.number(),
     targetDebtRatio: z.number().optional(),
     maxDebtRatio: z.number().optional()
   })),
+  composition: CompositionSchema.array(),
   fees: z.object({
     managementFee: z.number(),
     performanceFee: z.number()
@@ -53,6 +93,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const allocator = await projectDebtAllocator(chainId, address)
 
   const debts = await extractDebts(chainId, address, strategies, allocator)
+  const composition = await extractComposition(chainId, address, strategies, debts)
   const fees = await extractFeesBps(chainId, address, snapshot)
   const risk = await getRiskScore(chainId, address)
   const meta = await getVaultMeta(chainId, address)
@@ -83,12 +124,13 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const [oracleApr, oracleApy] = await getLatestOracleApr(chainId, address)
 
   return {
-    asset, strategies, allocator, roles, debts, fees,
+    asset, strategies, allocator, roles, debts, composition, fees,
     risk, meta: { ...meta, token },
     sparklines,
     tvl: sparklines.tvl[0],
     apy,
     performance: {
+      estimated: undefined,
       oracle: {
         apr: oracleApr,
         apy: oracleApy
@@ -182,10 +224,17 @@ function appendRoleManagerPseudoRole(
 export async function extractDebts(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[], allocator: `0x${string}` | undefined) {
   const results: {
     strategy: `0x${string}`,
+    activation: bigint,
+    lastReport: bigint,
     currentDebt: bigint,
     currentDebtUsd: number,
     maxDebt: bigint,
     maxDebtUsd: number,
+    performanceFee: bigint,
+    totalGain: bigint,
+    totalGainUsd: number,
+    totalLoss: bigint,
+    totalLossUsd: number,
     targetDebtRatio: number | undefined,
     maxDebtRatio: number | undefined
   }[] = []
@@ -206,10 +255,16 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
 
   if (asset && decimals && strategies) {
     for (const strategy of strategies) {
-      const contracts: any[] = [{
-        address: vault, functionName: 'strategies', args: [strategy],
-        abi: parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256)'])
-      }]
+      const contracts: any[] = [
+        {
+          address: vault, functionName: 'strategies', args: [strategy],
+          abi: parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256)'])
+        },
+        {
+          address: strategy, functionName: 'performanceFee',
+          abi: parseAbi(['function performanceFee() view returns (uint16)'])
+        }
+      ]
 
       if (allocator) {
         contracts.push(
@@ -230,22 +285,37 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
         ? multicall[0].result! as [bigint, bigint, bigint, bigint]
         : [0n, 0n, 0n, 0n] as [bigint, bigint, bigint, bigint]
 
-      const targetDebtRatio = multicall[1]?.result
-        ? Number(multicall[1].result)
+      const performanceFee = multicall[1]?.result
+        ? BigInt(multicall[1].result as number)
+        : 0n
+
+      const targetDebtRatio = multicall[2]?.result
+        ? Number(multicall[2].result)
         : undefined
 
-      const maxDebtRatio = multicall[2]?.result
-        ? Number(multicall[2].result)
+      const maxDebtRatio = multicall[3]?.result
+        ? Number(multicall[3].result)
         : undefined
 
       const price = await fetchErc20PriceUsd(chainId, asset)
 
+      // V3 contracts don't track totalGain and totalLoss at the strategy level
+      const totalGain = 0n
+      const totalLoss = 0n
+
       results.push({
         strategy,
+        activation,
+        lastReport,
         currentDebt,
         currentDebtUsd: priced(currentDebt, decimals, price.priceUsd),
         maxDebt,
         maxDebtUsd: priced(maxDebt, decimals, price.priceUsd),
+        performanceFee,
+        totalGain,
+        totalGainUsd: 0,
+        totalLoss,
+        totalLossUsd: 0,
         targetDebtRatio,
         maxDebtRatio
       })
@@ -253,6 +323,113 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
   }
 
   return results
+}
+
+async function fetchStrategySnapshots(chainId: number, strategies: `0x${string}`[]) {
+  if (strategies.length === 0) return []
+
+  const result = await db.query(`
+    SELECT
+      address,
+      snapshot->>'name' as name,
+      hook->'performance' as performance,
+      hook->'lastReportDetail'->'apr'->>'net' as "latestReportApr"
+    FROM snapshot
+    WHERE chain_id = $1 AND address = ANY($2)
+  `, [chainId, strategies])
+
+  return z.object({
+    address: zhexstring,
+    name: z.string().nullish(),
+    performance: z.object({
+      oracle: z.object({
+        apr: z.number().nullish(),
+        apy: z.number().nullish()
+      }).nullish(),
+      historical: z.object({
+        net: z.number().nullish(),
+        weeklyNet: z.number().nullish(),
+        monthlyNet: z.number().nullish(),
+        inceptionNet: z.number().nullish()
+      }).nullish()
+    }).nullish(),
+    latestReportApr: z.string().nullish()
+  }).array().parse(result.rows)
+}
+
+export async function extractComposition(
+  chainId: number,
+  vault: `0x${string}`,
+  strategies: `0x${string}`[],
+  debts: Awaited<ReturnType<typeof extractDebts>>
+) {
+  // Fetch vault snapshot data for queue context
+  const vaultSnapshot = await db.query(`
+    SELECT
+      hook->'strategies' as strategies,
+      snapshot->'get_default_queue' as "defaultQueue",
+      snapshot->'use_default_queue' as "useDefaultQueue"
+    FROM snapshot
+    WHERE chain_id = $1 AND address = $2
+  `, [chainId, vault])
+
+  const { defaultQueue } = z.object({
+    strategies: z.array(zhexstring).nullable(),
+    defaultQueue: z.array(zhexstring).nullable()
+  }).parse(vaultSnapshot.rows[0] || {})
+
+  // Batch-fetch strategy snapshots for name and APR
+  const strategySnapshots = await fetchStrategySnapshots(chainId, strategies)
+
+  const composition: z.infer<typeof CompositionSchema>[] = []
+
+  for (const strategy of strategies) {
+    const debt = debts.find(d => d.strategy === strategy)
+    const snapshot = strategySnapshots.find(s => s.address.toLowerCase() === strategy.toLowerCase())
+
+    // Fetch strategy metadata (try vault meta first for dual-role addresses)
+    const vaultMeta = await getVaultMeta(chainId, strategy)
+    const meta = vaultMeta?.displayName ? vaultMeta : await getStrategyMeta(chainId, strategy)
+
+    // Coalesce name: meta.name → snapshot.name → "Unknown"
+    const name = meta?.displayName || snapshot?.name || 'Unknown'
+
+    // Parse latestReportApr
+    const latestReportApr = snapshot?.latestReportApr ? parseFloat(snapshot.latestReportApr) : null
+
+    // Compute status based on debt and queue membership
+    let status: 'active' | 'inactive' | 'unallocated'
+    if (debt && debt.currentDebt > 0n) {
+      status = 'active'
+    } else if (defaultQueue?.includes(strategy)) {
+      status = 'inactive'
+    } else {
+      status = 'unallocated'
+    }
+
+    composition.push({
+      address: strategy,
+      name,
+      status,
+      performance: snapshot?.performance ?? undefined,
+      latestReportApr,
+      activation: debt?.activation ?? 0n,
+      lastReport: debt?.lastReport ?? 0n,
+      currentDebt: debt?.currentDebt ?? 0n,
+      currentDebtUsd: debt?.currentDebtUsd ?? 0,
+      maxDebt: debt?.maxDebt ?? 0n,
+      maxDebtUsd: debt?.maxDebtUsd ?? 0,
+      performanceFee: debt?.performanceFee ?? 0n,
+      totalGain: debt?.totalGain ?? 0n,
+      totalGainUsd: debt?.totalGainUsd ?? 0,
+      totalLoss: debt?.totalLoss ?? 0n,
+      totalLossUsd: debt?.totalLossUsd ?? 0,
+      targetDebtRatio: debt?.targetDebtRatio,
+      maxDebtRatio: debt?.maxDebtRatio
+    })
+  }
+
+  return CompositionSchema.array().parse(composition)
 }
 
 export async function extractFeesBps(chainId: number, address: `0x${string}`, snapshot: Snapshot) {

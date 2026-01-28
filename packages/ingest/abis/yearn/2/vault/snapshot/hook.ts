@@ -6,10 +6,29 @@ import db, { getLatestApy, getSparkline, firstRow } from '../../../../../db'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { priced } from 'lib/math'
 import { getRiskScore } from '../../../lib/risk'
-import { getTokenMeta, getVaultMeta } from '../../../lib/meta'
+import { getTokenMeta, getVaultMeta, getStrategyMeta } from '../../../lib/meta'
 import { fetchOrExtractErc20, throwOnMulticallError } from '../../../lib'
 import { mq } from 'lib'
 import { compare } from 'compare-versions'
+
+export const CompositionSchema = z.object({
+  address: zhexstring,
+  name: z.string(),
+  status: z.enum(['active', 'inactive', 'unallocated']),
+  latestReportApr: z.number().nullish(),
+  performanceFee: z.bigint(),
+  activation: z.bigint(),
+  debtRatio: z.bigint(),
+  minDebtPerHarvest: z.bigint(),
+  maxDebtPerHarvest: z.bigint(),
+  lastReport: z.bigint(),
+  totalDebt: z.bigint(),
+  totalDebtUsd: z.number(),
+  totalGain: z.bigint(),
+  totalGainUsd: z.number(),
+  totalLoss: z.bigint(),
+  totalLossUsd: z.number()
+})
 
 export const ResultSchema = z.object({
   strategies: z.array(zhexstring),
@@ -29,9 +48,9 @@ export const ResultSchema = z.object({
     totalLoss: z.bigint(),
     totalLossUsd: z.number()
   })),
+  composition: CompositionSchema.array(),
   meta: VaultMetaSchema.merge(z.object({ token: TokenMetaSchema }))
 })
-
 
 async function getLatestEstimatedApr(chainId: number, address: string) {
   const result = await firstRow(`
@@ -96,6 +115,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const strategies = await projectStrategies(chainId, address)
   const withdrawalQueue = await extractWithdrawalQueue(chainId, address)
   const debts = oldold ? [] : await extractDebts(chainId, address)
+  const composition = oldold ? [] : await extractComposition(chainId, address, strategies, withdrawalQueue, debts)
   const risk = await getRiskScore(chainId, address)
   const meta = await getVaultMeta(chainId, address)
   const token = await getTokenMeta(chainId, data.token)
@@ -118,6 +138,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     strategies,
     withdrawalQueue,
     debts,
+    composition,
     risk,
     meta: { ...meta, token },
     sparklines,
@@ -125,6 +146,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     apy,
     performance: {
       estimated,
+      oracle: undefined,
       historical: apy ? {
         net: apy.net,
         weeklyNet: apy.weeklyNet,
@@ -277,4 +299,85 @@ export async function extractWithdrawalQueue(chainId: number, address: `0x${stri
 
   return multicall.filter(result => result.status === 'success' && result.result && result.result !== zeroAddress)
     .map(result => result.result as `0x${string}`)
+}
+
+async function fetchStrategySnapshots(chainId: number, strategies: `0x${string}`[]) {
+  if (strategies.length === 0) return []
+
+  const result = await db.query(`
+    SELECT
+      address,
+      snapshot->>'name' as name,
+      hook->'lastReportDetail'->'apr'->>'net' as "latestReportApr"
+    FROM snapshot
+    WHERE chain_id = $1 AND address = ANY($2)
+  `, [chainId, strategies])
+
+  return z.object({
+    address: zhexstring,
+    name: z.string().nullable(),
+    latestReportApr: z.string().nullable()
+  }).array().parse(result.rows)
+}
+
+export async function extractComposition(
+  chainId: number,
+  vault: `0x${string}`,
+  strategies: `0x${string}`[],
+  withdrawalQueue: `0x${string}`[],
+  debts: Awaited<ReturnType<typeof extractDebts>>
+) {
+  // Batch-fetch strategy snapshots for name and APR
+  const strategySnapshots = await fetchStrategySnapshots(chainId, strategies)
+
+  const composition: z.infer<typeof CompositionSchema>[] = []
+
+  for (const strategy of strategies) {
+    const debt = debts.find(d => d.strategy === strategy)
+    const snapshot = strategySnapshots.find(s => s.address.toLowerCase() === strategy.toLowerCase())
+
+    // Fetch strategy metadata (try vault meta first for dual-role addresses)
+    const vaultMeta = await getVaultMeta(chainId, strategy)
+    const meta = vaultMeta?.displayName ? vaultMeta : await getStrategyMeta(chainId, strategy)
+
+    // Coalesce name: meta.name → snapshot.name → "Unknown"
+    const name = meta?.displayName || snapshot?.name || 'Unknown'
+
+    // Parse latestReportApr
+    const latestReportApr = snapshot?.latestReportApr ? parseFloat(snapshot.latestReportApr) : null
+
+    // Compute status based on debt and withdrawal queue membership
+    let status: 'active' | 'inactive' | 'unallocated'
+    const isInQueue = withdrawalQueue.some(addr => addr.toLowerCase() === strategy.toLowerCase())
+    const hasDebt = debt && debt.totalDebt > 0n && debt.debtRatio > 0n
+
+    if (hasDebt) {
+      status = 'active'
+    } else if (isInQueue) {
+      status = 'inactive'
+    } else {
+      status = 'unallocated'
+    }
+
+    composition.push({
+      address: strategy,
+      name,
+      status,
+      latestReportApr,
+      performanceFee: debt?.performanceFee ?? 0n,
+      activation: debt?.activation ?? 0n,
+      debtRatio: debt?.debtRatio ?? 0n,
+      minDebtPerHarvest: debt?.minDebtPerHarvest ?? 0n,
+      maxDebtPerHarvest: debt?.maxDebtPerHarvest ?? 0n,
+      lastReport: debt?.lastReport ?? 0n,
+      totalDebt: debt?.totalDebt ?? 0n,
+      totalDebtUsd: debt?.totalDebtUsd ?? 0,
+      totalGain: debt?.totalGain ?? 0n,
+      totalGainUsd: debt?.totalGainUsd ?? 0,
+      totalLoss: debt?.totalLoss ?? 0n,
+      totalLossUsd: debt?.totalLossUsd ?? 0
+    })
+  }
+
+  return CompositionSchema.array().parse(composition)
 }
