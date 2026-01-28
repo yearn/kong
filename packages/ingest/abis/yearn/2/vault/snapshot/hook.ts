@@ -15,7 +15,7 @@ export const CompositionSchema = z.object({
   address: zhexstring,
   name: z.string(),
   status: z.enum(['active', 'inactive', 'unallocated']),
-  netAPR: z.number().nullable(),
+  latestReportApr: z.number().nullish(),
   performanceFee: z.bigint(),
   activation: z.bigint(),
   debtRatio: z.bigint(),
@@ -146,6 +146,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     apy,
     performance: {
       estimated,
+      oracle: undefined,
       historical: apy ? {
         net: apy.net,
         weeklyNet: apy.weeklyNet,
@@ -307,7 +308,7 @@ async function fetchStrategySnapshots(chainId: number, strategies: `0x${string}`
     SELECT
       address,
       snapshot->>'name' as name,
-      hook->'lastReportDetail'->'apr'->>'net' as "netAPR"
+      hook->'lastReportDetail'->'apr'->>'net' as "latestReportApr"
     FROM snapshot
     WHERE chain_id = $1 AND address = ANY($2)
   `, [chainId, strategies])
@@ -315,7 +316,7 @@ async function fetchStrategySnapshots(chainId: number, strategies: `0x${string}`
   return z.object({
     address: zhexstring,
     name: z.string().nullable(),
-    netAPR: z.string().nullable()
+    latestReportApr: z.string().nullable()
   }).array().parse(result.rows)
 }
 
@@ -337,13 +338,13 @@ export async function extractComposition(
 
     // Fetch strategy metadata (try vault meta first for dual-role addresses)
     const vaultMeta = await getVaultMeta(chainId, strategy)
-    const meta = vaultMeta.displayName ? vaultMeta : await getStrategyMeta(chainId, strategy)
+    const meta = vaultMeta?.displayName ? vaultMeta : await getStrategyMeta(chainId, strategy)
 
     // Coalesce name: meta.name → snapshot.name → "Unknown"
-    const name = meta.displayName || snapshot?.name || 'Unknown'
+    const name = meta?.displayName || snapshot?.name || 'Unknown'
 
-    // Parse netAPR
-    const netAPR = snapshot?.netAPR ? parseFloat(snapshot.netAPR) : null
+    // Parse latestReportApr
+    const latestReportApr = snapshot?.latestReportApr ? parseFloat(snapshot.latestReportApr) : null
 
     // Compute status based on debt and withdrawal queue membership
     let status: 'active' | 'inactive' | 'unallocated'
@@ -362,7 +363,7 @@ export async function extractComposition(
       address: strategy,
       name,
       status,
-      netAPR,
+      latestReportApr,
       performanceFee: debt?.performanceFee ?? 0n,
       activation: debt?.activation ?? 0n,
       debtRatio: debt?.debtRatio ?? 0n,

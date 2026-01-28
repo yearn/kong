@@ -25,6 +25,16 @@ export default async function process(chainId: number, address: `0x${string}`, d
     sparklines,
     tvl: sparklines.tvl[0],
     apy,
+    performance: {
+      estimated: undefined,
+      oracle: undefined,
+      historical: apy ? {
+        net: apy.net,
+        weeklyNet: apy.weeklyNet,
+        monthlyNet: apy.monthlyNet,
+        inceptionNet: apy.inceptionNet
+      } : undefined
+    },
     pricePerShare: sparklines.pps[0]?.close ?? undefined
   }
 }
