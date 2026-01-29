@@ -77,7 +77,7 @@ export class WebhookExtractor {
         throw new Error(`Unexpected labels. Expected one of: ${subscription.labels.join(', ')}, Got: ${outputs.map(output => output.label).join(', ')}`)
       }
 
-      const MAX_OUTPUTS = 20
+      const MAX_OUTPUTS = 100
       if (outputs.length > MAX_OUTPUTS) {
         throw new Error(`Max outputs exceeded: ${outputs.length} > ${MAX_OUTPUTS}`)
       }
