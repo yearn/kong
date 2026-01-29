@@ -254,7 +254,7 @@ export const VaultMetaSchema = z.object({
   kind: z.string(),
   isRetired: z.boolean(),
   isHidden: z.boolean(),
-  isStakingEnabled: z.boolean(),
+  shouldDisableStaking: z.boolean(),
   isAggregator: z.boolean(),
   isBoosted: z.boolean(),
   isAutomated: z.boolean(),
