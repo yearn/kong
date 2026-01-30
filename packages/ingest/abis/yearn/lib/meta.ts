@@ -59,7 +59,12 @@ async function extractMetas<T>(schema: z.ZodType<T>, chainId: number, type: 'tok
 
   const results: { [address: `0x${string}`]: T } = {}
   for (const item of json) {
-    results[getAddress(item.address)] = schema.parse(item)
+    try {
+      const parsedItem = schema.parse(item)
+      results[getAddress(item.address)] = parsedItem
+    } catch(error) {
+      console.log('🤬', '!meta', chainId, item.address)
+    }
   }
 
   return results
