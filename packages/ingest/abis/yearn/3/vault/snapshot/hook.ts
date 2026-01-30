@@ -386,8 +386,8 @@ export async function extractComposition(
   `, [chainId, vault])
 
   const { defaultQueue } = z.object({
-    strategies: z.array(zhexstring).nullable(),
-    defaultQueue: z.array(zhexstring).nullable()
+    strategies: z.array(zhexstring).nullish(),
+    defaultQueue: z.array(zhexstring).nullish()
   }).parse(vaultSnapshot.rows[0] || {})
 
   // Batch-fetch strategy snapshots for name and APR

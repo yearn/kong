@@ -2,7 +2,7 @@ import { EvmAddressSchema, ThingSchema } from 'lib/types'
 import { z } from 'zod'
 import { fetchOrExtractErc20 } from '../../yearn/lib'
 import { mq } from 'lib'
-import { getLatestApy, getSparkline } from '../../../db'
+import { getLatestApy, getLatestOracleApr, getSparkline } from '../../../db'
 
 export default async function process(chainId: number, address: `0x${string}`, data: object) {
   const { asset } = z.object({ asset: EvmAddressSchema }).parse(data)
@@ -13,7 +13,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
     pps: await getSparkline(chainId, address, 'pps', 'raw')
   }
 
-  const apy = await getLatestApy(chainId, address)
+  const oracle = await getLatestOracleApr(chainId, address)
+  const historical = await getLatestApy(chainId, address)
 
   const erc20 = await fetchOrExtractErc20(chainId, asset)
   await mq.add(mq.job.load.thing, ThingSchema.parse({
@@ -24,15 +25,18 @@ export default async function process(chainId: number, address: `0x${string}`, d
     asset: erc20,
     sparklines,
     tvl: sparklines.tvl[0],
-    apy,
+    apy: historical,
     performance: {
       estimated: undefined,
-      oracle: undefined,
-      historical: apy ? {
-        net: apy.net,
-        weeklyNet: apy.weeklyNet,
-        monthlyNet: apy.monthlyNet,
-        inceptionNet: apy.inceptionNet
+      oracle: (oracle[0] || oracle[1]) ? {
+        apr: oracle[0],
+        apy: oracle[1]
+      } : undefined,
+      historical: historical ? {
+        net: historical.net,
+        weeklyNet: historical.weeklyNet,
+        monthlyNet: historical.monthlyNet,
+        inceptionNet: historical.inceptionNet
       } : undefined
     },
     pricePerShare: sparklines.pps[0]?.close ?? undefined
