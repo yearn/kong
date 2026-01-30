@@ -1,0 +1,20 @@
+
+cron:
+  name: AbiFanout
+  queue: fanout
+  job: abis
+  schedule: '*/15 * * * *'
+  start: false
+
+abis:
+  - abiPath: 'yearn/3/vault'
+    sources: [
+      { chainId: 1, address: '0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204', inceptBlock: 19419991 }
+    ]
+
+  - abiPath: 'yearn/3/strategy'
+    things: {
+      label: 'strategy',
+      filter: [{ field: 'apiVersion', op: '>=', value: '3.0.0' }]
+    }
+
