@@ -3,7 +3,7 @@ import { mainnet } from 'viem/chains'
 import process, { extractLenderStatuses } from './hook'
 import { cache } from 'lib'
 
-describe.only('abis/yearn/2/strategy/snapshot/hook', function() {
+describe('abis/yearn/2/strategy/snapshot/hook', function() {
   const originalFetch = global.fetch
   const address = '0x2216E44fA633ABd2540dB72Ad34b42C7F1557cd4'
   const chainId = mainnet.id
