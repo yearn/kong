@@ -4,7 +4,7 @@ import { rpcs } from '../../../../../rpcs'
 import { EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
 import { mq } from 'lib'
 import { estimateCreationBlock } from 'lib/blocks'
-import db, { getLatestApy, getLatestOracleApr, getSparkline } from '../../../../../db'
+import db, { getSparkline } from '../../../../../db'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { priced } from 'lib/math'
 import { getRiskScore } from '../../../lib/risk'
@@ -14,6 +14,7 @@ import { fetchOrExtractErc20 } from '../../../lib'
 import { Roles } from '../../../lib/types'
 import accountantAbi from '../../accountant/abi'
 import * as things from '../../../../../things'
+import { getLatestApy, getLatestOracleApr } from '../../../../../helpers/apy-apr'
 
 export const CompositionSchema = z.object({
   address: zhexstring,

@@ -11,6 +11,7 @@ import { fetchOrExtractErc20, throwOnMulticallError } from '../../../lib'
 import db, { firstRow } from '../../../../../db'
 import { getStrategyMeta, getVaultMeta } from '../../../lib/meta'
 import vaultAbi from '../../vault/abi'
+import { getLatestEstimatedApr } from '../../../../../helpers/apy-apr'
 
 const borkedVaults = [
   '0x718AbE90777F5B778B52D553a5aBaa148DD0dc5D'
@@ -54,7 +55,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const claims = await computeRewards(chainId, address, snapshot)
   const vaultMeta = await getVaultMeta(chainId, address)
   const meta = vaultMeta ?? await getStrategyMeta(chainId, address)
-  return { totalDebt, totalDebtUsd, lenderStatuses, lastReportDetail, claims, meta }
+  const estimated = await getLatestEstimatedApr(chainId, address)
+  return { totalDebt, totalDebtUsd, lenderStatuses, lastReportDetail, claims, meta, performance: { estimated, oracle: undefined, historical: undefined } }
 }
 
 async function processTradeFactory(chainId: number, snapshot: Snapshot) {
@@ -199,6 +201,5 @@ async function fetchLastReportDetail(chainId: number, address: `0x${string}`) {
     transactionHash: row.transaction_hash,
     ...row.args,
     ...row.hook
-
   })
 }
