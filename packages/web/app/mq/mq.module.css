@@ -158,3 +158,116 @@
 .backLink {
   margin-bottom: 15px;
 }
+
+.jobDetail {
+  background: #16213e;
+  padding: 15px;
+  border-radius: 8px;
+  margin: 15px 0;
+}
+
+.detailRow {
+  display: flex;
+  gap: 15px;
+  padding: 8px 0;
+  border-bottom: 1px solid #333;
+}
+
+.detailRow:last-child {
+  border-bottom: none;
+}
+
+.detailLabel {
+  color: #888;
+  min-width: 100px;
+}
+
+.timeline {
+  background: #16213e;
+  padding: 15px;
+  border-radius: 8px;
+  margin: 15px 0;
+}
+
+.timelineItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  position: relative;
+}
+
+.timelineItem:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 28px;
+  width: 2px;
+  height: calc(100% - 8px);
+  background: #333;
+}
+
+.timelineDot {
+  width: 12px;
+  height: 12px;
+  background: #4da6ff;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.timelineLabel {
+  color: #888;
+  min-width: 80px;
+}
+
+.timelineValue {
+  font-family: monospace;
+}
+
+.timelineDuration {
+  color: #888;
+  margin-left: 10px;
+  font-size: 12px;
+}
+
+.fullData {
+  background: #0d1117;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 15px;
+  overflow-x: auto;
+  font-family: monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.stacktrace {
+  background: #1a0000;
+  border: 1px solid #5c0000;
+  border-radius: 8px;
+  padding: 15px;
+  overflow-x: auto;
+  font-family: monospace;
+  font-size: 12px;
+  color: #ff6b6b;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.errorMessage {
+  color: #ff6b6b;
+  background: #1a0000;
+  border: 1px solid #5c0000;
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.jobIdLink {
+  color: #4da6ff;
+  text-decoration: none;
+}
+
+.jobIdLink:hover {
+  text-decoration: underline;
+}

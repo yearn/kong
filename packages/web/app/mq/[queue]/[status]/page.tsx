@@ -102,7 +102,11 @@ export default async function JobsList({
 
             return (
               <tr key={job.id}>
-                <td>{job.id}</td>
+                <td>
+                  <Link href={`/mq/${encodeURIComponent(queueName)}/job/${job.id}`} className={styles.jobIdLink}>
+                    {job.id}
+                  </Link>
+                </td>
                 <td>{job.name}</td>
                 <td title={new Date(job.timestamp || 0).toISOString()}>{ageStr} ago</td>
                 <td>{job.attemptsMade}</td>
