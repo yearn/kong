@@ -90,6 +90,8 @@ type Apy {
   weeklyPricePerShare: BigInt
   monthlyNet: Float
   monthlyPricePerShare: BigInt
+  quarterlyNet: Float
+  quarterlyPricePerShare: BigInt
   inceptionNet: Float
   grossApr: Float
   blockNumber: String!
@@ -124,6 +126,7 @@ type Historical {
   net: Float
   weeklyNet: Float
   monthlyNet: Float
+  quarterlyNet: Float
   inceptionNet: Float
 }
 

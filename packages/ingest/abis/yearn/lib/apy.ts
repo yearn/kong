@@ -21,6 +21,9 @@ export const APYSchema = z.object({
   monthlyNet: z.number().optional(),
   monthlyPricePerShare: z.bigint({ coerce: true }).optional(),
   monthlyBlockNumber: z.bigint({ coerce: true }),
+  quarterlyNet: z.number().optional(),
+  quarterlyPricePerShare: z.bigint({ coerce: true }).optional(),
+  quarterlyBlockNumber: z.bigint({ coerce: true }),
   inceptionNet: z.number().optional(),
   inceptionPricePerShare: z.bigint({ coerce: true }).optional(),
   inceptionBlockNumber: z.bigint({ coerce: true }),
@@ -105,6 +108,18 @@ export default async function _process(chainId: number, address: `0x${string}`, 
     },
     {
       chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
+      label: data.outputLabel, component: 'quarterlyNet', value: apy.quarterlyNet
+    },
+    {
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
+      label: data.outputLabel, component: 'quarterlyPricePerShare', value: Number(apy.quarterlyPricePerShare)
+    },
+    {
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
+      label: data.outputLabel, component: 'quarterlyBlockNumber', value: Number(apy.quarterlyBlockNumber)
+    },
+    {
+      chainId, address, blockNumber: apy.blockNumber, blockTime: apy.blockTime,
       label: data.outputLabel, component: 'inceptionNet', value: apy.inceptionNet
     },
     {
@@ -131,6 +146,9 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
     monthlyNet: undefined,
     monthlyPricePerShare: 0n,
     monthlyBlockNumber: 0n,
+    quarterlyNet: undefined,
+    quarterlyPricePerShare: 0n,
+    quarterlyBlockNumber: 0n,
     inceptionNet: undefined,
     inceptionPricePerShare: 0n,
     inceptionBlockNumber: 0n,
@@ -154,6 +172,7 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
   const day = 24n * 60n * 60n
   result.weeklyBlockNumber = await estimateHeight(chainId, block.timestamp - 7n * day)
   result.monthlyBlockNumber = await estimateHeight(chainId, block.timestamp - 30n * day)
+  result.quarterlyBlockNumber = await estimateHeight(chainId, block.timestamp - 90n * day)
 
   result.pricePerShare = await rpcs.next(chainId, blockNumber).readContract({...ppsParameters, blockNumber}) as bigint
   result.inceptionPricePerShare = await rpcs.next(chainId, result.inceptionBlockNumber).readContract({...ppsParameters, blockNumber: result.inceptionBlockNumber}) as bigint
@@ -162,6 +181,7 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
 
   result.weeklyPricePerShare = result.weeklyBlockNumber < result.inceptionBlockNumber ? undefined : await rpcs.next(chainId, result.weeklyBlockNumber).readContract({...ppsParameters, blockNumber: result.weeklyBlockNumber}) as bigint
   result.monthlyPricePerShare = result.monthlyBlockNumber < result.inceptionBlockNumber ? undefined : await rpcs.next(chainId, result.monthlyBlockNumber).readContract({...ppsParameters, blockNumber: result.monthlyBlockNumber}) as bigint
+  result.quarterlyPricePerShare = result.quarterlyBlockNumber < result.inceptionBlockNumber ? undefined : await rpcs.next(chainId, result.quarterlyBlockNumber).readContract({...ppsParameters, blockNumber: result.quarterlyBlockNumber}) as bigint
 
   const blocksPerDay = (blockNumber - result.weeklyBlockNumber) / 7n
 
@@ -175,6 +195,11 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
     { block: blockNumber, pps: result.pricePerShare }, blocksPerDay
   )
 
+  result.quarterlyNet = result.quarterlyPricePerShare === undefined ? undefined : compoundAndAnnualizeDelta(
+    { block: result.quarterlyBlockNumber, pps: result.quarterlyPricePerShare },
+    { block: blockNumber, pps: result.pricePerShare }, blocksPerDay
+  )
+
   result.inceptionNet = compoundAndAnnualizeDelta(
     { block: result.inceptionBlockNumber, pps: result.inceptionPricePerShare },
     { block: blockNumber, pps: result.pricePerShare }, blocksPerDay
@@ -182,9 +207,9 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
 
   const candidates: (number | undefined)[] = []
   if(chainId !== mainnet.id) {
-    candidates.push(result.weeklyNet, result.monthlyNet, result.inceptionNet)
+    candidates.push(result.weeklyNet, result.monthlyNet, result.quarterlyNet, result.inceptionNet)
   } else {
-    candidates.push(result.monthlyNet, result.weeklyNet, result.inceptionNet)
+    candidates.push(result.monthlyNet, result.quarterlyNet, result.weeklyNet, result.inceptionNet)
   }
 
   result.net = candidates.find(apy => apy !== undefined) ?? (() => { throw new Error('!candidates') })()

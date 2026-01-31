@@ -36,6 +36,7 @@ export const VaultListItemSchema = z.object({
       net: CoerceNumber,
       weeklyNet: CoerceNumber,
       monthlyNet: CoerceNumber,
+      quarterlyNet: CoerceNumber,
       inceptionNet: CoerceNumber,
     }).nullish(),
     estimated: z.object({
