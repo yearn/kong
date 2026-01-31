@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { rpcs } from '../../../../../rpcs'
 import { EstimatedAprSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
-import db, { getLatestApy, getSparkline, firstRow } from '../../../../../db'
+import db, { getSparkline } from '../../../../../db'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { priced } from 'lib/math'
 import { getRiskScore } from '../../../lib/risk'
@@ -10,6 +10,7 @@ import { getTokenMeta, getVaultMeta, getStrategyMeta } from '../../../lib/meta'
 import { fetchOrExtractErc20, throwOnMulticallError } from '../../../lib'
 import { mq } from 'lib'
 import { compare } from 'compare-versions'
+import { getLatestApy, getLatestEstimatedApr } from '../../../../../helpers/apy-apr'
 
 export const CompositionSchema = z.object({
   address: zhexstring,
@@ -27,7 +28,20 @@ export const CompositionSchema = z.object({
   totalGain: z.bigint(),
   totalGainUsd: z.number(),
   totalLoss: z.bigint(),
-  totalLossUsd: z.number()
+  totalLossUsd: z.number(),
+  performance: z.object({
+    estimated: EstimatedAprSchema.nullish(),
+    oracle: z.object({
+      apr: z.number().nullish(),
+      apy: z.number().nullish()
+    }).nullish(),
+    historical: z.object({
+      net: z.number().nullish(),
+      weeklyNet: z.number().nullish(),
+      monthlyNet: z.number().nullish(),
+      inceptionNet: z.number().nullish()
+    }).nullish()
+  }).nullish()
 })
 
 export const ResultSchema = z.object({
@@ -52,62 +66,7 @@ export const ResultSchema = z.object({
   meta: VaultMetaSchema.merge(z.object({ token: TokenMetaSchema }))
 })
 
-async function getLatestEstimatedApr(chainId: number, address: string) {
-  const result = await firstRow(`
-  SELECT
-    chain_id as "chainId",
-    address,
-    label,
-    MAX(CASE WHEN component = 'netAPR' THEN value END) AS apr,
-    MAX(CASE WHEN component = 'netAPY' THEN value END) AS apy,
-    MAX(CASE WHEN component = 'boost' THEN value END) AS boost,
-    MAX(CASE WHEN component = 'poolAPY' THEN value END) AS "poolAPY",
-    MAX(CASE WHEN component = 'boostedAPR' THEN value END) AS "boostedAPR",
-    MAX(CASE WHEN component = 'baseAPR' THEN value END) AS "baseAPR",
-    MAX(CASE WHEN component = 'rewardsAPR' THEN value END) AS "rewardsAPR",
-    MAX(CASE WHEN component = 'rewardsAPY' THEN value END) AS "rewardsAPY",
-    MAX(CASE WHEN component = 'cvxAPR' THEN value END) AS "cvxAPR",
-    MAX(CASE WHEN component = 'keepCRV' THEN value END) AS "keepCRV",
-    MAX(CASE WHEN component = 'keepVelo' THEN value END) AS "keepVelo",
-    block_number as "blockNumber",
-    block_time as "blockTime"
-  FROM output
-  WHERE block_time = (
-      SELECT MAX(block_time) FROM output
-      WHERE chain_id = $1
-      AND LOWER(address) = LOWER($2)
-      AND label IN ('crv-estimated-apr', 'velo-estimated-apr', 'aero-estimated-apr')
-    )
-    AND chain_id = $1
-    AND LOWER(address) = LOWER($2)
-    AND label IN ('crv-estimated-apr', 'velo-estimated-apr', 'aero-estimated-apr')
-  GROUP BY chain_id, address, label, block_number, block_time;
-  `, [chainId, address])
 
-  if (!result) return undefined
-
-  let type = 'unknown'
-  if (result.label === 'crv-estimated-apr') type = 'crv'
-  if (result.label === 'velo-estimated-apr') type = 'velo'
-  if (result.label === 'aero-estimated-apr') type = 'aero'
-
-  return EstimatedAprSchema.parse({
-    apr: result.apr || 0,
-    apy: result.apy || 0,
-    type,
-    components: {
-      boost: result.boost,
-      poolAPY: result.poolAPY,
-      boostedAPR: result.boostedAPR,
-      baseAPR: result.baseAPR,
-      rewardsAPR: result.rewardsAPR,
-      rewardsAPY: result.rewardsAPY,
-      cvxAPR: result.cvxAPR,
-      keepCRV: result.keepCRV,
-      keepVelo: result.keepVelo
-    }
-  })
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
@@ -320,7 +279,8 @@ async function fetchStrategySnapshots(chainId: number, strategies: `0x${string}`
     SELECT
       address,
       snapshot->>'name' as name,
-      hook->'lastReportDetail'->'apr'->>'net' as "latestReportApr"
+      hook->'lastReportDetail'->'apr'->>'net' as "latestReportApr",
+      hook->'performance' as performance
     FROM snapshot
     WHERE chain_id = $1 AND address = ANY($2)
   `, [chainId, strategies])
@@ -328,7 +288,20 @@ async function fetchStrategySnapshots(chainId: number, strategies: `0x${string}`
   return z.object({
     address: zhexstring,
     name: z.string().nullable(),
-    latestReportApr: z.string().nullable()
+    latestReportApr: z.string().nullable(),
+    performance: z.object({
+      estimated: EstimatedAprSchema.nullish(),
+      oracle: z.object({
+        apr: z.number().nullish(),
+        apy: z.number().nullish()
+      }).nullish(),
+      historical: z.object({
+        net: z.number().nullish(),
+        weeklyNet: z.number().nullish(),
+        monthlyNet: z.number().nullish(),
+        inceptionNet: z.number().nullish()
+      }).nullish()
+    }).nullish()
   }).array().parse(result.rows)
 }
 
@@ -387,7 +360,8 @@ export async function extractComposition(
       totalGain: debt?.totalGain ?? 0n,
       totalGainUsd: debt?.totalGainUsd ?? 0,
       totalLoss: debt?.totalLoss ?? 0n,
-      totalLossUsd: debt?.totalLossUsd ?? 0
+      totalLossUsd: debt?.totalLossUsd ?? 0,
+      performance: snapshot?.performance ?? undefined
     })
   }
 
