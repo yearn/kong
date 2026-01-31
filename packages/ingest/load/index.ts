@@ -86,11 +86,6 @@ export async function upsertEvmLog(data: object) {
   }
 }
 
-function filterNullMeta(hook: Record<string, any>) {
-  const meta = hook.meta
-  hook.meta = Object.fromEntries(Object.entries(meta).filter(([, v]) => v != null))
-  return hook
-}
 
 export async function upsertSnapshot(data: object) {
   const snapshot = SnapshotSchema.parse(data)
@@ -106,12 +101,10 @@ export async function upsertSnapshot(data: object) {
 
     snapshot.snapshot = { ...currentSnapshot, ...snapshot.snapshot }
 
-    const filteredHook = filterNullMeta(snapshot.hook)
-
     snapshot.hook = {
       ...currentHook,
-      ...filteredHook,
-      meta: { ...currentHook.meta, ...filteredHook.meta }
+      ...snapshot.hook,
+      meta: snapshot.hook.meta ? { ...currentHook.meta, ...snapshot.hook.meta } : currentHook.meta
     }
     await upsert(snapshot, 'snapshot', 'chain_id, address', undefined, client)
 
