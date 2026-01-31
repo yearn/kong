@@ -108,7 +108,11 @@ export async function upsertSnapshot(data: object) {
 
     const filteredHook = filterNullMeta(snapshot.hook)
 
-    snapshot.hook = { ...currentHook, ...filteredHook }
+    snapshot.hook = {
+      ...currentHook,
+      ...filteredHook,
+      meta: { ...currentHook.meta, ...filteredHook.meta }
+    }
     await upsert(snapshot, 'snapshot', 'chain_id, address', undefined, client)
 
     await client.query('COMMIT')
