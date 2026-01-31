@@ -10,12 +10,7 @@ export async function getVaultMeta(chainId: number, address: `0x${string}`) {
     return (await getMetas<VaultMeta>(VaultMetaSchema, chainId, 'vaults'))[getAddress(address)]
   } catch(error) {
     console.log('🤬', '!meta', chainId, address)
-    return {
-      displayName: '',
-      displaySymbol: '',
-      description: '',
-      protocols: []
-    }
+    return undefined
   }
 }
 
@@ -24,11 +19,7 @@ export async function getStrategyMeta(chainId: number, address: `0x${string}`) {
     return (await getMetas<StrategyMeta>(StrategyMetaSchema, chainId, 'strategies'))[getAddress(address)]
   } catch(error) {
     console.log('🤬', '!meta', chainId, address)
-    return {
-      displayName: '',
-      description: '',
-      protocols: []
-    }
+    return undefined
   }
 }
 
@@ -37,12 +28,7 @@ export async function getTokenMeta(chainId: number, address: `0x${string}`) {
     return (await getMetas<TokenMeta>(TokenMetaSchema, chainId, 'tokens'))[getAddress(address)]
   } catch(error) {
     console.log('🤬', '!meta', chainId, address)
-    return {
-      displayName: '',
-      displaySymbol: '',
-      description: '',
-      protocols: []
-    }
+    return undefined
   }
 }
 

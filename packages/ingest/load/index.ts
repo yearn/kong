@@ -87,7 +87,9 @@ export async function upsertEvmLog(data: object) {
 }
 
 function filterNullMeta(hook: Record<string, any>) {
-  return Object.fromEntries(Object.entries(hook).filter(([, v]) => v != null))
+  const meta = hook.meta
+  hook.meta = Object.fromEntries(Object.entries(meta).filter(([, v]) => v != null))
+  return hook
 }
 
 export async function upsertSnapshot(data: object) {
