@@ -78,3 +78,21 @@ export async function getQueueJobs(name: string, status: JobStatus, start = 0, e
     returnvalue: job.returnvalue
   }))
 }
+
+export async function getJobById(queueName: string, jobId: string): Promise<JobInfo | null> {
+  const queue = getQueue(queueName)
+  const job = await queue.getJob(jobId)
+  if (!job) return null
+  return {
+    id: job.id,
+    name: job.name,
+    data: job.data,
+    timestamp: job.timestamp,
+    processedOn: job.processedOn,
+    finishedOn: job.finishedOn,
+    attemptsMade: job.attemptsMade,
+    failedReason: job.failedReason,
+    stacktrace: job.stacktrace,
+    returnvalue: job.returnvalue
+  }
+}

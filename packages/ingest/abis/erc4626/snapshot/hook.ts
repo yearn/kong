@@ -2,7 +2,8 @@ import { EvmAddressSchema, ThingSchema } from 'lib/types'
 import { z } from 'zod'
 import { fetchOrExtractErc20 } from '../../yearn/lib'
 import { mq } from 'lib'
-import { getLatestApy, getLatestOracleApr, getSparkline } from '../../../db'
+import { getSparkline } from '../../../db'
+import { getLatestApy, getLatestOracleApr } from '../../../helpers/apy-apr'
 
 export default async function process(chainId: number, address: `0x${string}`, data: object) {
   const { asset } = z.object({ asset: EvmAddressSchema }).parse(data)
