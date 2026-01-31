@@ -13,6 +13,6 @@ subscriptions:
     url: 'https://v2-estimated-apr-hook.vercel.app/webhook'
     abiPath: 'yearn/2/vault'
     type: 'timeseries'
-    labels: ['crv-estimated-apr', 'aero-estimated-apr', 'velodrome-estimated-apr']
+    labels: ['crv-estimated-apr', 'aero-estimated-apr', 'velo-estimated-apr']
     filter:
       chainIds: [1, 10, 250, 42161]
