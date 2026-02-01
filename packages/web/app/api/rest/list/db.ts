@@ -96,6 +96,9 @@ export const VaultListItemSchema = z.object({
     address: z.string().nullish(),
     available: z.boolean(),
   }).nullable(),
+
+  // Price
+  pricePerShare: CoerceNumber,
 })
 
 export type VaultListItem = z.infer<typeof VaultListItemSchema>
@@ -195,7 +198,10 @@ export async function getVaultsList(): Promise<VaultListItem[]> {
           'address', snapshot.hook->'staking'->>'address',
           'available', (snapshot.hook->'staking'->>'available')::boolean
         )
-      ELSE NULL END AS staking
+      ELSE NULL END AS staking,
+
+      -- Price
+      (snapshot.snapshot->>'pricePerShare')::numeric AS "pricePerShare"
 
     FROM thing
     LEFT JOIN snapshot
