@@ -86,6 +86,19 @@ export const VaultListItemSchema = z.object({
   migration: z.boolean(),
 
   origin: z.string().nullable(),
+
+  // Inception
+  inceptBlock: CoerceNumber,
+  inceptTime: CoerceNumber,
+
+  // Staking
+  staking: z.object({
+    address: z.string().nullish(),
+    available: z.boolean(),
+  }).nullable(),
+
+  // Price
+  pricePerShare: CoerceNumber,
 })
 
 export type VaultListItem = z.infer<typeof VaultListItemSchema>
@@ -173,7 +186,22 @@ export async function getVaultsList(): Promise<VaultListItem[]> {
       COALESCE((snapshot.hook->'meta'->'migration'->>'available')::boolean, false) AS "migration",
 
       -- Origin
-      thing.defaults->>'origin' AS origin
+      thing.defaults->>'origin' AS origin,
+
+      -- Inception
+      (thing.defaults->>'inceptBlock')::bigint AS "inceptBlock",
+      (thing.defaults->>'inceptTime')::bigint AS "inceptTime",
+
+      -- Staking
+      CASE WHEN snapshot.hook->'staking' IS NOT NULL THEN
+        jsonb_build_object(
+          'address', snapshot.hook->'staking'->>'address',
+          'available', (snapshot.hook->'staking'->>'available')::boolean
+        )
+      ELSE NULL END AS staking,
+
+      -- Price
+      (snapshot.snapshot->>'pricePerShare')::numeric AS "pricePerShare"
 
     FROM thing
     LEFT JOIN snapshot
