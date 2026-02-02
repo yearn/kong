@@ -15,4 +15,4 @@ subscriptions:
     type: 'timeseries'
     labels: ['crv-estimated-apr', 'aero-estimated-apr', 'velodrome-estimated-apr']
     filter:
-      chainIds: [1, 10, 250, 42161]
+      chainIds: [1, 8453, 10, 250, 42161]
