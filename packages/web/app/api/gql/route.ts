@@ -30,7 +30,7 @@ const plugins = [
 if (enableCache) {
   const store = new KeyvRedis(redisUrl)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cache = new CustomKeyvAdapter(new Keyv<string>(store as any))
+  const cache = new CustomKeyvAdapter(new Keyv<string>({ store: store as any }))
   plugins.push(ApolloServerPluginCacheControl({ defaultMaxAge: defaultCacheMaxAge }))
   plugins.push(responseCachePlugin({ cache }))
 }
