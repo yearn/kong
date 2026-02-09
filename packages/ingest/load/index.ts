@@ -104,7 +104,7 @@ export async function upsertSnapshot(data: object) {
     snapshot.hook = {
       ...currentHook,
       ...snapshot.hook,
-      meta: snapshot.hook.meta ? { ...currentHook.meta, ...snapshot.hook.meta } : currentHook.meta
+      meta: snapshot.hook.meta ? { ...currentHook.meta, ...JSON.parse(JSON.stringify(snapshot.hook.meta)) } : currentHook.meta
     }
     await upsert(snapshot, 'snapshot', 'chain_id, address', undefined, client)
 
