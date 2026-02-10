@@ -86,6 +86,7 @@ export async function upsertEvmLog(data: object) {
   }
 }
 
+
 export async function upsertSnapshot(data: object) {
   const snapshot = SnapshotSchema.parse(data)
   const client = await db.connect()
@@ -99,7 +100,12 @@ export async function upsertSnapshot(data: object) {
     )) ?? { snapshot: {}, hook: {} }
 
     snapshot.snapshot = { ...currentSnapshot, ...snapshot.snapshot }
-    snapshot.hook = { ...currentHook, ...snapshot.hook }
+
+    snapshot.hook = {
+      ...currentHook,
+      ...snapshot.hook,
+      meta: snapshot.hook.meta ? { ...currentHook.meta, ...JSON.parse(JSON.stringify(snapshot.hook.meta)) } : currentHook.meta
+    }
     await upsert(snapshot, 'snapshot', 'chain_id, address', undefined, client)
 
     await client.query('COMMIT')
