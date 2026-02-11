@@ -10,7 +10,7 @@ export default class WebhookCollector {
     subscription: typeof webhookSubscriptions[number],
     chainId: number,
     abiPath: string,
-    vaults: { chainId: number, address: `0x${string}` }[]
+    vaults: `0x${string}`[]
   }>()
 
   collect(abi: AbiConfig, source: SourceConfig) {
@@ -31,7 +31,7 @@ export default class WebhookCollector {
           vaults: []
         })
       }
-      this.collected.get(key)!.vaults.push({ chainId, address: address as `0x${string}` })
+      this.collected.get(key)!.vaults.push(address as `0x${string}`)
     }
   }
 
@@ -45,6 +45,7 @@ export default class WebhookCollector {
       const { number: blockNumber, timestamp: blockTime } = blocks.get(group.chainId)!
       return mq.add(mq.job.extract.webhook, {
         abiPath: group.abiPath,
+        chainId: group.chainId,
         blockNumber,
         blockTime,
         subscription: group.subscription,

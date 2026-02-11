@@ -6,13 +6,11 @@ import { WebhookSubscription, WebhookSubscriptionSchema } from 'lib/subscription
 
 export const DataSchema = z.object({
   abiPath: z.string(),
+  chainId: z.number(),
   blockNumber: z.bigint({ coerce: true }),
   blockTime: z.bigint({ coerce: true }),
   subscription: WebhookSubscriptionSchema,
-  vaults: z.array(z.object({
-    chainId: z.number(),
-    address: zhexstring
-  }))
+  vaults: z.array(zhexstring)
 })
 
 export type Data = z.infer<typeof DataSchema>
