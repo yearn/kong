@@ -73,22 +73,21 @@ export class WebhookExtractor {
       const body = await response.json()
       const outputs = OutputSchema.array().parse(body)
 
-      if (outputs.some(output => !subscription.labels.includes(output.label))) {
-        throw new Error(`Unexpected labels. Expected one of: ${subscription.labels.join(', ')}, Got: ${outputs.map(output => output.label).join(', ')}`)
-      }
-
-      const MAX_OUTPUTS = 100
-      const outputsByVault = new Map<string, number>()
-      for (const output of outputs) {
-        const key = `${output.chainId}:${output.address}`
-        const count = (outputsByVault.get(key) || 0) + 1
-        if (count > MAX_OUTPUTS) {
-          console.error(`🤬 Max outputs exceeded for vault ${key}: ${count} > ${MAX_OUTPUTS}`)
+      const MAX_OUTPUTS_PER_VAULT = 100
+      const grouped = Map.groupBy(outputs, o => `${o.chainId}:${o.address}`)
+      const valid = [...grouped].flatMap(([key, group]) => {
+        if (group.length > MAX_OUTPUTS_PER_VAULT) {
+          console.error(`🤬 ${subscription.id} skipping ${key}: ${group.length} outputs > ${MAX_OUTPUTS_PER_VAULT}`)
+          return []
         }
-        outputsByVault.set(key, count)
-      }
+        if (group.some(o => !subscription.labels.includes(o.label))) {
+          console.error(`🤬 ${subscription.id} skipping ${key}: unexpected labels`)
+          return []
+        }
+        return group
+      })
 
-      await mq.add(mq.job.load.output, { batch: outputs })
+      await mq.add(mq.job.load.output, { batch: valid })
     } finally {
       semaphore.release()
     }
