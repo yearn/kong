@@ -6,11 +6,13 @@ import { WebhookSubscription, WebhookSubscriptionSchema } from 'lib/subscription
 
 export const DataSchema = z.object({
   abiPath: z.string(),
-  chainId: z.number(),
-  address: zhexstring,
   blockNumber: z.bigint({ coerce: true }),
   blockTime: z.bigint({ coerce: true }),
-  subscription: WebhookSubscriptionSchema
+  subscription: WebhookSubscriptionSchema,
+  vaults: z.array(z.object({
+    chainId: z.number(),
+    address: zhexstring
+  }))
 })
 
 export type Data = z.infer<typeof DataSchema>
@@ -61,7 +63,7 @@ export class WebhookExtractor {
     await semaphore.acquire()
 
     try {
-      const label = `🔌 ${mq.job.extract.webhook.name} ${subscription.id} ${subscription.url} ${subscription.labels.join(', ')}`
+      const label = `🔌 ${mq.job.extract.webhook.name} ${subscription.id} ${subscription.url} ${subscription.labels.join(', ')} (${data.vaults.length} vaults)`
       console.time(label)
       const response = await fetchResponse(subscription, data)
       console.timeEnd(label)
@@ -78,8 +80,14 @@ export class WebhookExtractor {
       }
 
       const MAX_OUTPUTS = 100
-      if (outputs.length > MAX_OUTPUTS) {
-        throw new Error(`Max outputs exceeded: ${outputs.length} > ${MAX_OUTPUTS}`)
+      const outputsByVault = new Map<string, number>()
+      for (const output of outputs) {
+        const key = `${output.chainId}:${output.address}`
+        const count = (outputsByVault.get(key) || 0) + 1
+        if (count > MAX_OUTPUTS) {
+          console.error(`🤬 Max outputs exceeded for vault ${key}: ${count} > ${MAX_OUTPUTS}`)
+        }
+        outputsByVault.set(key, count)
       }
 
       await mq.add(mq.job.load.output, { batch: outputs })

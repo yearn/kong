@@ -13,8 +13,7 @@ export const job: { [queue: string]: { [job: string]: Job } } = {
   fanout: {
     abis: { queue: 'fanout', name: 'abis' },
     events: { queue: 'fanout', name: 'events' },
-    timeseries: { queue: 'fanout', name: 'timeseries' },
-    webhooks: { queue: 'fanout', name: 'webhooks' }
+    timeseries: { queue: 'fanout', name: 'timeseries' }
   },
 
   extract: {
