@@ -4,6 +4,7 @@
   "main": "index.ts",
   "license": "MIT",
   "scripts": {
+    "pretest": "tsc --noEmit",
     "test": "ts-node run-tests.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"

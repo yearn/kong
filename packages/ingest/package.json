@@ -4,6 +4,7 @@
   "main": "index.ts",
   "license": "MIT",
   "scripts": {
+    "pretest": "tsc --noEmit",
     "dev": "ts-node index.ts",
     "production": "ts-node --transpile-only index.ts",
     "test": "ts-node run-tests.ts",

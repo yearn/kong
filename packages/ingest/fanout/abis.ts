@@ -29,7 +29,9 @@ export default class AbisFanout {
               chainId: _thing.chainId,
               address: _thing.address,
               inceptBlock: _thing.defaults.inceptBlock,
-              inceptTime: _thing.defaults.inceptTime
+              inceptTime: _thing.defaults.inceptTime,
+              skip: false,
+              only: false
             } }
           await mq.add(mq.job.fanout.events, _data)
           await mq.add(mq.job.extract.snapshot, _data)
