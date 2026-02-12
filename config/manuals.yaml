@@ -128,7 +128,7 @@ manuals:
     }
 
   - chainId: 1
-    address: '0xAb9018A699003a777d690c156045DfC4A7ef3A96'
+    address: '0xAaaFEa48472f77563961Cdb53291DEDfB46F9040'
     label: 'vault'
     defaults: {
       erc4626: true,
