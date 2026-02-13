@@ -7,10 +7,9 @@ const AddressSchema = z.custom<`0x${string}`>(
   'invalid evm address'
 )
 
-const KongWebhookSchema = z.object({
+const KongBatchWebhookSchema = z.object({
   abiPath: z.string(),
   chainId: z.number(),
-  address: AddressSchema,
   blockNumber: z.bigint({ coerce: true }),
   blockTime: z.bigint({ coerce: true }),
   subscription: z.object({
@@ -19,7 +18,8 @@ const KongWebhookSchema = z.object({
     abiPath: z.string(),
     type: z.enum(['timeseries']),
     labels: z.array(z.string())
-  })
+  }),
+  vaults: z.array(AddressSchema)
 })
 
 const OutputSchema = z.object({
@@ -55,27 +55,29 @@ export async function POST(request: NextRequest) {
     return new Response('Invalid signature', { status: 401 })
   }
 
-  const hook = KongWebhookSchema.parse(JSON.parse(body))
+  const hook = KongBatchWebhookSchema.parse(JSON.parse(body))
 
   const outputs = OutputSchema.array().parse(
-    hook.subscription.labels.flatMap(label => [
-      OutputSchema.parse({
-        chainId: hook.chainId,
-        address: hook.address,
-        label: label,
-        component: 'health', value: 0,
-        blockNumber: hook.blockNumber,
-        blockTime: hook.blockTime
-      }),
-      OutputSchema.parse({
-        chainId: hook.chainId,
-        address: hook.address,
-        label: label,
-        component: 'check', value: 1,
-        blockNumber: hook.blockNumber,
-        blockTime: hook.blockTime
-      })
-    ])
+    hook.vaults.flatMap(address =>
+      hook.subscription.labels.flatMap(label => [
+        OutputSchema.parse({
+          chainId: hook.chainId,
+          address,
+          label,
+          component: 'health', value: 0,
+          blockNumber: hook.blockNumber,
+          blockTime: hook.blockTime
+        }),
+        OutputSchema.parse({
+          chainId: hook.chainId,
+          address,
+          label,
+          component: 'check', value: 1,
+          blockNumber: hook.blockNumber,
+          blockTime: hook.blockTime
+        })
+      ])
+    )
   )
 
   const replacer = (_: string, v: unknown) => typeof v === 'bigint' ? v.toString() : v

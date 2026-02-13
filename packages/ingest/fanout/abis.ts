@@ -1,8 +1,11 @@
 import { abisConfig, chains, mq } from 'lib'
 import * as things from '../things'
+import WebhookCollector from './webhooks'
 
 export default class AbisFanout {
   async fanout(data: object) {
+    const webhookCollector = new WebhookCollector()
+
     for (const abi of abisConfig.abis) {
       for (const source of abi.sources) {
         console.info('🤝', 'source', 'abiPath', abi.abiPath, source.chainId, source.address)
@@ -10,7 +13,7 @@ export default class AbisFanout {
         await mq.add(mq.job.fanout.events, _data)
         await mq.add(mq.job.extract.snapshot, _data)
         await mq.add(mq.job.fanout.timeseries, _data)
-        await mq.add(mq.job.fanout.webhooks, _data)
+        webhookCollector.collect(abi, source)
       }
 
       if (abi.things) {
@@ -26,14 +29,18 @@ export default class AbisFanout {
               chainId: _thing.chainId,
               address: _thing.address,
               inceptBlock: _thing.defaults.inceptBlock,
-              inceptTime: _thing.defaults.inceptTime
+              inceptTime: _thing.defaults.inceptTime,
+              skip: false,
+              only: false
             } }
           await mq.add(mq.job.fanout.events, _data)
           await mq.add(mq.job.extract.snapshot, _data)
           await mq.add(mq.job.fanout.timeseries, _data)
-          await mq.add(mq.job.fanout.webhooks, _data)
+          webhookCollector.collect(abi, _data.source)
         }
       }
     }
+
+    await webhookCollector.flush()
   }
 }

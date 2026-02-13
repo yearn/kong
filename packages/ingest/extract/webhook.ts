@@ -7,10 +7,10 @@ import { WebhookSubscription, WebhookSubscriptionSchema } from 'lib/subscription
 export const DataSchema = z.object({
   abiPath: z.string(),
   chainId: z.number(),
-  address: zhexstring,
   blockNumber: z.bigint({ coerce: true }),
   blockTime: z.bigint({ coerce: true }),
-  subscription: WebhookSubscriptionSchema
+  subscription: WebhookSubscriptionSchema,
+  vaults: z.array(zhexstring)
 })
 
 export type Data = z.infer<typeof DataSchema>
@@ -61,7 +61,7 @@ export class WebhookExtractor {
     await semaphore.acquire()
 
     try {
-      const label = `🔌 ${mq.job.extract.webhook.name} ${subscription.id} ${subscription.url} ${subscription.labels.join(', ')}`
+      const label = `🔌 ${mq.job.extract.webhook.name} ${subscription.id} ${subscription.url} ${subscription.labels.join(', ')} (${data.vaults.length} vaults)`
       console.time(label)
       const response = await fetchResponse(subscription, data)
       console.timeEnd(label)
@@ -73,16 +73,21 @@ export class WebhookExtractor {
       const body = await response.json()
       const outputs = OutputSchema.array().parse(body)
 
-      if (outputs.some(output => !subscription.labels.includes(output.label))) {
-        throw new Error(`Unexpected labels. Expected one of: ${subscription.labels.join(', ')}, Got: ${outputs.map(output => output.label).join(', ')}`)
-      }
+      const MAX_OUTPUTS_PER_VAULT = 100
+      const grouped = Map.groupBy(outputs, o => `${o.chainId}:${o.address}`)
+      const valid = [...grouped].flatMap(([key, group]) => {
+        if (group.length > MAX_OUTPUTS_PER_VAULT) {
+          console.error(`🤬 ${subscription.id} skipping ${key}: ${group.length} outputs > ${MAX_OUTPUTS_PER_VAULT}`)
+          return []
+        }
+        if (group.some(o => !subscription.labels.includes(o.label))) {
+          console.error(`🤬 ${subscription.id} skipping ${key}: unexpected labels`)
+          return []
+        }
+        return group
+      })
 
-      const MAX_OUTPUTS = 100
-      if (outputs.length > MAX_OUTPUTS) {
-        throw new Error(`Max outputs exceeded: ${outputs.length} > ${MAX_OUTPUTS}`)
-      }
-
-      await mq.add(mq.job.load.output, { batch: outputs })
+      await mq.add(mq.job.load.output, { batch: valid })
     } finally {
       semaphore.release()
     }
