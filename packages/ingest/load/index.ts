@@ -1,11 +1,11 @@
-import { z } from 'zod'
-import { mq, strider, types } from 'lib'
-import db, { firstRow, getTravelledStrides, toUpsertSql } from '../db'
-import { Processor } from 'lib/processor'
-import { PoolClient } from 'pg'
-import { OutputSchema, SnapshotSchema, ThingSchema, zhexstring } from 'lib/types'
 import { Worker } from 'bullmq'
+import { mq, strider, types } from 'lib'
 import { endOfDay } from 'lib/dates'
+import { Processor } from 'lib/processor'
+import { OutputSchema, SnapshotSchema, ThingSchema, zhexstring } from 'lib/types'
+import { PoolClient } from 'pg'
+import { z } from 'zod'
+import db, { firstRow, getTravelledStrides, toUpsertSql } from '../db'
 
 export default class Load implements Processor {
   worker: Worker | undefined
@@ -104,7 +104,6 @@ export async function upsertSnapshot(data: object) {
     snapshot.hook = {
       ...currentHook,
       ...snapshot.hook,
-      meta: snapshot.hook.meta ? { ...currentHook.meta, ...JSON.parse(JSON.stringify(snapshot.hook.meta)) } : currentHook.meta
     }
     await upsert(snapshot, 'snapshot', 'chain_id, address', undefined, client)
 
