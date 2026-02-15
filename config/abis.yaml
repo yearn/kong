@@ -15,6 +15,14 @@ abis:
       ]
     }
 
+  - abiPath: 'pooltogether/vault'
+    things: {
+      label: 'vault',
+      filter: [
+        { field: 'origin', op: '=', value: 'pooltogether' }
+      ]
+    }
+
   - abiPath: 'yearn/governance/votingEscrow'
     sources: [
       { chainId: 1, address: '0x200C92Dd85730872Ab6A1e7d5E40A067066257cF', inceptBlock: 18370588 }
@@ -116,7 +124,8 @@ abis:
       label: 'vault',
       filter: [
         { field: 'apiVersion', op: '>=', value: '3.0.0' },
-        { field: 'origin', op: '!=', value: 'ydaemon' }
+        { field: 'origin', op: '!=', value: 'ydaemon' },
+        { field: 'origin', op: '!=', value: 'pooltogether' }
       ]
     }
 
