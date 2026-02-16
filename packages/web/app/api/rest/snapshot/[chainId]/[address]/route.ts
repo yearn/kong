@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createSnapshotKeyv, getSnapshotKey } from '../../redis'
+import { getSnapshotKey } from '../../redis'
+import { keyv } from '../../../cache'
 import type { VaultSnapshot } from '../../db'
 
 export const runtime = 'nodejs'
@@ -13,8 +14,6 @@ const corsHeaders = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET,OPTIONS',
 }
-
-const snapshotKeyv = createSnapshotKeyv()
 
 export async function GET(
   request: NextRequest,
@@ -31,19 +30,17 @@ export async function GET(
 
   const addressLower = address.toLowerCase()
   const cacheKey = getSnapshotKey(Number(chainId), addressLower)
-  let cached: string | undefined
+  let parsed: VaultSnapshot | undefined
   try {
-    cached = await snapshotKeyv.get(cacheKey)
+    parsed = await keyv.get(cacheKey)
   } catch (err) {
     console.error(`Redis read failed for ${cacheKey}:`, err)
     throw err
   }
 
-  if (!cached) {
+  if (!parsed) {
     return new NextResponse('Not found', { status: 404, headers: corsHeaders })
   }
-
-  const parsed: VaultSnapshot = JSON.parse(cached as string)
 
   return NextResponse.json(parsed, {
     status: 200,

@@ -1,11 +1,11 @@
 import { getVaults, getVaultSnapshot } from './db'
-import { createSnapshotKeyv, getSnapshotKey } from './redis'
+import { getSnapshotKey } from './redis'
+import { keyv } from '../cache'
 
 const BATCH_SIZE = 10
 
 async function refresh(): Promise<void> {
   console.time('refresh')
-  const keyv = createSnapshotKeyv()
 
   console.log('Fetching vaults...')
   const vaults = await getVaults()
@@ -13,27 +13,26 @@ async function refresh(): Promise<void> {
 
   let processed = 0
 
-  async function processVault(vault: { chainId: number; address: string }) {
-    const addressLower = vault.address.toLowerCase()
+  for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
+    const batch = vaults.slice(i, i + BATCH_SIZE)
+    const snapshots = await Promise.all(batch.map(async (vault) => {
+      const snapshot = await getVaultSnapshot(vault.chainId, vault.address)
+      if (!snapshot) return null
+      return {
+        key: getSnapshotKey(vault.chainId, vault.address.toLowerCase()),
+        value: snapshot,
+      }
+    }))
 
-    const snapshot = await getVaultSnapshot(vault.chainId, vault.address)
-
-    if (!snapshot) {
-      return
+    const entries = snapshots.filter((s): s is NonNullable<typeof s> => s !== null)
+    if (entries.length > 0) {
+      await (keyv as any).setMany(entries)
     }
 
-    const cacheKey = getSnapshotKey(vault.chainId, addressLower)
-    await keyv.set(cacheKey, JSON.stringify(snapshot))
-
-    processed++
+    processed += entries.length
     if (processed % 10 === 0) {
       console.log(`Processed ${processed}/${vaults.length} vaults`)
     }
-  }
-
-  for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
-    const batch = vaults.slice(i, i + BATCH_SIZE)
-    await Promise.all(batch.map(processVault))
   }
 
   console.log(`✓ Completed: ${processed} vaults processed`)
@@ -42,11 +41,13 @@ async function refresh(): Promise<void> {
 
 if (require.main === module) {
   refresh()
-    .then(() => {
+    .then(async () => {
+      await keyv.disconnect()
       process.exit(0)
     })
-    .catch(err => {
+    .catch(async (err) => {
       console.error(err)
+      await keyv.disconnect()
       process.exit(1)
     })
 }

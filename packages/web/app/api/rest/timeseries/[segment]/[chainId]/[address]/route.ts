@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { labels } from '../../../labels'
-import { createTimeseriesKeyv, getTimeseriesKey } from '../../../redis'
+import { getTimeseriesKey } from '../../../redis'
+import { keyv } from '../../../../cache'
 
 export const runtime = 'nodejs'
 
@@ -10,12 +11,13 @@ type RouteParams = {
   address?: string | string[]
 }
 
+type TimeseriesEntry = { time: number; component: string; value: number }
+type ConsolidatedTimeseries = Record<string, TimeseriesEntry[]>
+
 const corsHeaders = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET,OPTIONS',
 }
-
-const timeseriesKeyv = createTimeseriesKeyv()
 
 export async function GET(
   request: NextRequest,
@@ -44,18 +46,16 @@ export async function GET(
     : [entry.defaultComponent]
 
   const addressLower = address.toLowerCase()
-  const cacheKey = getTimeseriesKey(entry.label, Number(chainId), addressLower)
-  let cached
+  const cacheKey = getTimeseriesKey(Number(chainId), addressLower)
+  let consolidated: ConsolidatedTimeseries | undefined
   try {
-    cached = await timeseriesKeyv.get(cacheKey)
+    consolidated = await keyv.get(cacheKey)
   } catch (err) {
     console.error(`Redis read failed for ${cacheKey}:`, err)
     throw err
   }
-  const parsed: Array<{ time: number; component: string; value: number }> = cached
-    ? JSON.parse(cached as string)
-    : []
 
+  const parsed = consolidated?.[entry.label] ?? []
   const filtered = parsed.filter((row) => components.includes(row.component))
 
   return NextResponse.json(filtered, {

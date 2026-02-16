@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createListsKeyv } from '../redis'
+import { getListKey } from '../redis'
+import { keyv } from '../../cache'
 import type { VaultListItem } from '../db'
 
 export const runtime = 'nodejs'
@@ -9,25 +10,15 @@ const corsHeaders = {
   'access-control-allow-methods': 'GET,OPTIONS',
 }
 
-const listsKeyv = createListsKeyv('list:vaults')
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const origin = searchParams.get('origin')
 
   try {
-    const cached = await listsKeyv.get('all')
+    const allVaults = await keyv.get(getListKey('all')) as VaultListItem[] | undefined
 
-    if (!cached) {
+    if (!allVaults) {
       return new NextResponse('Not found', { status: 404, headers: corsHeaders })
-    }
-
-    let allVaults: VaultListItem[]
-    try {
-      allVaults = JSON.parse(cached as string)
-    } catch (e) {
-      console.error('Failed to parse vault list from Redis:', e)
-      return new NextResponse('Internal Server Error', { status: 500, headers: corsHeaders })
     }
 
     const filtered = origin

@@ -1,12 +1,12 @@
 import 'lib/global'
 import { getVaults, getStrategyReports } from './db'
-import { createReportsKeyv, getReportKey } from './redis'
+import { getReportKey } from './redis'
+import { keyv } from '../cache'
 
 const BATCH_SIZE = parseInt(process.env.REFRESH_BATCH_SIZE || '10', 10)
 
 async function refreshReports(): Promise<void> {
   console.time('refreshReports')
-  const keyv = createReportsKeyv()
 
   console.log('Fetching vaults...')
   const vaults = await getVaults()
@@ -14,27 +14,26 @@ async function refreshReports(): Promise<void> {
 
   let processed = 0
 
-  async function processVault(vault: { chainId: number; address: string }) {
-    const addressLower = vault.address.toLowerCase()
+  for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
+    const batch = vaults.slice(i, i + BATCH_SIZE)
+    const results = await Promise.all(batch.map(async (vault) => {
+      const reports = await getStrategyReports(vault.chainId, vault.address)
+      if (!reports || reports.length === 0) return null
+      return {
+        key: getReportKey(vault.chainId, vault.address.toLowerCase()),
+        value: reports,
+      }
+    }))
 
-    const reports = await getStrategyReports(vault.chainId, vault.address)
-
-    if (!reports || reports.length === 0) {
-      return
+    const entries = results.filter((r): r is NonNullable<typeof r> => r !== null)
+    if (entries.length > 0) {
+      await (keyv as any).setMany(entries)
     }
 
-    const cacheKey = getReportKey(vault.chainId, addressLower)
-    await keyv.set(cacheKey, JSON.stringify(reports))
-
-    processed++
+    processed += entries.length
     if (processed % 10 === 0) {
       console.log(`Processed ${processed}/${vaults.length} vaults`)
     }
-  }
-
-  for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
-    const batch = vaults.slice(i, i + BATCH_SIZE)
-    await Promise.all(batch.map(processVault))
   }
 
   console.log(`✓ Completed: ${processed} vaults processed`)
@@ -43,11 +42,13 @@ async function refreshReports(): Promise<void> {
 
 if (require.main === module) {
   refreshReports()
-    .then(() => {
+    .then(async () => {
+      await keyv.disconnect()
       process.exit(0)
     })
-    .catch(err => {
+    .catch(async (err) => {
       console.error(err)
+      await keyv.disconnect()
       process.exit(1)
     })
 }

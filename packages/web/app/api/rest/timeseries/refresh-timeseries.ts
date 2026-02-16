@@ -1,12 +1,12 @@
 import { labels } from './labels'
 import { getFullTimeseries, getVaults, TimeseriesRow } from './db'
-import { createTimeseriesKeyv, getTimeseriesKey } from './redis'
+import { getTimeseriesKey } from './redis'
+import { keyv } from '../cache'
 
 const BATCH_SIZE = 10
 
 async function refresh24hr(): Promise<void> {
   console.time('refresh24hr')
-  const keyv = createTimeseriesKeyv()
 
   console.log('Fetching vaults...')
   const vaults = await getVaults()
@@ -14,35 +14,39 @@ async function refresh24hr(): Promise<void> {
 
   let processed = 0
 
-  async function processVault(vault: { chainId: number; address: string }) {
-    const addressLower = vault.address.toLowerCase()
+  for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
+    const batch = vaults.slice(i, i + BATCH_SIZE)
+    const results = await Promise.all(batch.map(async (vault) => {
+      const addressLower = vault.address.toLowerCase()
 
-    await Promise.all(labels.map(async ({ label }) => {
-      const rows: TimeseriesRow[] = await getFullTimeseries(
-        vault.chainId,
-        vault.address,
-        label,
-      )
+      const labelData: Record<string, Array<{ time: number; component: string; value: number }>> = {}
 
-      const minimal = rows.map(row => ({
-        time: Number(row.time),
-        component: row.component,
-        value: row.value,
+      await Promise.all(labels.map(async ({ label }) => {
+        const rows: TimeseriesRow[] = await getFullTimeseries(
+          vault.chainId,
+          vault.address,
+          label,
+        )
+
+        labelData[label] = rows.map(row => ({
+          time: Number(row.time),
+          component: row.component,
+          value: row.value,
+        }))
       }))
 
-      const cacheKey = getTimeseriesKey(label, vault.chainId, addressLower)
-      await keyv.set(cacheKey, JSON.stringify(minimal))
+      return {
+        key: getTimeseriesKey(vault.chainId, addressLower),
+        value: labelData,
+      }
     }))
 
-    processed++
+    await (keyv as any).setMany(results)
+
+    processed += results.length
     if (processed % 10 === 0) {
       console.log(`Processed ${processed}/${vaults.length} vaults`)
     }
-  }
-
-  for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
-    const batch = vaults.slice(i, i + BATCH_SIZE)
-    await Promise.all(batch.map(processVault))
   }
 
   console.log(`✓ Completed: ${processed} vaults processed`)
@@ -51,11 +55,13 @@ async function refresh24hr(): Promise<void> {
 
 if (require.main === module) {
   refresh24hr()
-    .then(() => {
+    .then(async () => {
+      await keyv.disconnect()
       process.exit(0)
     })
-    .catch(err => {
+    .catch(async (err) => {
       console.error(err)
+      await keyv.disconnect()
       process.exit(1)
     })
 }
