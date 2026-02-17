@@ -3,7 +3,7 @@
 ## Base URL
 
 ```
-http://localhost:3001/api/rest
+https://kong.yearn.fi/api/rest
 ```
 
 All endpoints are public, CORS-enabled (all origins), and return JSON. REST responses are served from a Redis cache with `Cache-Control: public, max-age=900, s-maxage=900, stale-while-revalidate=600`.
@@ -24,10 +24,10 @@ All vaults across all chains, sorted by TVL descending.
 
 ```bash
 # all vaults
-curl -s http://localhost:3001/api/rest/list/vaults | jq
+curl -s https://kong.yearn.fi/api/rest/list/vaults | jq
 
 # yearn vaults only
-curl -s 'http://localhost:3001/api/rest/list/vaults?origin=yearn' | jq
+curl -s 'https://kong.yearn.fi/api/rest/list/vaults?origin=yearn' | jq
 ```
 
 **Response**
@@ -89,10 +89,10 @@ Vaults for a specific chain.
 
 ```bash
 # ethereum vaults
-curl -s http://localhost:3001/api/rest/list/vaults/1 | jq
+curl -s https://kong.yearn.fi/api/rest/list/vaults/1 | jq
 
 # arbitrum yearn vaults
-curl -s 'http://localhost:3001/api/rest/list/vaults/42161?origin=yearn' | jq
+curl -s 'https://kong.yearn.fi/api/rest/list/vaults/42161?origin=yearn' | jq
 ```
 
 ---
@@ -111,7 +111,7 @@ Current state snapshot for a single vault.
 | `address` | `string` | Vault address (lowercase) |
 
 ```bash
-curl -s http://localhost:3001/api/rest/snapshot/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1 | jq
+curl -s https://kong.yearn.fi/api/rest/snapshot/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1 | jq
 ```
 
 **Response**
@@ -167,13 +167,13 @@ Historical timeseries data for a vault.
 
 ```bash
 # historical APY
-curl -s http://localhost:3001/api/rest/timeseries/apy-historical/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1 | jq
+curl -s https://kong.yearn.fi/api/rest/timeseries/apy-historical/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1 | jq
 
 # TVL timeseries
-curl -s http://localhost:3001/api/rest/timeseries/tvl/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1 | jq
+curl -s https://kong.yearn.fi/api/rest/timeseries/tvl/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1 | jq
 
 # price per share
-curl -s http://localhost:3001/api/rest/timeseries/pps/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1 | jq
+curl -s https://kong.yearn.fi/api/rest/timeseries/pps/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1 | jq
 ```
 
 **Response**
@@ -203,7 +203,7 @@ StrategyReported events for a vault (up to 1000, sorted by time descending).
 | `address` | `string` | Vault address (lowercase) |
 
 ```bash
-curl -s http://localhost:3001/api/rest/reports/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1 | jq
+curl -s https://kong.yearn.fi/api/rest/reports/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1 | jq
 ```
 
 **Response**
@@ -241,13 +241,13 @@ BullMQ queue monitoring. Only available when `NODE_ENV=development`.
 
 ```bash
 # all queue stats
-curl -s http://localhost:3001/api/mq | jq
+curl -s https://kong.yearn.fi/api/mq | jq
 
 # single queue
-curl -s 'http://localhost:3001/api/mq?queue=fanout' | jq
+curl -s 'https://kong.yearn.fi/api/mq?queue=fanout' | jq
 
 # queue jobs by status
-curl -s 'http://localhost:3001/api/mq?queue=extract&status=failed&start=0&end=10' | jq
+curl -s 'https://kong.yearn.fi/api/mq?queue=extract&status=failed&start=0&end=10' | jq
 ```
 
 **Response (all queues)**
@@ -279,7 +279,7 @@ Receives webhook callbacks from the indexer for vault health monitoring.
 **Authentication**: HMAC-SHA256 signature via `Kong-Signature` header (format: `t=<timestamp>,v1=<signature>`). Requires `WEBHOOK_SECRET` env var.
 
 ```bash
-curl -s -X POST http://localhost:3001/api/webhook-healthcheck \
+curl -s -X POST https://kong.yearn.fi/api/webhook-healthcheck \
   -H 'Content-Type: application/json' \
   -H 'Kong-Signature: t=1700000000,v1=abc123...' \
   -d '{
@@ -289,7 +289,7 @@ curl -s -X POST http://localhost:3001/api/webhook-healthcheck \
     "blockTime": "1700000000",
     "subscription": {
       "id": "sub-1",
-      "url": "http://localhost:3001/api/webhook-healthcheck",
+      "url": "https://kong.yearn.fi/api/webhook-healthcheck",
       "abiPath": "yearn/3/vault",
       "type": "timeseries",
       "labels": ["vault"]
