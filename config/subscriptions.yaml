@@ -16,3 +16,23 @@ subscriptions:
     labels: ['crv-estimated-apr', 'aero-estimated-apr', 'velo-estimated-apr']
     filter:
       chainIds: [1, 8453, 10, 250, 42161]
+
+  - id: 'S_YVUSD_APR'
+    url: '<deployed-url>/api/webhook'
+    abiPath: 'yearn/3/vault'
+    type: 'timeseries'
+    labels: ['yvusd-apr']
+    filter:
+      contracts:
+        - chainId: 1
+          address: '0x696d02Db93291651ED510704c9b286841d506987'
+
+  - id: 'S_LOCKED_YVUSD_APR'
+    url: '<deployed-url>/api/webhook'
+    abiPath: 'yearn/3/vault'
+    type: 'timeseries'
+    labels: ['locked-yvusd-apr']
+    filter:
+      contracts:
+        - chainId: 1
+          address: '0xAaaFEa48472f77563961Cdb53291DEDfB46F9040'
