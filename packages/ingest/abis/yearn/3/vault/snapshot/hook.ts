@@ -1,20 +1,20 @@
-import { z } from 'zod'
-import { parseAbi, toEventSelector, zeroAddress } from 'viem'
-import { rpcs } from '../../../../../rpcs'
-import { EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
 import { mq } from 'lib'
 import { estimateCreationBlock } from 'lib/blocks'
-import db, { getSparkline } from '../../../../../db'
-import { fetchErc20PriceUsd } from '../../../../../prices'
 import { priced } from 'lib/math'
-import { getRiskScore } from '../../../lib/risk'
-import { getTokenMeta, getVaultMeta, getStrategyMeta } from '../../../lib/meta'
 import { snakeToCamelCols } from 'lib/strings'
+import { EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
+import { parseAbi, toEventSelector, zeroAddress } from 'viem'
+import { z } from 'zod'
+import db, { getSparkline } from '../../../../../db'
+import { getLatestApy, getLatestOracleApr, getLatestVaultEstimatedApr } from '../../../../../helpers/apy-apr'
+import { fetchErc20PriceUsd } from '../../../../../prices'
+import { rpcs } from '../../../../../rpcs'
+import * as things from '../../../../../things'
 import { fetchOrExtractErc20 } from '../../../lib'
+import { getStrategyMeta, getTokenMeta, getVaultMeta } from '../../../lib/meta'
+import { getRiskScore } from '../../../lib/risk'
 import { Roles } from '../../../lib/types'
 import accountantAbi from '../../accountant/abi'
-import * as things from '../../../../../things'
-import { getLatestApy, getLatestOracleApr } from '../../../../../helpers/apy-apr'
 
 export const CompositionSchema = z.object({
   address: zhexstring,
@@ -123,6 +123,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
   const apy = await getLatestApy(chainId, address)
   const [oracleApr, oracleApy] = await getLatestOracleApr(chainId, address)
+  const estimatedApr = await getLatestVaultEstimatedApr(chainId, address)
 
   // Query DB for staking pool associated with this vault
   const stakingPool = await db.query(`
@@ -142,7 +143,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     tvl: sparklines.tvl[0],
     apy,
     performance: {
-      estimated: undefined,
+      estimated: estimatedApr ? estimatedApr : undefined,
       oracle: {
         apr: oracleApr,
         apy: oracleApy

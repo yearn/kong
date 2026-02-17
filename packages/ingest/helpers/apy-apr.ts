@@ -1,6 +1,6 @@
 import { EstimatedAprSchema } from 'lib/types'
-import { firstRow } from '../db'
 import { z } from 'zod'
+import { firstRow } from '../db'
 
 export async function getLatestEstimatedApr(chainId: number, address: string) {
   const result = await firstRow(`
@@ -106,6 +106,51 @@ export async function getLatestApy(chainId: number, address: string) {
     blockNumber: z.bigint({ coerce: true }),
     blockTime: z.bigint({ coerce: true })
   }).parse(first)
+}
+
+export async function getLatestVaultEstimatedApr(chainId: number, address: string) {
+  const result = await firstRow(`
+  SELECT
+    chain_id as "chainId",
+    address,
+    label,
+    MAX(CASE WHEN component = 'netAPR' THEN value END) AS apr,
+    MAX(CASE WHEN component = 'netAPY' THEN value END) AS apy,
+    MAX(CASE WHEN component = 'grossAPR' THEN value END) AS "grossAPR",
+    MAX(CASE WHEN component = 'baseNetAPR' THEN value END) AS "baseNetAPR",
+    MAX(CASE WHEN component = 'lockerBonusAPR' THEN value END) AS "lockerBonusAPR",
+    block_number as "blockNumber",
+    block_time as "blockTime"
+  FROM output
+  WHERE block_time = (
+      SELECT MAX(block_time) FROM output
+      WHERE chain_id = $1
+      AND LOWER(address) = LOWER($2)
+      AND label NOT IN ('apr-oracle', 'apy-bwd-delta-pps', 'crv-estimated-apr', 'velo-estimated-apr', 'aero-estimated-apr')
+    )
+    AND chain_id = $1
+    AND LOWER(address) = LOWER($2)
+    AND label NOT IN ('apr-oracle', 'apy-bwd-delta-pps', 'crv-estimated-apr', 'velo-estimated-apr', 'aero-estimated-apr')
+  GROUP BY chain_id, address, label, block_number, block_time;
+  `, [chainId, address])
+
+  if (!result) return undefined
+
+  const base = result.apr != null
+    ? { netAPR: result.apr || 0, grossAPR: result.grossAPR || 0 }
+    : undefined
+
+  const locker = result.baseNetAPR != null
+    ? { baseNetAPR: result.baseNetAPR || 0, lockerBonusAPR: result.lockerBonusAPR || 0, grossAPR: result.grossAPR || 0 }
+    : undefined
+
+  return {
+    type: result.label,
+    apr: result.apr ?? ((locker?.baseNetAPR || 0) + (locker?.lockerBonusAPR || 0)),
+    apy: result.apy,
+    base,
+    locker,
+  }
 }
 
 export async function getLatestOracleApr(chainId: number, address: string): Promise<[number, number]> {
