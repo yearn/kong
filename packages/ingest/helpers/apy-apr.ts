@@ -10,11 +10,11 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string) 
       SELECT MAX(block_time) FROM output
       WHERE chain_id = $1
       AND LOWER(address) = LOWER($2)
-      AND label = 'estimated-apr'
+      AND label LIKE '%-estimated-apr'
     )
     AND chain_id = $1
     AND LOWER(address) = LOWER($2)
-    AND label = 'estimated-apr'
+    AND label LIKE '%-estimated-apr'
   `, [chainId, address])
 
   if (!result.rows.length) return undefined
