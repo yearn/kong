@@ -12,9 +12,9 @@
   },
   "dependencies": {
     "@apollo/server": "^4.9.5",
-    "@apollo/utils.keyvadapter": "^3.1.0",
+    "@apollo/utils.keyvadapter": "4.0.1",
     "@as-integrations/next": "^3.0.0",
-    "@keyv/redis": "^4.4.1",
+    "@keyv/redis": "5.1.6",
     "autoprefixer": "10.4.15",
     "bullmq": "^5.21.2",
     "chart.js": "^4.4.0",

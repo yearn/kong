@@ -1,6 +1,8 @@
+import { createKeyvClient } from '../cache'
 import { getVaults, getVaultSnapshot } from './db'
 import { getSnapshotKey } from './redis'
-import { keyv } from '../cache'
+
+const keyv = createKeyvClient()
 
 const BATCH_SIZE = 10
 
@@ -26,7 +28,7 @@ async function refresh(): Promise<void> {
 
     const entries = snapshots.filter((s): s is NonNullable<typeof s> => s !== null)
     if (entries.length > 0) {
-      await (keyv as any).setMany(entries)
+      await keyv.setMany(entries)
     }
 
     processed += entries.length

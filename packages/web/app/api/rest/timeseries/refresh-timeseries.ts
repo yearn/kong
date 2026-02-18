@@ -1,7 +1,9 @@
-import { labels } from './labels'
+import { createKeyvClient } from '../cache'
 import { getFullTimeseries, getVaults, TimeseriesRow } from './db'
+import { labels } from './labels'
 import { getTimeseriesKey } from './redis'
-import { keyv } from '../cache'
+
+const keyv = createKeyvClient()
 
 const BATCH_SIZE = 10
 
@@ -16,10 +18,10 @@ async function refresh24hr(): Promise<void> {
 
   for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
     const batch = vaults.slice(i, i + BATCH_SIZE)
-    const results = await Promise.all(batch.map(async (vault) => {
-      const addressLower = vault.address.toLowerCase()
+    const entries: Array<{ key: string; value: unknown }> = []
 
-      const labelData: Record<string, Array<{ time: number; component: string; value: number }>> = {}
+    await Promise.all(batch.map(async (vault) => {
+      const addressLower = vault.address.toLowerCase()
 
       await Promise.all(labels.map(async ({ label }) => {
         const rows: TimeseriesRow[] = await getFullTimeseries(
@@ -28,22 +30,22 @@ async function refresh24hr(): Promise<void> {
           label,
         )
 
-        labelData[label] = rows.map(row => ({
+        const minimal = rows.map(row => ({
           time: Number(row.time),
           component: row.component,
           value: row.value,
         }))
-      }))
 
-      return {
-        key: getTimeseriesKey(vault.chainId, addressLower),
-        value: labelData,
-      }
+        entries.push({
+          key: getTimeseriesKey(label, vault.chainId, addressLower),
+          value: JSON.stringify(minimal),
+        })
+      }))
     }))
 
-    await (keyv as any).setMany(results)
+    await keyv.setMany(entries)
 
-    processed += results.length
+    processed += batch.length
     if (processed % 10 === 0) {
       console.log(`Processed ${processed}/${vaults.length} vaults`)
     }

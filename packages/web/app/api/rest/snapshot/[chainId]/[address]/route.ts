@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSnapshotKey } from '../../redis'
-import { keyv } from '../../../cache'
+import { createKeyvClient } from '../../../cache'
 import type { VaultSnapshot } from '../../db'
+import { getSnapshotKey } from '../../redis'
+
+const keyv = createKeyvClient()
 
 export const runtime = 'nodejs'
 

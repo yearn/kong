@@ -1,12 +1,14 @@
 import 'lib/global'
-import { getVaults, getStrategyReports } from './db'
+import { createKeyvClient } from '../cache'
+import { getStrategyReports, getVaults } from './db'
 import { getReportKey } from './redis'
-import { keyv } from '../cache'
+
+const keyv = createKeyvClient()
 
 const BATCH_SIZE = parseInt(process.env.REFRESH_BATCH_SIZE || '10', 10)
 
 async function refreshReports(): Promise<void> {
-  console.time('refreshReports')
+  console.time('refresh vault_reports')
 
   console.log('Fetching vaults...')
   const vaults = await getVaults()
@@ -27,7 +29,7 @@ async function refreshReports(): Promise<void> {
 
     const entries = results.filter((r): r is NonNullable<typeof r> => r !== null)
     if (entries.length > 0) {
-      await (keyv as any).setMany(entries)
+      await keyv.setMany(entries)
     }
 
     processed += entries.length
@@ -37,7 +39,7 @@ async function refreshReports(): Promise<void> {
   }
 
   console.log(`✓ Completed: ${processed} vaults processed`)
-  console.timeEnd('refreshReports')
+  console.timeEnd('refresh vault_reports')
 }
 
 if (require.main === module) {

@@ -1,9 +1,10 @@
+import { createKeyvClient } from '../cache'
 import { getVaultsList } from './db'
-import { getListKey } from './redis'
-import { keyv } from '../cache'
+
+const keyv = createKeyvClient('list:vaults')
 
 async function refresh(): Promise<void> {
-  console.time('refresh')
+  console.time('refresh list:vaults')
 
   const vaults = await getVaultsList()
 
@@ -17,13 +18,13 @@ async function refresh(): Promise<void> {
 
   const chainIds = Object.keys(vaultsByChain).map(Number)
   const entries = chainIds.map((chainId) => ({
-    key: getListKey(String(chainId)),
+    key: String(chainId),
     value: vaultsByChain[chainId],
   }))
 
-  entries.push({ key: getListKey('all'), value: vaults })
+  entries.push({ key: 'all', value: vaults })
 
-  await (keyv as any).setMany(entries)
+  await keyv.setMany(entries)
 
   console.log(`✓ Completed: ${vaults.length} vaults cached across ${chainIds.length} chains`)
   console.timeEnd('refresh')

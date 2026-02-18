@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
-import { getListKey } from '../redis'
-import { keyv } from '../../cache'
+import { createKeyvClient } from '../../cache'
 import type { VaultListItem } from '../db'
+
+const keyv = createKeyvClient('list:vaults')
 
 export const runtime = 'nodejs'
 
