@@ -6,7 +6,7 @@ import { EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexst
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
 import db, { getSparkline } from '../../../../../db'
-import { getLatestApy, getLatestOracleApr, getLatestVaultEstimatedApr } from '../../../../../helpers/apy-apr'
+import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
 import * as things from '../../../../../things'
@@ -123,7 +123,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
   const apy = await getLatestApy(chainId, address)
   const [oracleApr, oracleApy] = await getLatestOracleApr(chainId, address)
-  const estimatedApr = await getLatestVaultEstimatedApr(chainId, address)
+  const estimatedApr = await getLatestEstimatedAprV3(chainId, address)
 
   // Query DB for staking pool associated with this vault
   const stakingPool = await db.query(`
@@ -143,7 +143,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     tvl: sparklines.tvl[0],
     apy,
     performance: {
-      estimated: estimatedApr ? estimatedApr : undefined,
+      estimated: estimatedApr ?? undefined,
       oracle: {
         apr: oracleApr,
         apy: oracleApy
