@@ -4,12 +4,11 @@
 
 ```
 POST https://kong.yearn.fi/api/gql
-GET  https://kong.yearn.fi/api/gql
 ```
 
 - **CORS**: all origins allowed
 - **Introspection**: enabled
-- **Explorer**: Apollo Studio sandbox at `/api/gql` in browser
+- **Explorer**: Apollo embedded sandbox at `/api/gql` in browser
 
 ## Usage
 
@@ -778,6 +777,7 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 | `yearn` | `Boolean` | Whether vault is a Yearn vault |
 | `origin` | `String` | Vault origin |
 | `vaultType` | `Int` | Vault type identifier |
+| `category` | `Int` | Vault category |
 | `projectId` | `String` | Associated project ID |
 | `projectName` | `String` | Associated project name |
 | `activation` | `BigInt` | Activation timestamp |
@@ -826,9 +826,9 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 | `role_manager` | `String` | Role manager address |
 | `future_role_manager` | `String` | Future role manager address |
 | `use_default_queue` | `Boolean` | Whether default queue is used |
-| `get_default_queue` | `String` | Default queue |
-| `withdrawalQueue` | `String` | Withdrawal queue |
-| `strategies` | `String` | Strategies list |
+| `get_default_queue` | `[String]` | Default queue |
+| `withdrawalQueue` | `[String]` | Withdrawal queue |
+| `strategies` | `[String]` | Strategies list |
 | `debts` | [`[Debt]`](#debt) | Strategy debt details |
 | `roles` | [`[Role]`](#role) | Account roles |
 | `risk` | [`RiskScore`](#riskscore) | Risk score |
@@ -1000,7 +1000,7 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 | `performanceFeeThreshold` | `BigInt` | Performance fee threshold |
 | `maxLoss` | `BigInt` | Max loss |
 | `vaultManager` | `String` | Vault manager address |
-| `vaults` | `String` | Associated vaults |
+| `vaults` | `[String]` | Associated vaults |
 
 ### Allocator
 
@@ -1362,7 +1362,7 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 | `isHighlighted` | `Boolean` | Whether vault is highlighted |
 | `isPool` | `Boolean` | Whether vault is a pool |
 | `shouldUseV2APR` | `Boolean` | Whether to use V2 APR |
-| `protocols` | `String` | Associated protocols |
+| `protocols` | `[String]` | Associated protocols |
 | `migration` | [`VaultMetaMigration`](#vaultmetamigration) | Migration info |
 | `stability` | [`VaultMetaStability`](#vaultmetastability) | Stability info |
 | `inclusion` | [`VaultMetaInclusion`](#vaultmetainclusion) | Inclusion flags |
@@ -1417,7 +1417,7 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 | `isRetired` | `Boolean` | Whether strategy is retired |
 | `displayName` | `String` | Display name |
 | `description` | `String` | Description |
-| `protocols` | `String` | Associated protocols |
+| `protocols` | `[String]` | Associated protocols |
 
 ### Staking
 
@@ -1516,34 +1516,6 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 | `vestingDuration` | `BigInt` | Vesting duration |
 | `cliffLength` | `BigInt` | Cliff length |
 | `openClaim` | `Boolean` | Whether claim is open |
-
-### RoleManager
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `chainId` | `Int` | Chain ID |
-| `address` | `String` | Role manager address |
-| `roleManagerFactory` | `String` | Factory address |
-| `project` | [`Project`](#project) | Associated project |
-| `chad` | `String` | Chad address |
-| `defaultProfitMaxUnlock` | `BigInt` | Default profit max unlock |
-| `accountant` | `String` | Accountant address |
-| `allocatorFactory` | `String` | Allocator factory address |
-| `brain` | `String` | Brain address |
-| `brainRoles` | `BigInt` | Brain roles bitmask |
-| `daddy` | `String` | Daddy address |
-| `daddyRoles` | `BigInt` | Daddy roles bitmask |
-| `debtAllocator` | `String` | Debt allocator address |
-| `debtAllocatorRoles` | `BigInt` | Debt allocator roles bitmask |
-| `keeper` | `String` | Keeper address |
-| `keeperRoles` | `BigInt` | Keeper roles bitmask |
-| `registry` | `String` | Registry address |
-| `security` | `String` | Security address |
-| `securityRoles` | `BigInt` | Security roles bitmask |
-| `strategyManager` | `String` | Strategy manager address |
-| `strategyManagerRoles` | `BigInt` | Strategy manager roles bitmask |
-| `governance` | `String` | Governance address |
-| `pendingGovernance` | `String` | Pending governance address |
 
 ---
 
