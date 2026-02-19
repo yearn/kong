@@ -85,6 +85,10 @@ describe('abis/yearn/lib/apy', function() {
     expect(apy.monthlyPricePerShare).to.be.eq(1022834n)
     expect(Number(apy.monthlyBlockNumber)).to.be.closeTo(18130373, 4)
 
+    expect(apy.quarterlyNet).to.be.closeTo(0.015, 1e-2)
+    expect(apy.quarterlyPricePerShare).to.not.be.undefined
+    expect(Number(apy.quarterlyBlockNumber)).to.be.closeTo(17916283, 4)
+
     expect(apy.inceptionNet).to.be.closeTo(0.019352846869146623, 1e-5)
     expect(apy.inceptionPricePerShare).to.be.eq(1000000n)
     expect(Number(apy.inceptionBlockNumber)).to.be.closeTo(15243268, 4)
@@ -124,6 +128,10 @@ describe('abis/yearn/lib/apy', function() {
     expect(apy.monthlyNet).to.be.closeTo(0.008496634004203418, 1e-5)
     expect(apy.monthlyPricePerShare).to.be.eq(1001147n)
     expect(Number(apy.monthlyBlockNumber)).to.be.closeTo(15656324, 4)
+
+    expect(apy.quarterlyNet).to.be.undefined
+    expect(apy.quarterlyPricePerShare).to.be.undefined
+    expect(Number(apy.quarterlyBlockNumber)).to.be.closeTo(15227815, 4)
 
     expect(apy.inceptionNet).to.be.closeTo(0.007697361270727177, 1e-5)
     expect(apy.inceptionPricePerShare).to.be.eq(1000000n)
@@ -185,6 +193,10 @@ describe('abis/yearn/lib/apy', function() {
     expect(apy.monthlyNet).to.be.closeTo(0.293880331621855, 1e-5)
     expect(apy.monthlyPricePerShare).to.be.eq(1005328n)
     expect(Number(apy.monthlyBlockNumber)).to.be.closeTo(50876142, 4)
+
+    expect(apy.quarterlyNet).to.be.closeTo(0.17, 1e-2)
+    expect(apy.quarterlyPricePerShare).to.not.be.undefined
+    expect(Number(apy.quarterlyBlockNumber)).to.be.closeTo(49609196, 4)
 
     expect(apy.inceptionNet).to.be.closeTo(0.13935788133629456, 1e-5)
     expect(apy.inceptionPricePerShare).to.be.eq(1000000n)
