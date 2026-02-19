@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
-import { createListsKeyv } from '../../redis'
-
+import { createKeyvClient } from '../../../cache'
 import type { VaultListItem } from '../../db'
+
+const keyv = createKeyvClient('list:vaults')
 
 export const runtime = 'nodejs'
 
@@ -9,8 +10,6 @@ const corsHeaders = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET,OPTIONS',
 }
-
-const listsKeyv = createListsKeyv('list:vaults')
 
 type RouteParams = {
   chainId?: string | string[]
@@ -30,24 +29,16 @@ export async function GET(
     return new NextResponse('Invalid chainId', { status: 400, headers: corsHeaders })
   }
 
-  let cached
+  let vaults: VaultListItem[] | undefined
   try {
-    cached = await listsKeyv.get(String(chainId))
+    vaults = await keyv.get(String(chainId)) as VaultListItem[] | undefined
   } catch (err) {
     console.error(`Redis read failed for chainId ${chainId}:`, err)
     throw err
   }
 
-  if (!cached) {
+  if (!vaults) {
     return new NextResponse('Not found', { status: 404, headers: corsHeaders })
-  }
-
-  let vaults: VaultListItem[]
-  try {
-    vaults = JSON.parse(cached as string)
-  } catch (e) {
-    console.error(`Failed to parse vault list for chain ${chainId}:`, e)
-    return new NextResponse('Internal Server Error', { status: 500, headers: corsHeaders })
   }
 
   const filtered = origin

@@ -1,10 +1,10 @@
+import { createKeyvClient } from '../cache'
 import { getVaultsList } from './db'
-import { createListsKeyv } from './redis'
+
+const keyv = createKeyvClient('list:vaults')
 
 async function refresh(): Promise<void> {
-  console.time('refresh')
-
-  const keyv = createListsKeyv('list:vaults')
+  console.time('refresh list:vaults')
 
   const vaults = await getVaultsList()
 
@@ -17,24 +17,28 @@ async function refresh(): Promise<void> {
   }, {} as Record<number, typeof vaults>)
 
   const chainIds = Object.keys(vaultsByChain).map(Number)
-  for (const chainId of chainIds) {
-    const chainVaults = vaultsByChain[chainId]
-    await keyv.set(String(chainId), JSON.stringify(chainVaults))
-  }
+  const entries = chainIds.map((chainId) => ({
+    key: String(chainId),
+    value: vaultsByChain[chainId],
+  }))
 
-  await keyv.set('all', JSON.stringify(vaults))
+  entries.push({ key: 'all', value: vaults })
+
+  await keyv.setMany(entries)
 
   console.log(`✓ Completed: ${vaults.length} vaults cached across ${chainIds.length} chains`)
-  console.timeEnd('refresh')
+  console.timeEnd('refresh list:vaults')
 }
 
 if (require.main === module) {
   refresh()
-    .then(() => {
+    .then(async () => {
+      await keyv.disconnect()
       process.exit(0)
     })
-    .catch(err => {
+    .catch(async (err) => {
       console.error(err)
+      await keyv.disconnect()
       process.exit(1)
     })
 }

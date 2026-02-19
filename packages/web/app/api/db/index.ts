@@ -14,7 +14,7 @@ const db = new Pool({
   password: process.env.POSTGRES_PASSWORD ?? 'password',
   max: parseInt(process.env.POSTGRES_POOL_MAX ?? '4', 10),
   idleTimeoutMillis: 60_000,
-  connectionTimeoutMillis: 5_000,
+  connectionTimeoutMillis: 50_000,
 })
 
 export default db
