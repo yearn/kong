@@ -54,7 +54,7 @@ export async function GET(
     throw err
   }
   const parsed: Array<{ time: number; component: string; value: number }> = cached
-    ? JSON.parse(cached as string)
+    ? (cached as Array<{ time: number; component: string; value: number }>)
     : []
 
   const filtered = parsed.filter((row) => components.includes(row.component))

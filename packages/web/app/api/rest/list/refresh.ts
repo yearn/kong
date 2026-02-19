@@ -27,7 +27,7 @@ async function refresh(): Promise<void> {
   await keyv.setMany(entries)
 
   console.log(`✓ Completed: ${vaults.length} vaults cached across ${chainIds.length} chains`)
-  console.timeEnd('refresh')
+  console.timeEnd('refresh list:vaults')
 }
 
 if (require.main === module) {

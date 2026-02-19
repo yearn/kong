@@ -38,7 +38,7 @@ async function refresh24hr(): Promise<void> {
 
         entries.push({
           key: getTimeseriesKey(label, vault.chainId, addressLower),
-          value: JSON.stringify(minimal),
+          value: minimal,
         })
       }))
     }))
