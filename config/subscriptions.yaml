@@ -31,7 +31,7 @@ subscriptions:
     url: 'https://yearn-yvusd-apr-service.vercel.app/api/webhook-locked'
     abiPath: 'yearn/3/vault'
     type: 'timeseries'
-    labels: ['locaked-yvusd-estimated-apr']
+    labels: ['locked-yvusd-estimated-apr']
     filter:
       contracts:
         - chainId: 1
