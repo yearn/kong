@@ -7,10 +7,12 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string) 
   SELECT label, component, value
   FROM output
   WHERE block_time = (
-      SELECT MAX(block_time) FROM output
+      SELECT block_time FROM output
       WHERE chain_id = $1
       AND address = $2
       AND label LIKE '%-estimated-apr'
+      ORDER BY block_time DESC
+      LIMIT 1
     )
     AND chain_id = $1
     AND address = $2
