@@ -133,6 +133,7 @@ manuals:
     defaults: {
       erc4626: true,
       v3: true,
+      yearn: true,
       apiVersion: '3.0.4',
       origin: "yearn",
       name: 'yvUSD',
@@ -148,6 +149,7 @@ manuals:
     defaults: {
       erc4626: true,
       v3: true,
+      yearn: true,
       apiVersion: '3.0.4',
       origin: "yearn",
       name: 'Locked yvUSD',
