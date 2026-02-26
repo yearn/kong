@@ -155,6 +155,22 @@ manuals:
       name: 'Locked yvUSD',
       asset: '0x696d02Db93291651ED510704c9b286841d506987',
       decimals: 6,
-      inceptBlock: 24271831,
-      inceptTime: 1768861991
+      inceptBlock: 24329199,
+      inceptTime: 1769553431
+    }
+
+  - chainId: 1
+    address: '0xAaaFEa48472f77563961Cdb53291DEDfB46F9040'
+    label: 'strategy'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      yearn: true,
+      apiVersion: '3.0.4',
+      origin: "yearn",
+      name: 'Locked yvUSD',
+      asset: '0x696d02Db93291651ED510704c9b286841d506987',
+      decimals: 6,
+      inceptBlock: 24329199,
+      inceptTime: 1769553431
     }
