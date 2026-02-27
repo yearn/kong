@@ -27,11 +27,13 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string) 
     if (row.value != null) components[row.component] = row.value
   }
 
+  const { netAPR, netAPY, ...componentsNonAprAPY } = components
+
   return {
     type: result.rows[0].label,
-    apr: components.netAPR ?? 0,
-    apy: components.netAPY ?? 0,
-    components
+    ...(netAPR != null ? { apr: netAPR } : {}),
+    ...(netAPY != null ? { apy: netAPY } : {}),
+    components: componentsNonAprAPY
   }
 }
 
