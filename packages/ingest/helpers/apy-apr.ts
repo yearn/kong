@@ -11,6 +11,7 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string) 
       WHERE chain_id = $1
       AND address = $2
       AND label LIKE '%-estimated-apr'
+      AND block_time > NOW() - INTERVAL '7 days'
       ORDER BY block_time DESC
       LIMIT 1
     )
@@ -59,6 +60,7 @@ export async function getLatestEstimatedApr(chainId: number, address: string) {
       WHERE chain_id = $1
       AND LOWER(address) = LOWER($2)
       AND label IN ('crv-estimated-apr', 'velo-estimated-apr', 'aero-estimated-apr')
+      AND block_time > NOW() - INTERVAL '7 days'
     )
     AND chain_id = $1
     AND LOWER(address) = LOWER($2)
