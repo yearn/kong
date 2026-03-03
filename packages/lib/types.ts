@@ -442,8 +442,8 @@ export const InceptSchema = z.object({
 export type Incept = z.infer<typeof InceptSchema>
 
 export const EstimatedAprSchema = z.object({
-  apr: z.number(),
-  apy: z.number(),
+  apr: z.number().optional(),
+  apy: z.number().optional(),
   type: z.string(),
   components: z.object({
     boost: z.number().nullish(),

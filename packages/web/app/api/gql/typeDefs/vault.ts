@@ -121,8 +121,8 @@ type EstimatedAprComponents {
 }
 
 type EstimatedApr {
-  apr: Float!
-  apy: Float!
+  apr: Float
+  apy: Float
   type: String!
   components: EstimatedAprComponents!
 }
