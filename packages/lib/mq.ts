@@ -178,14 +178,6 @@ export function computeConcurrency(jobs: number, options: ConcurrencyOptions) {
 }
 
 export async function down() {
+  if (Sentry) await Sentry.flush(5000)
   return Promise.all(Object.values(queues).map(async queue => queue.close()))
-}
-
-if (MQ_INVENTORY && SENTRY_DSN) {
-  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
-    process.on(signal, async () => {
-      if (Sentry) await Sentry.flush(5000)
-      process.exit(0)
-    })
-  }
 }
