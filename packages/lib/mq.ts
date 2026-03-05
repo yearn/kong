@@ -1,13 +1,17 @@
 import { Queue, Worker } from 'bullmq'
-import * as Sentry from '@sentry/node'
 import chains from './chains'
 import { Job } from './types'
 
 const MQ_INVENTORY = process.env.MQ_INVENTORY === 'true'
 const SENTRY_DSN = process.env.SENTRY_DSN
 
+let Sentry: typeof import('@sentry/node') | null = null
+
 if (MQ_INVENTORY && SENTRY_DSN) {
-  Sentry.init({ dsn: SENTRY_DSN })
+  import('@sentry/node').then(s => {
+    Sentry = s
+    Sentry.init({ dsn: SENTRY_DSN })
+  })
 }
 
 export const q = {
@@ -77,9 +81,10 @@ export function connect(queueName: string) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function add(job: Job, data: any, options?: any) {
   const queue = job.bychain ? `${job.queue}-${data.chainId}` : job.queue
-  if (MQ_INVENTORY && SENTRY_DSN && queue === 'extract-1') {
-    Sentry.metrics.count('mq.extract_job_added', 1, {
+  if (MQ_INVENTORY && Sentry) {
+    Sentry.metrics.count('mq.job_added', 1, {
       attributes: {
+        queue,
         jobName: job.name,
         address: String(data.address ?? data.source?.address ?? ''),
         chainId: String(data.chainId ?? data.source?.chainId ?? ''),
@@ -177,7 +182,10 @@ export async function down() {
 }
 
 if (MQ_INVENTORY && SENTRY_DSN) {
-  process.on('beforeExit', async () => {
-    await Sentry.flush(5000)
-  })
+  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+    process.on(signal, async () => {
+      if (Sentry) await Sentry.flush(5000)
+      process.exit(0)
+    })
+  }
 }
