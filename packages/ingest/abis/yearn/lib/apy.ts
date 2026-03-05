@@ -189,8 +189,11 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
 
   result.net = candidates.find(apy => apy !== undefined) ?? (() => { throw new Error('!candidates') })()
 
-  const annualCompoundingPeriods = 52
-  const fees = compare(vault.defaults.apiVersion, '3.0.0', '>=')
+  const isV3 = compare(vault.defaults.apiVersion, '3.0.0', '>=')
+  const annualCompoundingPeriods = isV3
+    ? await getCompoundingPeriods(chainId, address, blockNumber)
+    : 52
+  const fees = isV3
     ? await extractFees__v3(chainId, address, strategies, blockNumber)
     : await extractFees__v2(chainId, address, strategies, blockNumber)
 
@@ -372,6 +375,24 @@ async function extractAccountant(chainId: number, address: `0x${string}`, blockN
     })
   } catch(error) {
     return undefined
+  }
+}
+
+const SECONDS_PER_YEAR = 31_556_952 // 365.2425 days
+
+async function getCompoundingPeriods(chainId: number, address: `0x${string}`, blockNumber: bigint): Promise<number> {
+  try {
+    const profitMaxUnlockTime = await rpcs.next(chainId, blockNumber).readContract({
+      address,
+      abi: parseAbi(['function profitMaxUnlockTime() view returns (uint256)']),
+      functionName: 'profitMaxUnlockTime',
+      blockNumber
+    }) as bigint
+    if (profitMaxUnlockTime === 0n) return 365
+    return SECONDS_PER_YEAR / Number(profitMaxUnlockTime)
+  } catch(error) {
+    console.warn('🚨', 'getCompoundingPeriods', 'readContract fail', chainId, address, blockNumber)
+    return 365
   }
 }
 
