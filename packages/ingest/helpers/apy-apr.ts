@@ -1,6 +1,41 @@
 import { EstimatedAprSchema } from 'lib/types'
-import { firstRow } from '../db'
 import { z } from 'zod'
+import db, { firstRow } from '../db'
+
+export async function getLatestEstimatedAprV3(chainId: number, address: string) {
+  const result = await db.query(`
+  SELECT label, component, value
+  FROM output
+  WHERE block_time = (
+      SELECT block_time FROM output
+      WHERE chain_id = $1
+      AND address = $2
+      AND label LIKE '%-estimated-apr'
+      AND block_time > NOW() - INTERVAL '7 days'
+      ORDER BY block_time DESC
+      LIMIT 1
+    )
+    AND chain_id = $1
+    AND address = $2
+    AND label LIKE '%-estimated-apr'
+  `, [chainId, address])
+
+  if (!result.rows.length) return undefined
+
+  const components: Record<string, number> = {}
+  for (const row of result.rows) {
+    if (row.value != null) components[row.component] = row.value
+  }
+
+  const { netAPR, netAPY, ...rest } = components
+
+  return {
+    type: result.rows[0].label,
+    ...(netAPR != null ? { apr: netAPR } : {}),
+    ...(netAPY != null ? { apy: netAPY } : {}),
+    components: rest
+  }
+}
 
 export async function getLatestEstimatedApr(chainId: number, address: string) {
   const result = await firstRow(`
@@ -27,6 +62,7 @@ export async function getLatestEstimatedApr(chainId: number, address: string) {
       WHERE chain_id = $1
       AND LOWER(address) = LOWER($2)
       AND label IN ('crv-estimated-apr', 'velo-estimated-apr', 'aero-estimated-apr')
+      AND block_time > NOW() - INTERVAL '7 days'
     )
     AND chain_id = $1
     AND LOWER(address) = LOWER($2)
@@ -58,7 +94,6 @@ export async function getLatestEstimatedApr(chainId: number, address: string) {
     }
   })
 }
-
 
 export async function getLatestApy(chainId: number, address: string) {
   const first = await firstRow(`

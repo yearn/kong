@@ -39,20 +39,10 @@ export const VaultListItemSchema = z.object({
       inceptionNet: CoerceNumber,
     }).nullish(),
     estimated: z.object({
-      apr: z.number(),
-      apy: z.number(),
+      apr: z.number().optional(),
+      apy: z.number().optional(),
       type: z.string(),
-      components: z.object({
-        boost: z.number().nullish(),
-        poolAPY: z.number().nullish(),
-        boostedAPR: z.number().nullish(),
-        baseAPR: z.number().nullish(),
-        rewardsAPR: z.number().nullish(),
-        rewardsAPY: z.number().nullish(),
-        cvxAPR: z.number().nullish(),
-        keepCRV: z.number().nullish(),
-        keepVelo: z.number().nullish()
-      })
+      components: z.record(z.string(), z.union([z.number(), z.string()]).nullable()).optional(),
     }).nullish(),
   }).nullish(),
 

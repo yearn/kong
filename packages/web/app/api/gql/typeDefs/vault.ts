@@ -111,11 +111,18 @@ type EstimatedAprComponents {
   cvxAPR: Float
   keepCRV: Float
   keepVelo: Float
+  netAPR: Float
+  netAPY: Float
+  grossAPR: Float
+  baseNetAPR: Float
+  baseNetAPY: Float
+  lockerBonusAPR: Float
+  lockerBonusAPY: Float
 }
 
 type EstimatedApr {
-  apr: Float!
-  apy: Float!
+  apr: Float
+  apy: Float
   type: String!
   components: EstimatedAprComponents!
 }
