@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createKeyvClient } from '../../../cache'
 import type { VaultListItem } from '../../db'
 
-const keyv = createKeyvClient('list:vaults')
+const keyv = createKeyvClient()
 
 export const runtime = 'nodejs'
 
@@ -31,7 +31,7 @@ export async function GET(
 
   let vaults: VaultListItem[] | undefined
   try {
-    vaults = await keyv.get(String(chainId)) as VaultListItem[] | undefined
+    vaults = await keyv.get(`rest:list:vaults:${chainId}`) as VaultListItem[] | undefined
   } catch (err) {
     console.error(`Redis read failed for chainId ${chainId}:`, err)
     throw err

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createKeyvClient } from '../../cache'
 import type { VaultListItem } from '../db'
 
-const keyv = createKeyvClient('list:vaults')
+const keyv = createKeyvClient()
 
 export const runtime = 'nodejs'
 
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const origin = searchParams.get('origin')
 
   try {
-    const allVaults = await keyv.get('all') as VaultListItem[] | undefined
+    const allVaults = await keyv.get('rest:list:vaults:all') as VaultListItem[] | undefined
 
     if (!allVaults) {
       return new NextResponse('Not found', { status: 404, headers: corsHeaders })

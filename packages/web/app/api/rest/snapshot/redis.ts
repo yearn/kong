@@ -2,5 +2,5 @@ export function getSnapshotKey(
   chainId: number,
   address: string,
 ): string {
-  return `snapshot:${chainId}:${address.toLowerCase()}`
+  return `rest:snapshot:${chainId}:${address.toLowerCase()}`
 }

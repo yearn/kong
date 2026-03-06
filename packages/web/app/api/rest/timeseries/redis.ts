@@ -3,5 +3,5 @@ export function getTimeseriesKey(
   chainId: number,
   addressLower: string,
 ): string {
-  return `timeseries:${label}:${chainId}:${addressLower.toLowerCase()}`
+  return `rest:timeseries:${label}:${chainId}:${addressLower.toLowerCase()}`
 }

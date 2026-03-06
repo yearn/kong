@@ -1,7 +1,7 @@
 import { createKeyvClient } from '../cache'
 import { getVaultsList } from './db'
 
-const keyv = createKeyvClient('list:vaults')
+const keyv = createKeyvClient()
 
 async function refresh(): Promise<void> {
   console.time('refresh list:vaults')
@@ -18,11 +18,11 @@ async function refresh(): Promise<void> {
 
   const chainIds = Object.keys(vaultsByChain).map(Number)
   const entries = chainIds.map((chainId) => ({
-    key: String(chainId),
+    key: `rest:list:vaults:${chainId}`,
     value: vaultsByChain[chainId],
   }))
 
-  entries.push({ key: 'all', value: vaults })
+  entries.push({ key: 'rest:list:vaults:all', value: vaults })
 
   await keyv.setMany(entries)
 
