@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createKeyvClient } from '../../../../cache'
 import { labels } from '../../../labels'
-import { createTimeseriesKeyv, getTimeseriesKey } from '../../../redis'
+import { getTimeseriesKey } from '../../../redis'
 
 export const runtime = 'nodejs'
 
@@ -15,7 +16,7 @@ const corsHeaders = {
   'access-control-allow-methods': 'GET,OPTIONS',
 }
 
-const timeseriesKeyv = createTimeseriesKeyv()
+const timeseriesKeyv = createKeyvClient()
 
 export async function GET(
   request: NextRequest,
@@ -53,7 +54,7 @@ export async function GET(
     throw err
   }
   const parsed: Array<{ time: number; component: string; value: number }> = cached
-    ? JSON.parse(cached as string)
+    ? (cached as Array<{ time: number; component: string; value: number }>)
     : []
 
   const filtered = parsed.filter((row) => components.includes(row.component))
