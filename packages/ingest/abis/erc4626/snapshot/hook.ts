@@ -1,9 +1,9 @@
+import { mq } from 'lib'
 import { EvmAddressSchema, ThingSchema } from 'lib/types'
 import { z } from 'zod'
-import { fetchOrExtractErc20 } from '../../yearn/lib'
-import { mq } from 'lib'
 import { getSparkline } from '../../../db'
 import { getLatestApy, getLatestOracleApr } from '../../../helpers/apy-apr'
+import { fetchOrExtractErc20 } from '../../yearn/lib'
 
 export default async function process(chainId: number, address: `0x${string}`, data: object) {
   const { asset } = z.object({ asset: EvmAddressSchema }).parse(data)
@@ -30,6 +30,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     performance: {
       estimated: undefined,
       oracle: (oracle[0] || oracle[1]) ? {
+        netApr: oracle[0],
         apr: oracle[0],
         apy: oracle[1]
       } : undefined,

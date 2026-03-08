@@ -98,6 +98,7 @@ type Apy {
 
 type Oracle {
   apr: Float
+  netApr: Float
   apy: Float
 }
 
@@ -111,8 +112,6 @@ type EstimatedAprComponents {
   cvxAPR: Float
   keepCRV: Float
   keepVelo: Float
-  netAPR: Float
-  netAPY: Float
   grossAPR: Float
   baseNetAPR: Float
   baseNetAPY: Float
