@@ -41,10 +41,9 @@ export default class TimeseriesFanout {
       }
 
       for (const blockTime of missing) {
-        const jobId = `timeseries-${chainId}-${address}-${outputLabel}-${blockTime}`
         await mq.add(mq.job.extract.timeseries, {
           abiPath, chainId, address, outputLabel, blockTime
-        }, { jobId })
+        })
       }
     }
   }

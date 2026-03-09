@@ -94,8 +94,14 @@ export async function add(job: Job, data: any, options?: any) {
       }
     })
   }
+
+  const jobId = options?.jobId ?? `${job.name}-${data.chainId}-${data.address}-${data.from}-${data.to}-${data.blockTime}`
+
   if (!queues[queue]) { queues[queue] = connect(queue) }
-  return await queues[queue].add(job.name, data, { priority: DEFAULT_PRIORITY, attempts: 1, ...options })
+  return await queues[queue].add(job.name, data, {
+    priority: DEFAULT_PRIORITY, attempts: 1, ...options,
+    jobId,
+  })
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
