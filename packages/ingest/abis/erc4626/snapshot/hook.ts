@@ -30,7 +30,6 @@ export default async function process(chainId: number, address: `0x${string}`, d
     performance: {
       estimated: undefined,
       oracle: (oracle[0] || oracle[1]) ? {
-        netApr: oracle[0],
         apr: oracle[0],
         apy: oracle[1]
       } : undefined,

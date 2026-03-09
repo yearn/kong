@@ -98,7 +98,7 @@ type Apy {
 
 type Oracle {
   apr: Float
-  netApr: Float
+  netAPR: Float
   apy: Float
 }
 
