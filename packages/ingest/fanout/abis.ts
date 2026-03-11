@@ -6,6 +6,8 @@ export default class AbisFanout {
   async fanout(data: object) {
     const webhookCollector = new WebhookCollector()
 
+    await mq.add(mq.job.extract.manuals, data)
+
     for (const abi of abisConfig.abis) {
       for (const source of abi.sources) {
         console.info('🤝', 'source', 'abiPath', abi.abiPath, source.chainId, source.address)
