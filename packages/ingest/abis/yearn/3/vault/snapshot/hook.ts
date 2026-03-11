@@ -374,6 +374,35 @@ async function fetchStrategySnapshots(chainId: number, strategies: `0x${string}`
   }).array().parse(result.rows)
 }
 
+async function fetchStrategyPerformance(
+  chainId: number,
+  strategies: `0x${string}`[],
+  estimatedAprLabel?: string
+) {
+  const entries = await Promise.all(strategies.map(async strategy => {
+    const [oracleApr, oracleApy] = await getLatestOracleApr(chainId, strategy.toLowerCase())
+    const apy = await getLatestApy(chainId, strategy.toLowerCase())
+    const estimated = await getLatestEstimatedAprV3(chainId, strategy, estimatedAprLabel)
+
+    const performance = {
+      ...(estimated ? { estimated } : {}),
+      ...((oracleApr !== 0 || oracleApy !== 0) ? { oracle: { apr: oracleApr, apy: oracleApy } } : {}),
+      ...(apy ? {
+        historical: {
+          net: apy.net,
+          weeklyNet: apy.weeklyNet,
+          monthlyNet: apy.monthlyNet,
+          inceptionNet: apy.inceptionNet
+        }
+      } : {})
+    }
+
+    return { strategy: strategy.toLowerCase(), performance }
+  }))
+
+  return new Map(entries.map(entry => [entry.strategy, entry.performance]))
+}
+
 export async function extractComposition(
   chainId: number,
   vault: `0x${string}`,
@@ -398,15 +427,7 @@ export async function extractComposition(
 
   // Batch-fetch strategy snapshots for name and APR
   const strategySnapshots = await fetchStrategySnapshots(chainId, strategies)
-  const strategyEstimatedList = await Promise.all(
-    strategies.map(async strategy => ({
-      strategy,
-      estimated: await getLatestEstimatedAprV3(chainId, strategy, estimatedAprLabel)
-    }))
-  )
-  const strategyEstimatedMap = new Map(
-    strategyEstimatedList.map(item => [item.strategy.toLowerCase(), item.estimated])
-  )
+  const strategyPerformanceMap = await fetchStrategyPerformance(chainId, strategies, estimatedAprLabel)
 
   const composition: z.infer<typeof CompositionSchema>[] = []
 
@@ -424,11 +445,11 @@ export async function extractComposition(
     // Parse latestReportApr
     const latestReportApr = snapshot?.latestReportApr ? parseFloat(snapshot.latestReportApr) : null
 
-    const strategyEstimated = strategyEstimatedMap.get(strategy.toLowerCase())
-    const performance = (snapshot?.performance || strategyEstimated)
+    const strategyPerformance = strategyPerformanceMap.get(strategy.toLowerCase())
+    const performance = (snapshot?.performance || strategyPerformance)
       ? {
         ...(snapshot?.performance ?? {}),
-        ...(strategyEstimated ? { estimated: strategyEstimated } : {})
+        ...(strategyPerformance ?? {})
       }
       : undefined
 

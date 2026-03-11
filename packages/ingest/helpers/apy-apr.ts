@@ -132,11 +132,11 @@ export async function getLatestApy(chainId: number, address: string) {
   WHERE block_time = (
       SELECT MAX(block_time) FROM output
       WHERE chain_id = $1
-      AND address = $2
+      AND LOWER(address) = LOWER($2)
       AND label = 'apy-bwd-delta-pps'
     )
     AND chain_id = $1
-    AND address = $2
+    AND LOWER(address) = LOWER($2)
     AND label = 'apy-bwd-delta-pps'
   GROUP BY chain_id, address, label, block_number, block_time;
   `, [chainId, address])
@@ -174,11 +174,11 @@ export async function getLatestOracleApr(chainId: number, address: string): Prom
   WHERE block_time = (
       SELECT MAX(block_time) FROM output
       WHERE chain_id = $1
-      AND address = $2
+      AND LOWER(address) = LOWER($2)
       AND label = 'apr-oracle'
     )
     AND chain_id = $1
-    AND address = $2
+    AND LOWER(address) = LOWER($2)
     AND label = 'apr-oracle'
   GROUP BY chain_id, address, label, block_number, block_time;
   `, [chainId, address])
