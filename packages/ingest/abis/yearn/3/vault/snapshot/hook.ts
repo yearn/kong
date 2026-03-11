@@ -2,7 +2,7 @@ import { mq } from 'lib'
 import { estimateCreationBlock } from 'lib/blocks'
 import { priced } from 'lib/math'
 import { snakeToCamelCols } from 'lib/strings'
-import { EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
+import { EstimatedAprSchema, EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
 import db, { getSparkline } from '../../../../../db'
@@ -22,6 +22,7 @@ export const CompositionSchema = z.object({
   status: z.enum(['active', 'inactive', 'unallocated']),
   latestReportApr: z.number().nullish(),
   performance: z.object({
+    estimated: EstimatedAprSchema.nullish(),
     oracle: z.object({
       apr: z.number().nullish(),
       apy: z.number().nullish()
@@ -94,7 +95,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const allocator = await projectDebtAllocator(chainId, address)
 
   const debts = await extractDebts(chainId, address, strategies, allocator)
-  const composition = await extractComposition(chainId, address, strategies, debts)
+  const estimatedApr = await getLatestEstimatedAprV3(chainId, address)
+  const composition = await extractComposition(chainId, address, strategies, debts, estimatedApr?.type)
   const fees = await extractFeesBps(chainId, address, snapshot)
   const risk = await getRiskScore(chainId, address)
   const meta = await getVaultMeta(chainId, address)
@@ -123,7 +125,6 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
   const apy = await getLatestApy(chainId, address)
   const [oracleApr, oracleApy] = await getLatestOracleApr(chainId, address)
-  const estimatedApr = await getLatestEstimatedAprV3(chainId, address)
 
   // Query DB for staking pool associated with this vault
   const stakingPool = await db.query(`
@@ -342,6 +343,7 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
 async function fetchStrategySnapshots(chainId: number, strategies: `0x${string}`[]) {
   if (strategies.length === 0) return []
 
+  const lowerStrategies = strategies.map(s => s.toLowerCase())
   const result = await db.query(`
     SELECT
       address,
@@ -349,13 +351,14 @@ async function fetchStrategySnapshots(chainId: number, strategies: `0x${string}`
       hook->'performance' as performance,
       hook->'lastReportDetail'->'apr'->>'net' as "latestReportApr"
     FROM snapshot
-    WHERE chain_id = $1 AND address = ANY($2)
-  `, [chainId, strategies])
+    WHERE chain_id = $1 AND LOWER(address) = ANY($2)
+  `, [chainId, lowerStrategies])
 
   return z.object({
     address: zhexstring,
     name: z.string().nullish(),
     performance: z.object({
+      estimated: EstimatedAprSchema.nullish(),
       oracle: z.object({
         apr: z.number().nullish(),
         apy: z.number().nullish()
@@ -375,7 +378,8 @@ export async function extractComposition(
   chainId: number,
   vault: `0x${string}`,
   strategies: `0x${string}`[],
-  debts: Awaited<ReturnType<typeof extractDebts>>
+  debts: Awaited<ReturnType<typeof extractDebts>>,
+  estimatedAprLabel?: string
 ) {
   // Fetch vault snapshot data for queue context
   const vaultSnapshot = await db.query(`
@@ -394,6 +398,15 @@ export async function extractComposition(
 
   // Batch-fetch strategy snapshots for name and APR
   const strategySnapshots = await fetchStrategySnapshots(chainId, strategies)
+  const strategyEstimatedList = await Promise.all(
+    strategies.map(async strategy => ({
+      strategy,
+      estimated: await getLatestEstimatedAprV3(chainId, strategy, estimatedAprLabel)
+    }))
+  )
+  const strategyEstimatedMap = new Map(
+    strategyEstimatedList.map(item => [item.strategy.toLowerCase(), item.estimated])
+  )
 
   const composition: z.infer<typeof CompositionSchema>[] = []
 
@@ -411,6 +424,14 @@ export async function extractComposition(
     // Parse latestReportApr
     const latestReportApr = snapshot?.latestReportApr ? parseFloat(snapshot.latestReportApr) : null
 
+    const strategyEstimated = strategyEstimatedMap.get(strategy.toLowerCase())
+    const performance = (snapshot?.performance || strategyEstimated)
+      ? {
+        ...(snapshot?.performance ?? {}),
+        ...(strategyEstimated ? { estimated: strategyEstimated } : {})
+      }
+      : undefined
+
     // Compute status based on debt and queue membership
     let status: 'active' | 'inactive' | 'unallocated'
     if (debt && debt.currentDebt > 0n) {
@@ -425,7 +446,7 @@ export async function extractComposition(
       address: strategy,
       name,
       status,
-      performance: snapshot?.performance ?? undefined,
+      performance,
       latestReportApr,
       activation: debt?.activation ?? 0n,
       lastReport: debt?.lastReport ?? 0n,
