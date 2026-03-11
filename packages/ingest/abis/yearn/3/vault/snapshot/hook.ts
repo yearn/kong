@@ -386,15 +386,16 @@ async function fetchStrategyPerformance(
 
     const performance = {
       ...(estimated ? { estimated } : {}),
-      ...((oracleApr !== 0 || oracleApy !== 0) ? { oracle: { apr: oracleApr, apy: oracleApy } } : {}),
-      ...(apy ? {
-        historical: {
-          net: apy.net,
-          weeklyNet: apy.weeklyNet,
-          monthlyNet: apy.monthlyNet,
-          inceptionNet: apy.inceptionNet
-        }
-      } : {})
+      oracle: {
+        apr: oracleApr,
+        apy: oracleApy
+      },
+      historical: {
+        net: apy?.net ?? null,
+        weeklyNet: apy?.weeklyNet ?? null,
+        monthlyNet: apy?.monthlyNet ?? null,
+        inceptionNet: apy?.inceptionNet ?? null
+      }
     }
 
     return { strategy: strategy.toLowerCase(), performance }
