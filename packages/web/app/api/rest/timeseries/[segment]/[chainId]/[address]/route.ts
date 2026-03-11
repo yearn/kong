@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createKeyvClient } from '../../../../cache'
+import { getKeyvClient } from '../../../../cache'
 import { labels } from '../../../labels'
 import { getTimeseriesKey } from '../../../redis'
 
@@ -16,7 +16,7 @@ const corsHeaders = {
   'access-control-allow-methods': 'GET,OPTIONS',
 }
 
-const timeseriesKeyv = createKeyvClient()
+const timeseriesKeyv = getKeyvClient()
 
 export async function GET(
   request: NextRequest,

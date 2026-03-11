@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createKeyvClient } from '../../../cache'
+import { getKeyvClient } from '../../../cache'
 import { VaultReport } from '../../db'
 import { getReportKey } from '../../redis'
 
-const keyv = createKeyvClient()
+const keyv = getKeyvClient()
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
