@@ -445,17 +445,7 @@ export const EstimatedAprSchema = z.object({
   apr: z.number().optional(),
   apy: z.number().optional(),
   type: z.string(),
-  components: z.object({
-    boost: z.number().nullish(),
-    poolAPY: z.number().nullish(),
-    boostedAPR: z.number().nullish(),
-    baseAPR: z.number().nullish(),
-    rewardsAPR: z.number().nullish(),
-    rewardsAPY: z.number().nullish(),
-    cvxAPR: z.number().nullish(),
-    keepCRV: z.number().nullish(),
-    keepVelo: z.number().nullish()
-  })
+  components: z.record(z.string(), z.number().nullish())
 })
 
 export type EstimatedApr = z.infer<typeof EstimatedAprSchema>

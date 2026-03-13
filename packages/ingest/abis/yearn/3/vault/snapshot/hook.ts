@@ -147,6 +147,9 @@ export default async function process(chainId: number, address: `0x${string}`, d
       estimated: estimatedApr ?? undefined,
       oracle: {
         apr: oracleApr,
+        netAPR: oracleApr != null
+          ? oracleApr * (1 - fees.performanceFee / 10_000) - fees.managementFee / 10_000
+          : undefined,
         apy: oracleApy
       },
       historical: apy ? {
