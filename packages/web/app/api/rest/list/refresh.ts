@@ -1,5 +1,7 @@
-import { cacheMSet, disconnect } from '../cache'
+import { createKeyvClient } from '../cache'
 import { getVaultsList } from './db'
+
+const keyv = createKeyvClient()
 
 async function refresh(): Promise<void> {
   console.time('refresh list:vaults')
@@ -15,14 +17,14 @@ async function refresh(): Promise<void> {
   }, {} as Record<number, typeof vaults>)
 
   const chainIds = Object.keys(vaultsByChain).map(Number)
-  const pairs: Array<[string, string]> = chainIds.map((chainId) => [
-    `rest:list:vaults:${chainId}`,
-    JSON.stringify({ value: vaultsByChain[chainId] }),
-  ])
+  const entries = chainIds.map((chainId) => ({
+    key: `rest:list:vaults:${chainId}`,
+    value: vaultsByChain[chainId],
+  }))
 
-  pairs.push(['rest:list:vaults:all', JSON.stringify({ value: vaults })])
+  entries.push({ key: 'rest:list:vaults:all', value: vaults })
 
-  await cacheMSet(pairs)
+  await keyv.setMany(entries)
 
   console.log(`✓ Completed: ${vaults.length} vaults cached across ${chainIds.length} chains`)
   console.timeEnd('refresh list:vaults')
@@ -31,12 +33,12 @@ async function refresh(): Promise<void> {
 if (require.main === module) {
   refresh()
     .then(async () => {
-      await disconnect()
+      await keyv.disconnect()
       process.exit(0)
     })
     .catch(async (err) => {
       console.error(err)
-      await disconnect()
+      await keyv.disconnect()
       process.exit(1)
     })
 }

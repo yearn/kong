@@ -1,6 +1,8 @@
-import { cacheMSet, disconnect } from '../cache'
+import { createKeyvClient } from '../cache'
 import { getVaults, getVaultSnapshot } from './db'
 import { getSnapshotKey } from './redis'
+
+const keyv = createKeyvClient()
 
 const BATCH_SIZE = 10
 
@@ -15,20 +17,21 @@ async function refresh(): Promise<void> {
 
   for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
     const batch = vaults.slice(i, i + BATCH_SIZE)
-    const pairs: Array<[string, string]> = []
-
-    await Promise.all(batch.map(async (vault) => {
+    const snapshots = await Promise.all(batch.map(async (vault) => {
       const snapshot = await getVaultSnapshot(vault.chainId, vault.address)
-      if (!snapshot) return
-      pairs.push([
-        getSnapshotKey(vault.chainId, vault.address.toLowerCase()),
-        JSON.stringify({ value: snapshot }),
-      ])
+      if (!snapshot) return null
+      return {
+        key: getSnapshotKey(vault.chainId, vault.address.toLowerCase()),
+        value: snapshot,
+      }
     }))
 
-    await cacheMSet(pairs)
+    const entries = snapshots.filter((s): s is NonNullable<typeof s> => s !== null)
+    if (entries.length > 0) {
+      await keyv.setMany(entries)
+    }
 
-    processed += pairs.length
+    processed += entries.length
     if (processed % 10 === 0) {
       console.log(`Processed ${processed}/${vaults.length} vaults`)
     }
@@ -41,12 +44,12 @@ async function refresh(): Promise<void> {
 if (require.main === module) {
   refresh()
     .then(async () => {
-      await disconnect()
+      await keyv.disconnect()
       process.exit(0)
     })
     .catch(async (err) => {
       console.error(err)
-      await disconnect()
+      await keyv.disconnect()
       process.exit(1)
     })
 }
