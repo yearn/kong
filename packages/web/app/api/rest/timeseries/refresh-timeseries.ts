@@ -1,7 +1,9 @@
-import { cacheMSet, disconnect } from '../cache'
+import { createKeyvClient } from '../cache'
 import { getFullTimeseries, getVaults, TimeseriesRow } from './db'
 import { labels } from './labels'
 import { getTimeseriesKey } from './redis'
+
+const keyv = createKeyvClient()
 
 const BATCH_SIZE = 10
 
@@ -16,7 +18,7 @@ async function refresh24hr(): Promise<void> {
 
   for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
     const batch = vaults.slice(i, i + BATCH_SIZE)
-    const pairs: Array<[string, string]> = []
+    const entries: Array<{ key: string; value: unknown }> = []
 
     await Promise.all(batch.map(async (vault) => {
       const addressLower = vault.address.toLowerCase()
@@ -34,14 +36,14 @@ async function refresh24hr(): Promise<void> {
           value: row.value,
         }))
 
-        pairs.push([
-          getTimeseriesKey(label, vault.chainId, addressLower),
-          JSON.stringify({ value: minimal }),
-        ])
+        entries.push({
+          key: getTimeseriesKey(label, vault.chainId, addressLower),
+          value: minimal,
+        })
       }))
     }))
 
-    await cacheMSet(pairs)
+    await keyv.setMany(entries)
 
     processed += batch.length
     if (processed % 10 === 0) {
@@ -56,12 +58,12 @@ async function refresh24hr(): Promise<void> {
 if (require.main === module) {
   refresh24hr()
     .then(async () => {
-      await disconnect()
+      await keyv.disconnect()
       process.exit(0)
     })
     .catch(async (err) => {
       console.error(err)
-      await disconnect()
+      await keyv.disconnect()
       process.exit(1)
     })
 }
