@@ -37,10 +37,9 @@ export default class EventsFanout {
     for (const stride of StrideSchema.array().parse(nextStrides)) {
       console.log('📤', 'stride', chainId, address, stride.from, stride.to)
       await walklog({...stride, logStride: getLogStride(chainId)}, async (from, to) => {
-        const jobId = `evmlog-${chainId}-${address}-${from}-${to}`
         await mq.add(mq.job.extract.evmlog, {
           abiPath, chainId, address, from, to, replay: replay?.enabled
-        }, { jobId })
+        })
       })
     }
   }
