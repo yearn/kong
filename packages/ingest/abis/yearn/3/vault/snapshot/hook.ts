@@ -382,29 +382,52 @@ async function fetchStrategyPerformance(
   strategies: `0x${string}`[],
   estimatedAprLabel?: string
 ) {
-  const entries = await Promise.all(strategies.map(async strategy => {
-    const [oracleApr, oracleApy] = await getLatestOracleApr(chainId, strategy.toLowerCase())
-    const apy = await getLatestApy(chainId, strategy.toLowerCase())
-    const estimated = await getLatestEstimatedAprV3(chainId, strategy, estimatedAprLabel)
+  if (strategies.length === 0) return new Map<string, any>()
 
-    const performance = {
-      ...(estimated ? { estimated } : {}),
-      oracle: {
-        apr: oracleApr,
-        apy: oracleApy
-      },
-      historical: {
-        net: apy?.net ?? null,
-        weeklyNet: apy?.weeklyNet ?? null,
-        monthlyNet: apy?.monthlyNet ?? null,
-        inceptionNet: apy?.inceptionNet ?? null
+  const labels = ['apr-oracle', 'apy-bwd-delta-pps']
+  if (estimatedAprLabel) labels.push(estimatedAprLabel)
+
+  const result = await db.query(`
+    WITH latest_times AS (
+      SELECT address, label, MAX(block_time) as block_time
+      FROM output
+      WHERE chain_id = $1 AND address = ANY($2) AND label = ANY($3)
+      GROUP BY address, label
+    )
+    SELECT o.address, o.label, o.component, o.value
+    FROM output o
+    JOIN latest_times lt ON o.address = lt.address AND o.label = lt.label AND o.block_time = lt.block_time
+    WHERE o.chain_id = $1
+  `, [chainId, strategies, labels])
+
+  const map = new Map<string, any>()
+
+  for (const row of result.rows) {
+    const addr = row.address.toLowerCase()
+    if (!map.has(addr)) map.set(addr, { oracle: {}, historical: {} })
+    const perf = map.get(addr)
+
+    if (row.label === 'apr-oracle') {
+      if (row.component === 'apr') perf.oracle.apr = row.value ?? 0
+      if (row.component === 'apy') perf.oracle.apy = row.value ?? 0
+    } else if (row.label === 'apy-bwd-delta-pps') {
+      if (row.component === 'net') perf.historical.net = row.value ?? null
+      if (row.component === 'weeklyNet') perf.historical.weeklyNet = row.value ?? null
+      if (row.component === 'monthlyNet') perf.historical.monthlyNet = row.value ?? null
+      if (row.component === 'inceptionNet') perf.historical.inceptionNet = row.value ?? null
+    } else if (estimatedAprLabel && row.label === estimatedAprLabel) {
+      if (!perf.estimated) perf.estimated = { type: estimatedAprLabel }
+      if (row.component === 'netAPR') perf.estimated.apr = row.value
+      else if (row.component === 'netAPY') perf.estimated.apy = row.value
+      else if (!perf.estimated.components) {
+        perf.estimated.components = { [row.component]: row.value }
+      } else {
+        perf.estimated.components[row.component] = row.value
       }
     }
+  }
 
-    return { strategy: strategy.toLowerCase(), performance }
-  }))
-
-  return new Map(entries.map(entry => [entry.strategy, entry.performance]))
+  return map
 }
 
 export async function extractComposition(
