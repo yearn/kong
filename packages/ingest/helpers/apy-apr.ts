@@ -10,14 +10,14 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string, 
       WHERE block_time = (
           SELECT block_time FROM output
           WHERE chain_id = $1
-          AND LOWER(address) = LOWER($2)
+          AND address = $2
           AND label = $3
           AND block_time > NOW() - INTERVAL '7 days'
           ORDER BY block_time DESC
           LIMIT 1
         )
         AND chain_id = $1
-        AND LOWER(address) = LOWER($2)
+        AND address = $2
         AND label = $3
     `, [chainId, address, label])
     : await db.query(`
@@ -26,14 +26,14 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string, 
       WHERE block_time = (
           SELECT block_time FROM output
           WHERE chain_id = $1
-          AND LOWER(address) = LOWER($2)
+          AND address = $2
           AND label LIKE '%-estimated-apr'
           AND block_time > NOW() - INTERVAL '7 days'
           ORDER BY block_time DESC
           LIMIT 1
         )
         AND chain_id = $1
-        AND LOWER(address) = LOWER($2)
+        AND address = $2
         AND label LIKE '%-estimated-apr'
     `, [chainId, address])
 
@@ -77,12 +77,12 @@ export async function getLatestEstimatedApr(chainId: number, address: string) {
   WHERE block_time = (
       SELECT MAX(block_time) FROM output
       WHERE chain_id = $1
-      AND LOWER(address) = LOWER($2)
+      AND address = $2
       AND label IN ('crv-estimated-apr', 'velo-estimated-apr', 'aero-estimated-apr')
       AND block_time > NOW() - INTERVAL '7 days'
     )
     AND chain_id = $1
-    AND LOWER(address) = LOWER($2)
+    AND address = $2
     AND label IN ('crv-estimated-apr', 'velo-estimated-apr', 'aero-estimated-apr')
   GROUP BY chain_id, address, label, block_number, block_time;
   `, [chainId, address])
@@ -132,11 +132,11 @@ export async function getLatestApy(chainId: number, address: string) {
   WHERE block_time = (
       SELECT MAX(block_time) FROM output
       WHERE chain_id = $1
-      AND LOWER(address) = LOWER($2)
+      AND address = $2
       AND label = 'apy-bwd-delta-pps'
     )
     AND chain_id = $1
-    AND LOWER(address) = LOWER($2)
+    AND address = $2
     AND label = 'apy-bwd-delta-pps'
   GROUP BY chain_id, address, label, block_number, block_time;
   `, [chainId, address])
@@ -174,11 +174,11 @@ export async function getLatestOracleApr(chainId: number, address: string): Prom
   WHERE block_time = (
       SELECT MAX(block_time) FROM output
       WHERE chain_id = $1
-      AND LOWER(address) = LOWER($2)
+      AND address = $2
       AND label = 'apr-oracle'
     )
     AND chain_id = $1
-    AND LOWER(address) = LOWER($2)
+    AND address = $2
     AND label = 'apr-oracle'
   GROUP BY chain_id, address, label, block_number, block_time;
   `, [chainId, address])

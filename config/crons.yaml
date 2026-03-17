@@ -9,5 +9,5 @@ crons:
   - name: SystemProbe
     queue: probe
     job: all
-    schedule: "*/2 * * * * *" # every 2 seconds
+    schedule: "*/10 * * * * *" # every 10 seconds
     start: true
