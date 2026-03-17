@@ -177,27 +177,34 @@ export default class Probe implements Processor {
     }
   }
 
-  private async fetchThingLabels() {
-    const query = 'SELECT DISTINCT label FROM thing;'
-    return (await db.query(query)).rows.map(row => row.label)
+  private async fetchTotals() {
+    const query = `
+    SELECT
+      'output' as table_name, approximate_row_count('output')::int as estimate
+    UNION ALL SELECT
+      'evmlog', approximate_row_count('evmlog')::int
+    UNION ALL SELECT
+      'thing', count(*)::int FROM thing;`
+    const rows = (await db.query(query)).rows
+    const counts: { [key: string]: number } = {}
+    for (const row of rows) counts[`${row.table_name}_total`] = row.estimate
+
+    const thingLabels = await db.query(`
+      SELECT label, count(*)::int as cnt FROM thing GROUP BY label
+    `)
+    for (const row of thingLabels.rows) counts[`thing_${row.label}_total`] = row.cnt
+
+    return counts
   }
 
-  private async fetchTotals() {
-    const labels = await this.fetchThingLabels()
-    const query = `
-    WITH counts AS ( SELECT
-      (SELECT count(*) FROM thing)::int AS thing_total,
-      ${labels.map(label => `(SELECT count(*) FROM thing WHERE label = '${label}')::int AS thing_${label}_total,`).join('\n')}
-      (SELECT count(*) FROM output)::int AS output_total,
-      (SELECT count(*) FROM evmlog)::int AS evmlog_total
-    )
-    SELECT * FROM counts;`
-    return (await db.query(query)).rows[0]
-  }
+  private eventCountsCache: { rows: any[], ts: number } = { rows: [], ts: 0 }
 
   private async fetchEventCounts() {
+    const now = Date.now()
+    if (now - this.eventCountsCache.ts < 300_000) return this.eventCountsCache.rows
     const query = 'SELECT event_name, count(*) FROM evmlog GROUP BY event_name ORDER BY count DESC;'
-    return (await db.query(query)).rows
+    this.eventCountsCache = { rows: (await db.query(query)).rows, ts: now }
+    return this.eventCountsCache.rows
   }
 
   private async probeIndexStats() {
