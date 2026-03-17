@@ -73,6 +73,11 @@ export const ResultSchema = z.object({
     managementFee: z.number(),
     performanceFee: z.number()
   }),
+  locker: z.object({
+    cooldownDuration: z.number(),
+    withdrawalWindow: z.number(),
+    lockerBonus: z.number(),
+  }).optional(),
   meta: VaultMetaSchema.merge(z.object({ token: TokenMetaSchema }))
 })
 
@@ -98,6 +103,9 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const estimatedApr = await getLatestEstimatedAprV3(chainId, address)
   const composition = await extractComposition(chainId, address, strategies, debts, estimatedApr?.type)
   const fees = await extractFeesBps(chainId, address, snapshot)
+  const locker = snapshot.accountant && snapshot.accountant !== zeroAddress
+    ? await extractLockerMeta(chainId, snapshot.accountant)
+    : undefined
   const risk = await getRiskScore(chainId, address)
   const meta = await getVaultMeta(chainId, address)
   const token = await getTokenMeta(chainId, data.asset)
@@ -138,7 +146,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   `, [chainId, address])
 
   return {
-    asset, strategies, allocator, roles, debts, composition, fees,
+    asset, strategies, allocator, roles, debts, composition, fees, locker,
     risk, meta: { ...meta, token },
     sparklines,
     tvl: sparklines.tvl[0],
@@ -514,6 +522,35 @@ export async function extractComposition(
   return CompositionSchema.array().parse(composition)
 }
 
+async function extractLockerMeta(chainId: number, accountant: `0x${string}`) {
+  try {
+    const [cooldownDuration, withdrawalWindow, feeConfig] = await Promise.all([
+      rpcs.next(chainId).readContract({
+        address: accountant,
+        abi: parseAbi(['function cooldownDuration() view returns (uint256)']),
+        functionName: 'cooldownDuration',
+      }),
+      rpcs.next(chainId).readContract({
+        address: accountant,
+        abi: parseAbi(['function withdrawalWindow() view returns (uint256)']),
+        functionName: 'withdrawalWindow',
+      }),
+      rpcs.next(chainId).readContract({
+        address: accountant,
+        abi: parseAbi(['function feeConfig() view returns (uint16, uint16, uint16)']),
+        functionName: 'feeConfig',
+      }),
+    ])
+    return {
+      cooldownDuration: Number(cooldownDuration),
+      withdrawalWindow: Number(withdrawalWindow),
+      lockerBonus: feeConfig[2],
+    }
+  } catch {
+    return undefined
+  }
+}
+
 export async function extractFeesBps(chainId: number, address: `0x${string}`, snapshot: Snapshot) {
   try {
     if (snapshot.accountant && snapshot.accountant !== zeroAddress) {
@@ -530,15 +567,29 @@ export async function extractFeesBps(chainId: number, address: `0x${string}`, sn
           performanceFee: feeConfig?.[1] ?? 0
         }
       } catch {
-        const feeConfig = await rpcs.next(chainId).readContract({
-          address: snapshot.accountant,
-          abi: accountantAbi,
-          functionName: 'defaultConfig',
-        })
+        try {
+          const feeConfig = await rpcs.next(chainId).readContract({
+            address: snapshot.accountant,
+            abi: accountantAbi,
+            functionName: 'defaultConfig',
+          })
 
-        return {
-          managementFee: feeConfig[0],
-          performanceFee: feeConfig[1]
+          return {
+            managementFee: feeConfig[0],
+            performanceFee: feeConfig[1]
+          }
+        } catch {
+          // Try feeConfig() — LockedYvUSD non-standard accountant interface
+          const feeConfig = await rpcs.next(chainId).readContract({
+            address: snapshot.accountant!,
+            abi: parseAbi(['function feeConfig() view returns (uint16, uint16, uint16)']),
+            functionName: 'feeConfig',
+          })
+
+          return {
+            managementFee: feeConfig[0],
+            performanceFee: feeConfig[1]
+          }
         }
       }
     } else {
