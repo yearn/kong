@@ -346,7 +346,6 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
 async function fetchStrategySnapshots(chainId: number, strategies: `0x${string}`[]) {
   if (strategies.length === 0) return []
 
-  const lowerStrategies = strategies.map(s => s.toLowerCase())
   const result = await db.query(`
     SELECT
       address,
@@ -354,8 +353,8 @@ async function fetchStrategySnapshots(chainId: number, strategies: `0x${string}`
       hook->'performance' as performance,
       hook->'lastReportDetail'->'apr'->>'net' as "latestReportApr"
     FROM snapshot
-    WHERE chain_id = $1 AND LOWER(address) = ANY($2)
-  `, [chainId, lowerStrategies])
+    WHERE chain_id = $1 AND address = ANY($2)
+  `, [chainId, strategies])
 
   return z.object({
     address: zhexstring,

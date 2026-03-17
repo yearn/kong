@@ -355,7 +355,7 @@ export type VaultDebt = z.infer<typeof VaultDebtSchema>
 
 export const OutputSchema = z.object({
   chainId: z.number(),
-  address: zhexstring,
+  address: EvmAddressSchema,
   label: z.string(),
   component: z.string().nullish(),
   value: z.any().transform(val => {
