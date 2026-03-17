@@ -2,8 +2,14 @@ import { Output, OutputSchema } from 'lib/types'
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { rpcs } from 'lib/rpcs'
 import { Data } from '../../../../../../extract/timeseries'
+import { extractFees__v3 } from '../../../../lib/apy'
+import { projectStrategies } from '../../snapshot/hook'
 import { V3_ORACLE_ABI } from './abi'
 import { getOracleConfig } from './constants'
+
+export function computeNetApr(grossApr: number, fees: { management: number; performance: number }): number {
+  return (grossApr - fees.management) * (1 - fees.performance)
+}
 
 export const outputLabel = 'apr-oracle'
 
@@ -49,6 +55,17 @@ export default async function (
 
   const apy = (1 + apr / 52) ** 52 - 1
 
+  let fees = { management: 0, performance: 0 }
+  try {
+    const strategies = await projectStrategies(chainId, address, blockNumber)
+    fees = await extractFees__v3(chainId, address, strategies, blockNumber)
+  } catch {
+    // fall through with zero fees
+  }
+
+  const netApr = computeNetApr(apr, fees)
+  const netApy = (1 + netApr / 52) ** 52 - 1
+
   const outputs: Output[] = [
     {
       label: outputLabel,
@@ -63,6 +80,24 @@ export default async function (
       label: outputLabel,
       component: 'apy',
       value: apy,
+      chainId,
+      address,
+      blockNumber,
+      blockTime: data.blockTime,
+    },
+    {
+      label: outputLabel,
+      component: 'netApr',
+      value: netApr,
+      chainId,
+      address,
+      blockNumber,
+      blockTime: data.blockTime,
+    },
+    {
+      label: outputLabel,
+      component: 'netApy',
+      value: netApy,
       chainId,
       address,
       blockNumber,
