@@ -8,3 +8,4 @@ cache
 gql-cache*
 __pycache__
 output/
+.mcp.json
