@@ -64,6 +64,7 @@ abis:
       { chainId: 137, address: '0xff31A1B020c868F6eA3f61Eb953344920EeCA3af', inceptBlock: 52488140 },
       { chainId: 137, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 63167078 },
       { chainId: 146, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 307793 },
+      { chainId: 8453, address: '0xff31A1B020c868F6eA3f61Eb953344920EeCA3af', inceptBlock: 17559000 },
       { chainId: 8453, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 21261966 },
       { chainId: 42161, address: '0xff31A1B020c868F6eA3f61Eb953344920EeCA3af', inceptBlock: 171850013 },
       { chainId: 42161, address: '0x0377b4daDDA86C89A0091772B79ba67d0E5F7198', inceptBlock: 265347635 },
