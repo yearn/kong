@@ -24,6 +24,8 @@ export const CompositionSchema = z.object({
   performance: z.object({
     estimated: EstimatedAprSchema.nullish(),
     oracle: z.object({
+      netAPR: z.number().nullish(),
+      netAPY: z.number().nullish(),
       apr: z.number().nullish(),
       apy: z.number().nullish()
     }).nullish(),
