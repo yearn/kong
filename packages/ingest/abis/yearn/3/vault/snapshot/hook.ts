@@ -152,7 +152,10 @@ export default async function process(chainId: number, address: `0x${string}`, d
         netAPR: oracleApr != null
           ? oracleApr * (1 - fees.performanceFee / 10_000) - fees.managementFee / 10_000
           : undefined,
-        apy: oracleApy
+        apy: oracleApy,
+        netAPY: oracleApy != null
+          ? oracleApy * (1 - fees.performanceFee / 10_000) - fees.managementFee / 10_000
+          : undefined,
       },
       historical: apy ? {
         net: apy.net,
