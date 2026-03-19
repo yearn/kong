@@ -45,6 +45,7 @@ const vaultReports = async (_: object, args: { chainId?: number, address?: strin
     WHERE
       (chain_id = $1 OR $1 IS NULL) AND (address = $2 OR $2 IS NULL)
       AND event_name = 'StrategyReported'
+      AND block_time >= '2020-01-01'::timestamptz
     ORDER BY
       block_time DESC, log_index DESC
     LIMIT 1000;`,
