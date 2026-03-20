@@ -104,6 +104,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const composition = await extractComposition(chainId, address, strategies, debts, estimatedApr?.type)
   const fees = await extractFeesBps(chainId, address, snapshot)
   const locker = snapshot.accountant && snapshot.accountant !== zeroAddress
+    && await things.exist(chainId, snapshot.accountant, 'vault')
     ? await extractLockerMeta(chainId, snapshot.accountant)
     : undefined
   const risk = await getRiskScore(chainId, address)
@@ -524,27 +525,32 @@ export async function extractComposition(
 
 async function extractLockerMeta(chainId: number, accountant: `0x${string}`) {
   try {
-    const [cooldownDuration, withdrawalWindow, feeConfig] = await Promise.all([
-      rpcs.next(chainId).readContract({
+    const [cooldownDuration, withdrawalWindow, feeConfig] = await rpcs.next(chainId).multicall({
+      contracts: [
+        {
         address: accountant,
         abi: parseAbi(['function cooldownDuration() view returns (uint256)']),
         functionName: 'cooldownDuration',
-      }),
-      rpcs.next(chainId).readContract({
+        },
+        {
         address: accountant,
         abi: parseAbi(['function withdrawalWindow() view returns (uint256)']),
         functionName: 'withdrawalWindow',
-      }),
-      rpcs.next(chainId).readContract({
+        },
+        {
         address: accountant,
         abi: parseAbi(['function feeConfig() view returns (uint16, uint16, uint16)']),
         functionName: 'feeConfig',
-      }),
-    ])
+        },
+      ],
+      allowFailure: true,
+    })
+    if (cooldownDuration.status === 'failure' || withdrawalWindow.status === 'failure') return undefined
+
     return {
-      cooldownDuration: Number(cooldownDuration),
-      withdrawalWindow: Number(withdrawalWindow),
-      lockerBonus: feeConfig[2],
+      cooldownDuration: Number(cooldownDuration.result),
+      withdrawalWindow: Number(withdrawalWindow.result),
+      lockerBonus: feeConfig.status === 'success' ? feeConfig.result[2] : 0,
     }
   } catch {
     return undefined
