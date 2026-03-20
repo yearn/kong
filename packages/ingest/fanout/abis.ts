@@ -1,9 +1,21 @@
-import { abisConfig, chains, mq } from 'lib'
+import { abisConfig, chains, mq, sentry } from 'lib'
 import * as things from '../things'
 import WebhookCollector from './webhooks'
+import { findBusyMatch } from './isBusy'
 
 export default class AbisFanout {
   async fanout(data: object) {
+    const match = await findBusyMatch()
+    if (match) {
+      console.error(`🚨 ABI_FANOUT_SKIPPED_BUSY: previous ingestion work is still active or queued, queue=${match.queue} job=${match.jobName} status=${match.status}`)
+      sentry.captureMessage('ABI_FANOUT_SKIPPED_BUSY', {
+        level: 'warning',
+        tags: { component: 'ingest', job: 'fanout.abis', reason: 'busy' },
+        extra: { queue: match.queue, jobName: match.jobName, status: match.status }
+      })
+      return
+    }
+
     const webhookCollector = new WebhookCollector()
 
     await mq.add(mq.job.extract.manuals, data)
