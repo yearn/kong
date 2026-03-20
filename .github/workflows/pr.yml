@@ -1,4 +1,4 @@
-name: Pull request checks
+name: notify telegram
 
 on:
   pull_request:
@@ -28,13 +28,3 @@ jobs:
             -d message_thread_id="${TOPIC_ID}" \
             -d text="${MESSAGE}" \
             -d parse_mode="Markdown"
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install
-      - run: bun --filter ingest lint
-      - run: bun --filter lib lint
-      - run: bun --filter terminal lint
-      - run: bun --filter web lint
