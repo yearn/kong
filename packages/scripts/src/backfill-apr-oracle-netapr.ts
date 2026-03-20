@@ -109,34 +109,57 @@ async function getTimeseriesCandidates(args: Args): Promise<TimeseriesCandidate[
   }))
 }
 
+async function prefetchFees(candidates: TimeseriesCandidate[]): Promise<Map<string, { management: number; performance: number }>> {
+  const vaultMap = new Map<string, { chainId: number; address: `0x${string}`; blockNumber: bigint }>()
+  for (const c of candidates) {
+    const key = `${c.chainId}:${c.address}`
+    const existing = vaultMap.get(key)
+    if (!existing || c.blockNumber > existing.blockNumber) {
+      vaultMap.set(key, { chainId: c.chainId, address: c.address, blockNumber: c.blockNumber })
+    }
+  }
+
+  console.log(`fetching fees for ${vaultMap.size} unique vaults...`)
+  const feeCache = new Map<string, { management: number; performance: number }>()
+
+  const CONCURRENCY = 10
+  const entries = [...vaultMap.entries()]
+  for (let i = 0; i < entries.length; i += CONCURRENCY) {
+    const batch = entries.slice(i, i + CONCURRENCY)
+    const results = await Promise.all(batch.map(async ([key, vault]) => {
+      try {
+        const strategies = await projectStrategies(vault.chainId, vault.address, vault.blockNumber)
+        return { key, fees: await extractFees__v3(vault.chainId, vault.address, strategies, vault.blockNumber) }
+      } catch {
+        return { key, fees: { management: 0, performance: 0 } }
+      }
+    }))
+    for (const { key, fees } of results) {
+      feeCache.set(key, fees)
+    }
+    console.log(`fetched fees ${Math.min(i + CONCURRENCY, entries.length)}/${entries.length}`)
+  }
+
+  return feeCache
+}
+
+const WRITE_CONCURRENCY = 5
+
 async function backfillTimeseries(args: Args) {
   const candidates = await getTimeseriesCandidates(args)
   console.log(`timeseries candidates: ${candidates.length}`)
   if (candidates.length === 0) return
 
-  const feeCache = new Map<string, { management: number; performance: number }>()
-  const pending: Output[] = []
-  let inserted = 0
+  const feeCache = await prefetchFees(candidates)
+  const outputs: Output[] = []
 
-  for (const [index, candidate] of candidates.entries()) {
-    const cacheKey = `${candidate.chainId}:${candidate.address}:${candidate.blockNumber}`
-    let fees = feeCache.get(cacheKey)
-
-    if (!fees) {
-      try {
-        const strategies = await projectStrategies(candidate.chainId, candidate.address, candidate.blockNumber)
-        fees = await extractFees__v3(candidate.chainId, candidate.address, strategies, candidate.blockNumber)
-      } catch {
-        fees = { management: 0, performance: 0 }
-      }
-      feeCache.set(cacheKey, fees)
-    }
-
+  for (const candidate of candidates) {
+    const fees = feeCache.get(`${candidate.chainId}:${candidate.address}`) ?? { management: 0, performance: 0 }
     const netApr = computeNetApr(candidate.apr, fees)
     const netApy = computeApy(netApr)
 
     if (!candidate.hasNetApr) {
-      pending.push({
+      outputs.push({
         chainId: candidate.chainId,
         address: candidate.address,
         label: 'apr-oracle',
@@ -148,7 +171,7 @@ async function backfillTimeseries(args: Args) {
     }
 
     if (!candidate.hasNetApy) {
-      pending.push({
+      outputs.push({
         chainId: candidate.chainId,
         address: candidate.address,
         label: 'apr-oracle',
@@ -158,25 +181,26 @@ async function backfillTimeseries(args: Args) {
         blockTime: candidate.blockTime,
       })
     }
-
-    if (pending.length >= WRITE_BATCH_SIZE) {
-      const batch = pending.splice(0)
-      if (args.apply && batch.length > 0) await upsertBatchOutput(batch)
-      inserted += batch.length
-    }
-
-    if ((index + 1) % 500 === 0 || index === candidates.length - 1) {
-      console.log(`processed ${index + 1}/${candidates.length} timeseries rows`)
-    }
   }
 
-  if (pending.length > 0) {
-    const batch = pending.splice(0)
-    if (args.apply && batch.length > 0) await upsertBatchOutput(batch)
-    inserted += batch.length
+  console.log(`computed ${outputs.length} outputs, writing...`)
+
+  const batches: Output[][] = []
+  for (let i = 0; i < outputs.length; i += WRITE_BATCH_SIZE) {
+    batches.push(outputs.slice(i, i + WRITE_BATCH_SIZE))
   }
 
-  console.log(`${args.apply ? 'upserted' : 'prepared (dry-run)'}: ${inserted} timeseries outputs`)
+  let written = 0
+  for (let i = 0; i < batches.length; i += WRITE_CONCURRENCY) {
+    const chunk = batches.slice(i, i + WRITE_CONCURRENCY)
+    if (args.apply) {
+      await Promise.all(chunk.map(batch => upsertBatchOutput(batch)))
+    }
+    written += chunk.reduce((sum, b) => sum + b.length, 0)
+    console.log(`written ${written}/${outputs.length} outputs`)
+  }
+
+  console.log(`${args.apply ? 'upserted' : 'prepared (dry-run)'}: ${outputs.length} timeseries outputs`)
 }
 
 async function main() {
