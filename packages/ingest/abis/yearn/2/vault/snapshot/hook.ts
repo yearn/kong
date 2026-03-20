@@ -12,6 +12,25 @@ import { mq } from 'lib'
 import { compare } from 'compare-versions'
 import { getLatestApy, getLatestEstimatedApr } from '../../../../../helpers/apy-apr'
 
+async function extractV2Fees(chainId: number, address: `0x${string}`) {
+  try {
+    const abi = parseAbi([
+      'function managementFee() view returns (uint256)',
+      'function performanceFee() view returns (uint256)'
+    ])
+    const [mgmt, perf] = await rpcs.next(chainId).multicall({ contracts: [
+      { address, abi, functionName: 'managementFee' },
+      { address, abi, functionName: 'performanceFee' }
+    ] })
+    return {
+      managementFee: mgmt.status === 'success' ? Number(mgmt.result) : 0,
+      performanceFee: perf.status === 'success' ? Number(perf.result) : 0
+    }
+  } catch {
+    return { managementFee: 0, performanceFee: 0 }
+  }
+}
+
 export const CompositionSchema = z.object({
   address: zhexstring,
   name: z.string(),
@@ -63,6 +82,10 @@ export const ResultSchema = z.object({
     totalLossUsd: z.number()
   })),
   composition: CompositionSchema.array(),
+  fees: z.object({
+    managementFee: z.number(),
+    performanceFee: z.number()
+  }),
   meta: VaultMetaSchema.merge(z.object({ token: TokenMetaSchema }))
 })
 
@@ -75,6 +98,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const withdrawalQueue = await extractWithdrawalQueue(chainId, address)
   const debts = oldold ? [] : await extractDebts(chainId, address)
   const composition = oldold ? [] : await extractComposition(chainId, address, strategies, withdrawalQueue, debts)
+  const fees = await extractV2Fees(chainId, address)
   const risk = await getRiskScore(chainId, address)
   const meta = await getVaultMeta(chainId, address)
   const token = await getTokenMeta(chainId, data.token)
@@ -109,6 +133,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     withdrawalQueue,
     debts,
     composition,
+    fees,
     risk,
     meta: { ...meta, token },
     sparklines,
