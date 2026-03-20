@@ -1,18 +1,9 @@
 import { Queue, Worker } from 'bullmq'
 import chains from './chains'
+import { countMetric, flush as flushSentry } from './sentry'
 import { Job } from './types'
 
 const MQ_INVENTORY = process.env.MQ_INVENTORY === 'true'
-const SENTRY_DSN = process.env.SENTRY_DSN
-
-let Sentry: typeof import('@sentry/node') | null = null
-
-if (MQ_INVENTORY && SENTRY_DSN) {
-  import('@sentry/node').then(s => {
-    Sentry = s
-    Sentry.init({ dsn: SENTRY_DSN })
-  })
-}
 
 export const q = {
   fanout: 'fanout',
@@ -81,17 +72,15 @@ export function connect(queueName: string) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function add(job: Job, data: any, options?: any) {
   const queue = job.bychain ? `${job.queue}-${data.chainId}` : job.queue
-  if (MQ_INVENTORY && Sentry) {
-    Sentry.metrics.count('mq.job_added', 1, {
-      attributes: {
-        queue,
-        jobName: job.name,
-        address: String(data.address ?? data.source?.address ?? ''),
-        chainId: String(data.chainId ?? data.source?.chainId ?? ''),
-        fromBlock: String(data.from ?? data.fromBlock ?? ''),
-        toBlock: String(data.to ?? data.toBlock ?? ''),
-        abiPath: String(data.abiPath ?? data.abi?.abiPath ?? '')
-      }
+  if (MQ_INVENTORY) {
+    countMetric('mq.job_added', 1, {
+      queue,
+      jobName: job.name,
+      address: String(data.address ?? data.source?.address ?? ''),
+      chainId: String(data.chainId ?? data.source?.chainId ?? ''),
+      fromBlock: String(data.from ?? data.fromBlock ?? ''),
+      toBlock: String(data.to ?? data.toBlock ?? ''),
+      abiPath: String(data.abiPath ?? data.abi?.abiPath ?? '')
     })
   }
   if (!queues[queue]) { queues[queue] = connect(queue) }
@@ -178,6 +167,6 @@ export function computeConcurrency(jobs: number, options: ConcurrencyOptions) {
 }
 
 export async function down() {
-  if (Sentry) await Sentry.flush(5000)
+  if (MQ_INVENTORY) await flushSentry(5000)
   return Promise.all(Object.values(queues).map(async queue => queue.close()))
 }
