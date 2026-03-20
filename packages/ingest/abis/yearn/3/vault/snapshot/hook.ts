@@ -10,6 +10,7 @@ import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../..
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
 import * as things from '../../../../../things'
+import { computeApy, computeNetApr } from '../../../lib/apy'
 import { fetchOrExtractErc20 } from '../../../lib'
 import { getStrategyMeta, getTokenMeta, getVaultMeta } from '../../../lib/meta'
 import { getRiskScore } from '../../../lib/risk'
@@ -139,6 +140,10 @@ export default async function process(chainId: number, address: `0x${string}`, d
     LIMIT 1
   `, [chainId, address])
 
+  const oracleNetApr = oracleApr != null
+    ? computeNetApr(oracleApr, { management: fees.managementFee / 10_000, performance: fees.performanceFee / 10_000 })
+    : undefined
+
   return {
     asset, strategies, allocator, roles, debts, composition, fees,
     risk, meta: { ...meta, token },
@@ -149,13 +154,9 @@ export default async function process(chainId: number, address: `0x${string}`, d
       estimated: estimatedApr ?? undefined,
       oracle: {
         apr: oracleApr,
-        netAPR: oracleApr != null
-          ? oracleApr * (1 - fees.performanceFee / 10_000) - fees.managementFee / 10_000
-          : undefined,
+        netAPR: oracleNetApr,
         apy: oracleApy,
-        netAPY: oracleApy != null
-          ? oracleApy * (1 - fees.performanceFee / 10_000) - fees.managementFee / 10_000
-          : undefined,
+        netAPY: oracleNetApr != null ? computeApy(oracleNetApr) : undefined,
       },
       historical: apy ? {
         net: apy.net,

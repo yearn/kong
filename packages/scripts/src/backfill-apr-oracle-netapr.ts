@@ -1,6 +1,7 @@
 import 'lib/global'
 
-import { extractFeesBps } from 'ingest/abis/yearn/3/vault/snapshot/hook'
+import { projectStrategies } from 'ingest/abis/yearn/3/vault/snapshot/hook'
+import { computeApy, computeNetApr, extractFees__v3 } from 'ingest/abis/yearn/lib/apy'
 import db from 'ingest/db'
 import { upsertBatchOutput } from 'ingest/load'
 import { rpcs } from 'ingest/rpcs'
@@ -22,17 +23,6 @@ type TimeseriesCandidate = {
   apr: number
   hasNetApr: boolean
   hasNetApy: boolean
-}
-
-type VaultSnapshotRow = {
-  chainId: number
-  address: `0x${string}`
-  snapshot: Record<string, unknown>
-}
-
-type FeeRates = {
-  management: number
-  performance: number
 }
 
 const WRITE_BATCH_SIZE = 200
@@ -62,16 +52,6 @@ defaults:
     chainId: chainId ? Number(chainId) : undefined,
     address: address ? getAddress(address as `0x${string}`) : undefined,
   }
-}
-
-function computeFeeAdjustedApr(apr: number, fees: FeeRates): number {
-  const next = apr * (1 - fees.performance) - fees.management
-  return Number.isFinite(next) ? next : 0
-}
-
-function computeApy(apr: number): number {
-  const next = (1 + apr / 52) ** 52 - 1
-  return Number.isFinite(next) ? next : 0
 }
 
 async function getTimeseriesCandidates(args: Args): Promise<TimeseriesCandidate[]> {
@@ -129,75 +109,30 @@ async function getTimeseriesCandidates(args: Args): Promise<TimeseriesCandidate[
   }))
 }
 
-async function getV3VaultSnapshots(args: Args): Promise<Map<string, Record<string, unknown>>> {
-  const values: Array<number | string> = []
-  const filters: string[] = []
-
-  if (args.chainId !== undefined) {
-    values.push(args.chainId)
-    filters.push(`s.chain_id = $${values.length}`)
-  }
-
-  if (args.address) {
-    values.push(args.address)
-    filters.push(`s.address = $${values.length}`)
-  }
-
-  const whereClause = filters.length > 0 ? `AND ${filters.join(' AND ')}` : ''
-
-  const result = await db.query(`
-    SELECT
-      s.chain_id AS "chainId",
-      s.address,
-      s.snapshot
-    FROM snapshot s
-    JOIN thing t
-      ON t.chain_id = s.chain_id
-      AND t.address = s.address
-      AND t.label = 'vault'
-      AND COALESCE((t.defaults->>'v3')::boolean, false)
-    WHERE TRUE
-      ${whereClause}
-  `, values)
-
-  const map = new Map<string, Record<string, unknown>>()
-  for (const row of result.rows as VaultSnapshotRow[]) {
-    map.set(`${row.chainId}:${row.address}`, row.snapshot ?? {})
-  }
-
-  return map
-}
-
 async function backfillTimeseries(args: Args) {
   const candidates = await getTimeseriesCandidates(args)
-  console.log(`🕒 timeseries candidates: ${candidates.length}`)
+  console.log(`timeseries candidates: ${candidates.length}`)
   if (candidates.length === 0) return
 
-  const snapshots = await getV3VaultSnapshots(args)
-  const feesByVault = new Map<string, FeeRates>()
+  const feeCache = new Map<string, { management: number; performance: number }>()
   const pending: Output[] = []
   let inserted = 0
 
   for (const [index, candidate] of candidates.entries()) {
-    const vaultKey = `${candidate.chainId}:${candidate.address}`
-    let fees = feesByVault.get(vaultKey)
+    const cacheKey = `${candidate.chainId}:${candidate.address}:${candidate.blockNumber}`
+    let fees = feeCache.get(cacheKey)
 
     if (!fees) {
-      const snapshot = snapshots.get(vaultKey)
-      if (!snapshot) {
-        console.warn(`🚨 missing snapshot for ${vaultKey}, defaulting fees to zero`)
+      try {
+        const strategies = await projectStrategies(candidate.chainId, candidate.address, candidate.blockNumber)
+        fees = await extractFees__v3(candidate.chainId, candidate.address, strategies, candidate.blockNumber)
+      } catch {
         fees = { management: 0, performance: 0 }
-      } else {
-        const feeBps = await extractFeesBps(candidate.chainId, candidate.address, snapshot)
-        fees = {
-          management: feeBps.managementFee / 10_000,
-          performance: feeBps.performanceFee / 10_000,
-        }
       }
-      feesByVault.set(vaultKey, fees)
+      feeCache.set(cacheKey, fees)
     }
 
-    const netApr = computeFeeAdjustedApr(candidate.apr, fees)
+    const netApr = computeNetApr(candidate.apr, fees)
     const netApy = computeApy(netApr)
 
     if (!candidate.hasNetApr) {
@@ -231,7 +166,7 @@ async function backfillTimeseries(args: Args) {
     }
 
     if ((index + 1) % 500 === 0 || index === candidates.length - 1) {
-      console.log(`🕒 processed ${index + 1}/${candidates.length} timeseries rows`)
+      console.log(`processed ${index + 1}/${candidates.length} timeseries rows`)
     }
   }
 
@@ -241,13 +176,13 @@ async function backfillTimeseries(args: Args) {
     inserted += batch.length
   }
 
-  console.log(`${args.apply ? '✅' : '🧪'} timeseries outputs ${args.apply ? 'upserted' : 'prepared'}: ${inserted}`)
+  console.log(`${args.apply ? 'upserted' : 'prepared (dry-run)'}: ${inserted} timeseries outputs`)
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
 
-  console.log(args.apply ? '⚠️ apply mode' : '🧪 dry-run mode')
+  console.log(args.apply ? 'apply mode' : 'dry-run mode')
   if (args.chainId !== undefined) console.log(`chainId=${args.chainId}`)
   if (args.address) console.log(`address=${args.address}`)
 
@@ -263,6 +198,6 @@ async function main() {
 }
 
 main().catch(error => {
-  console.error('🤬 backfill-apr-oracle-netapr', error)
+  console.error('backfill-apr-oracle-netapr', error)
   process.exit(1)
 })
