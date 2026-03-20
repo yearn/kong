@@ -528,19 +528,19 @@ async function extractLockerMeta(chainId: number, accountant: `0x${string}`) {
     const [cooldownDuration, withdrawalWindow, feeConfig] = await rpcs.next(chainId).multicall({
       contracts: [
         {
-        address: accountant,
-        abi: parseAbi(['function cooldownDuration() view returns (uint256)']),
-        functionName: 'cooldownDuration',
+          address: accountant,
+          abi: parseAbi(['function cooldownDuration() view returns (uint256)']),
+          functionName: 'cooldownDuration',
         },
         {
-        address: accountant,
-        abi: parseAbi(['function withdrawalWindow() view returns (uint256)']),
-        functionName: 'withdrawalWindow',
+          address: accountant,
+          abi: parseAbi(['function withdrawalWindow() view returns (uint256)']),
+          functionName: 'withdrawalWindow',
         },
         {
-        address: accountant,
-        abi: parseAbi(['function feeConfig() view returns (uint16, uint16, uint16)']),
-        functionName: 'feeConfig',
+          address: accountant,
+          abi: parseAbi(['function feeConfig() view returns (uint16, uint16, uint16)']),
+          functionName: 'feeConfig',
         },
       ],
       allowFailure: true,
