@@ -28,3 +28,13 @@ jobs:
             -d message_thread_id="${TOPIC_ID}" \
             -d text="${MESSAGE}" \
             -d parse_mode="Markdown"
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bun run lint:ingest
+      - run: bun run lint:lib
+      - run: bun run lint:terminal
+      - run: bun run lint:web
