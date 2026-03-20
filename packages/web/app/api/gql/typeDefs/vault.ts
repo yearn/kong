@@ -73,6 +73,12 @@ type Fees {
   performanceFee: Float
 }
 
+type Locker {
+  cooldownDuration: Float
+  withdrawalWindow: Float
+  lockerBonus: Float
+}
+
 type Sparklines {
   tvl: [SparklinePoint]
   apy: [SparklinePoint]
@@ -222,6 +228,7 @@ type Vault {
   allocator: String
   debts: [Debt]
   fees: Fees
+  locker: Locker
   risk: RiskScore
   meta: VaultMeta
   sparklines: Sparklines
