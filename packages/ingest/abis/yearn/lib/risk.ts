@@ -9,7 +9,7 @@ export async function getRiskScore(chainId: number, address: `0x${string}`): Pro
 
 async function fetchRiskScore(chainId: number, address: `0x${string}`): Promise<RiskScore | undefined> {
   try {
-    const baseUrl = process.env.RISK_CDN_URL || 'https://risk.yearn.fi'
+    const baseUrl = process.env.RISK_CDN_URL || 'https://curation.yearn.fi'
     const url = `${baseUrl}/cdn/vaults/${chainId}/${address.toLowerCase()}.json`
     const response = await fetch(url)
 
