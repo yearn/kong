@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { addresses } from '../../../test-addresses'
 import { mainnet, polygon } from 'viem/chains'
-import { _compute, extractFees__v2, extractFees__v3, extractLockedProfit__v2, extractLockedProfit__v3 } from './apy'
+import { _compute, computeApy, computeNetApr, extractFees__v2, extractFees__v3, extractLockedProfit__v2, extractLockedProfit__v3 } from './apy'
 import { EvmLogSchema, ThingSchema } from 'lib/types'
 import { upsertBatch } from '../../../load'
 import db from '../../../db'
@@ -189,5 +189,45 @@ describe('abis/yearn/lib/apy', function() {
     expect(apy.inceptionNet).to.be.closeTo(0.13935788133629456, 1e-5)
     expect(apy.inceptionPricePerShare).to.be.eq(1000000n)
     expect(Number(apy.inceptionBlockNumber)).to.be.closeTo(49181585, 4)
+  })
+
+  describe('computeNetApr', function() {
+    it('returns gross APR when fees are zero', function() {
+      expect(computeNetApr(0.10, { management: 0, performance: 0 })).to.equal(0.10)
+    })
+
+    it('correctly applies performance and management fees', function() {
+      // grossApr=0.10, management=0.02, performance=0.20
+      // netApr = (0.10 - 0.02) * (1 - 0.20) = 0.08 * 0.80 = 0.064
+      expect(computeNetApr(0.10, { management: 0.02, performance: 0.20 })).to.be.closeTo(0.064, 1e-10)
+    })
+
+    it('returns zero when performance fee is 100%', function() {
+      expect(computeNetApr(0.10, { management: 0, performance: 1.0 })).to.equal(0)
+    })
+
+    it('handles zero gross APR', function() {
+      expect(computeNetApr(0, { management: 0, performance: 0.20 })).to.equal(0)
+    })
+
+    it('handles no strategies (zero fees)', function() {
+      expect(computeNetApr(0.05, { management: 0, performance: 0 })).to.equal(0.05)
+    })
+  })
+
+  describe('computeApy', function() {
+    it('returns 0 for zero APR', function() {
+      expect(computeApy(0)).to.equal(0)
+    })
+
+    it('compounds weekly (52 periods)', function() {
+      const apr = 0.10
+      const expected = (1 + apr / 52) ** 52 - 1
+      expect(computeApy(apr)).to.be.closeTo(expected, 1e-15)
+    })
+
+    it('returns 0 for Infinity', function() {
+      expect(computeApy(Infinity)).to.equal(0)
+    })
   })
 })
