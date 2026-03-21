@@ -57,8 +57,8 @@ export default async function (
   try {
     const strategies = await projectStrategies(chainId, address, blockNumber)
     fees = await extractFees__v3(chainId, address, strategies, blockNumber)
-  } catch {
-    // fall through with zero fees
+  } catch (error) {
+    console.warn('🚨', 'apr-oracle fee fetch failed', chainId, address, String(blockNumber), error)
   }
 
   const netApr = computeNetApr(apr, fees)
