@@ -26,6 +26,7 @@ type TimeseriesCandidate = {
 type FeeConfig = { management: number; performance: number }
 type FeeConfigBps = { management: number; performance: number }
 type FeeSegment = { blockNumber: bigint } & FeeConfigBps
+type AccountantSegment = { blockNumber: bigint; accountant: `0x${string}` }
 
 type StrategyChangeEvent = { blockNumber: bigint; strategy: `0x${string}`; type: 'add' | 'revoke' }
 type DebtSnapshot = { blockNumber: bigint; currentDebt: bigint }
@@ -41,6 +42,9 @@ const CUSTOM_FEE_SELECTOR = toEventSelector(
 )
 const REMOVED_CUSTOM_FEE_SELECTOR = toEventSelector(
   'event RemovedCustomFeeConfig(address indexed vault, address indexed strategy)'
+)
+const UPDATE_ACCOUNTANT_SELECTOR = toEventSelector(
+  'event UpdateAccountant(address indexed accountant)'
 )
 
 function parseArgs(argv: string[]): Args {
@@ -125,43 +129,86 @@ async function getTimeseriesCandidates(args: Args): Promise<TimeseriesCandidate[
   }))
 }
 
-/** Get vault→accountant mapping from snapshot table */
-async function getVaultAccountants(candidates: TimeseriesCandidate[]): Promise<Map<string, `0x${string}`>> {
+/** Build vault accountant timelines from UpdateAccountant events, with snapshot fallback when no history exists */
+async function buildVaultAccountantTimelines(
+  candidates: TimeseriesCandidate[]
+): Promise<Map<string, AccountantSegment[]>> {
   const byChain = new Map<number, Set<string>>()
   for (const c of candidates) {
     if (!byChain.has(c.chainId)) byChain.set(c.chainId, new Set())
     byChain.get(c.chainId)!.add(c.address)
   }
 
-  const vaultAccountants = new Map<string, `0x${string}`>()
+  const timelines = new Map<string, AccountantSegment[]>()
 
   for (const [chainId, addresses] of byChain) {
+    const vaults = [...addresses]
+    const history = await db.query(`
+      SELECT chain_id, address, block_number, args
+      FROM evmlog
+      WHERE chain_id = $1 AND address = ANY($2) AND signature = $3
+      ORDER BY block_number ASC, log_index ASC
+    `, [chainId, vaults, UPDATE_ACCOUNTANT_SELECTOR])
+
+    for (const row of history.rows) {
+      const accountant = row.args.accountant ? getAddress(row.args.accountant) as `0x${string}` : zeroAddress
+      if (accountant === zeroAddress) continue
+      const key = `${row.chain_id}:${row.address}`
+      if (!timelines.has(key)) timelines.set(key, [])
+      timelines.get(key)!.push({
+        blockNumber: BigInt(row.block_number),
+        accountant,
+      })
+    }
+
     const result = await db.query(`
       SELECT address, snapshot->>'accountant' AS accountant
       FROM snapshot
       WHERE chain_id = $1 AND address = ANY($2)
         AND snapshot->>'accountant' IS NOT NULL
-    `, [chainId, [...addresses]])
+    `, [chainId, vaults])
 
     for (const row of result.rows) {
-      if (row.accountant && row.accountant !== zeroAddress) {
-        vaultAccountants.set(`${chainId}:${row.address}`, row.accountant)
+      const accountant = row.accountant ? getAddress(row.accountant) as `0x${string}` : zeroAddress
+      if (accountant !== zeroAddress) {
+        const key = `${chainId}:${row.address}`
+        if (!timelines.has(key) || timelines.get(key)!.length === 0) {
+          timelines.set(key, [{ blockNumber: 0n, accountant }])
+        }
       }
     }
   }
 
-  return vaultAccountants
+  return timelines
+}
+
+function lookupAccountantAtBlock(
+  timeline: AccountantSegment[] | undefined,
+  blockNumber: bigint
+): `0x${string}` | undefined {
+  if (!timeline || timeline.length === 0) return undefined
+  let accountant: `0x${string}` | undefined
+  for (const segment of timeline) {
+    if (segment.blockNumber <= blockNumber) {
+      accountant = segment.accountant
+    } else {
+      break
+    }
+  }
+  return accountant
 }
 
 /** Build default fee timelines from UpdateDefaultFeeConfig events in evmlog */
 async function buildDefaultFeeTimelines(
-  vaultAccountants: Map<string, `0x${string}`>
+  vaultAccountants: Map<string, AccountantSegment[]>
 ): Promise<Map<string, FeeSegment[]>> {
   const accountantsByChain = new Map<number, Set<string>>()
-  for (const [key, accountant] of vaultAccountants) {
+  for (const [key, timeline] of vaultAccountants) {
     const chainId = Number(key.split(':')[0])
     if (!accountantsByChain.has(chainId)) accountantsByChain.set(chainId, new Set())
-    accountantsByChain.get(chainId)!.add(accountant)
+    for (const { accountant } of timeline) {
+      accountantsByChain.get(chainId)!.add(accountant)
+    }
   }
 
   const timelines = new Map<string, FeeSegment[]>()
@@ -198,13 +245,15 @@ type CustomFeeEvent = {
 
 /** Build custom fee timelines from UpdateCustomFeeConfig and RemovedCustomFeeConfig events */
 async function buildCustomFeeTimelines(
-  vaultAccountants: Map<string, `0x${string}`>
+  vaultAccountants: Map<string, AccountantSegment[]>
 ): Promise<Map<string, CustomFeeEvent[]>> {
   const accountantsByChain = new Map<number, Set<string>>()
-  for (const [key, accountant] of vaultAccountants) {
+  for (const [key, timeline] of vaultAccountants) {
     const chainId = Number(key.split(':')[0])
     if (!accountantsByChain.has(chainId)) accountantsByChain.set(chainId, new Set())
-    accountantsByChain.get(chainId)!.add(accountant)
+    for (const { accountant } of timeline) {
+      accountantsByChain.get(chainId)!.add(accountant)
+    }
   }
 
   const timelines = new Map<string, CustomFeeEvent[]>()
@@ -335,9 +384,12 @@ function projectStrategiesAtBlock(
   return strategies
 }
 
-/** Build debt timelines from StrategyReported events per (vault, strategy) */
+/** Build debt timelines from debt-changing events per (vault, strategy) */
 const STRATEGY_REPORTED_SELECTOR = toEventSelector(
   'event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 current_debt, uint256 protocol_fees, uint256 total_fees, uint256 total_refunds)'
+)
+const DEBT_UPDATED_SELECTOR = toEventSelector(
+  'event DebtUpdated(address indexed strategy, uint256 current_debt, uint256 new_debt)'
 )
 
 async function buildDebtTimelines(
@@ -353,19 +405,22 @@ async function buildDebtTimelines(
 
   for (const [chainId, addresses] of byChain) {
     const result = await db.query(`
-      SELECT chain_id, address, block_number, args
+      SELECT chain_id, address, block_number, log_index, signature, args
       FROM evmlog
-      WHERE chain_id = $1 AND address = ANY($2) AND signature = $3
+      WHERE chain_id = $1 AND address = ANY($2) AND signature = ANY($3)
       ORDER BY block_number ASC, log_index ASC
-    `, [chainId, [...addresses], STRATEGY_REPORTED_SELECTOR])
+    `, [chainId, [...addresses], [STRATEGY_REPORTED_SELECTOR, DEBT_UPDATED_SELECTOR]])
 
     for (const row of result.rows) {
       const strategy = getAddress(row.args.strategy) as `0x${string}`
       const key = `${row.chain_id}:${row.address}:${strategy}`
       if (!timelines.has(key)) timelines.set(key, [])
+      const currentDebt = row.signature === DEBT_UPDATED_SELECTOR
+        ? BigInt(row.args.new_debt)
+        : BigInt(row.args.current_debt)
       timelines.get(key)!.push({
         blockNumber: BigInt(row.block_number),
-        currentDebt: BigInt(row.args.current_debt),
+        currentDebt,
       })
     }
   }
@@ -458,18 +513,18 @@ function resolveFees(
 }
 
 async function buildCaches(candidates: TimeseriesCandidate[]): Promise<{
-  vaultAccountants: Map<string, `0x${string}`>
+  vaultAccountantTimelines: Map<string, AccountantSegment[]>
   defaultTimelines: Map<string, FeeSegment[]>
   customTimelines: Map<string, CustomFeeEvent[]>
   strategyTimelines: Map<string, StrategyChangeEvent[]>
   debtTimelines: Map<string, DebtSnapshot[]>
 }> {
-  const vaultAccountants = await getVaultAccountants(candidates)
-  console.log(`found accountants for ${vaultAccountants.size} vaults`)
+  const vaultAccountantTimelines = await buildVaultAccountantTimelines(candidates)
+  console.log(`found accountant timelines for ${vaultAccountantTimelines.size} vaults`)
 
   const [defaultTimelines, customTimelines, strategyTimelines, debtTimelines] = await Promise.all([
-    buildDefaultFeeTimelines(vaultAccountants),
-    buildCustomFeeTimelines(vaultAccountants),
+    buildDefaultFeeTimelines(vaultAccountantTimelines),
+    buildCustomFeeTimelines(vaultAccountantTimelines),
     buildStrategyTimelines(candidates),
     buildDebtTimelines(candidates),
   ])
@@ -480,7 +535,7 @@ async function buildCaches(candidates: TimeseriesCandidate[]): Promise<{
   const totalDebtEvents = [...debtTimelines.values()].reduce((sum, t) => sum + t.length, 0)
   console.log(`loaded ${totalDefaultEvents} default fee events, ${totalCustomEvents} custom fee events, ${totalStrategyEvents} strategy events, ${totalDebtEvents} debt events from evmlog`)
 
-  return { vaultAccountants, defaultTimelines, customTimelines, strategyTimelines, debtTimelines }
+  return { vaultAccountantTimelines, defaultTimelines, customTimelines, strategyTimelines, debtTimelines }
 }
 
 async function backfillTimeseries(args: Args) {
@@ -488,14 +543,14 @@ async function backfillTimeseries(args: Args) {
   console.log(`timeseries candidates: ${candidates.length}`)
   if (candidates.length === 0) return
 
-  const { vaultAccountants, defaultTimelines, customTimelines, strategyTimelines, debtTimelines } = await buildCaches(candidates)
+  const { vaultAccountantTimelines, defaultTimelines, customTimelines, strategyTimelines, debtTimelines } = await buildCaches(candidates)
 
   const outputs: Output[] = []
   let noAccountant = 0
 
   for (const candidate of candidates) {
     const vaultKey = `${candidate.chainId}:${candidate.address}`
-    const accountant = vaultAccountants.get(vaultKey)
+    const accountant = lookupAccountantAtBlock(vaultAccountantTimelines.get(vaultKey), candidate.blockNumber)
 
     let fees: FeeConfig
     if (!accountant) {
