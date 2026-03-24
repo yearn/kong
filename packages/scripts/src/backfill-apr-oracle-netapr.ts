@@ -568,7 +568,7 @@ async function backfillTimeseries(args: Args) {
     const netApr = computeNetApr(candidate.apr, fees)
     const netApy = computeApy(netApr)
 
-    if (!candidate.hasNetApr) {
+    if (!candidate.hasNetApr && netApr !== 0) {
       outputs.push({
         chainId: candidate.chainId,
         address: candidate.address,
@@ -580,7 +580,7 @@ async function backfillTimeseries(args: Args) {
       })
     }
 
-    if (!candidate.hasNetApy) {
+    if (!candidate.hasNetApy && netApy !== 0) {
       outputs.push({
         chainId: candidate.chainId,
         address: candidate.address,
