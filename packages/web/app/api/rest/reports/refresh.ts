@@ -1,9 +1,7 @@
 import 'lib/global'
-import { createKeyvClient } from '../cache'
+import { cacheMSet, disconnect } from '../cache'
 import { getStrategyReports, getVaults } from './db'
 import { getReportKey } from './redis'
-
-const keyv = createKeyvClient()
 
 const BATCH_SIZE = parseInt(process.env.REFRESH_BATCH_SIZE || '10', 10)
 
@@ -18,21 +16,20 @@ async function refreshReports(): Promise<void> {
 
   for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
     const batch = vaults.slice(i, i + BATCH_SIZE)
-    const results = await Promise.all(batch.map(async (vault) => {
+    const pairs: Array<[string, string]> = []
+
+    await Promise.all(batch.map(async (vault) => {
       const reports = await getStrategyReports(vault.chainId, vault.address)
-      if (!reports || reports.length === 0) return null
-      return {
-        key: getReportKey(vault.chainId, vault.address.toLowerCase()),
-        value: reports,
-      }
+      if (!reports || reports.length === 0) return
+      pairs.push([
+        getReportKey(vault.chainId, vault.address.toLowerCase()),
+        JSON.stringify({ value: reports }),
+      ])
     }))
 
-    const entries = results.filter((r): r is NonNullable<typeof r> => r !== null)
-    if (entries.length > 0) {
-      await keyv.setMany(entries)
-    }
+    await cacheMSet(pairs)
 
-    processed += entries.length
+    processed += pairs.length
     if (processed % 10 === 0) {
       console.log(`Processed ${processed}/${vaults.length} vaults`)
     }
@@ -45,12 +42,12 @@ async function refreshReports(): Promise<void> {
 if (require.main === module) {
   refreshReports()
     .then(async () => {
-      await keyv.disconnect()
+      await disconnect()
       process.exit(0)
     })
     .catch(async (err) => {
       console.error(err)
-      await keyv.disconnect()
+      await disconnect()
       process.exit(1)
     })
 }
