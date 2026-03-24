@@ -1,8 +1,8 @@
-name: timeseries-refresh
+name: timeseries-refresh-historical
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 jobs:
@@ -13,7 +13,7 @@ jobs:
       - uses: oven-sh/setup-bun@v1
       - name: Install dependencies
         run: bun install --frozen-lockfile
-      - name: Refresh timeseries cache
+      - name: Refresh timeseries historical cache
         env:
           POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
           POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
@@ -23,4 +23,4 @@ jobs:
           POSTGRES_SSL: ${{ secrets.POSTGRES_SSL }}
           POSTGRES_POOL_MAX: ${{ vars.POSTGRES_POOL_MAX }}
           REST_CACHE_REDIS_URL: ${{ secrets.REST_CACHE_REDIS_URL }}
-        run: bun packages/web/app/api/rest/timeseries/refresh.ts
+        run: bun packages/web/app/api/rest/timeseries/refresh-historical.ts

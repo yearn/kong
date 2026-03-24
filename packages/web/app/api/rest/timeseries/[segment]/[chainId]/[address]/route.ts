@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getKeyvClient } from '../../../../cache'
 import { labels } from '../../../labels'
-import { getTimeseriesKey } from '../../../redis'
+import { getTimeseriesKey, getTimeseriesLatestKey } from '../../../redis'
 
 export const runtime = 'nodejs'
 
@@ -44,20 +44,35 @@ export async function GET(
     ? requestedComponents
     : [entry.defaultComponent]
 
+  type TimeseriesEntry = { time: number; component: string; value: number }
+
   const addressLower = address.toLowerCase()
-  const cacheKey = getTimeseriesKey(entry.label, Number(chainId), addressLower)
-  let cached
+  const chainIdNum = Number(chainId)
+  const historicalKey = getTimeseriesKey(entry.label, chainIdNum, addressLower)
+  const latestKey = getTimeseriesLatestKey(entry.label, chainIdNum, addressLower)
+
+  let historical: TimeseriesEntry[] = []
+  let latest: TimeseriesEntry[] = []
   try {
-    cached = await timeseriesKeyv.get(cacheKey)
+    const [historicalCached, latestCached] = await Promise.all([
+      timeseriesKeyv.get(historicalKey),
+      timeseriesKeyv.get(latestKey),
+    ])
+    historical = (historicalCached as TimeseriesEntry[]) || []
+    latest = (latestCached as TimeseriesEntry[]) || []
   } catch (err) {
-    console.error(`Redis read failed for ${cacheKey}:`, err)
+    console.error(`Redis read failed for ${historicalKey}:`, err)
     throw err
   }
-  const parsed: Array<{ time: number; component: string; value: number }> = cached
-    ? (cached as Array<{ time: number; component: string; value: number }>)
-    : []
 
-  const filtered = parsed.filter((row) => components.includes(row.component))
+  // Merge: latest rows override historical rows for the same time+component
+  const latestTimes = new Set(latest.map((r) => `${r.time}:${r.component}`))
+  const merged = [
+    ...historical.filter((r) => !latestTimes.has(`${r.time}:${r.component}`)),
+    ...latest,
+  ].sort((a, b) => a.time - b.time)
+
+  const filtered = merged.filter((row) => components.includes(row.component))
 
   return NextResponse.json(filtered, {
     status: 200,

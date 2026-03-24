@@ -1,12 +1,12 @@
-import 'lib/global'
 import { cacheMSet, disconnect } from '../cache'
-import { getRecentStrategyReports, getVaults } from './db'
-import { getReportLatestKey } from './redis'
+import { getRecentTimeseries, getVaults, TimeseriesRow } from './db'
+import { labels } from './labels'
+import { getTimeseriesLatestKey } from './redis'
 
-const BATCH_SIZE = parseInt(process.env.REFRESH_BATCH_SIZE || '10', 10)
+const BATCH_SIZE = 10
 
 async function refreshLatest(): Promise<void> {
-  console.time('refresh vault_reports latest')
+  console.time('refreshLatest')
 
   console.log('Fetching vaults...')
   const vaults = await getVaults()
@@ -19,24 +19,38 @@ async function refreshLatest(): Promise<void> {
     const pairs: Array<[string, string]> = []
 
     await Promise.all(batch.map(async (vault) => {
-      const reports = await getRecentStrategyReports(vault.chainId, vault.address)
-      if (!reports || reports.length === 0) return
-      pairs.push([
-        getReportLatestKey(vault.chainId, vault.address.toLowerCase()),
-        JSON.stringify({ value: reports }),
-      ])
+      const addressLower = vault.address.toLowerCase()
+
+      await Promise.all(labels.map(async ({ label }) => {
+        const rows: TimeseriesRow[] = await getRecentTimeseries(
+          vault.chainId,
+          vault.address,
+          label,
+        )
+
+        const minimal = rows.map(row => ({
+          time: Number(row.time),
+          component: row.component,
+          value: row.value,
+        }))
+
+        pairs.push([
+          getTimeseriesLatestKey(label, vault.chainId, addressLower),
+          JSON.stringify({ value: minimal }),
+        ])
+      }))
     }))
 
     await cacheMSet(pairs)
 
-    processed += pairs.length
+    processed += batch.length
     if (processed % 10 === 0) {
       console.log(`Processed ${processed}/${vaults.length} vaults`)
     }
   }
 
   console.log(`✓ Completed: ${processed} vaults processed`)
-  console.timeEnd('refresh vault_reports latest')
+  console.timeEnd('refreshLatest')
 }
 
 if (require.main === module) {

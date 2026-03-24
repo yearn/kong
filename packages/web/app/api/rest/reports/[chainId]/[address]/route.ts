@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getKeyvClient } from '../../../cache'
 import { VaultReport } from '../../db'
-import { getReportKey } from '../../redis'
+import { getReportKey, getReportLatestKey } from '../../redis'
 
 const keyv = getKeyvClient()
 
@@ -25,17 +25,31 @@ export async function GET(
     )
   }
 
-  const key = getReportKey(chainId, address)
-  const data = await keyv.get(key) as VaultReport[] | undefined
+  const historicalKey = getReportKey(chainId, address)
+  const latestKey = getReportLatestKey(chainId, address)
 
-  if (!data) {
+  const [historical, latest] = await Promise.all([
+    keyv.get(historicalKey) as Promise<VaultReport[] | undefined>,
+    keyv.get(latestKey) as Promise<VaultReport[] | undefined>,
+  ])
+
+  if (!historical && !latest) {
     return NextResponse.json(
       { error: 'Not found' },
       { status: 404 }
     )
   }
 
-  return NextResponse.json(data, {
+  // Merge: dedupe by txHash+logIndex, latest wins, keep DESC order, cap at 1000
+  const latestTxKeys = new Set(
+    (latest || []).map((r) => `${r.transactionHash}:${r.logIndex}`)
+  )
+  const merged = [
+    ...(latest || []),
+    ...(historical || []).filter((r) => !latestTxKeys.has(`${r.transactionHash}:${r.logIndex}`)),
+  ].slice(0, 1000)
+
+  return NextResponse.json(merged, {
     headers: {
       'Cache-Control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
       ...corsHeaders,
