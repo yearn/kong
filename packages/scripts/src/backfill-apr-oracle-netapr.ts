@@ -246,10 +246,10 @@ async function buildCustomFeeTimelines(
   return timelines
 }
 
-/** Find the fee config active at a given block from a sorted timeline */
-function lookupDefaultAtBlock(timeline: FeeSegment[] | undefined, blockNumber: bigint): FeeConfig {
+/** Find the fee config (BPS) active at a given block from a sorted timeline */
+function lookupDefaultAtBlock(timeline: FeeSegment[] | undefined, blockNumber: bigint): FeeConfigBps {
   if (!timeline || timeline.length === 0) return { management: 0, performance: 0 }
-  let result: FeeConfig = { management: 0, performance: 0 }
+  let result: FeeConfigBps = { management: 0, performance: 0 }
   for (const segment of timeline) {
     if (segment.blockNumber <= blockNumber) {
       result = { management: segment.management, performance: segment.performance }
@@ -260,10 +260,10 @@ function lookupDefaultAtBlock(timeline: FeeSegment[] | undefined, blockNumber: b
   return result
 }
 
-/** Find the custom fee config active at a given block, or null if reverted to default */
-function lookupCustomAtBlock(timeline: CustomFeeEvent[] | undefined, blockNumber: bigint): FeeConfig | null {
+/** Find the custom fee config (BPS) active at a given block, or null if reverted to default */
+function lookupCustomAtBlock(timeline: CustomFeeEvent[] | undefined, blockNumber: bigint): FeeConfigBps | null {
   if (!timeline || timeline.length === 0) return null
-  let result: FeeConfig | null = null
+  let result: FeeConfigBps | null = null
   for (const event of timeline) {
     if (event.blockNumber <= blockNumber) {
       result = event.type === 'set' ? { management: event.management, performance: event.performance } : null
@@ -387,7 +387,7 @@ function lookupDebtAtBlock(timeline: DebtSnapshot[] | undefined, blockNumber: bi
   return result
 }
 
-/** Resolve fees for a vault at a given block using debt-weighted averaging (matches production extractFees__v3) */
+/** Resolve fees for a vault at a given block using debt-weighted BPS averaging (matches production extractFees__v3) */
 function resolveFees(
   chainId: number,
   vault: `0x${string}`,
@@ -399,11 +399,16 @@ function resolveFees(
   debtTimelines: Map<string, DebtSnapshot[]>,
 ): FeeConfig {
   const accountantKey = `${chainId}:${accountant}`
-  const defaultFees = lookupDefaultAtBlock(defaultTimelines.get(accountantKey), blockNumber)
+  const defaultFeesBps = lookupDefaultAtBlock(defaultTimelines.get(accountantKey), blockNumber)
 
-  if (strategies.length === 0) return defaultFees
+  if (strategies.length === 0) {
+    return {
+      management: defaultFeesBps.management / 10_000,
+      performance: defaultFeesBps.performance / 10_000,
+    }
+  }
 
-  // Compute debt-weighted fees (matching production extractFees__v3)
+  // Compute debt-weighted fees in BPS (matching production extractFees__v3)
   const debts: bigint[] = strategies.map(strategy => {
     const debtKey = `${chainId}:${vault}:${strategy}`
     return lookupDebtAtBlock(debtTimelines.get(debtKey), blockNumber)
@@ -421,34 +426,34 @@ function resolveFees(
         totalManagement += custom.management
         totalPerformance += custom.performance
       } else {
-        totalManagement += defaultFees.management
-        totalPerformance += defaultFees.performance
+        totalManagement += defaultFeesBps.management
+        totalPerformance += defaultFeesBps.performance
       }
     }
     return {
-      management: totalManagement / strategies.length,
-      performance: totalPerformance / strategies.length,
+      management: (totalManagement / strategies.length) / 10_000,
+      performance: (totalPerformance / strategies.length) / 10_000,
     }
   }
 
-  let weightedManagement = 0
-  let weightedPerformance = 0
+  const feesBps = { management: 0, performance: 0 }
   for (let i = 0; i < strategies.length; i++) {
     const debtRatio = math.div(debts[i], totalDebt)
+    if (Number.isNaN(debtRatio)) continue
     const customKey = `${chainId}:${vault}:${strategies[i]}`
     const custom = lookupCustomAtBlock(customTimelines.get(customKey), blockNumber)
     if (custom) {
-      weightedManagement += debtRatio * custom.management
-      weightedPerformance += debtRatio * custom.performance
+      feesBps.management += debtRatio * custom.management
+      feesBps.performance += debtRatio * custom.performance
     } else {
-      weightedManagement += debtRatio * defaultFees.management
-      weightedPerformance += debtRatio * defaultFees.performance
+      feesBps.management += debtRatio * defaultFeesBps.management
+      feesBps.performance += debtRatio * defaultFeesBps.performance
     }
   }
 
   return {
-    management: weightedManagement,
-    performance: weightedPerformance,
+    management: feesBps.management / 10_000,
+    performance: feesBps.performance / 10_000,
   }
 }
 
