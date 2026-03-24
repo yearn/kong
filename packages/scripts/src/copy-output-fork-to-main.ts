@@ -40,13 +40,13 @@ async function copyOutputs() {
     if (total === 0) return
 
     let copied = 0
-    let lastBlockTime: string | null = null
+    let cursor: { blockTime: string; chainId: number; address: string; component: string } | null = null
 
     while (true) {
       const params: (string | string[] | number)[] = [COMPONENTS, READ_BATCH_SIZE]
       let query: string
 
-      if (lastBlockTime === null) {
+      if (cursor === null) {
         query = `
           SELECT chain_id, address, label, component, value, block_number, block_time, series_time
           FROM output
@@ -55,12 +55,12 @@ async function copyOutputs() {
           LIMIT $2
         `
       } else {
-        params.push(lastBlockTime)
+        params.push(cursor.blockTime, cursor.chainId, cursor.address, cursor.component)
         query = `
           SELECT chain_id, address, label, component, value, block_number, block_time, series_time
           FROM output
           WHERE component = ANY($1)
-            AND (block_time, chain_id, address, component) > ($3::timestamptz, 0, '', '')
+            AND (block_time, chain_id, address, component) > ($3::timestamptz, $4, $5, $6)
           ORDER BY block_time ASC, chain_id ASC, address ASC, component ASC
           LIMIT $2
         `
@@ -71,9 +71,14 @@ async function copyOutputs() {
 
       const rows = result.rows
       const last = rows[rows.length - 1]
-      lastBlockTime = last.block_time instanceof Date
-        ? last.block_time.toISOString()
-        : String(last.block_time)
+      cursor = {
+        blockTime: last.block_time instanceof Date
+          ? last.block_time.toISOString()
+          : String(last.block_time),
+        chainId: last.chain_id,
+        address: last.address,
+        component: last.component,
+      }
 
       const batches: typeof rows[] = []
       for (let i = 0; i < rows.length; i += WRITE_BATCH_SIZE) {
@@ -101,7 +106,7 @@ async function upsertBatch(pool: Pool, rows: Record<string, unknown>[]) {
 
   const values: unknown[] = []
   const rowClauses: string[] = []
-  const COLS = 7
+  const COLS = 8
 
   for (const row of rows) {
     const offset = values.length
@@ -112,6 +117,7 @@ async function upsertBatch(pool: Pool, rows: Record<string, unknown>[]) {
       row.component,
       row.value,
       row.block_number,
+      row.block_time,
       row.series_time,
     )
     const placeholders = Array.from({ length: COLS }, (_, i) => `$${offset + i + 1}`)
@@ -119,12 +125,13 @@ async function upsertBatch(pool: Pool, rows: Record<string, unknown>[]) {
   }
 
   await pool.query(`
-    INSERT INTO output (chain_id, address, label, component, value, block_number, series_time)
+    INSERT INTO output (chain_id, address, label, component, value, block_number, block_time, series_time)
     VALUES ${rowClauses.join(',\n')}
     ON CONFLICT (chain_id, address, label, component, series_time)
     DO UPDATE SET
       value = EXCLUDED.value,
-      block_number = EXCLUDED.block_number
+      block_number = EXCLUDED.block_number,
+      block_time = EXCLUDED.block_time
   `, values)
 }
 

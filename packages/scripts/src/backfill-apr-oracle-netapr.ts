@@ -1,10 +1,9 @@
 import 'lib/global'
 
-import { projectStrategies } from 'ingest/abis/yearn/3/vault/snapshot/hook'
 import { computeApy, computeNetApr } from 'ingest/abis/yearn/lib/apy'
 import db from 'ingest/db'
 import { upsertBatchOutput } from 'ingest/load'
-import { mq } from 'lib'
+import { math, mq } from 'lib'
 import type { Output } from 'lib/types'
 import { getAddress, toEventSelector, zeroAddress } from 'viem'
 
@@ -26,6 +25,9 @@ type TimeseriesCandidate = {
 
 type FeeConfig = { management: number; performance: number }
 type FeeSegment = { blockNumber: bigint } & FeeConfig
+
+type StrategyChangeEvent = { blockNumber: bigint; strategy: `0x${string}`; type: 'add' | 'revoke' }
+type DebtSnapshot = { blockNumber: bigint; currentDebt: bigint }
 
 const WRITE_BATCH_SIZE = 1000
 const WRITE_CONCURRENCY = 10
@@ -271,7 +273,120 @@ function lookupCustomAtBlock(timeline: CustomFeeEvent[] | undefined, blockNumber
   return result
 }
 
-/** Resolve fees for a vault at a given block using evmlog-based fee timelines */
+/** Build strategy change timelines from StrategyChanged events per vault */
+const STRATEGY_CHANGED_SELECTOR = toEventSelector(
+  'event StrategyChanged(address indexed strategy, uint256 change_type)'
+)
+
+async function buildStrategyTimelines(
+  candidates: TimeseriesCandidate[]
+): Promise<Map<string, StrategyChangeEvent[]>> {
+  const byChain = new Map<number, Set<string>>()
+  for (const c of candidates) {
+    if (!byChain.has(c.chainId)) byChain.set(c.chainId, new Set())
+    byChain.get(c.chainId)!.add(c.address)
+  }
+
+  const timelines = new Map<string, StrategyChangeEvent[]>()
+
+  for (const [chainId, addresses] of byChain) {
+    const result = await db.query(`
+      SELECT chain_id, address, block_number, args
+      FROM evmlog
+      WHERE chain_id = $1 AND address = ANY($2) AND signature = $3
+      ORDER BY block_number ASC, log_index ASC
+    `, [chainId, [...addresses], STRATEGY_CHANGED_SELECTOR])
+
+    for (const row of result.rows) {
+      const key = `${row.chain_id}:${row.address}`
+      if (!timelines.has(key)) timelines.set(key, [])
+      const changeType: Record<number, 'add' | 'revoke'> = { [2 ** 0]: 'add', [2 ** 1]: 'revoke' }
+      const type = changeType[Number(row.args.change_type)]
+      if (type) {
+        timelines.get(key)!.push({
+          blockNumber: BigInt(row.block_number),
+          strategy: getAddress(row.args.strategy) as `0x${string}`,
+          type,
+        })
+      }
+    }
+  }
+
+  return timelines
+}
+
+/** Project strategy set at a given block by replaying StrategyChanged events */
+function projectStrategiesAtBlock(
+  timeline: StrategyChangeEvent[] | undefined,
+  blockNumber: bigint
+): `0x${string}`[] {
+  if (!timeline) return []
+  const strategies: `0x${string}`[] = []
+  for (const event of timeline) {
+    if (event.blockNumber > blockNumber) break
+    if (event.type === 'add') {
+      if (!strategies.includes(event.strategy)) strategies.push(event.strategy)
+    } else {
+      const idx = strategies.indexOf(event.strategy)
+      if (idx >= 0) strategies.splice(idx, 1)
+    }
+  }
+  return strategies
+}
+
+/** Build debt timelines from StrategyReported events per (vault, strategy) */
+const STRATEGY_REPORTED_SELECTOR = toEventSelector(
+  'event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 current_debt, uint256 protocol_fees, uint256 total_fees, uint256 total_refunds)'
+)
+
+async function buildDebtTimelines(
+  candidates: TimeseriesCandidate[]
+): Promise<Map<string, DebtSnapshot[]>> {
+  const byChain = new Map<number, Set<string>>()
+  for (const c of candidates) {
+    if (!byChain.has(c.chainId)) byChain.set(c.chainId, new Set())
+    byChain.get(c.chainId)!.add(c.address)
+  }
+
+  const timelines = new Map<string, DebtSnapshot[]>()
+
+  for (const [chainId, addresses] of byChain) {
+    const result = await db.query(`
+      SELECT chain_id, address, block_number, args
+      FROM evmlog
+      WHERE chain_id = $1 AND address = ANY($2) AND signature = $3
+      ORDER BY block_number ASC, log_index ASC
+    `, [chainId, [...addresses], STRATEGY_REPORTED_SELECTOR])
+
+    for (const row of result.rows) {
+      const strategy = getAddress(row.args.strategy) as `0x${string}`
+      const key = `${row.chain_id}:${row.address}:${strategy}`
+      if (!timelines.has(key)) timelines.set(key, [])
+      timelines.get(key)!.push({
+        blockNumber: BigInt(row.block_number),
+        currentDebt: BigInt(row.args.current_debt),
+      })
+    }
+  }
+
+  return timelines
+}
+
+/** Lookup the latest debt snapshot for a strategy at or before blockNumber */
+function lookupDebtAtBlock(timeline: DebtSnapshot[] | undefined, blockNumber: bigint): bigint {
+  if (!timeline || timeline.length === 0) return 0n
+  let result = 0n
+  for (const snapshot of timeline) {
+    if (snapshot.blockNumber <= blockNumber) {
+      result = snapshot.currentDebt
+    } else {
+      break
+    }
+  }
+  return result
+}
+
+/** Resolve fees for a vault at a given block using debt-weighted averaging (matches production extractFees__v3) */
 function resolveFees(
   chainId: number,
   vault: `0x${string}`,
@@ -280,52 +395,86 @@ function resolveFees(
   blockNumber: bigint,
   defaultTimelines: Map<string, FeeSegment[]>,
   customTimelines: Map<string, CustomFeeEvent[]>,
+  debtTimelines: Map<string, DebtSnapshot[]>,
 ): FeeConfig {
   const accountantKey = `${chainId}:${accountant}`
   const defaultFees = lookupDefaultAtBlock(defaultTimelines.get(accountantKey), blockNumber)
 
   if (strategies.length === 0) return defaultFees
 
-  // Check if any strategy has a custom config at this block
-  let totalManagement = 0
-  let totalPerformance = 0
-  for (const strategy of strategies) {
-    const customKey = `${chainId}:${vault}:${strategy}`
-    const custom = lookupCustomAtBlock(customTimelines.get(customKey), blockNumber)
-    if (custom) {
-      totalManagement += custom.management
-      totalPerformance += custom.performance
-    } else {
-      totalManagement += defaultFees.management
-      totalPerformance += defaultFees.performance
+  // Compute debt-weighted fees (matching production extractFees__v3)
+  const debts: bigint[] = strategies.map(strategy => {
+    const debtKey = `${chainId}:${vault}:${strategy}`
+    return lookupDebtAtBlock(debtTimelines.get(debtKey), blockNumber)
+  })
+  const totalDebt = debts.reduce((a, b) => a + b, 0n)
+
+  // If no debt data, fall back to equal weighting
+  if (totalDebt === 0n) {
+    let totalManagement = 0
+    let totalPerformance = 0
+    for (const strategy of strategies) {
+      const customKey = `${chainId}:${vault}:${strategy}`
+      const custom = lookupCustomAtBlock(customTimelines.get(customKey), blockNumber)
+      if (custom) {
+        totalManagement += custom.management
+        totalPerformance += custom.performance
+      } else {
+        totalManagement += defaultFees.management
+        totalPerformance += defaultFees.performance
+      }
+    }
+    return {
+      management: totalManagement / strategies.length,
+      performance: totalPerformance / strategies.length,
     }
   }
 
-  // Equal-weighted average across strategies (approximation without on-chain debt data)
+  let weightedManagement = 0
+  let weightedPerformance = 0
+  for (let i = 0; i < strategies.length; i++) {
+    const debtRatio = math.div(debts[i], totalDebt)
+    const customKey = `${chainId}:${vault}:${strategies[i]}`
+    const custom = lookupCustomAtBlock(customTimelines.get(customKey), blockNumber)
+    if (custom) {
+      weightedManagement += debtRatio * custom.management
+      weightedPerformance += debtRatio * custom.performance
+    } else {
+      weightedManagement += debtRatio * defaultFees.management
+      weightedPerformance += debtRatio * defaultFees.performance
+    }
+  }
+
   return {
-    management: totalManagement / strategies.length,
-    performance: totalPerformance / strategies.length,
+    management: weightedManagement,
+    performance: weightedPerformance,
   }
 }
 
-async function buildFeeCache(candidates: TimeseriesCandidate[]): Promise<{
+async function buildCaches(candidates: TimeseriesCandidate[]): Promise<{
   vaultAccountants: Map<string, `0x${string}`>
   defaultTimelines: Map<string, FeeSegment[]>
   customTimelines: Map<string, CustomFeeEvent[]>
+  strategyTimelines: Map<string, StrategyChangeEvent[]>
+  debtTimelines: Map<string, DebtSnapshot[]>
 }> {
   const vaultAccountants = await getVaultAccountants(candidates)
   console.log(`found accountants for ${vaultAccountants.size} vaults`)
 
-  const [defaultTimelines, customTimelines] = await Promise.all([
+  const [defaultTimelines, customTimelines, strategyTimelines, debtTimelines] = await Promise.all([
     buildDefaultFeeTimelines(vaultAccountants),
     buildCustomFeeTimelines(vaultAccountants),
+    buildStrategyTimelines(candidates),
+    buildDebtTimelines(candidates),
   ])
 
   const totalDefaultEvents = [...defaultTimelines.values()].reduce((sum, t) => sum + t.length, 0)
   const totalCustomEvents = [...customTimelines.values()].reduce((sum, t) => sum + t.length, 0)
-  console.log(`loaded ${totalDefaultEvents} default fee events, ${totalCustomEvents} custom fee events from evmlog`)
+  const totalStrategyEvents = [...strategyTimelines.values()].reduce((sum, t) => sum + t.length, 0)
+  const totalDebtEvents = [...debtTimelines.values()].reduce((sum, t) => sum + t.length, 0)
+  console.log(`loaded ${totalDefaultEvents} default fee events, ${totalCustomEvents} custom fee events, ${totalStrategyEvents} strategy events, ${totalDebtEvents} debt events from evmlog`)
 
-  return { vaultAccountants, defaultTimelines, customTimelines }
+  return { vaultAccountants, defaultTimelines, customTimelines, strategyTimelines, debtTimelines }
 }
 
 async function backfillTimeseries(args: Args) {
@@ -333,36 +482,7 @@ async function backfillTimeseries(args: Args) {
   console.log(`timeseries candidates: ${candidates.length}`)
   if (candidates.length === 0) return
 
-  const { vaultAccountants, defaultTimelines, customTimelines } = await buildFeeCache(candidates)
-
-  // Cache strategies per vault to avoid repeated DB queries
-  const strategyCache = new Map<string, `0x${string}`[]>()
-
-  // Group candidates by vault for strategy caching
-  const vaultCandidates = new Map<string, TimeseriesCandidate[]>()
-  for (const c of candidates) {
-    const key = `${c.chainId}:${c.address}`
-    if (!vaultCandidates.has(key)) vaultCandidates.set(key, [])
-    vaultCandidates.get(key)!.push(c)
-  }
-
-  // Pre-fetch strategies for each vault at each unique block
-  // (projectStrategies is a DB query, not RPC)
-  const STRATEGY_CONCURRENCY = 10
-  const vaultEntries = [...vaultCandidates.entries()]
-  for (let i = 0; i < vaultEntries.length; i += STRATEGY_CONCURRENCY) {
-    const batch = vaultEntries.slice(i, i + STRATEGY_CONCURRENCY)
-    await Promise.all(batch.map(async ([key, vCandidates]) => {
-      const { chainId, address } = vCandidates[0]
-      // Use the latest blockNumber for strategy projection
-      const maxBlock = vCandidates.reduce((max, c) => c.blockNumber > max ? c.blockNumber : max, 0n)
-      const strategies = await projectStrategies(chainId, address, maxBlock)
-      strategyCache.set(key, strategies)
-    }))
-    if ((i + STRATEGY_CONCURRENCY) % 200 === 0 || i + STRATEGY_CONCURRENCY >= vaultEntries.length) {
-      console.log(`fetched strategies ${Math.min(i + STRATEGY_CONCURRENCY, vaultEntries.length)}/${vaultEntries.length}`)
-    }
-  }
+  const { vaultAccountants, defaultTimelines, customTimelines, strategyTimelines, debtTimelines } = await buildCaches(candidates)
 
   const outputs: Output[] = []
   let noAccountant = 0
@@ -376,10 +496,11 @@ async function backfillTimeseries(args: Args) {
       fees = { management: 0, performance: 0 }
       noAccountant++
     } else {
-      const strategies = strategyCache.get(vaultKey) ?? []
+      // Project strategies at this candidate's block (not latest)
+      const strategies = projectStrategiesAtBlock(strategyTimelines.get(vaultKey), candidate.blockNumber)
       fees = resolveFees(
         candidate.chainId, candidate.address, accountant, strategies,
-        candidate.blockNumber, defaultTimelines, customTimelines,
+        candidate.blockNumber, defaultTimelines, customTimelines, debtTimelines,
       )
     }
 
