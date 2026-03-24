@@ -24,7 +24,8 @@ type TimeseriesCandidate = {
 }
 
 type FeeConfig = { management: number; performance: number }
-type FeeSegment = { blockNumber: bigint } & FeeConfig
+type FeeConfigBps = { management: number; performance: number }
+type FeeSegment = { blockNumber: bigint } & FeeConfigBps
 
 type StrategyChangeEvent = { blockNumber: bigint; strategy: `0x${string}`; type: 'add' | 'revoke' }
 type DebtSnapshot = { blockNumber: bigint; currentDebt: bigint }
@@ -179,8 +180,8 @@ async function buildDefaultFeeTimelines(
       const cfg = row.args.defaultFeeConfig ?? row.args
       timelines.get(key)!.push({
         blockNumber: BigInt(row.block_number),
-        management: Number(cfg.managementFee ?? cfg[0] ?? 0) / 10_000,
-        performance: Number(cfg.performanceFee ?? cfg[1] ?? 0) / 10_000,
+        management: Number(cfg.managementFee ?? cfg[0] ?? 0),
+        performance: Number(cfg.performanceFee ?? cfg[1] ?? 0),
       })
     }
   }
@@ -228,8 +229,8 @@ async function buildCustomFeeTimelines(
         timelines.get(key)!.push({
           blockNumber: BigInt(row.block_number),
           type: 'set',
-          management: Number(cfg.managementFee ?? cfg[0] ?? 0) / 10_000,
-          performance: Number(cfg.performanceFee ?? cfg[1] ?? 0) / 10_000,
+          management: Number(cfg.managementFee ?? cfg[0] ?? 0),
+          performance: Number(cfg.performanceFee ?? cfg[1] ?? 0),
         })
       } else {
         timelines.get(key)!.push({
