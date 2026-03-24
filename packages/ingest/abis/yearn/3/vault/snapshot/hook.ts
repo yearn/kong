@@ -10,6 +10,7 @@ import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../..
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
 import * as things from '../../../../../things'
+import { computeApy, computeNetApr } from '../../../lib/apy'
 import { fetchOrExtractErc20 } from '../../../lib'
 import { getStrategyMeta, getTokenMeta, getVaultMeta } from '../../../lib/meta'
 import { getRiskScore } from '../../../lib/risk'
@@ -24,6 +25,8 @@ export const CompositionSchema = z.object({
   performance: z.object({
     estimated: EstimatedAprSchema.nullish(),
     oracle: z.object({
+      netAPR: z.number().nullish(),
+      netAPY: z.number().nullish(),
       apr: z.number().nullish(),
       apy: z.number().nullish()
     }).nullish(),
@@ -146,6 +149,10 @@ export default async function process(chainId: number, address: `0x${string}`, d
     LIMIT 1
   `, [chainId, address])
 
+  const oracleNetApr = oracleApr != null
+    ? computeNetApr(oracleApr, { management: fees.managementFee / 10_000, performance: fees.performanceFee / 10_000 })
+    : undefined
+
   return {
     asset, strategies, allocator, roles, debts, composition, fees, locker,
     risk, meta: { ...meta, token },
@@ -156,10 +163,9 @@ export default async function process(chainId: number, address: `0x${string}`, d
       estimated: estimatedApr ?? undefined,
       oracle: {
         apr: oracleApr,
-        netAPR: oracleApr != null
-          ? oracleApr * (1 - fees.performanceFee / 10_000) - fees.managementFee / 10_000
-          : undefined,
-        apy: oracleApy
+        netAPR: oracleNetApr,
+        apy: oracleApy,
+        netAPY: oracleNetApr != null ? computeApy(oracleNetApr) : undefined,
       },
       historical: apy ? {
         net: apy.net,

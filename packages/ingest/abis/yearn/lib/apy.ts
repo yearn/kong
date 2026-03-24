@@ -452,3 +452,12 @@ export async function extractLockedProfit__v3(chainId: number, address: `0x${str
     return undefined
   }
 }
+
+export function computeNetApr(grossApr: number, fees: { management: number; performance: number }): number {
+  return (grossApr - fees.management) * (1 - fees.performance)
+}
+
+export function computeApy(apr: number): number {
+  const result = (1 + apr / 52) ** 52 - 1
+  return Number.isFinite(result) ? result : 0
+}
