@@ -1,4 +1,4 @@
-name: Reports Refresh Historical
+name: reports-refresh-historical
 
 on:
   schedule:

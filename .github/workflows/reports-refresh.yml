@@ -1,4 +1,4 @@
-name: Reports Refresh
+name: reports-refresh
 
 on:
   schedule:
