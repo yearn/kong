@@ -17,7 +17,7 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: cd packages/web && bun install
+        run: bun install --frozen-lockfile
 
       - name: Run Refresh Script
         env:
@@ -29,4 +29,4 @@ jobs:
           POSTGRES_SSL: ${{ secrets.POSTGRES_SSL }}
           POSTGRES_POOL_MAX: ${{ vars.POSTGRES_POOL_MAX }}
           REST_CACHE_REDIS_URL: ${{ secrets.REST_CACHE_REDIS_URL }}
-        run: cd packages/web && bun app/api/rest/reports/refresh.ts
+        run: bun packages/web/app/api/rest/reports/refresh.ts
