@@ -76,7 +76,7 @@ export async function getRecentTimeseries(
     WHERE chain_id = $1
       AND address = $2
       AND label = $3
-      AND series_time >= date_trunc('day', NOW()) - INTERVAL '1 day'
+      AND series_time >= date_trunc('day', NOW()) - INTERVAL '2 days'
     GROUP BY chain_id, address, component, time
     ORDER BY time ASC
   `,
