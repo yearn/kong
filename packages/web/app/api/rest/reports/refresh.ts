@@ -29,7 +29,7 @@ async function refreshLatest(): Promise<void> {
 
     await cacheMSet(pairs)
 
-    processed += pairs.length
+    processed += batch.length
     if (processed % 10 === 0) {
       console.log(`Processed ${processed}/${vaults.length} vaults`)
     }
