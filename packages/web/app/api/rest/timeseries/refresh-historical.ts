@@ -5,8 +5,8 @@ import { getTimeseriesKey } from './redis'
 
 const BATCH_SIZE = 10
 
-async function refresh24hr(): Promise<void> {
-  console.time('refresh24hr')
+async function refreshHistorical(): Promise<void> {
+  console.time('refreshHistorical')
 
   console.log('Fetching vaults...')
   const vaults = await getVaults()
@@ -50,11 +50,11 @@ async function refresh24hr(): Promise<void> {
   }
 
   console.log(`✓ Completed: ${processed} vaults processed`)
-  console.timeEnd('refresh24hr')
+  console.timeEnd('refreshHistorical')
 }
 
 if (require.main === module) {
-  refresh24hr()
+  refreshHistorical()
     .then(async () => {
       await disconnect()
       process.exit(0)

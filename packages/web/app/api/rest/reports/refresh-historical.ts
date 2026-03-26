@@ -1,12 +1,12 @@
 import 'lib/global'
 import { cacheMSet, disconnect } from '../cache'
-import { getRecentStrategyReports, getVaults } from './db'
-import { getReportLatestKey } from './redis'
+import { getStrategyReports, getVaults } from './db'
+import { getReportKey } from './redis'
 
 const BATCH_SIZE = parseInt(process.env.REFRESH_BATCH_SIZE || '10', 10)
 
-async function refreshLatest(): Promise<void> {
-  console.time('refresh vault_reports latest')
+async function refreshHistorical(): Promise<void> {
+  console.time('refresh vault_reports historical')
 
   console.log('Fetching vaults...')
   const vaults = await getVaults()
@@ -19,10 +19,10 @@ async function refreshLatest(): Promise<void> {
     const pairs: Array<[string, string]> = []
 
     await Promise.all(batch.map(async (vault) => {
-      const reports = await getRecentStrategyReports(vault.chainId, vault.address)
+      const reports = await getStrategyReports(vault.chainId, vault.address)
       if (!reports || reports.length === 0) return
       pairs.push([
-        getReportLatestKey(vault.chainId, vault.address.toLowerCase()),
+        getReportKey(vault.chainId, vault.address.toLowerCase()),
         JSON.stringify({ value: reports }),
       ])
     }))
@@ -36,11 +36,11 @@ async function refreshLatest(): Promise<void> {
   }
 
   console.log(`✓ Completed: ${processed} vaults processed`)
-  console.timeEnd('refresh vault_reports latest')
+  console.timeEnd('refresh vault_reports historical')
 }
 
 if (require.main === module) {
-  refreshLatest()
+  refreshHistorical()
     .then(async () => {
       await disconnect()
       process.exit(0)

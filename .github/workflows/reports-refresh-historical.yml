@@ -1,8 +1,8 @@
-name: reports-refresh
+name: reports-refresh-historical
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 jobs:
@@ -29,4 +29,4 @@ jobs:
           POSTGRES_SSL: ${{ secrets.POSTGRES_SSL }}
           POSTGRES_POOL_MAX: ${{ vars.POSTGRES_POOL_MAX }}
           REST_CACHE_REDIS_URL: ${{ secrets.REST_CACHE_REDIS_URL }}
-        run: bun packages/web/app/api/rest/reports/refresh.ts
+        run: bun packages/web/app/api/rest/reports/refresh-historical.ts
