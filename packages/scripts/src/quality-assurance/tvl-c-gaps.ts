@@ -15,6 +15,7 @@ const { values } = parseArgs({
     address: { type: 'string', short: 'a' },
     start: { type: 'string' },
     end: { type: 'string' },
+    'min-tvl': { type: 'string' },
     concurrency: { type: 'string', short: 'n', default: '10' },
     json: { type: 'string', short: 'j' },
   },
@@ -461,14 +462,37 @@ async function main() {
     }
     console.error(`Found ${vaults.length} vault(s).`)
 
+    const minTvl = values['min-tvl'] ? Number(values['min-tvl']) : null
+    let filteredVaults = vaults
+
+    if (minTvl !== null) {
+      console.error(`Filtering vaults with latest TVL >= $${minTvl}...`)
+      const tvlResult = await pool.query<{ chain_id: number; address: string; value: string }>(
+        `SELECT DISTINCT ON (chain_id, address) chain_id, address, value
+        FROM output
+        WHERE label = 'tvl-c' AND component = 'tvl'
+        ORDER BY chain_id, address, series_time DESC`
+      )
+      const latestTvl = new Map<string, number>()
+      for (const row of tvlResult.rows) {
+        latestTvl.set(`${row.chain_id}:${row.address.toLowerCase()}`, Number(row.value))
+      }
+      const before = filteredVaults.length
+      filteredVaults = filteredVaults.filter((v) => {
+        const tvl = latestTvl.get(`${v.chain_id}:${v.address.toLowerCase()}`)
+        return tvl !== undefined && tvl >= minTvl
+      })
+      console.error(`Filtered ${before - filteredVaults.length} vault(s) below min TVL, ${filteredVaults.length} remaining.`)
+    }
+
     const concurrency = Number(values.concurrency)
     const allGaps: VaultGaps[] = []
 
-    console.error(`Processing ${vaults.length} vaults with concurrency ${concurrency}...`)
+    console.error(`Processing ${filteredVaults.length} vaults with concurrency ${concurrency}...`)
 
     // Process in batches
-    for (let i = 0; i < vaults.length; i += concurrency) {
-      const batch = vaults.slice(i, i + concurrency)
+    for (let i = 0; i < filteredVaults.length; i += concurrency) {
+      const batch = filteredVaults.slice(i, i + concurrency)
 
       const results = await Promise.all(
         batch.map(async (vault) => {
@@ -495,9 +519,9 @@ async function main() {
         if (result) allGaps.push(result)
       }
 
-      const processed = Math.min(i + concurrency, vaults.length)
-      if (processed % 100 === 0 || processed === vaults.length) {
-        console.error(`Processed ${processed}/${vaults.length} vaults...`)
+      const processed = Math.min(i + concurrency, filteredVaults.length)
+      if (processed % 100 === 0 || processed === filteredVaults.length) {
+        console.error(`Processed ${processed}/${filteredVaults.length} vaults...`)
       }
     }
 
