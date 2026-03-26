@@ -13,6 +13,8 @@ const { values } = parseArgs({
   options: {
     chain: { type: 'string', short: 'c' },
     address: { type: 'string', short: 'a' },
+    start: { type: 'string' },
+    end: { type: 'string' },
     concurrency: { type: 'string', short: 'n', default: '10' },
     json: { type: 'string', short: 'j' },
   },
@@ -97,18 +99,28 @@ async function getVaults(): Promise<Vault[]> {
 }
 
 async function fetchTimeseries(chainId: number, address: string): Promise<TimeseriesRow[]> {
-  const result = await pool.query<TimeseriesRow>(
-    `SELECT
+  let query = `SELECT
       series_time,
       MAX(CASE WHEN component = 'tvl' THEN value END) as tvl,
       MAX(CASE WHEN component = 'priceUsd' THEN value END) as price_usd,
       MAX(CASE WHEN component = 'totalAssets' THEN value END) as total_assets
     FROM output
-    WHERE chain_id = $1 AND address = $2 AND label = 'tvl-c'
-    GROUP BY series_time
-    ORDER BY series_time ASC`,
-    [chainId, address]
-  )
+    WHERE chain_id = $1 AND address = $2 AND label = 'tvl-c'`
+  const params: (number | string | Date)[] = [chainId, address]
+
+  if (values.start) {
+    params.push(new Date(values.start))
+    query += ` AND series_time >= $${params.length}`
+  }
+
+  if (values.end) {
+    params.push(new Date(values.end))
+    query += ` AND series_time <= $${params.length}`
+  }
+
+  query += ` GROUP BY series_time ORDER BY series_time ASC`
+
+  const result = await pool.query<TimeseriesRow>(query, params)
   return result.rows
 }
 
