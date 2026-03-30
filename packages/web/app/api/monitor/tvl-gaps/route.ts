@@ -14,8 +14,9 @@ function isAuthenticated(request: NextRequest): boolean {
 
   const token = authHeader.slice(7)
 
-  const tokenBuf = Buffer.from(token)
-  const keyBuf = Buffer.from(apiKey)
+  const encoder = new TextEncoder()
+  const tokenBuf = encoder.encode(token)
+  const keyBuf = encoder.encode(apiKey)
   if (tokenBuf.length !== keyBuf.length) return false
 
   return timingSafeEqual(tokenBuf, keyBuf)
