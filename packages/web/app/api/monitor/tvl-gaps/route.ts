@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { searchParams } = new URL(request.url)
+  const { searchParams } = request.nextUrl
   const minTvl = Number(searchParams.get('minTvl') ?? 500)
   const startDaysAgo = Number(searchParams.get('start') ?? 60)
 

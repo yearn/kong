@@ -1,6 +1,8 @@
 import { Pool } from 'pg'
+import { getAddress } from 'viem'
 
 const DAY_SECONDS = 86400
+const CONCURRENCY = 10
 
 interface TimeseriesRow {
   series_time: bigint
@@ -53,12 +55,20 @@ async function getVaults(pool: Pool): Promise<Vault[]> {
 }
 
 async function filterByMinTvl(pool: Pool, vaults: Vault[], minTvl: number): Promise<Vault[]> {
+  if (vaults.length === 0) return []
+
+  const addresses = vaults.map((v) => getAddress(v.address as `0x${string}`))
+  const chainIds = Array.from(new Set(vaults.map((v) => v.chain_id)))
+
   const tvlResult = await pool.query<{ chain_id: number; address: string; value: string }>(
     `SELECT DISTINCT ON (chain_id, address) chain_id, address, value
     FROM output
     WHERE label = 'tvl-c' AND component = 'tvl'
-    ORDER BY chain_id, address, series_time DESC`
+      AND chain_id = ANY($1) AND address = ANY($2)
+    ORDER BY chain_id, address, series_time DESC`,
+    [chainIds, addresses]
   )
+
   const latestTvl = new Map<string, number>()
   for (const row of tvlResult.rows) {
     latestTvl.set(`${row.chain_id}:${row.address.toLowerCase()}`, Number(row.value))
@@ -81,7 +91,7 @@ async function fetchTimeseries(pool: Pool, chainId: number, address: string, sta
       AND series_time >= NOW() - make_interval(days => $3)
     GROUP BY series_time
     ORDER BY series_time ASC`,
-    [chainId, address, startDaysAgo]
+    [chainId, getAddress(address as `0x${string}`), startDaysAgo]
   )
   return result.rows
 }
@@ -95,12 +105,18 @@ export async function detectTvlGaps(
 
   const gaps: { chainId: number; address: string }[] = []
 
-  for (const vault of vaults) {
-    const data = await fetchTimeseries(pool, vault.chain_id, vault.address, options.startDaysAgo)
-    if (data.length === 0) continue
-
-    if (hasGaps(data)) {
-      gaps.push({ chainId: vault.chain_id, address: vault.address })
+  for (let i = 0; i < vaults.length; i += CONCURRENCY) {
+    const batch = vaults.slice(i, i + CONCURRENCY)
+    const results = await Promise.all(
+      batch.map(async (vault) => {
+        const data = await fetchTimeseries(pool, vault.chain_id, vault.address, options.startDaysAgo)
+        if (data.length === 0) return null
+        if (hasGaps(data)) return { chainId: vault.chain_id, address: vault.address }
+        return null
+      })
+    )
+    for (const result of results) {
+      if (result) gaps.push(result)
     }
   }
 
