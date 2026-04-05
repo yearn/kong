@@ -24,3 +24,9 @@ jobs:
           POSTGRES_POOL_MAX: ${{ vars.POSTGRES_POOL_MAX }}
           REST_CACHE_REDIS_URL: ${{ secrets.REST_CACHE_REDIS_URL }}
         run: bun packages/web/app/api/rest/snapshot/refresh-snapshot.ts
+      - name: Report success to Uptime Kuma
+        if: success()
+        run: curl -fsS -m 10 -o /dev/null "${{ secrets.UPTIME_KUMA_PUSH_URL_SNAPSHOT_REFRESH }}?status=up&msg=OK"
+      - name: Report failure to Uptime Kuma
+        if: failure()
+        run: curl -fsS -m 10 -o /dev/null "${{ secrets.UPTIME_KUMA_PUSH_URL_SNAPSHOT_REFRESH }}?status=down&msg=Run+failed"
