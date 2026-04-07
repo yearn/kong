@@ -30,3 +30,11 @@ jobs:
           POSTGRES_POOL_MAX: ${{ vars.POSTGRES_POOL_MAX }}
           REST_CACHE_REDIS_URL: ${{ secrets.REST_CACHE_REDIS_URL }}
         run: bun packages/web/app/api/rest/reports/refresh.ts
+      - name: Report success to Uptime Kuma
+        if: success()
+        continue-on-error: true
+        run: curl -fsS -m 10 -o /dev/null "${{ secrets.UPTIME_KUMA_PUSH_URL_REPORTS_REFRESH }}?status=up&msg=OK"
+      - name: Report failure to Uptime Kuma
+        if: failure()
+        continue-on-error: true
+        run: curl -fsS -m 10 -o /dev/null "${{ secrets.UPTIME_KUMA_PUSH_URL_REPORTS_REFRESH }}?status=down&msg=Run+failed"
