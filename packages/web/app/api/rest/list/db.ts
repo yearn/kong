@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import db from '../../db'
+import { attachYieldSplitterMetadata } from '../../yieldSplitters'
 
 const CoerceNumber = z.preprocess(
   (val) => (val === null || val === undefined) ? null : Number(val),
@@ -89,6 +90,25 @@ export const VaultListItemSchema = z.object({
 
   // Price
   pricePerShare: CoerceNumber,
+
+  yieldSplitter: z.object({
+    enabled: z.literal(true),
+    sourceVaultAddress: z.string(),
+    sourceVaultName: z.string().optional(),
+    sourceVaultSymbol: z.string().optional(),
+    wantVaultAddress: z.string(),
+    wantVaultName: z.string().optional(),
+    wantVaultSymbol: z.string().optional(),
+    depositAssetAddress: z.string().optional(),
+    depositAssetName: z.string().optional(),
+    depositAssetSymbol: z.string().optional(),
+    rewardTokenAddresses: z.array(z.string()),
+    rewardHandlerAddress: z.string().optional(),
+    tokenizedStrategyAddress: z.string().optional(),
+    displayType: z.literal('Yield Splitter'),
+    displayKind: z.literal('Vault-to-Vault'),
+    uiDescription: z.string()
+  }).optional(),
 })
 
 export type VaultListItem = z.infer<typeof VaultListItemSchema>
@@ -201,5 +221,6 @@ export async function getVaultsList(): Promise<VaultListItem[]> {
     ORDER BY (snapshot.hook->'tvl'->>'close')::double precision DESC NULLS LAST
   `)
 
-  return z.array(VaultListItemSchema).parse(result.rows)
+  const rows = await attachYieldSplitterMetadata(result.rows)
+  return z.array(VaultListItemSchema).parse(rows)
 }

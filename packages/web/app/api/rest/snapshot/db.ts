@@ -1,5 +1,6 @@
 import db from '../../db'
 import { getAddress } from 'viem'
+import { attachYieldSplitterMetadataToRow } from '../../yieldSplitters'
 
 export type VaultRow = {
   chainId: number
@@ -72,7 +73,10 @@ export async function getVaultSnapshot(
     ...row.hook
   }
 
-  return await hydrateStrategyEstimatedApr(chainId, row.address, snapshot)
+  const hydratedSnapshot = await hydrateStrategyEstimatedApr(chainId, row.address, snapshot)
+  return attachYieldSplitterMetadataToRow(hydratedSnapshot as VaultSnapshot & {
+    asset?: { address?: string | null; name?: string | null; symbol?: string | null } | null
+  })
 }
 
 type EstimatedMetric = 'apr' | 'apy'
