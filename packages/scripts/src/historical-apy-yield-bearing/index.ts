@@ -160,6 +160,7 @@ async function main() {
       ON t.chain_id = t2.chain_id
       AND LOWER(t.defaults->>'asset') = LOWER(t2.address)
       AND t2.label = 'vault'
+      AND t2.defaults->>'apiVersion' IS NOT NULL
     LEFT JOIN snapshot s ON t.chain_id = s.chain_id AND t.address = s.address
     WHERE t.label = 'vault'
     ORDER BY t.chain_id, t.address

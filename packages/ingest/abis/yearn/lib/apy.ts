@@ -151,10 +151,12 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
     abi: parseAbi(['function pricePerShare() view returns (uint256)'])
   } as ReadContractParameters
 
-  // When the vault's asset is itself a vault (e.g. Locked yvUSD wraps yvUSD),
-  // compose PPS values to capture the full economic return, not just the wrapper's bonus
+  // When the vault's asset is itself a yield-bearing vault (e.g. Locked yvUSD wraps yvUSD),
+  // compose PPS values to capture the full economic return, not just the wrapper's bonus.
+  // Require apiVersion on the inner vault to confirm it has pricePerShare() (excludes
+  // non-Yearn ERC4626 like sDAI which only expose convertToAssets).
   const assetVault = vault.defaults.asset
-    ? await first<Thing>(ThingSchema, 'SELECT * FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3', [chainId, vault.defaults.asset, 'vault'])
+    ? await first<Thing>(ThingSchema, `SELECT * FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3 AND defaults->>'apiVersion' IS NOT NULL`, [chainId, vault.defaults.asset, 'vault'])
     : undefined
   const assetPpsParameters = assetVault ? {
     address: vault.defaults.asset as `0x${string}`, functionName: 'pricePerShare' as never,
