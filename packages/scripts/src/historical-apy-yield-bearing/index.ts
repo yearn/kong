@@ -269,7 +269,13 @@ async function main() {
         }
 
         // Compute APY deltas from composed PPS
-        const blocksPerDay = weeklyBlock ? (blockNumber - weeklyBlock) / 7n : 7200n
+        // Derive blocksPerDay from weekly or monthly window; no hardcoded fallback
+        const blocksPerDay = weeklyBlock
+          ? (blockNumber - weeklyBlock) / 7n
+          : monthlyBlock
+            ? (blockNumber - monthlyBlock) / 30n
+            : undefined
+        if (!blocksPerDay || blocksPerDay <= 0n) { processed++; continue }
 
         const weeklyNet = composedWeeklyPps !== undefined && weeklyBlock !== undefined
           ? compoundAndAnnualizeDelta(composedWeeklyPps, composedPps, weeklyBlock, blockNumber, blocksPerDay)
@@ -291,7 +297,9 @@ async function main() {
 
         if (net === undefined) { processed++; continue }
 
-        // Scale grossApr proportionally to preserve fee relationship
+        // Scale grossApr proportionally — approximation since we don't re-extract
+        // fees at each historical block. Slight rounding vs live _compute, acceptable
+        // for backfill since the fee ratio (grossApr/net) is preserved.
         const oldNet = components.net || 0
         const oldGrossApr = components.grossApr || 0
         const grossApr = oldNet > 0 ? oldGrossApr * (net / oldNet) : 0
