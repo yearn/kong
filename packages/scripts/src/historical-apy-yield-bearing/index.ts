@@ -23,9 +23,6 @@ const pool = new Pool({
 const { values } = parseArgs({
   args: process.argv.slice(2),
   options: {
-    vaults: { type: 'string' },
-    start: { type: 'string' },
-    end: { type: 'string' },
     'dry-run': { type: 'boolean', default: false },
   },
 })
@@ -150,21 +147,6 @@ async function main() {
   console.log('Connected.')
 
   // 1. Find nested vaults (vault whose asset is also a vault)
-  let vaultFilter = ''
-  const queryParams: (string | number)[] = []
-
-  if (values.vaults) {
-    const pairs = values.vaults.split(',').map(p => {
-      const [chainId, address] = p.split(':')
-      return { chainId: Number(chainId), address }
-    })
-    const conditions = pairs.map((p, i) => {
-      queryParams.push(p.chainId, p.address)
-      return `(t.chain_id = $${i * 2 + 1} AND LOWER(t.address) = LOWER($${i * 2 + 2}))`
-    })
-    vaultFilter = `AND (${conditions.join(' OR ')})`
-  }
-
   const nestedVaultsResult = await pool.query<NestedVault>(`
     SELECT
       t.chain_id as "chainId",
@@ -179,9 +161,9 @@ async function main() {
       AND LOWER(t.defaults->>'asset') = LOWER(t2.address)
       AND t2.label = 'vault'
     LEFT JOIN snapshot s ON t.chain_id = s.chain_id AND t.address = s.address
-    WHERE t.label = 'vault' ${vaultFilter}
+    WHERE t.label = 'vault'
     ORDER BY t.chain_id, t.address
-  `, queryParams)
+  `)
 
   const nestedVaults = nestedVaultsResult.rows
   console.log(`Found ${nestedVaults.length} nested vault(s)\n`)
@@ -202,24 +184,12 @@ async function main() {
     console.log(`  asset: ${vault.asset}`)
 
     // 2. Query all historical apy-bwd-delta-pps output entries
-    let timeFilter = ''
-    const entryParams: (number | string | Date)[] = [vault.chainId, vault.address]
-
-    if (values.start) {
-      entryParams.push(new Date(values.start))
-      timeFilter += ` AND block_time >= $${entryParams.length}`
-    }
-    if (values.end) {
-      entryParams.push(new Date(values.end))
-      timeFilter += ` AND block_time <= $${entryParams.length}`
-    }
-
     const entriesResult = await pool.query(`
       SELECT block_time, block_number, component, value, series_time
       FROM output
-      WHERE chain_id = $1 AND address = $2 AND label = 'apy-bwd-delta-pps' ${timeFilter}
+      WHERE chain_id = $1 AND address = $2 AND label = 'apy-bwd-delta-pps'
       ORDER BY block_time, component
-    `, entryParams)
+    `, [vault.chainId, vault.address])
 
     // Group by series_time
     const groups = new Map<string, ApyEntry>()
