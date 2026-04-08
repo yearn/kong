@@ -136,8 +136,12 @@ export async function getVaultsList(): Promise<VaultListItem[]> {
       -- TVL (USD)
       (snapshot.hook->'tvl'->>'close')::double precision AS tvl,
 
-      -- Performance (APY/APR measures)
-      snapshot.hook->'performance' AS performance,
+      -- Performance (APY/APR measures, strip unused component keys)
+      (snapshot.hook->'performance')
+        #- '{estimated,components,rewardsAPY}'
+        #- '{estimated,components,netAPR}'
+        #- '{estimated,components,netAPY}'
+      AS performance,
 
       -- Fees (coalesce v2 and v3 sources)
       COALESCE(

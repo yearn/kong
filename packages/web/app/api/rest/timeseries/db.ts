@@ -29,6 +29,12 @@ export async function getVaults(): Promise<VaultRow[]> {
   return result.rows as VaultRow[]
 }
 
+/**
+ * Get historical timeseries data, capped at 2 years to bound Postgres egress.
+ * Yearn V3 launched late 2023; no meaningful vault data predates this window.
+ * V2 vaults with older data lose pre-window history — acceptable since chart UIs
+ * typically show ≤1 year and the refresh-historical script caches this result.
+ */
 export async function getFullTimeseries(
   chainId: number,
   address: string,
@@ -48,6 +54,7 @@ export async function getFullTimeseries(
     WHERE chain_id = $1
       AND address = $2
       AND label = $3
+      AND series_time >= NOW() - INTERVAL '2 years'
     GROUP BY chain_id, address, component, time
     ORDER BY time ASC
   `,

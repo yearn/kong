@@ -32,8 +32,10 @@ export async function getVaults(): Promise<VaultRow[]> {
 }
 
 /**
- * Get vault snapshot (same query as GraphQL vault resolver)
- * Combines thing.defaults, snapshot.snapshot, and snapshot.hook
+ * Get vault snapshot with selective field extraction to minimize egress.
+ * Extracts only consumed fields from thing.defaults, snapshot.snapshot, and snapshot.hook JSONB
+ * instead of transferring full blobs. Strips unused fields from composition[], debts[], apy,
+ * tvl, and meta to reduce data transfer. Replaces strategies[] array with strategiesCount integer.
  *
  * @param chainId - Chain ID
  * @param address - Vault address
@@ -47,9 +49,75 @@ export async function getVaultSnapshot(
     SELECT
       thing.chain_id AS "chainId",
       thing.address,
-      thing.defaults,
-      snapshot.snapshot,
-      snapshot.hook
+
+      -- Scalars with V2/V3 fallback
+      COALESCE(thing.defaults->>'apiVersion', snapshot.snapshot->>'apiVersion') AS "apiVersion",
+      thing.defaults->'inceptTime' AS "inceptTime",
+      COALESCE(snapshot.snapshot->>'name', thing.defaults->>'name', snapshot.hook->'meta'->>'name') AS name,
+      COALESCE(snapshot.snapshot->>'symbol', snapshot.hook->'meta'->>'displaySymbol') AS symbol,
+      COALESCE(thing.defaults->'decimals', snapshot.snapshot->'decimals') AS decimals,
+      snapshot.snapshot->>'totalDebt' AS "totalDebt",
+      snapshot.snapshot->>'totalAssets' AS "totalAssets",
+      snapshot.snapshot->>'pricePerShare' AS "pricePerShare",
+
+      -- strategiesCount replaces full strategies[] array
+      COALESCE(jsonb_array_length(snapshot.hook->'strategies'), 0) AS "strategiesCount",
+
+      -- Pass-through hook objects (all fields used)
+      snapshot.hook->'asset' AS asset,
+      snapshot.hook->'risk' AS risk,
+      snapshot.hook->'staking' AS staking,
+      snapshot.hook->'performance' AS performance,
+      snapshot.hook->'sparklines' AS sparklines,
+
+      -- Fees: V3 hook.fees preferred, V2 fallback to snapshot scalars
+      COALESCE(
+        snapshot.hook->'fees',
+        CASE WHEN snapshot.snapshot->>'managementFee' IS NOT NULL
+             OR snapshot.snapshot->>'performanceFee' IS NOT NULL
+        THEN jsonb_build_object(
+          'managementFee', COALESCE((snapshot.snapshot->>'managementFee')::int, 0),
+          'performanceFee', COALESCE((snapshot.snapshot->>'performanceFee')::int, 0)
+        )
+        ELSE NULL END
+      ) AS fees,
+
+      -- apy: strip unused grossApr
+      (snapshot.hook->'apy') - 'grossApr' AS apy,
+
+      -- tvl: keep only close (strip unused label, component)
+      CASE WHEN snapshot.hook->'tvl' IS NOT NULL THEN
+        jsonb_build_object('close', snapshot.hook->'tvl'->'close')
+      ELSE NULL END AS tvl,
+
+      -- meta: strip unused address, chainId, shouldUseV2APR
+      -- meta.token: strip unused displayName, displaySymbol, category
+      CASE WHEN snapshot.hook->'meta' IS NOT NULL THEN
+        CASE WHEN snapshot.hook->'meta'->'token' IS NOT NULL THEN
+          jsonb_set(
+            (snapshot.hook->'meta') - 'address' - 'chainId' - 'shouldUseV2APR',
+            '{token}',
+            (snapshot.hook->'meta'->'token') - 'displayName' - 'displaySymbol' - 'category'
+          )
+        ELSE
+          (snapshot.hook->'meta') - 'address' - 'chainId' - 'shouldUseV2APR'
+        END
+      ELSE NULL END AS meta,
+
+      -- composition[]: strip unused maxDebt, totalDebtUsd, totalGainUsd, totalLossUsd per element
+      COALESCE(
+        (SELECT jsonb_agg(elem - 'maxDebt' - 'totalDebtUsd' - 'totalGainUsd' - 'totalLossUsd')
+         FROM jsonb_array_elements(snapshot.hook->'composition') AS elem),
+        '[]'::jsonb
+      ) AS composition,
+
+      -- debts[]: strip unused maxDebt, targetDebtRatio, maxDebtRatio, currentDebtUsd, maxDebtUsd per element
+      COALESCE(
+        (SELECT jsonb_agg(elem - 'maxDebt' - 'targetDebtRatio' - 'maxDebtRatio' - 'currentDebtUsd' - 'maxDebtUsd')
+         FROM jsonb_array_elements(snapshot.hook->'debts') AS elem),
+        '[]'::jsonb
+      ) AS debts
+
     FROM thing
     JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
@@ -67,9 +135,26 @@ export async function getVaultSnapshot(
   const snapshot: VaultSnapshot = {
     chainId: row.chainId,
     address: row.address,
-    ...row.defaults,
-    ...row.snapshot,
-    ...row.hook
+    apiVersion: row.apiVersion,
+    inceptTime: row.inceptTime,
+    name: row.name,
+    symbol: row.symbol,
+    decimals: row.decimals,
+    totalDebt: row.totalDebt,
+    totalAssets: row.totalAssets,
+    pricePerShare: row.pricePerShare,
+    strategiesCount: row.strategiesCount,
+    asset: row.asset,
+    fees: row.fees,
+    risk: row.risk,
+    staking: row.staking,
+    performance: row.performance,
+    sparklines: row.sparklines,
+    apy: row.apy,
+    tvl: row.tvl,
+    meta: row.meta,
+    composition: row.composition,
+    debts: row.debts,
   }
 
   return await hydrateStrategyEstimatedApr(chainId, row.address, snapshot)
