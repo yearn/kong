@@ -2,7 +2,7 @@ import { compare } from 'compare-versions'
 import { math, multicall3 } from 'lib'
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { EvmLog, EvmLogSchema, Output, OutputSchema, Thing, ThingSchema, zhexstring } from 'lib/types'
-import { ReadContractParameters, parseAbi } from 'viem'
+import { ReadContractParameters, getAddress, parseAbi } from 'viem'
 import { mainnet } from 'viem/chains'
 import { z } from 'zod'
 import { first, query } from '../../../db'
@@ -157,8 +157,10 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
   // non-Yearn ERC4626 like sDAI which only expose convertToAssets).
   const assetVault = vault.defaults.asset
     ? await first<Thing>(ThingSchema,
-      'SELECT * FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3 AND (defaults->\'v3\')::boolean IS TRUE',
-      [chainId, vault.defaults.asset, 'vault'])
+      `
+         SELECT * FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3 AND (defaults->'v3')::boolean IS TRUE
+      `,
+      [chainId, getAddress(vault.defaults.asset as `0x${string}`), 'vault'])
     : undefined
   const assetPpsParameters = assetVault ? {
     address: vault.defaults.asset as `0x${string}`, functionName: 'pricePerShare' as never,

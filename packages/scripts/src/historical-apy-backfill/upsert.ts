@@ -68,7 +68,7 @@ async function main() {
 
     // Upsert and drop in a single transaction
     console.log('\nUpserting...')
-    const client = await (db as any).connect()
+    const client = await db.connect()
     try {
       await client.query('BEGIN')
 
@@ -96,7 +96,7 @@ async function main() {
       client.release()
     }
   } catch (err) {
-    if ((err as any).code === '42P01') {
+    if (err instanceof Error && 'code' in err && (err as { code: string }).code === '42P01') {
       console.error(`Table ${TEMP_TABLE} does not exist. Run compute.ts first.`)
     } else {
       throw err
