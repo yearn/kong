@@ -107,7 +107,7 @@ async function insertTempBatch(rows: Output[]) {
 
     values.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7})`)
     params.push(
-      row.chainId, row.address, row.label, row.component,
+      row.chainId, row.address, row.label, row.component ?? '',
       row.value ?? 0, row.blockNumber.toString(), blockTime, seriesTime
     )
     idx += 8
@@ -204,7 +204,7 @@ async function main() {
   if (!args.dryRun) {
     const count = await db.query(`SELECT COUNT(*) FROM ${TEMP_TABLE}`)
     console.log(`Temp table: ${count.rows[0].count} rows in ${TEMP_TABLE}`)
-    console.log(`\nRun upsert.ts to promote to the output table.`)
+    console.log('\nRun upsert.ts to promote to the output table.')
   }
 
   await mq.down()
