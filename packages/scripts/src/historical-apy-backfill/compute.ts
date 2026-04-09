@@ -2,11 +2,13 @@ import 'lib/global'
 
 import _process from 'ingest/abis/yearn/lib/apy'
 import db from 'ingest/db'
+import { rpcs } from 'ingest/rpcs'
 import { mq } from 'lib'
 import type { Output } from 'lib/types'
 import { getAddress } from 'viem'
 
 const TEMP_TABLE = 'output_temp_apy_backfill'
+const CONCURRENCY = 50
 
 function parseArgs(argv: string[]) {
   const getArg = (flag: string) => {
@@ -46,7 +48,7 @@ Run upsert.ts to promote them to the output table.`)
 
 async function getExistingBlockTimes(
   chainId: number, address: string, start?: string, end?: string
-): Promise<{ blockTime: bigint; seriesTime: Date }[]> {
+): Promise<{ blockTime: bigint; seriesTime: bigint }[]> {
   const params: (number | string | Date)[] = [chainId, address]
   let timeFilter = ''
 
@@ -67,16 +69,15 @@ async function getExistingBlockTimes(
     ORDER BY series_time
   `, params)
 
-  return result.rows.map((row: { series_time: Date; block_time_epoch: string }) => ({
+  return result.rows.map((row: { series_time: bigint; block_time_epoch: string }) => ({
     blockTime: BigInt(row.block_time_epoch),
     seriesTime: row.series_time,
   }))
 }
 
-async function createTempTable() {
-  await db.query(`DROP TABLE IF EXISTS ${TEMP_TABLE}`)
+async function ensureTempTable() {
   await db.query(`
-    CREATE TABLE ${TEMP_TABLE} (
+    CREATE TABLE IF NOT EXISTS ${TEMP_TABLE} (
       chain_id     integer NOT NULL,
       address      text NOT NULL,
       label        text NOT NULL,
@@ -88,7 +89,8 @@ async function createTempTable() {
       PRIMARY KEY  (chain_id, address, label, component, series_time)
     )
   `)
-  console.log(`Created temp table ${TEMP_TABLE}`)
+  const count = await db.query(`SELECT COUNT(*) FROM ${TEMP_TABLE}`)
+  console.log(`Temp table ${TEMP_TABLE}: ${count.rows[0].count} existing rows`)
 }
 
 async function insertTempBatch(rows: Output[]) {
@@ -125,13 +127,15 @@ async function main() {
   const args = parseArgs(process.argv.slice(2))
   const startTime = Date.now()
 
+  await rpcs.up()
+
   console.log(args.dryRun ? 'DRY RUN mode' : 'COMPUTE mode')
   console.log(`Vaults: ${args.vaults.length}`)
   if (args.start) console.log(`Start: ${args.start}`)
   if (args.end) console.log(`End: ${args.end}`)
 
   if (!args.dryRun) {
-    await createTempTable()
+    await ensureTempTable()
   }
 
   let totalEntries = 0
@@ -149,10 +153,10 @@ async function main() {
 
     let processed = 0
     let errors = 0
-    const batchBuffer: Output[] = []
 
-    for (const entry of entries) {
-      try {
+    for (let i = 0; i < entries.length; i += CONCURRENCY) {
+      const batch = entries.slice(i, i + CONCURRENCY)
+      const results = await Promise.allSettled(batch.map(async (entry) => {
         const outputs = await _process(chainId, address as `0x${string}`, 'vault', {
           abiPath: 'yearn/3/vault',
           chainId,
@@ -160,34 +164,25 @@ async function main() {
           outputLabel: 'apy-bwd-delta-pps',
           blockTime: entry.blockTime,
         })
+        return { outputs, entry }
+      }))
 
-        if (outputs.length > 0) {
-          batchBuffer.push(...outputs)
-          totalOutputs += outputs.length
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          const { outputs } = result.value
+          if (outputs.length > 0) {
+            if (!args.dryRun) await insertTempBatch(outputs)
+            totalOutputs += outputs.length
+          }
+          processed++
+        } else {
+          errors++
+          totalErrors++
+          console.error('  Error:', result.reason instanceof Error ? result.reason.message : String(result.reason))
         }
-
-        // Flush in batches of 1000
-        if (!args.dryRun && batchBuffer.length >= 1000) {
-          await insertTempBatch(batchBuffer)
-          batchBuffer.length = 0
-        }
-
-        processed++
-      } catch (err) {
-        errors++
-        totalErrors++
-        const dateStr = entry.seriesTime.toISOString().split('T')[0]
-        console.error(`  Error at ${dateStr}:`, err instanceof Error ? err.message : String(err))
       }
 
-      if (processed % 10 === 0 || processed === entries.length) {
-        process.stdout.write(`\r  ${processed}/${entries.length} processed, ${errors} errors`)
-      }
-    }
-
-    // Flush remaining
-    if (!args.dryRun && batchBuffer.length > 0) {
-      await insertTempBatch(batchBuffer)
+      process.stdout.write(`\r  ${processed}/${entries.length} processed, ${errors} errors`)
     }
 
     console.log()
@@ -207,6 +202,7 @@ async function main() {
     console.log('\nRun upsert.ts to promote to the output table.')
   }
 
+  await rpcs.down()
   await mq.down()
   await db.end()
 }
