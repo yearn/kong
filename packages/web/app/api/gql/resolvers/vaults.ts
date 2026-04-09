@@ -1,5 +1,4 @@
 import db from '@/app/api/db'
-import { attachYieldSplitterMetadata } from '@/app/api/yieldSplitters'
 import { compare } from '@/lib/compare'
 import { DefaultRiskScore, EvmAddressSchema } from 'lib/types'
 
@@ -113,7 +112,7 @@ const vaults = async (_: object, args: {
       })
     }
 
-    return attachYieldSplitterMetadata(rows)
+    return rows
 
   } catch (error) {
     console.error(error)

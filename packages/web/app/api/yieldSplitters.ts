@@ -1,6 +1,7 @@
 import db from './db'
-import chains from 'lib/chains'
-import { createPublicClient, getAddress, http, type Address, type Chain, type PublicClient } from 'viem'
+import chains from '@/chains'
+import { ACTIVE_YIELD_SPLITTER_FACTORIES } from './yieldSplitterConfig'
+import { createPublicClient, getAddress, http, keccak256, toBytes, type Address, type Chain, type PublicClient } from 'viem'
 
 type TAssetLike = {
   address?: string | null
@@ -31,6 +32,11 @@ type TYieldSplitterDynamicRow = {
   rewardTokenAddresses: Address[]
 }
 
+type TYieldSplitterLogQuery = {
+  chainId?: number
+  splitterAddress?: Address
+}
+
 export type YieldSplitterMetadata = {
   enabled: true
   sourceVaultAddress: Address
@@ -51,6 +57,10 @@ export type YieldSplitterMetadata = {
 }
 
 type TCachedYieldSplitterData = Map<string, TYieldSplitterLogRow & TYieldSplitterDynamicRow>
+type TCachedTargetedYieldSplitter = {
+  expiresAt: number
+  data: TYieldSplitterLogRow & TYieldSplitterDynamicRow | null
+}
 
 const YIELD_SPLITTER_ABI = [
   {
@@ -77,10 +87,13 @@ const YIELD_SPLITTER_ABI = [
 ] as const
 
 const CACHE_TTL_MS = 5 * 60 * 1000
+const NEW_YIELD_SPLITTER_EVENT_SIGNATURE = keccak256(toBytes('NewYieldSplitter(address,address,address)'))
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
 let cachedYieldSplitters: { expiresAt: number, data: TCachedYieldSplitterData } | undefined
 let cachedYieldSplittersPromise: Promise<TCachedYieldSplitterData> | undefined
+const cachedTargetedYieldSplitters = new Map<string, TCachedTargetedYieldSplitter>()
+const cachedTargetedYieldSplittersPromises = new Map<string, Promise<TCachedYieldSplitterData>>()
 const rpcClients = new Map<number, PublicClient>()
 
 function getRpcUrl(chain: Chain): string {
@@ -122,6 +135,11 @@ function normalizeAddress(value: unknown): Address | undefined {
   }
 }
 
+function normalizeOptionalAddress(value: unknown): Address | undefined {
+  const address = normalizeAddress(value)
+  return address && address !== ZERO_ADDRESS ? address : undefined
+}
+
 function normalizeAddressArray(value: unknown): Address[] {
   if (!Array.isArray(value)) {
     return []
@@ -143,7 +161,95 @@ function buildYieldSplitterDescription(
   return `Deposit ${depositAssetLabel}; principal is routed through ${sourceVaultLabel} and yield accrues in ${wantVaultLabel}.`
 }
 
-async function fetchYieldSplitterLogRows(): Promise<TYieldSplitterLogRow[]> {
+function buildActiveFactoryValuesClause(startIndex = 1): { clause: string, values: Array<number | string> } {
+  const values: Array<number | string> = []
+  const clause = ACTIVE_YIELD_SPLITTER_FACTORIES.map((factory) => {
+    values.push(factory.chainId)
+    const chainIdIndex = startIndex + values.length - 1
+    values.push(factory.address)
+    const addressIndex = startIndex + values.length - 1
+    return `($${chainIdIndex}::integer, $${addressIndex}::text)`
+  }).join(', ')
+
+  return { clause, values }
+}
+
+function buildYieldSplitterData(
+  logRows: TYieldSplitterLogRow[],
+  dynamicRows: Map<string, TYieldSplitterDynamicRow>
+): TCachedYieldSplitterData {
+  return logRows.reduce((accumulator, row) => {
+    const key = getYieldSplitterKey(row.chainId, row.splitterAddress)
+    accumulator.set(key, {
+      ...row,
+      ...(dynamicRows.get(key) ?? {
+        rewardTokenAddresses: []
+      })
+    })
+    return accumulator
+  }, new Map<string, TYieldSplitterLogRow & TYieldSplitterDynamicRow>())
+}
+
+function getYieldSplitterKey(chainId: number, splitterAddress: string): string {
+  return `${chainId}:${splitterAddress.toLowerCase()}`
+}
+
+function buildTargetedYieldSplitterData(
+  key: string,
+  data: TYieldSplitterLogRow & TYieldSplitterDynamicRow | null
+): TCachedYieldSplitterData {
+  if (!data) {
+    return new Map()
+  }
+
+  return new Map([[key, data]])
+}
+
+function getCachedYieldSplitterData(): TCachedYieldSplitterData | undefined {
+  const now = Date.now()
+  if (cachedYieldSplitters && cachedYieldSplitters.expiresAt > now) {
+    return cachedYieldSplitters.data
+  }
+
+  return undefined
+}
+
+function getCachedTargetedYieldSplitterData(key: string): TCachedYieldSplitterData | undefined {
+  const now = Date.now()
+  const cachedData = cachedTargetedYieldSplitters.get(key)
+  if (!cachedData) {
+    return undefined
+  }
+
+  if (cachedData.expiresAt <= now) {
+    cachedTargetedYieldSplitters.delete(key)
+    return undefined
+  }
+
+  return buildTargetedYieldSplitterData(key, cachedData.data)
+}
+
+async function fetchYieldSplitterLogRows(
+  query: TYieldSplitterLogQuery = {}
+): Promise<TYieldSplitterLogRow[]> {
+  if (ACTIVE_YIELD_SPLITTER_FACTORIES.length === 0) {
+    return []
+  }
+
+  const activeFactoryValues = buildActiveFactoryValuesClause()
+  const params: Array<number | string> = [...activeFactoryValues.values, NEW_YIELD_SPLITTER_EVENT_SIGNATURE]
+  const filters = [`evmlog.signature = $${params.length}`]
+
+  if (query.chainId !== undefined) {
+    params.push(query.chainId)
+    filters.push(`evmlog.chain_id = $${params.length}`)
+  }
+
+  if (query.splitterAddress !== undefined) {
+    params.push(query.splitterAddress)
+    filters.push(`evmlog.args->>'strategy' = $${params.length}`)
+  }
+
   const result = await db.query(`
     SELECT DISTINCT
       evmlog.chain_id AS "chainId",
@@ -169,6 +275,9 @@ async function fetchYieldSplitterLogRows(): Promise<TYieldSplitterLogRow[]> {
         want_snapshot.hook->'meta'->>'displaySymbol'
       ) AS "wantVaultSymbol"
     FROM evmlog
+    JOIN (VALUES ${activeFactoryValues.clause}) AS active_factory(chain_id, address)
+      ON active_factory.chain_id = evmlog.chain_id
+      AND active_factory.address = evmlog.address
     LEFT JOIN thing AS source_thing
       ON source_thing.chain_id = evmlog.chain_id
       AND source_thing.address = evmlog.args->>'vault'
@@ -183,8 +292,8 @@ async function fetchYieldSplitterLogRows(): Promise<TYieldSplitterLogRow[]> {
     LEFT JOIN snapshot AS want_snapshot
       ON want_snapshot.chain_id = evmlog.chain_id
       AND want_snapshot.address = evmlog.args->>'want'
-    WHERE evmlog.event_name = 'NewYieldSplitter'
-  `)
+    WHERE ${filters.join('\n      AND ')}
+  `, params)
 
   const mappedRows: Array<TYieldSplitterLogRow | null> = result.rows
     .map((row) => {
@@ -215,6 +324,14 @@ async function fetchYieldSplitterDynamicRows(
   splitters: TYieldSplitterLogRow[]
 ): Promise<Map<string, TYieldSplitterDynamicRow>> {
   const rowsByKey = new Map<string, TYieldSplitterDynamicRow>()
+  const setDefaultDynamicRows = (chainSplitters: TYieldSplitterLogRow[]) => {
+    chainSplitters.forEach((splitter) => {
+      const splitterKey = `${splitter.chainId}:${splitter.splitterAddress.toLowerCase()}`
+      rowsByKey.set(splitterKey, {
+        rewardTokenAddresses: []
+      })
+    })
+  }
   const rowsByChain = splitters.reduce((accumulator, splitter) => {
     if (!accumulator.has(splitter.chainId)) {
       accumulator.set(splitter.chainId, [])
@@ -225,45 +342,50 @@ async function fetchYieldSplitterDynamicRows(
 
   await Promise.all(
     Array.from(rowsByChain.entries()).map(async ([chainId, chainSplitters]) => {
-      const client = getRpcClient(chainId)
-      const contracts = chainSplitters.flatMap((splitter) => [
-        {
-          address: splitter.splitterAddress,
-          abi: YIELD_SPLITTER_ABI,
-          functionName: 'rewardHandler' as const
-        },
-        {
-          address: splitter.splitterAddress,
-          abi: YIELD_SPLITTER_ABI,
-          functionName: 'tokenizedStrategyAddress' as const
-        },
-        {
-          address: splitter.splitterAddress,
-          abi: YIELD_SPLITTER_ABI,
-          functionName: 'getRewardTokens' as const
-        }
-      ])
+      try {
+        const client = getRpcClient(chainId)
+        const contracts = chainSplitters.flatMap((splitter) => [
+          {
+            address: splitter.splitterAddress,
+            abi: YIELD_SPLITTER_ABI,
+            functionName: 'rewardHandler' as const
+          },
+          {
+            address: splitter.splitterAddress,
+            abi: YIELD_SPLITTER_ABI,
+            functionName: 'tokenizedStrategyAddress' as const
+          },
+          {
+            address: splitter.splitterAddress,
+            abi: YIELD_SPLITTER_ABI,
+            functionName: 'getRewardTokens' as const
+          }
+        ])
 
-      const results = await client.multicall({
-        contracts,
-        allowFailure: true
-      })
-
-      chainSplitters.forEach((splitter, index) => {
-        const rewardHandler = results[index * 3]
-        const tokenizedStrategy = results[index * 3 + 1]
-        const rewardTokens = results[index * 3 + 2]
-        const splitterKey = `${splitter.chainId}:${splitter.splitterAddress.toLowerCase()}`
-
-        rowsByKey.set(splitterKey, {
-          rewardHandlerAddress:
-            rewardHandler?.status === 'success' ? normalizeAddress(rewardHandler.result) : undefined,
-          tokenizedStrategyAddress:
-            tokenizedStrategy?.status === 'success' ? normalizeAddress(tokenizedStrategy.result) : undefined,
-          rewardTokenAddresses:
-            rewardTokens?.status === 'success' ? normalizeAddressArray(rewardTokens.result) : []
+        const results = await client.multicall({
+          contracts,
+          allowFailure: true
         })
-      })
+
+        chainSplitters.forEach((splitter, index) => {
+          const rewardHandler = results[index * 3]
+          const tokenizedStrategy = results[index * 3 + 1]
+          const rewardTokens = results[index * 3 + 2]
+          const splitterKey = `${splitter.chainId}:${splitter.splitterAddress.toLowerCase()}`
+
+          rowsByKey.set(splitterKey, {
+            rewardHandlerAddress:
+              rewardHandler?.status === 'success' ? normalizeOptionalAddress(rewardHandler.result) : undefined,
+            tokenizedStrategyAddress:
+              tokenizedStrategy?.status === 'success' ? normalizeOptionalAddress(tokenizedStrategy.result) : undefined,
+            rewardTokenAddresses:
+              rewardTokens?.status === 'success' ? normalizeAddressArray(rewardTokens.result) : []
+          })
+        })
+      } catch (error) {
+        console.error(`Failed to load yield splitter dynamic metadata for chain ${chainId}`, error)
+        setDefaultDynamicRows(chainSplitters)
+      }
     })
   )
 
@@ -277,16 +399,7 @@ async function loadYieldSplitterData(): Promise<TCachedYieldSplitterData> {
   }
 
   const dynamicRows = await fetchYieldSplitterDynamicRows(logRows)
-  return logRows.reduce((accumulator, row) => {
-    const key = `${row.chainId}:${row.splitterAddress.toLowerCase()}`
-    accumulator.set(key, {
-      ...row,
-      ...(dynamicRows.get(key) ?? {
-        rewardTokenAddresses: []
-      })
-    })
-    return accumulator
-  }, new Map<string, TYieldSplitterLogRow & TYieldSplitterDynamicRow>())
+  return buildYieldSplitterData(logRows, dynamicRows)
 }
 
 async function getYieldSplitterData(): Promise<TCachedYieldSplitterData> {
@@ -302,6 +415,7 @@ async function getYieldSplitterData(): Promise<TCachedYieldSplitterData> {
           expiresAt: Date.now() + CACHE_TTL_MS,
           data
         }
+        cachedTargetedYieldSplitters.clear()
         return data
       })
       .finally(() => {
@@ -312,17 +426,76 @@ async function getYieldSplitterData(): Promise<TCachedYieldSplitterData> {
   return cachedYieldSplittersPromise
 }
 
+async function getYieldSplitterDataForRow<T extends TAddressRow>(
+  row: T
+): Promise<TCachedYieldSplitterData> {
+  const cachedData = getCachedYieldSplitterData()
+  if (cachedData) {
+    return cachedData
+  }
+
+  if (cachedYieldSplittersPromise) {
+    return cachedYieldSplittersPromise
+  }
+
+  const splitterAddress = normalizeAddress(row.address)
+  if (!splitterAddress) {
+    return new Map()
+  }
+
+  const key = getYieldSplitterKey(row.chainId, splitterAddress)
+  const cachedTargetedData = getCachedTargetedYieldSplitterData(key)
+  if (cachedTargetedData) {
+    return cachedTargetedData
+  }
+
+  const cachedPromise = cachedTargetedYieldSplittersPromises.get(key)
+  if (cachedPromise) {
+    return cachedPromise
+  }
+
+  const targetedPromise = fetchYieldSplitterLogRows({
+    chainId: row.chainId,
+    splitterAddress
+  })
+    .then(async (logRows) => {
+      if (logRows.length === 0) {
+        cachedTargetedYieldSplitters.set(key, {
+          expiresAt: Date.now() + CACHE_TTL_MS,
+          data: null
+        })
+        return new Map()
+      }
+
+      const dynamicRows = await fetchYieldSplitterDynamicRows(logRows)
+      const yieldSplitters = buildYieldSplitterData(logRows, dynamicRows)
+
+      cachedTargetedYieldSplitters.set(key, {
+        expiresAt: Date.now() + CACHE_TTL_MS,
+        data: yieldSplitters.get(key) ?? null
+      })
+
+      return yieldSplitters
+    })
+    .finally(() => {
+      cachedTargetedYieldSplittersPromises.delete(key)
+    })
+
+  cachedTargetedYieldSplittersPromises.set(key, targetedPromise)
+  return targetedPromise
+}
+
 function attachYieldSplitterRow<T extends TAddressRow>(
   row: T,
   yieldSplitters: TCachedYieldSplitterData
 ): T & { yieldSplitter?: YieldSplitterMetadata } {
-  const key = `${row.chainId}:${row.address.toLowerCase()}`
+  const key = getYieldSplitterKey(row.chainId, row.address)
   const splitter = yieldSplitters.get(key)
   if (!splitter) {
     return row
   }
 
-  const depositAssetAddress = normalizeAddress(row.asset?.address)
+  const depositAssetAddress = normalizeOptionalAddress(row.asset?.address)
   const yieldSplitter: YieldSplitterMetadata = {
     enabled: true,
     sourceVaultAddress: splitter.sourceVaultAddress,
@@ -363,5 +536,16 @@ export async function attachYieldSplitterMetadataToRow<T extends TAddressRow>(
   row: T
 ): Promise<T & { yieldSplitter?: YieldSplitterMetadata }> {
   const yieldSplitters = await getYieldSplitterData()
+  return attachYieldSplitterRow(row, yieldSplitters)
+}
+
+export async function primeYieldSplitterCache(): Promise<void> {
+  await getYieldSplitterData()
+}
+
+export async function attachYieldSplitterMetadataToRowTargeted<T extends TAddressRow>(
+  row: T
+): Promise<T & { yieldSplitter?: YieldSplitterMetadata }> {
+  const yieldSplitters = await getYieldSplitterDataForRow(row)
   return attachYieldSplitterRow(row, yieldSplitters)
 }

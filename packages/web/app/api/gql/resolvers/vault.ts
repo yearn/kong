@@ -1,5 +1,4 @@
 import db from '@/app/api/db'
-import { attachYieldSplitterMetadataToRow } from '@/app/api/yieldSplitters'
 import { getAddress } from 'viem'
 
 const vault = async (_: object, args: { chainId: number, address: `0x${string}` }) => {
@@ -34,7 +33,7 @@ const vault = async (_: object, args: { chainId: number, address: `0x${string}` 
       return null
     }
 
-    return attachYieldSplitterMetadataToRow(first)
+    return first
 
   } catch (error) {
     console.error(error)
