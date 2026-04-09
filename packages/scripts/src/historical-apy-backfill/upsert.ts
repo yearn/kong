@@ -49,7 +49,7 @@ async function main() {
     `)
     console.log('\nSample rows:')
     for (const row of sample.rows) {
-      const date = row.series_time.toISOString().split('T')[0]
+      const date = new Date(Number(row.series_time) * 1000).toISOString().split('T')[0]
       console.log(`  ${row.chain_id}:${row.address} ${row.component}=${row.value} (${date})`)
     }
 
