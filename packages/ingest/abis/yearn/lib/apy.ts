@@ -1,16 +1,16 @@
-import { z } from 'zod'
-import { Data } from '../../../extract/timeseries'
-import { EvmLog, EvmLogSchema, Output, OutputSchema, Thing, ThingSchema, zhexstring } from 'lib/types'
-import { first, query } from '../../../db'
-import { estimateHeight, getBlock } from 'lib/blocks'
+import { compare } from 'compare-versions'
 import { math, multicall3 } from 'lib'
+import { estimateHeight, getBlock } from 'lib/blocks'
+import { EvmLog, EvmLogSchema, Output, OutputSchema, Thing, ThingSchema, zhexstring } from 'lib/types'
 import { ReadContractParameters, parseAbi } from 'viem'
 import { mainnet } from 'viem/chains'
+import { z } from 'zod'
+import { first, query } from '../../../db'
+import { Data } from '../../../extract/timeseries'
 import { rpcs } from '../../../rpcs'
-import { compare } from 'compare-versions'
+import { extractFeesBps } from '../2/strategy/event/hook'
 import * as snapshot__v2 from '../2/vault/snapshot/hook'
 import * as snapshot__v3 from '../3/vault/snapshot/hook'
-import { extractFeesBps } from '../2/strategy/event/hook'
 
 export const APYSchema = z.object({
   chainId: z.number(),
@@ -156,7 +156,9 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
   // Require apiVersion on the inner vault to confirm it has pricePerShare() (excludes
   // non-Yearn ERC4626 like sDAI which only expose convertToAssets).
   const assetVault = vault.defaults.asset
-    ? await first<Thing>(ThingSchema, `SELECT * FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3 AND defaults->>'apiVersion' IS NOT NULL`, [chainId, vault.defaults.asset, 'vault'])
+    ? await first<Thing>(ThingSchema, `
+      SELECT * FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3 AND (defaults->'v3')::boolean IS TRUE
+    `, [chainId, vault.defaults.asset, 'vault'])
     : undefined
   const assetPpsParameters = assetVault ? {
     address: vault.defaults.asset as `0x${string}`, functionName: 'pricePerShare' as never,
