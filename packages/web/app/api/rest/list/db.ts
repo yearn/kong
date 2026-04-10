@@ -30,7 +30,9 @@ export const VaultListItemSchema = z.object({
   performance: z.object({
     oracle: z.object({
       apr: CoerceNumber,
+      netAPR: CoerceNumber,
       apy: CoerceNumber,
+      netAPY: CoerceNumber,
     }).nullish(),
     historical: z.object({
       net: CoerceNumber,
