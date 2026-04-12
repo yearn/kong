@@ -35,16 +35,29 @@ export default async function (
 
   let apr = 0
   try {
+    // For vaults: getCurrentApr returns the weighted average APR across all strategies
     const rawApr = await rpcs.next(chainId).readContract({
       abi: V3_ORACLE_ABI,
       address: oracleConfig.address,
-      functionName: 'getStrategyApr',
-      args: [address, 0n],
+      functionName: 'getCurrentApr',
+      args: [address],
       blockNumber,
     })
     apr = Number(rawApr) / 1e18
   } catch {
-    apr = 0
+    try {
+      // Fallback for tokenized strategies (registered as vaults): use getStrategyApr directly
+      const rawApr = await rpcs.next(chainId).readContract({
+        abi: V3_ORACLE_ABI,
+        address: oracleConfig.address,
+        functionName: 'getStrategyApr',
+        args: [address, 0n],
+        blockNumber,
+      })
+      apr = Number(rawApr) / 1e18
+    } catch {
+      apr = 0
+    }
   }
 
   if (isNaN(apr) || !isFinite(apr)) {
