@@ -144,8 +144,8 @@ async function readApr(
     const rawApr = await rpcs.next(chainId).readContract({
       abi: V3_ORACLE_ABI,
       address: oracleAddress,
-      functionName: 'getCurrentApr',
-      args: [address],
+      functionName: 'getStrategyApr',
+      args: [address, 0n],
       blockNumber,
     })
     apr = Number(rawApr) / 1e18
@@ -165,8 +165,8 @@ async function readApr(
     const rawApr = await rpcs.next(chainId).readContract({
       abi: V3_ORACLE_ABI,
       address: oracleAddress,
-      functionName: 'getStrategyApr',
-      args: [address, 0n],
+      functionName: 'getCurrentApr',
+      args: [address],
       blockNumber,
     })
     apr = Number(rawApr) / 1e18

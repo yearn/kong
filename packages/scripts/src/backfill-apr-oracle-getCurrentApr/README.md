@@ -1,21 +1,24 @@
 # backfill-apr-oracle-getCurrentApr
 
-Backfill scripts for v3 vault apr-oracle output rows that were stored as `0` because the hook was calling `getStrategyApr` instead of `getCurrentApr`.
+Backfill scripts for v3 vault apr-oracle output rows that were stored as `0` because `getStrategyApr` reverted for vaults without a registered strategy oracle.
 
 ## Background
 
-The apr-oracle timeseries hook originally called `getStrategyApr(vaultAddress, 0)` which only works for addresses with a registered strategy oracle. For vaults that aren't tokenized strategies, this silently returned 0. The fix calls `getCurrentApr(address)` first (weighted average APR across all strategies), falling back to `getStrategyApr` for tokenized strategies.
+The apr-oracle timeseries hook originally only called `getStrategyApr(vaultAddress, 0)`. For vaults that aren't tokenized strategies, no strategy oracle is registered so `getStrategyApr` **reverts**. The catch block silently set `apr = 0`, producing faulty zero rows.
+
+The fix calls `getCurrentApr(address)` first (weighted average APR across all strategies), falling back to `getStrategyApr` for tokenized strategies where `getCurrentApr` may not apply.
 
 ## Scripts
 
 ### 1. probe.ts
 
-Lightweight diagnostic that identifies which vaults with `apr=0` actually have non-zero APR on-chain.
+Lightweight diagnostic that identifies which vaults have faulty zeros caused by `getStrategyApr` reverting.
 
 - Queries distinct `chain_id:address` pairs from the `output` table where `apr=0`
-- Calls `getCurrentApr` / `getStrategyApr` at the **latest block** for each vault
+- Calls `getStrategyApr` at the **latest block** for each vault
+- If `getStrategyApr` reverts → vault is faulty (the bug), written to `probe-results.json`
+- If `getStrategyApr` succeeds → vault has a genuine value, skipped
 - Skips chains without RPC config
-- Writes faulty vaults (non-zero APR) to `probe-results.json`
 
 ```
 bun packages/scripts/src/backfill-apr-oracle-getCurrentApr/probe.ts [--chain-id <N>]
