@@ -1,11 +1,11 @@
 import 'lib/global'
 
+import { writeFileSync } from 'fs'
 import { V3_ORACLE_ABI } from 'ingest/abis/yearn/3/vault/timeseries/apr-oracle/abi'
 import { getOracleConfig } from 'ingest/abis/yearn/3/vault/timeseries/apr-oracle/constants'
 import db from 'ingest/db'
 import { rpcs } from 'ingest/rpcs'
 import { chains, mq } from 'lib'
-import { writeFileSync } from 'fs'
 import { join } from 'path'
 import { getAddress } from 'viem'
 
@@ -85,26 +85,17 @@ async function findAffectedVaults(chainId?: number): Promise<AffectedVault[]> {
   }))
 }
 
-async function readApr(
+/**
+ * Reproduces the OLD hook logic: only calls getStrategyApr.
+ * Returns { reverted: true } if the call reverts (the root cause of faulty zeros).
+ * Returns { reverted: false, apr } if the call succeeds (genuine result).
+ */
+async function probeGetStrategyApr(
   chainId: number,
   address: `0x${string}`,
   blockNumber: bigint,
   oracleAddress: `0x${string}`,
-): Promise<{ apr: number; source: 'getCurrentApr' | 'getStrategyApr' | 'none' }> {
-  try {
-    const rawApr = await rpcs.next(chainId).readContract({
-      abi: V3_ORACLE_ABI,
-      address: oracleAddress,
-      functionName: 'getCurrentApr',
-      args: [address],
-      blockNumber,
-    })
-    const apr = Number(rawApr) / 1e18
-    if (!isNaN(apr) && isFinite(apr) && apr !== 0) {
-      return { apr, source: 'getCurrentApr' }
-    }
-  } catch {}
-
+): Promise<{ reverted: boolean; apr: number }> {
   try {
     const rawApr = await rpcs.next(chainId).readContract({
       abi: V3_ORACLE_ABI,
@@ -114,12 +105,10 @@ async function readApr(
       blockNumber,
     })
     const apr = Number(rawApr) / 1e18
-    if (!isNaN(apr) && isFinite(apr) && apr !== 0) {
-      return { apr, source: 'getStrategyApr' }
-    }
-  } catch {}
-
-  return { apr: 0, source: 'none' }
+    return { reverted: false, apr: isNaN(apr) || !isFinite(apr) ? 0 : apr }
+  } catch {
+    return { reverted: true, apr: 0 }
+  }
 }
 
 async function getZeroRowCount(chainId: number, address: string): Promise<number> {
@@ -185,40 +174,39 @@ async function main() {
   }
   console.log()
 
-  const faulty: { chainId: number; address: string; apr: number; source: string; zeroRows: number }[] = []
-  const genuineZeros: { chainId: number; address: string }[] = []
-  let errors = 0
+  const faulty: { chainId: number; address: string; zeroRows: number }[] = []
+  const genuine: { chainId: number; address: string; apr: number }[] = []
+  let probeErrors = 0
 
   for (let i = 0; i < vaults.length; i += CONCURRENCY) {
     const batch = vaults.slice(i, i + CONCURRENCY)
 
     const results = await Promise.allSettled(batch.map(async (vault) => {
       const blockNumber = latestBlocks.get(vault.chainId)
-      if (!blockNumber) return { vault, apr: 0, source: 'none' as const, zeroRows: 0 }
+      if (!blockNumber) return { vault, kind: 'skip' as const }
 
       const oracleConfig = getOracleConfig(vault.chainId)!
-      const { apr, source } = await readApr(vault.chainId, vault.address, blockNumber, oracleConfig.address)
-      const zeroRows = apr !== 0 ? await getZeroRowCount(vault.chainId, vault.address) : 0
-      return { vault, apr, source, zeroRows }
+      const result = await probeGetStrategyApr(vault.chainId, vault.address, blockNumber, oracleConfig.address)
+
+      if (result.reverted) {
+        const zeroRows = await getZeroRowCount(vault.chainId, vault.address)
+        return { vault, kind: 'faulty' as const, zeroRows }
+      }
+
+      return { vault, kind: 'genuine' as const, apr: result.apr }
     }))
 
     for (const result of results) {
       if (result.status === 'fulfilled') {
-        const { vault, apr, source, zeroRows } = result.value
-        if (apr !== 0) {
-          faulty.push({
-            chainId: vault.chainId,
-            address: vault.address,
-            apr,
-            source,
-            zeroRows,
-          })
-        } else {
-          genuineZeros.push({ chainId: vault.chainId, address: vault.address })
+        const r = result.value
+        if (r.kind === 'faulty') {
+          faulty.push({ chainId: r.vault.chainId, address: r.vault.address, zeroRows: r.zeroRows })
+        } else if (r.kind === 'genuine') {
+          genuine.push({ chainId: r.vault.chainId, address: r.vault.address, apr: r.apr })
         }
       } else {
-        errors++
-        console.error(`  error:`, result.reason instanceof Error ? result.reason.message : String(result.reason))
+        probeErrors++
+        console.error('  error:', result.reason instanceof Error ? result.reason.message : String(result.reason))
       }
     }
 
@@ -229,26 +217,26 @@ async function main() {
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(2)
 
-  console.log('=== Faulty zeros (need backfill via compute.ts) ===')
+  console.log('=== Faulty zeros (getStrategyApr reverts — need backfill) ===')
   if (faulty.length === 0) {
     console.log('  none found')
   } else {
     let totalRows = 0
     for (const v of faulty) {
-      console.log(`  ${v.chainId}:${v.address}  apr=${v.apr.toFixed(6)}  source=${v.source}  zeroRows=${v.zeroRows}`)
+      console.log(`  ${v.chainId}:${v.address}  zeroRows=${v.zeroRows}`)
       totalRows += v.zeroRows
     }
     console.log(`\n  total: ${faulty.length} vaults, ${totalRows} output rows to backfill`)
   }
 
-  console.log('\n=== Genuine zeros (oracle returns 0 at latest block) ===')
-  if (genuineZeros.length === 0) {
+  console.log('\n=== Genuine (getStrategyApr succeeded) ===')
+  if (genuine.length === 0) {
     console.log('  none')
   } else {
-    for (const v of genuineZeros) {
-      console.log(`  ${v.chainId}:${v.address}`)
+    for (const v of genuine) {
+      console.log(`  ${v.chainId}:${v.address}  apr=${v.apr.toFixed(6)}`)
     }
-    console.log(`\n  total: ${genuineZeros.length} vaults`)
+    console.log(`\n  total: ${genuine.length} vaults`)
   }
 
   // Write faulty vaults to file for compute.ts --from-probe
@@ -256,16 +244,16 @@ async function main() {
   writeFileSync(RESULTS_FILE, JSON.stringify(probeResults, null, 2))
   console.log(`\nwrote ${probeResults.length} faulty vaults to ${RESULTS_FILE}`)
 
-  console.log(`\n=== Summary ===`)
-  console.log(`Vaults probed:    ${faulty.length + genuineZeros.length + errors}`)
-  console.log(`Faulty (apr!=0):  ${faulty.length}`)
-  console.log(`Genuine (apr=0):  ${genuineZeros.length}`)
-  console.log(`Errors:           ${errors}`)
-  console.log(`Duration:         ${duration}s`)
+  console.log('\n=== Summary ===')
+  console.log(`Vaults probed:      ${faulty.length + genuine.length + probeErrors}`)
+  console.log(`Faulty (reverted):  ${faulty.length}`)
+  console.log(`Genuine:            ${genuine.length}`)
+  console.log(`Errors:             ${probeErrors}`)
+  console.log(`Duration:           ${duration}s`)
 
   if (faulty.length > 0) {
-    console.log(`\nNext step:`)
-    console.log(`  bun packages/scripts/src/backfill-apr-oracle-getCurrentApr/compute.ts --from-probe`)
+    console.log('\nNext step:')
+    console.log('  bun packages/scripts/src/backfill-apr-oracle-getCurrentApr/compute.ts --from-probe')
   }
 
   await rpcs.down()

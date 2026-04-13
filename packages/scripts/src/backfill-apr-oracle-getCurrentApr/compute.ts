@@ -64,7 +64,7 @@ Run upsert.ts to promote them to the output table.`)
 
 function loadProbeResults(): Set<string> {
   if (!existsSync(PROBE_RESULTS_FILE)) {
-    console.error(`probe-results.json not found. Run probe.ts first.`)
+    console.error('probe-results.json not found. Run probe.ts first.')
     process.exit(1)
   }
   const data = JSON.parse(readFileSync(PROBE_RESULTS_FILE, 'utf8')) as { chainId: number; address: string }[]
@@ -113,19 +113,23 @@ async function findAffectedVaults(chainId?: number): Promise<AffectedVault[]> {
     ORDER BY o.chain_id, o.address, o.series_time
   `, params)
 
-  return result.rows.map((row: {
-    chainId: number
-    address: string
-    blockNumber: bigint
-    blockTime: string
-    seriesTime: Date
-  }) => ({
-    chainId: row.chainId,
-    address: getAddress(row.address) as `0x${string}`,
-    blockNumber: BigInt(row.blockNumber),
-    blockTime: BigInt(row.blockTime),
-    seriesTime: new Date(row.seriesTime),
-  }))
+  return result.rows.map((row: Record<string, unknown>) => {
+    let seriesTime: Date
+    if (row.seriesTime instanceof Date) {
+      seriesTime = row.seriesTime
+    } else {
+      // pg driver may return timestamptz as BigInt (epoch micros) or string
+      const n = Number(row.seriesTime)
+      seriesTime = n > 1e12 ? new Date(n) : new Date(n * 1000)
+    }
+    return {
+      chainId: row.chainId as number,
+      address: getAddress(row.address as string) as `0x${string}`,
+      blockNumber: BigInt(row.blockNumber as string | bigint),
+      blockTime: BigInt(row.blockTime as string | bigint),
+      seriesTime,
+    }
+  })
 }
 
 async function readApr(
@@ -279,7 +283,7 @@ async function main() {
 
   console.log(args.dryRun ? 'DRY RUN mode' : 'COMPUTE mode')
   if (args.chainId !== undefined) console.log(`chainId=${args.chainId}`)
-  if (args.fromProbe) console.log(`filtering to faulty vaults from probe-results.json`)
+  if (args.fromProbe) console.log('filtering to faulty vaults from probe-results.json')
 
   const probeFilter = args.fromProbe ? loadProbeResults() : null
 
@@ -339,7 +343,7 @@ async function main() {
         }
       } else {
         errors++
-        console.error(`  error:`, result.reason instanceof Error ? result.reason.message : String(result.reason))
+        console.error('  error:', result.reason instanceof Error ? result.reason.message : String(result.reason))
       }
     }
 
