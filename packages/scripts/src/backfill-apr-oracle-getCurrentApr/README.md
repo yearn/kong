@@ -6,7 +6,7 @@ Backfill scripts for v3 vault apr-oracle output rows that were stored as `0` bec
 
 The apr-oracle timeseries hook originally only called `getStrategyApr(vaultAddress, 0)`. For vaults that aren't tokenized strategies, no strategy oracle is registered so `getStrategyApr` **reverts**. The catch block silently set `apr = 0`, producing faulty zero rows.
 
-The fix calls `getCurrentApr(address)` first (weighted average APR across all strategies), falling back to `getStrategyApr` for tokenized strategies where `getCurrentApr` may not apply.
+The fix tries `getStrategyApr` first (works for tokenized strategies), falling back to `getCurrentApr(address)` (weighted average APR across all strategies) when `getStrategyApr` reverts.
 
 ## Scripts
 
