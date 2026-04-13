@@ -1,14 +1,14 @@
 import 'lib/global'
 
-import { computeApy, computeNetApr, extractFees__v3 } from 'ingest/abis/yearn/lib/apy'
+import { existsSync, readFileSync } from 'fs'
 import { projectStrategies } from 'ingest/abis/yearn/3/vault/snapshot/hook'
 import { V3_ORACLE_ABI } from 'ingest/abis/yearn/3/vault/timeseries/apr-oracle/abi'
 import { getOracleConfig } from 'ingest/abis/yearn/3/vault/timeseries/apr-oracle/constants'
+import { computeApy, computeNetApr, extractFees__v3 } from 'ingest/abis/yearn/lib/apy'
 import db from 'ingest/db'
 import { rpcs } from 'ingest/rpcs'
 import { mq } from 'lib'
 import type { Output } from 'lib/types'
-import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { getAddress } from 'viem'
 
@@ -150,28 +150,18 @@ async function readApr(
     })
     apr = Number(rawApr) / 1e18
   } catch {
-    apr = 0
-  }
-
-  if (isNaN(apr) || !isFinite(apr)) {
-    apr = 0
-  }
-
-  if (apr !== 0) {
-    return apr
-  }
-
-  try {
-    const rawApr = await rpcs.next(chainId).readContract({
-      abi: V3_ORACLE_ABI,
-      address: oracleAddress,
-      functionName: 'getCurrentApr',
-      args: [address],
-      blockNumber,
-    })
-    apr = Number(rawApr) / 1e18
-  } catch {
-    apr = 0
+    try {
+      const rawApr = await rpcs.next(chainId).readContract({
+        abi: V3_ORACLE_ABI,
+        address: oracleAddress,
+        functionName: 'getCurrentApr',
+        args: [address],
+        blockNumber,
+      })
+      apr = Number(rawApr) / 1e18
+    } catch {
+      apr = 0
+    }
   }
 
   if (isNaN(apr) || !isFinite(apr)) {
