@@ -8,6 +8,8 @@ import db from 'ingest/db'
 import { rpcs } from 'ingest/rpcs'
 import { mq } from 'lib'
 import type { Output } from 'lib/types'
+import { readFileSync, existsSync } from 'fs'
+import { join } from 'path'
 import { getAddress } from 'viem'
 
 /**
@@ -19,11 +21,13 @@ import { getAddress } from 'viem'
  * - Writes results to a temp table (output_temp_apr_oracle_backfill)
  * - Supports pause/resume: already-computed rows are skipped via the temp table
  *
+ * Use --from-probe to only process vaults identified as faulty by probe.ts.
  * Run upsert.ts to promote results to the output table.
  */
 
 const TEMP_TABLE = 'output_temp_apr_oracle_backfill'
 const CONCURRENCY = 10
+const PROBE_RESULTS_FILE = join(__dirname, 'probe-results.json')
 
 function parseArgs(argv: string[]) {
   const getArg = (flag: string) => {
@@ -34,11 +38,16 @@ function parseArgs(argv: string[]) {
 
   if (hasArg('--help') || hasArg('-h')) {
     console.log(`usage:
-  bun packages/scripts/src/backfill-apr-oracle-getCurrentApr/compute.ts [--chain-id 1] [--dry-run]
+  bun packages/scripts/src/backfill-apr-oracle-getCurrentApr/compute.ts [--chain-id 1] [--from-probe] [--dry-run]
 
 Finds v3 vault apr-oracle output rows with apr=0 and re-queries the
 oracle at each row's original block. Results go into ${TEMP_TABLE}.
 Supports pause/resume — already-computed rows in the temp table are skipped.
+
+Options:
+  --from-probe  Only process vaults identified as faulty by probe.ts
+  --chain-id N  Filter to a specific chain
+  --dry-run     Don't write to the temp table
 
 Run upsert.ts to promote them to the output table.`)
     process.exit(0)
@@ -48,8 +57,19 @@ Run upsert.ts to promote them to the output table.`)
 
   return {
     chainId: chainId ? Number(chainId) : undefined,
+    fromProbe: hasArg('--from-probe'),
     dryRun: hasArg('--dry-run'),
   }
+}
+
+function loadProbeResults(): Set<string> {
+  if (!existsSync(PROBE_RESULTS_FILE)) {
+    console.error(`probe-results.json not found. Run probe.ts first.`)
+    process.exit(1)
+  }
+  const data = JSON.parse(readFileSync(PROBE_RESULTS_FILE, 'utf8')) as { chainId: number; address: string }[]
+  console.log(`loaded ${data.length} faulty vaults from probe-results.json`)
+  return new Set(data.map(v => `${v.chainId}:${v.address.toLowerCase()}`))
 }
 
 type AffectedVault = {
@@ -259,9 +279,18 @@ async function main() {
 
   console.log(args.dryRun ? 'DRY RUN mode' : 'COMPUTE mode')
   if (args.chainId !== undefined) console.log(`chainId=${args.chainId}`)
+  if (args.fromProbe) console.log(`filtering to faulty vaults from probe-results.json`)
 
-  const allVaults = await findAffectedVaults(args.chainId)
-  console.log(`found ${allVaults.length} apr-oracle rows with apr=0`)
+  const probeFilter = args.fromProbe ? loadProbeResults() : null
+
+  let allVaults = await findAffectedVaults(args.chainId)
+  if (probeFilter) {
+    const before = allVaults.length
+    allVaults = allVaults.filter(v => probeFilter.has(`${v.chainId}:${v.address.toLowerCase()}`))
+    console.log(`found ${before} apr-oracle rows with apr=0, filtered to ${allVaults.length} from probe`)
+  } else {
+    console.log(`found ${allVaults.length} apr-oracle rows with apr=0`)
+  }
   if (allVaults.length === 0) {
     await rpcs.down()
     await mq.down()
