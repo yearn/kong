@@ -11,6 +11,57 @@ export { computeNetApr } from '../../../../lib/apy'
 
 export const outputLabel = 'apr-oracle'
 
+async function readApr(
+  chainId: number,
+  address: `0x${string}`,
+  blockNumber: bigint,
+  oracleAddress: `0x${string}`,
+) {
+  let apr = 0
+
+  try {
+    // For vaults: getCurrentApr returns the weighted average APR across all strategies.
+    const rawApr = await rpcs.next(chainId).readContract({
+      abi: V3_ORACLE_ABI,
+      address: oracleAddress,
+      functionName: 'getCurrentApr',
+      args: [address],
+      blockNumber,
+    })
+    apr = Number(rawApr) / 1e18
+  } catch {
+    apr = 0
+  }
+
+  if (isNaN(apr) || !isFinite(apr)) {
+    apr = 0
+  }
+
+  if (apr !== 0) {
+    return apr
+  }
+
+  try {
+    // Fallback for tokenized strategies (registered as vaults): use getStrategyApr directly.
+    const rawApr = await rpcs.next(chainId).readContract({
+      abi: V3_ORACLE_ABI,
+      address: oracleAddress,
+      functionName: 'getStrategyApr',
+      args: [address, 0n],
+      blockNumber,
+    })
+    apr = Number(rawApr) / 1e18
+  } catch {
+    apr = 0
+  }
+
+  if (isNaN(apr) || !isFinite(apr)) {
+    apr = 0
+  }
+
+  return apr
+}
+
 export default async function (
   chainId: number,
   address: `0x${string}`,
@@ -33,36 +84,7 @@ export default async function (
     return []
   }
 
-  let apr = 0
-  try {
-    // For vaults: getCurrentApr returns the weighted average APR across all strategies
-    const rawApr = await rpcs.next(chainId).readContract({
-      abi: V3_ORACLE_ABI,
-      address: oracleConfig.address,
-      functionName: 'getCurrentApr',
-      args: [address],
-      blockNumber,
-    })
-    apr = Number(rawApr) / 1e18
-  } catch {
-    try {
-      // Fallback for tokenized strategies (registered as vaults): use getStrategyApr directly
-      const rawApr = await rpcs.next(chainId).readContract({
-        abi: V3_ORACLE_ABI,
-        address: oracleConfig.address,
-        functionName: 'getStrategyApr',
-        args: [address, 0n],
-        blockNumber,
-      })
-      apr = Number(rawApr) / 1e18
-    } catch {
-      apr = 0
-    }
-  }
-
-  if (isNaN(apr) || !isFinite(apr)) {
-    apr = 0
-  }
+  const apr = await readApr(chainId, address, blockNumber, oracleConfig.address)
 
   const apy = computeApy(apr)
 

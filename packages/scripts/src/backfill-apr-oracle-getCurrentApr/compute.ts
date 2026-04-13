@@ -7,7 +7,6 @@ import { getOracleConfig } from 'ingest/abis/yearn/3/vault/timeseries/apr-oracle
 import db from 'ingest/db'
 import { rpcs } from 'ingest/rpcs'
 import { mq } from 'lib'
-import { getBlock } from 'lib/blocks'
 import type { Output } from 'lib/types'
 import { getAddress } from 'viem'
 
@@ -15,10 +14,10 @@ import { getAddress } from 'viem'
  * Phase 1: Compute corrected apr-oracle outputs for vaults where getStrategyApr
  * returned 0 but getCurrentApr returns the real weighted-average APR.
  *
- * - Finds all affected vaults (apr=0 in output table)
- * - Calls getCurrentApr on-chain for each
+ * - Finds all affected apr-oracle rows (apr=0 in output table)
+ * - Calls getCurrentApr/getStrategyApr on-chain for each row's original block
  * - Writes results to a temp table (output_temp_apr_oracle_backfill)
- * - Supports pause/resume: already-computed vaults are skipped via the temp table
+ * - Supports pause/resume: already-computed rows are skipped via the temp table
  *
  * Run upsert.ts to promote results to the output table.
  */
@@ -37,9 +36,9 @@ function parseArgs(argv: string[]) {
     console.log(`usage:
   bun packages/scripts/src/backfill-apr-oracle-getCurrentApr/compute.ts [--chain-id 1] [--dry-run]
 
-Finds v3 vaults whose latest apr-oracle output has apr=0 and re-queries the
-oracle using getCurrentApr. Results go into ${TEMP_TABLE}.
-Supports pause/resume — already-computed vaults in the temp table are skipped.
+Finds v3 vault apr-oracle output rows with apr=0 and re-queries the
+oracle at each row's original block. Results go into ${TEMP_TABLE}.
+Supports pause/resume — already-computed rows in the temp table are skipped.
 
 Run upsert.ts to promote them to the output table.`)
     process.exit(0)
@@ -56,6 +55,13 @@ Run upsert.ts to promote them to the output table.`)
 type AffectedVault = {
   chainId: number
   address: `0x${string}`
+  blockNumber: bigint
+  blockTime: bigint
+  seriesTime: Date
+}
+
+type TempOutput = Output & {
+  seriesTime: Date
 }
 
 async function findAffectedVaults(chainId?: number): Promise<AffectedVault[]> {
@@ -68,7 +74,12 @@ async function findAffectedVaults(chainId?: number): Promise<AffectedVault[]> {
   }
 
   const result = await db.query(`
-    SELECT DISTINCT o.chain_id AS "chainId", o.address
+    SELECT
+      o.chain_id AS "chainId",
+      o.address,
+      o.block_number AS "blockNumber",
+      EXTRACT(EPOCH FROM o.block_time)::bigint AS "blockTime",
+      o.series_time AS "seriesTime"
     FROM output o
     JOIN thing t
       ON t.chain_id = o.chain_id
@@ -79,21 +90,81 @@ async function findAffectedVaults(chainId?: number): Promise<AffectedVault[]> {
       AND o.component = 'apr'
       AND o.value = 0
       ${chainFilter}
-    ORDER BY o.chain_id, o.address
+    ORDER BY o.chain_id, o.address, o.series_time
   `, params)
 
-  return result.rows.map(row => ({
+  return result.rows.map((row: {
+    chainId: number
+    address: string
+    blockNumber: bigint
+    blockTime: string
+    seriesTime: Date
+  }) => ({
     chainId: row.chainId,
     address: getAddress(row.address) as `0x${string}`,
+    blockNumber: BigInt(row.blockNumber),
+    blockTime: BigInt(row.blockTime),
+    seriesTime: new Date(row.seriesTime),
   }))
+}
+
+async function readApr(
+  chainId: number,
+  address: `0x${string}`,
+  blockNumber: bigint,
+  oracleAddress: `0x${string}`,
+) {
+  let apr = 0
+
+  try {
+    const rawApr = await rpcs.next(chainId).readContract({
+      abi: V3_ORACLE_ABI,
+      address: oracleAddress,
+      functionName: 'getCurrentApr',
+      args: [address],
+      blockNumber,
+    })
+    apr = Number(rawApr) / 1e18
+  } catch {
+    apr = 0
+  }
+
+  if (isNaN(apr) || !isFinite(apr)) {
+    apr = 0
+  }
+
+  if (apr !== 0) {
+    return apr
+  }
+
+  try {
+    const rawApr = await rpcs.next(chainId).readContract({
+      abi: V3_ORACLE_ABI,
+      address: oracleAddress,
+      functionName: 'getStrategyApr',
+      args: [address, 0n],
+      blockNumber,
+    })
+    apr = Number(rawApr) / 1e18
+  } catch {
+    apr = 0
+  }
+
+  if (isNaN(apr) || !isFinite(apr)) {
+    apr = 0
+  }
+
+  return apr
 }
 
 async function getAlreadyComputed(): Promise<Set<string>> {
   try {
     const result = await db.query(`
-      SELECT DISTINCT chain_id, address FROM ${TEMP_TABLE}
+      SELECT DISTINCT chain_id, address, series_time FROM ${TEMP_TABLE}
     `)
-    return new Set(result.rows.map(row => `${row.chain_id}:${row.address.toLowerCase()}`))
+    return new Set(result.rows.map((row: { chain_id: number; address: string; series_time: Date }) => (
+      `${row.chain_id}:${row.address.toLowerCase()}:${new Date(row.series_time).toISOString()}`
+    )))
   } catch {
     return new Set()
   }
@@ -117,7 +188,7 @@ async function ensureTempTable() {
   console.log(`temp table ${TEMP_TABLE}: ${count.rows[0].count} existing rows`)
 }
 
-async function insertTempBatch(rows: Output[]) {
+async function insertTempBatch(rows: TempOutput[]) {
   if (rows.length === 0) return
 
   const values: string[] = []
@@ -126,14 +197,11 @@ async function insertTempBatch(rows: Output[]) {
 
   for (const row of rows) {
     const blockTime = new Date(Number(row.blockTime) * 1000)
-    const d = new Date(blockTime)
-    d.setUTCHours(23, 59, 59, 0)
-    const seriesTime = d
 
     values.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7})`)
     params.push(
       row.chainId, row.address, row.label, row.component ?? '',
-      row.value ?? 0, row.blockNumber.toString(), blockTime, seriesTime
+      row.value ?? 0, row.blockNumber.toString(), blockTime, row.seriesTime
     )
     idx += 8
   }
@@ -146,59 +214,40 @@ async function insertTempBatch(rows: Output[]) {
   `, params)
 }
 
-async function computeVaultOracle(vault: AffectedVault): Promise<Output[]> {
+async function computeVaultOracle(vault: AffectedVault): Promise<TempOutput[]> {
   const oracleConfig = getOracleConfig(vault.chainId)
   if (!oracleConfig) return []
+  const blockNumber = vault.blockNumber
 
-  const block = await getBlock(vault.chainId)
-
-  let apr = 0
-  try {
-    const rawApr = await rpcs.next(vault.chainId).readContract({
-      abi: V3_ORACLE_ABI,
-      address: oracleConfig.address,
-      functionName: 'getCurrentApr',
-      args: [vault.address],
-      blockNumber: block.number,
-    })
-    apr = Number(rawApr) / 1e18
-  } catch {
-    try {
-      const rawApr = await rpcs.next(vault.chainId).readContract({
-        abi: V3_ORACLE_ABI,
-        address: oracleConfig.address,
-        functionName: 'getStrategyApr',
-        args: [vault.address, 0n],
-        blockNumber: block.number,
-      })
-      apr = Number(rawApr) / 1e18
-    } catch {
-      apr = 0
-    }
-  }
-
-  if (isNaN(apr) || !isFinite(apr)) apr = 0
+  const apr = await readApr(vault.chainId, vault.address, blockNumber, oracleConfig.address)
   if (apr === 0) return []
 
   const apy = computeApy(apr)
 
   let fees = { management: 0, performance: 0 }
   try {
-    const strategies = await projectStrategies(vault.chainId, vault.address, block.number)
-    fees = await extractFees__v3(vault.chainId, vault.address, strategies, block.number)
+    const strategies = await projectStrategies(vault.chainId, vault.address, blockNumber)
+    fees = await extractFees__v3(vault.chainId, vault.address, strategies, blockNumber)
   } catch (error) {
     console.warn(`  ⚠ fee fetch failed for ${vault.chainId}:${vault.address}:`, error)
   }
 
   const netApr = computeNetApr(apr, fees)
   const netApy = computeApy(netApr)
-  const blockTime = BigInt(block.timestamp)
+  const blockTime = vault.blockTime
+  const baseRow = {
+    chainId: vault.chainId,
+    address: vault.address,
+    blockNumber,
+    blockTime,
+    seriesTime: vault.seriesTime,
+  }
 
   return [
-    { chainId: vault.chainId, address: vault.address, label: 'apr-oracle', component: 'apr', value: apr, blockNumber: block.number, blockTime },
-    { chainId: vault.chainId, address: vault.address, label: 'apr-oracle', component: 'apy', value: apy, blockNumber: block.number, blockTime },
-    { chainId: vault.chainId, address: vault.address, label: 'apr-oracle', component: 'netApr', value: netApr, blockNumber: block.number, blockTime },
-    { chainId: vault.chainId, address: vault.address, label: 'apr-oracle', component: 'netApy', value: netApy, blockNumber: block.number, blockTime },
+    { ...baseRow, label: 'apr-oracle', component: 'apr', value: apr },
+    { ...baseRow, label: 'apr-oracle', component: 'apy', value: apy },
+    { ...baseRow, label: 'apr-oracle', component: 'netApr', value: netApr },
+    { ...baseRow, label: 'apr-oracle', component: 'netApy', value: netApy },
   ]
 }
 
@@ -212,7 +261,7 @@ async function main() {
   if (args.chainId !== undefined) console.log(`chainId=${args.chainId}`)
 
   const allVaults = await findAffectedVaults(args.chainId)
-  console.log(`found ${allVaults.length} vaults with apr-oracle apr=0`)
+  console.log(`found ${allVaults.length} apr-oracle rows with apr=0`)
   if (allVaults.length === 0) {
     await rpcs.down()
     await mq.down()
@@ -224,13 +273,15 @@ async function main() {
     await ensureTempTable()
   }
 
-  // Filter out already-computed vaults (pause/resume support)
+  // Filter out already-computed rows (pause/resume support)
   const alreadyComputed = args.dryRun ? new Set<string>() : await getAlreadyComputed()
-  const vaults = allVaults.filter(v => !alreadyComputed.has(`${v.chainId}:${v.address.toLowerCase()}`))
+  const vaults = allVaults.filter(v => !alreadyComputed.has(
+    `${v.chainId}:${v.address.toLowerCase()}:${v.seriesTime.toISOString()}`
+  ))
   if (alreadyComputed.size > 0) {
-    console.log(`skipping ${allVaults.length - vaults.length} already-computed vaults (resume)`)
+    console.log(`skipping ${allVaults.length - vaults.length} already-computed rows (resume)`)
   }
-  console.log(`processing ${vaults.length} vaults\n`)
+  console.log(`processing ${vaults.length} rows\n`)
 
   let fixed = 0
   let skipped = 0
@@ -270,7 +321,7 @@ async function main() {
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(2)
   console.log('\n=== Summary ===')
-  console.log(`Vaults processed: ${fixed + skipped + errors}`)
+  console.log(`Rows processed:   ${fixed + skipped + errors}`)
   console.log(`Fixed:            ${fixed}`)
   console.log(`Skipped (apr=0):  ${skipped}`)
   console.log(`Errors:           ${errors}`)
