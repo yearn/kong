@@ -9,3 +9,4 @@ gql-cache*
 __pycache__
 output/
 .mcp.json
+probe-results.json
