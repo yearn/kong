@@ -1,6 +1,6 @@
-import { Output, OutputSchema } from 'lib/types'
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { rpcs } from 'lib/rpcs'
+import { Output, OutputSchema } from 'lib/types'
 import { Data } from '../../../../../../extract/timeseries'
 import { computeApy, computeNetApr, extractFees__v3 } from '../../../../lib/apy'
 import { projectStrategies } from '../../snapshot/hook'
@@ -30,29 +30,19 @@ async function readApr(
     })
     apr = Number(rawApr) / 1e18
   } catch {
-    apr = 0
-  }
-
-  if (isNaN(apr) || !isFinite(apr)) {
-    apr = 0
-  }
-
-  if (apr !== 0) {
-    return apr
-  }
-
-  try {
+    try {
     // Fallback for tokenized strategies (registered as vaults): use getStrategyApr directly.
-    const rawApr = await rpcs.next(chainId).readContract({
-      abi: V3_ORACLE_ABI,
-      address: oracleAddress,
-      functionName: 'getStrategyApr',
-      args: [address, 0n],
-      blockNumber,
-    })
-    apr = Number(rawApr) / 1e18
-  } catch {
-    apr = 0
+      const rawApr = await rpcs.next(chainId).readContract({
+        abi: V3_ORACLE_ABI,
+        address: oracleAddress,
+        functionName: 'getStrategyApr',
+        args: [address, 0n],
+        blockNumber,
+      })
+      apr = Number(rawApr) / 1e18
+    } catch {
+      apr = 0
+    }
   }
 
   if (isNaN(apr) || !isFinite(apr)) {
