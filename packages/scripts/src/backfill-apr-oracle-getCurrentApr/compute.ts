@@ -2,8 +2,8 @@ import 'lib/global'
 
 import { existsSync, readFileSync } from 'fs'
 import { projectStrategies } from 'ingest/abis/yearn/3/vault/snapshot/hook'
-import { V3_ORACLE_ABI } from 'ingest/abis/yearn/3/vault/timeseries/apr-oracle/abi'
 import { getOracleConfig } from 'ingest/abis/yearn/3/vault/timeseries/apr-oracle/constants'
+import { readApr } from 'ingest/abis/yearn/3/vault/timeseries/apr-oracle/hook'
 import { computeApy, computeNetApr, extractFees__v3 } from 'ingest/abis/yearn/lib/apy'
 import db from 'ingest/db'
 import { rpcs } from 'ingest/rpcs'
@@ -132,45 +132,6 @@ async function findAffectedVaults(chainId?: number): Promise<AffectedVault[]> {
   })
 }
 
-async function readApr(
-  chainId: number,
-  address: `0x${string}`,
-  blockNumber: bigint,
-  oracleAddress: `0x${string}`,
-) {
-  let apr = 0
-
-  try {
-    const rawApr = await rpcs.next(chainId).readContract({
-      abi: V3_ORACLE_ABI,
-      address: oracleAddress,
-      functionName: 'getStrategyApr',
-      args: [address, 0n],
-      blockNumber,
-    })
-    apr = Number(rawApr) / 1e18
-  } catch {
-    try {
-      const rawApr = await rpcs.next(chainId).readContract({
-        abi: V3_ORACLE_ABI,
-        address: oracleAddress,
-        functionName: 'getCurrentApr',
-        args: [address],
-        blockNumber,
-      })
-      apr = Number(rawApr) / 1e18
-    } catch {
-      apr = 0
-    }
-  }
-
-  if (isNaN(apr) || !isFinite(apr)) {
-    apr = 0
-  }
-
-  return apr
-}
-
 async function getAlreadyComputed(): Promise<Set<string>> {
   try {
     const result = await db.query(`
@@ -234,7 +195,7 @@ async function computeVaultOracle(vault: AffectedVault): Promise<TempOutput[]> {
   const blockNumber = vault.blockNumber
 
   const apr = await readApr(vault.chainId, vault.address, blockNumber, oracleConfig.address)
-  if (apr === 0) return []
+  if (!apr) return []
 
   const apy = computeApy(apr)
 

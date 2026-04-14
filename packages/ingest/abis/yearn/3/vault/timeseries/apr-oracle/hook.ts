@@ -11,14 +11,12 @@ export { computeNetApr } from '../../../../lib/apy'
 
 export const outputLabel = 'apr-oracle'
 
-async function readApr(
+export async function readApr(
   chainId: number,
   address: `0x${string}`,
   blockNumber: bigint,
   oracleAddress: `0x${string}`,
-) {
-  let apr = 0
-
+): Promise<number | undefined> {
   try {
     // For tokenized strategies (registered as vaults): getStrategyApr returns the direct APR.
     const rawApr = await rpcs.next(chainId).readContract({
@@ -28,7 +26,9 @@ async function readApr(
       args: [address, 0n],
       blockNumber,
     })
-    apr = Number(rawApr) / 1e18
+    const apr = Number(rawApr) / 1e18
+    if (isNaN(apr) || !isFinite(apr)) return undefined
+    return apr
   } catch {
     try {
       // Fallback for regular vaults: getCurrentApr returns weighted average APR across all strategies.
@@ -39,17 +39,13 @@ async function readApr(
         args: [address],
         blockNumber,
       })
-      apr = Number(rawApr) / 1e18
+      const apr = Number(rawApr) / 1e18
+      if (isNaN(apr) || !isFinite(apr)) return undefined
+      return apr
     } catch {
-      apr = 0
+      return undefined
     }
   }
-
-  if (isNaN(apr) || !isFinite(apr)) {
-    apr = 0
-  }
-
-  return apr
 }
 
 export default async function (
@@ -75,6 +71,7 @@ export default async function (
   }
 
   const apr = await readApr(chainId, address, blockNumber, oracleConfig.address)
+  if (apr === undefined) return []
 
   const apy = computeApy(apr)
 

@@ -185,7 +185,8 @@ async function main() {
       const blockNumber = latestBlocks.get(vault.chainId)
       if (!blockNumber) return { vault, kind: 'skip' as const }
 
-      const oracleConfig = getOracleConfig(vault.chainId)!
+      const oracleConfig = getOracleConfig(vault.chainId)
+      if (!oracleConfig) return { vault, kind: 'skip' as const }
       const result = await probeGetStrategyApr(vault.chainId, vault.address, blockNumber, oracleConfig.address)
 
       if (result.reverted) {
