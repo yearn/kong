@@ -52,7 +52,7 @@ type AffectedVault = {
   address: `0x${string}`
 }
 
-const availableChainIds = new Set(chains.map(c => c.id))
+const availableChainIds = new Set<number>(chains.map(c => c.id))
 
 async function findAffectedVaults(chainId?: number): Promise<AffectedVault[]> {
   const params: number[] = []
