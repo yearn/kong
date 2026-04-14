@@ -1,23 +1,27 @@
 # backfill-apr-oracle-getCurrentApr
 
-Backfill scripts for v3 vault apr-oracle output rows that were stored as `0` because `getStrategyApr` reverted for vaults without a registered strategy oracle.
+Backfill scripts for v3 vault apr-oracle output rows that were stored as `0` even though the oracle currently reports a non-zero APR.
 
 ## Background
 
-The apr-oracle timeseries hook originally only called `getStrategyApr(vaultAddress, 0)`. For vaults that aren't tokenized strategies, no strategy oracle is registered so `getStrategyApr` **reverts**. The catch block silently set `apr = 0`, producing faulty zero rows.
+The apr-oracle timeseries hook reads `getCurrentApr(address)` for the vault-wide weighted APR and only falls back to `getStrategyApr(address, 0)` for the specific contract-revert path used by tokenized strategies. Older zero rows need to be checked against the live oracle logic to determine whether they are genuine or need repair.
 
-The fix tries `getStrategyApr` first (works for tokenized strategies), falling back to `getCurrentApr(address)` (weighted average APR across all strategies) when `getStrategyApr` reverts.
+The backfill flow does that in three steps:
+
+1. Probe distinct vaults with stored `apr=0` rows at the latest block.
+2. Recompute historical rows for vaults whose current oracle APR is non-zero.
+3. Upsert the corrected rows back into `output`.
 
 ## Scripts
 
 ### 1. probe.ts
 
-Lightweight diagnostic that identifies which vaults have faulty zeros caused by `getStrategyApr` reverting.
+Lightweight diagnostic that identifies which vaults have faulty zeros by comparing stored `apr=0` rows against the current oracle read logic at the latest block.
 
 - Queries distinct `chain_id:address` pairs from the `output` table where `apr=0`
-- Calls `getStrategyApr` at the **latest block** for each vault
-- If `getStrategyApr` reverts → vault is faulty (the bug), written to `probe-results.json`
-- If `getStrategyApr` succeeds → vault has a genuine value, skipped
+- Calls the same `readApr()` logic used by live ingest at the **latest block** for each vault
+- If the oracle returns non-zero APR → vault is faulty, written to `probe-results.json`
+- If the oracle still returns `0`/`undefined` → the zero rows are treated as genuine and skipped
 - Skips chains without RPC config
 
 ```

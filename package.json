@@ -17,7 +17,9 @@
     "lint:terminal": "bun run --elide-lines 0 --filter terminal lint",
     "lint:fix:terminal": "bun run --elide-lines 0 --filter terminal lint --fix",
     "lint:web": "bun run --elide-lines 0 --filter web lint",
-    "lint:fix:web": "bun run --elide-lines 0 --filter web lint --fix"
+    "lint:fix:web": "bun run --elide-lines 0 --filter web lint --fix",
+    "lint": "bun run --elide-lines 0 --filter ingest lint && bun run --elide-lines 0 --filter lib lint && bun run --elide-lines 0 --filter terminal lint && bun run --elide-lines 0 --filter web lint",
+    "lint:fix": "bun run --elide-lines 0 --filter ingest lint --fix && bun run --elide-lines 0 --filter lib lint --fix && bun run --elide-lines 0 --filter terminal lint --fix && bun run --elide-lines 0 --filter web lint --fix"
   },
   "devDependencies": {
     "@testcontainers/postgresql": "^10.18.0",

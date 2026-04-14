@@ -13,11 +13,11 @@ import { join } from 'path'
 import { getAddress } from 'viem'
 
 /**
- * Phase 1: Compute corrected apr-oracle outputs for vaults where getStrategyApr
- * returned 0 but getCurrentApr returns the real weighted-average APR.
+ * Phase 2: Compute corrected apr-oracle outputs for rows stored as apr=0
+ * where the current apr-oracle read logic indicates they should be non-zero.
  *
  * - Finds all affected apr-oracle rows (apr=0 in output table)
- * - Calls getCurrentApr/getStrategyApr on-chain for each row's original block
+ * - Calls the apr-oracle read logic on-chain for each row's original block
  * - Writes results to a temp table (output_temp_apr_oracle_backfill)
  * - Supports pause/resume: already-computed rows are skipped via the temp table
  *
@@ -84,6 +84,29 @@ type TempOutput = Output & {
   seriesTime: Date
 }
 
+function parseSeriesTime(value: unknown): Date {
+  if (value instanceof Date) return value
+
+  if (typeof value === 'bigint') {
+    return new Date(Number(value) * 1000)
+  }
+
+  if (typeof value === 'number') {
+    return new Date(value > 1e12 ? value : value * 1000)
+  }
+
+  if (typeof value === 'string') {
+    const numericValue = Number(value)
+    if (!Number.isNaN(numericValue)) {
+      return new Date(numericValue > 1e12 ? numericValue : numericValue * 1000)
+    }
+
+    return new Date(value)
+  }
+
+  throw new TypeError(`unsupported series_time value: ${String(value)}`)
+}
+
 async function findAffectedVaults(chainId?: number): Promise<AffectedVault[]> {
   const params: number[] = []
   let chainFilter = ''
@@ -114,20 +137,12 @@ async function findAffectedVaults(chainId?: number): Promise<AffectedVault[]> {
   `, params)
 
   return result.rows.map((row: Record<string, unknown>) => {
-    let seriesTime: Date
-    if (row.seriesTime instanceof Date) {
-      seriesTime = row.seriesTime
-    } else {
-      // pg driver may return timestamptz as BigInt (epoch micros) or string
-      const n = Number(row.seriesTime)
-      seriesTime = n > 1e12 ? new Date(n) : new Date(n * 1000)
-    }
     return {
       chainId: row.chainId as number,
       address: getAddress(row.address as string) as `0x${string}`,
       blockNumber: BigInt(row.blockNumber as string | bigint),
       blockTime: BigInt(row.blockTime as string | bigint),
-      seriesTime,
+      seriesTime: parseSeriesTime(row.seriesTime),
     }
   })
 }
@@ -137,8 +152,8 @@ async function getAlreadyComputed(): Promise<Set<string>> {
     const result = await db.query(`
       SELECT DISTINCT chain_id, address, series_time FROM ${TEMP_TABLE}
     `)
-    return new Set(result.rows.map((row: { chain_id: number; address: string; series_time: Date }) => (
-      `${row.chain_id}:${row.address.toLowerCase()}:${new Date(row.series_time).toISOString()}`
+    return new Set(result.rows.map((row: { chain_id: number; address: string; series_time: unknown }) => (
+      `${row.chain_id}:${row.address.toLowerCase()}:${parseSeriesTime(row.series_time).toISOString()}`
     )))
   } catch {
     return new Set()
@@ -290,7 +305,7 @@ async function main() {
           console.log(`  fix ${vault.chainId}:${vault.address} apr=${apr.toFixed(6)} netApr=${netApr.toFixed(6)}`)
         } else {
           skipped++
-          console.log(`  skip ${vault.chainId}:${vault.address} (getCurrentApr also returned 0)`)
+          console.log(`  skip ${vault.chainId}:${vault.address} (oracle still returned 0/undefined)`)
         }
       } else {
         errors++

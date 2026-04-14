@@ -4,12 +4,24 @@ import { Output, OutputSchema } from 'lib/types'
 import { Data } from '../../../../../../extract/timeseries'
 import { computeApy, computeNetApr, extractFees__v3 } from '../../../../lib/apy'
 import { projectStrategies } from '../../snapshot/hook'
+import { BaseError, ContractFunctionRevertedError } from 'viem'
 import { V3_ORACLE_ABI } from './abi'
 import { getOracleConfig } from './constants'
 
 export { computeNetApr } from '../../../../lib/apy'
 
 export const outputLabel = 'apr-oracle'
+
+function parseApr(rawApr: bigint): number | undefined {
+  const apr = Number(rawApr) / 1e18
+  if (isNaN(apr) || !isFinite(apr)) return undefined
+  return apr
+}
+
+function isExpectedStrategyAprFallback(error: unknown): boolean {
+  if (!(error instanceof BaseError)) return false
+  return !!error.walk(cause => cause instanceof ContractFunctionRevertedError)
+}
 
 export async function readApr(
   chainId: number,
@@ -18,7 +30,20 @@ export async function readApr(
   oracleAddress: `0x${string}`,
 ): Promise<number | undefined> {
   try {
-    // For tokenized strategies (registered as vaults): getStrategyApr returns the direct APR.
+    const rawApr = await rpcs.next(chainId).readContract({
+      abi: V3_ORACLE_ABI,
+      address: oracleAddress,
+      functionName: 'getCurrentApr',
+      args: [address],
+      blockNumber,
+    })
+    return parseApr(rawApr)
+  } catch (error) {
+    if (!isExpectedStrategyAprFallback(error)) throw error
+  }
+
+  try {
+    // Tokenized strategies can revert on getCurrentApr but still expose a direct strategy APR.
     const rawApr = await rpcs.next(chainId).readContract({
       abi: V3_ORACLE_ABI,
       address: oracleAddress,
@@ -26,25 +51,9 @@ export async function readApr(
       args: [address, 0n],
       blockNumber,
     })
-    const apr = Number(rawApr) / 1e18
-    if (isNaN(apr) || !isFinite(apr)) return undefined
-    return apr
+    return parseApr(rawApr)
   } catch {
-    try {
-      // Fallback for regular vaults: getCurrentApr returns weighted average APR across all strategies.
-      const rawApr = await rpcs.next(chainId).readContract({
-        abi: V3_ORACLE_ABI,
-        address: oracleAddress,
-        functionName: 'getCurrentApr',
-        args: [address],
-        blockNumber,
-      })
-      const apr = Number(rawApr) / 1e18
-      if (isNaN(apr) || !isFinite(apr)) return undefined
-      return apr
-    } catch {
-      return undefined
-    }
+    return undefined
   }
 }
 
