@@ -4,7 +4,7 @@ Backfill scripts for v3 vault apr-oracle output rows that were stored as `0` eve
 
 ## Background
 
-The apr-oracle timeseries hook reads `getStrategyApr(address, 0)` — the oracle's strategy-level APR — and falls back to `getCurrentApr(address)` for vaults (e.g. tokenized strategies) where `getStrategyApr` reverts. Older zero rows need to be checked against the live oracle logic to determine whether they are genuine or need repair.
+The apr-oracle timeseries hook reads `getStrategyApr(address, 0)` — the oracle's strategy-level APR — and falls back to `getCurrentApr(address)` for vaults (e.g. multi-strategy vaults) where `getStrategyApr` reverts. Older zero rows need to be checked against the live oracle logic to determine whether they are genuine or need repair.
 
 The backfill flow does that in three steps:
 

@@ -210,6 +210,8 @@ async function computeVaultOracle(vault: AffectedVault): Promise<TempOutput[]> {
   const blockNumber = vault.blockNumber
 
   const apr = await readApr(vault.chainId, vault.address, blockNumber, oracleConfig.address)
+  // Intentionally falsy check (not `=== undefined`): for backfill, skip rows where
+  // the oracle still returns 0 — no point overwriting a zero with a zero.
   if (!apr) return []
 
   const apy = computeApy(apr)
