@@ -4,7 +4,7 @@ Backfill scripts for v3 vault apr-oracle output rows that were stored as `0` eve
 
 ## Background
 
-The apr-oracle timeseries hook reads `getStrategyApr(address, 0)` — the oracle's strategy-level APR — and falls back to `getCurrentApr(address)` for vaults (e.g. multi-strategy vaults) where `getStrategyApr` reverts. Older zero rows need to be checked against the live oracle logic to determine whether they are genuine or need repair.
+The apr-oracle timeseries hook reads `getStrategyApr(address, 0)` — the oracle's strategy-level APR — and falls back to `getCurrentApr(address)` for regular vaults without a registered strategy oracle where `getStrategyApr` reverts. `getCurrentApr` returns APR based on the vault's profit-unlocking rate. Older zero rows need to be checked against the live oracle logic to determine whether they are genuine or need repair.
 
 The backfill flow does that in three steps:
 
@@ -49,6 +49,23 @@ bun packages/scripts/src/backfill-apr-oracle-getCurrentApr/upsert.ts [--dry-run]
 ```
 
 ## Workflow
+
+### Full recompute (safer, recommended for first run)
+
+Running `compute.ts` without `--from-probe` processes **all** v3 vault apr-oracle rows with `apr=0`. This is the safest option because it catches every case — including vaults that historically reverted on `getStrategyApr` but have since had a strategy oracle registered.
+
+```
+compute.ts  -->  upsert.ts
+```
+
+1. Run `compute.ts --dry-run` to preview scope
+2. Run `compute.ts` to recompute APRs for all zero rows
+3. Run `upsert.ts --dry-run` to preview, then `upsert.ts` to apply
+4. Trigger a snapshot refresh so updated values propagate to the REST cache
+
+### Probe-gated (faster, narrower scope)
+
+Use the probe to target only vaults where `getStrategyApr` currently reverts. Note: this can miss vaults that used to revert but no longer do (e.g., a strategy oracle was registered after the faulty rows were written).
 
 ```
 probe.ts  -->  probe-results.json  -->  compute.ts --from-probe  -->  upsert.ts

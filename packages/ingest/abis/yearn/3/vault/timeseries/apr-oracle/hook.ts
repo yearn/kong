@@ -44,8 +44,8 @@ export async function readApr(
   }
 
   try {
-    // Fallback: some vaults (e.g. multi-strategy vaults) revert on getStrategyApr
-    // but still expose APR via getCurrentApr.
+    // Fallback: regular vaults without a registered strategy oracle revert on
+    // getStrategyApr. getCurrentApr returns APR based on the vault's profit-unlocking rate.
     const rawApr = await rpcs.next(chainId).readContract({
       abi: V3_ORACLE_ABI,
       address: oracleAddress,
