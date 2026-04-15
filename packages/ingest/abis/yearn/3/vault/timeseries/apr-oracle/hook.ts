@@ -1,10 +1,10 @@
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { rpcs } from 'lib/rpcs'
 import { Output, OutputSchema } from 'lib/types'
+import { BaseError, ContractFunctionRevertedError } from 'viem'
 import { Data } from '../../../../../../extract/timeseries'
 import { computeApy, computeNetApr, extractFees__v3 } from '../../../../lib/apy'
 import { projectStrategies } from '../../snapshot/hook'
-import { BaseError, ContractFunctionRevertedError } from 'viem'
 import { V3_ORACLE_ABI } from './abi'
 import { getOracleConfig } from './constants'
 
@@ -33,22 +33,24 @@ export async function readApr(
     const rawApr = await rpcs.next(chainId).readContract({
       abi: V3_ORACLE_ABI,
       address: oracleAddress,
-      functionName: 'getCurrentApr',
-      args: [address],
+      functionName: 'getStrategyApr',
+      args: [address, 0n],
       blockNumber,
     })
+
     return parseApr(rawApr)
   } catch (error) {
     if (!isExpectedStrategyAprFallback(error)) throw error
   }
 
   try {
-    // Tokenized strategies can revert on getCurrentApr but still expose a direct strategy APR.
+    // Fallback: some vaults (e.g. multi-strategy vaults) revert on getStrategyApr
+    // but still expose APR via getCurrentApr.
     const rawApr = await rpcs.next(chainId).readContract({
       abi: V3_ORACLE_ABI,
       address: oracleAddress,
-      functionName: 'getStrategyApr',
-      args: [address, 0n],
+      functionName: 'getCurrentApr',
+      args: [address],
       blockNumber,
     })
     return parseApr(rawApr)

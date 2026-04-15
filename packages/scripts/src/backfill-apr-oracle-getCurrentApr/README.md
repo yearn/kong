@@ -4,7 +4,7 @@ Backfill scripts for v3 vault apr-oracle output rows that were stored as `0` eve
 
 ## Background
 
-The apr-oracle timeseries hook reads `getCurrentApr(address)` — the oracle's vault-level APR based on the current profit-unlocking rate — and falls back to `getStrategyApr(address, 0)` for tokenized strategies where `getCurrentApr` reverts. Older zero rows need to be checked against the live oracle logic to determine whether they are genuine or need repair.
+The apr-oracle timeseries hook reads `getStrategyApr(address, 0)` — the oracle's strategy-level APR — and falls back to `getCurrentApr(address)` for vaults (e.g. tokenized strategies) where `getStrategyApr` reverts. Older zero rows need to be checked against the live oracle logic to determine whether they are genuine or need repair.
 
 The backfill flow does that in three steps:
 
@@ -16,16 +16,16 @@ The backfill flow does that in three steps:
 
 ### 1. probe.ts
 
-Lightweight diagnostic that identifies which vaults have faulty zeros by comparing stored `apr=0` rows against the current oracle read logic at the latest block.
+Lightweight diagnostic that identifies which vaults with snapshot oracle `apr=0` actually revert when calling `getStrategyApr` on-chain.
 
-- Queries distinct `chain_id:address` pairs from the `output` table where `apr=0`
-- Calls the same `readApr()` logic used by live ingest at the **latest block** for each vault
-- If the oracle returns non-zero APR → vault is faulty, written to `probe-results.json`
-- If the oracle still returns `0`/`undefined` → the zero rows are treated as genuine and skipped
-- Skips chains without RPC config
+- Queries vaults from the `snapshot` table where `hook.performance.oracle.apr = 0` (v3 + yearn only)
+- Calls `getStrategyApr(address, 0)` at the latest block for each vault
+- If `getStrategyApr` reverts → vault is faulty, written to `probe-results.json`
+- If `getStrategyApr` returns successfully → the zero is treated as genuine and skipped
+- Skips chains without oracle config
 
 ```
-bun packages/scripts/src/backfill-apr-oracle-getCurrentApr/probe.ts [--chain-id <N>]
+bun packages/scripts/src/backfill-apr-oracle-getCurrentApr/probe.ts
 ```
 
 ### 2. compute.ts
