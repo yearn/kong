@@ -53,8 +53,10 @@ export async function readApr(
       args: [address],
       blockNumber,
     })
+    console.warn('🚨', 'apr-oracle getCurrentApr success', chainId, address, String(blockNumber), rawApr)
     return parseApr(rawApr)
   } catch {
+    console.warn('🚨', 'apr-oracle getCurrentApr failed', chainId, address, String(blockNumber))
     return undefined
   }
 }

@@ -1,163 +1,52 @@
 import 'lib/global'
 
-import { existsSync, readFileSync } from 'fs'
 import { projectStrategies } from 'ingest/abis/yearn/3/vault/snapshot/hook'
 import { getOracleConfig } from 'ingest/abis/yearn/3/vault/timeseries/apr-oracle/constants'
 import { readApr } from 'ingest/abis/yearn/3/vault/timeseries/apr-oracle/hook'
 import { computeApy, computeNetApr, extractFees__v3 } from 'ingest/abis/yearn/lib/apy'
 import db from 'ingest/db'
 import { rpcs } from 'ingest/rpcs'
-import { mq } from 'lib'
-import type { Output } from 'lib/types'
-import { join } from 'path'
-import { getAddress } from 'viem'
 
 /**
- * Phase 2: Compute corrected apr-oracle outputs for rows stored as apr=0
- * where the current apr-oracle read logic indicates they should be non-zero.
+ * Compute corrected apr-oracle outputs for rows stored as apr=0
+ * where the oracle actually reports a non-zero APR.
  *
- * - Finds all affected apr-oracle rows (apr=0 in output table)
- * - Calls the apr-oracle read logic on-chain for each row's original block
- * - Writes results to a temp table (output_temp_apr_oracle_backfill)
- * - Supports pause/resume: already-computed rows are skipped via the temp table
+ * - Finds distinct vaults with apr=0 rows in the output table
+ * - Re-queries the oracle at each historical block for every timeseries row
+ * - Writes corrected values to a temp table (output_temp_apr_oracle_backfill)
  *
- * Use --from-probe to only process vaults identified as faulty by probe.ts.
  * Run upsert.ts to promote results to the output table.
  */
 
 const TEMP_TABLE = 'output_temp_apr_oracle_backfill'
-const CONCURRENCY = 10
-const PROBE_RESULTS_FILE = join(__dirname, 'probe-results.json')
+const CONCURRENCY = 10000
 
-function parseArgs(argv: string[]) {
-  const getArg = (flag: string) => {
-    const index = argv.indexOf(flag)
-    return index >= 0 ? argv[index + 1] : undefined
-  }
-  const hasArg = (flag: string) => argv.includes(flag)
-
-  if (hasArg('--help') || hasArg('-h')) {
-    console.log(`usage:
-  bun packages/scripts/src/backfill-apr-oracle-getCurrentApr/compute.ts [--chain-id 1] [--from-probe] [--dry-run]
-
-Finds v3 vault apr-oracle output rows with apr=0 and re-queries the
-oracle at each row's original block. Results go into ${TEMP_TABLE}.
-Supports pause/resume — already-computed rows in the temp table are skipped.
-
-Options:
-  --from-probe  Only process vaults identified as faulty by probe.ts
-  --chain-id N  Filter to a specific chain
-  --dry-run     Don't write to the temp table
-
-Run upsert.ts to promote them to the output table.`)
-    process.exit(0)
-  }
-
-  const chainId = getArg('--chain-id')
-
-  return {
-    chainId: chainId ? Number(chainId) : undefined,
-    fromProbe: hasArg('--from-probe'),
-    dryRun: hasArg('--dry-run'),
-  }
-}
-
-function loadProbeResults(): Set<string> {
-  if (!existsSync(PROBE_RESULTS_FILE)) {
-    console.error('probe-results.json not found. Run probe.ts first.')
-    process.exit(1)
-  }
-  const data = JSON.parse(readFileSync(PROBE_RESULTS_FILE, 'utf8')) as { chainId: number; address: string }[]
-  console.log(`loaded ${data.length} faulty vaults from probe-results.json`)
-  return new Set(data.map(v => `${v.chainId}:${v.address.toLowerCase()}`))
-}
-
-type AffectedVault = {
-  chainId: number
-  address: `0x${string}`
-  blockNumber: bigint
-  blockTime: bigint
-  seriesTime: Date
-}
-
-type TempOutput = Output & {
-  seriesTime: Date
-}
-
-function parseSeriesTime(value: unknown): Date {
-  if (value instanceof Date) return value
-
-  if (typeof value === 'bigint') {
-    return new Date(Number(value) * 1000)
-  }
-
-  if (typeof value === 'number') {
-    return new Date(value > 1e12 ? value : value * 1000)
-  }
-
-  if (typeof value === 'string') {
-    const numericValue = Number(value)
-    if (!Number.isNaN(numericValue)) {
-      return new Date(numericValue > 1e12 ? numericValue : numericValue * 1000)
-    }
-
-    return new Date(value)
-  }
-
-  throw new TypeError(`unsupported series_time value: ${String(value)}`)
-}
-
-async function findAffectedVaults(chainId?: number): Promise<AffectedVault[]> {
-  const params: number[] = []
-  let chainFilter = ''
-
-  if (chainId !== undefined) {
-    params.push(chainId)
-    chainFilter = `AND o.chain_id = $${params.length}`
-  }
-
+async function fetchAffectedVaults(): Promise<{ chain_id: number; address: `0x${string}` }[]> {
   const result = await db.query(`
-    SELECT
-      o.chain_id AS "chainId",
-      o.address,
-      o.block_number AS "blockNumber",
-      EXTRACT(EPOCH FROM o.block_time)::bigint AS "blockTime",
-      o.series_time AS "seriesTime"
-    FROM output o
-    JOIN thing t
-      ON t.chain_id = o.chain_id
-      AND t.address = o.address
-      AND t.label = 'vault'
-      AND COALESCE((t.defaults->>'v3')::boolean, false)
-    WHERE o.label = 'apr-oracle'
-      AND o.component = 'apr'
-      AND o.value = 0
-      ${chainFilter}
-    ORDER BY o.chain_id, o.address, o.series_time
-  `, params)
-
-  return result.rows.map((row: Record<string, unknown>) => {
-    return {
-      chainId: row.chainId as number,
-      address: getAddress(row.address as string) as `0x${string}`,
-      blockNumber: BigInt(row.blockNumber as string | bigint),
-      blockTime: BigInt(row.blockTime as string | bigint),
-      seriesTime: parseSeriesTime(row.seriesTime),
-    }
-  })
+    SELECT DISTINCT ON (address) chain_id, address
+    FROM public.output
+    WHERE label = 'apr-oracle' AND value = 0
+  `)
+  return result.rows
 }
 
-async function getAlreadyComputed(): Promise<Set<string>> {
-  try {
-    const result = await db.query(`
-      SELECT DISTINCT chain_id, address, series_time FROM ${TEMP_TABLE}
-    `)
-    return new Set(result.rows.map((row: { chain_id: number; address: string; series_time: unknown }) => (
-      `${row.chain_id}:${row.address.toLowerCase()}:${parseSeriesTime(row.series_time).toISOString()}`
-    )))
-  } catch {
-    return new Set()
-  }
+type AffectedRow = {
+  chain_id: number
+  address: `0x${string}`
+  block_number: string
+  block_time: bigint
+  series_time: bigint
+}
+
+type TempRow = {
+  chain_id: number
+  address: `0x${string}`
+  label: string
+  component: string
+  value: number
+  block_number: bigint
+  block_time: bigint
+  series_time: bigint
 }
 
 async function ensureTempTable() {
@@ -178,7 +67,7 @@ async function ensureTempTable() {
   console.log(`temp table ${TEMP_TABLE}: ${count.rows[0].count} existing rows`)
 }
 
-async function insertTempBatch(rows: TempOutput[]) {
+async function insertTempBatch(rows: TempRow[]) {
   if (rows.length === 0) return
 
   const values: string[] = []
@@ -186,12 +75,13 @@ async function insertTempBatch(rows: TempOutput[]) {
   let idx = 1
 
   for (const row of rows) {
-    const blockTime = new Date(Number(row.blockTime) * 1000)
+    const blockTime = new Date(Number(row.block_time) * 1000)
+    const seriesTime = new Date(Number(row.series_time) * 1000)
 
     values.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7})`)
     params.push(
-      row.chainId, row.address, row.label, row.component ?? '',
-      row.value ?? 0, row.blockNumber.toString(), blockTime, row.seriesTime
+      row.chain_id, row.address, row.label, row.component ?? '',
+      row.value ?? 0, row.block_number.toString(), blockTime, seriesTime
     )
     idx += 8
   }
@@ -204,138 +94,125 @@ async function insertTempBatch(rows: TempOutput[]) {
   `, params)
 }
 
-async function computeVaultOracle(vault: AffectedVault): Promise<TempOutput[]> {
-  const oracleConfig = getOracleConfig(vault.chainId)
+async function computeVaultOracle(row: AffectedRow): Promise<TempRow[]> {
+  const oracleConfig = getOracleConfig(row.chain_id)
   if (!oracleConfig) return []
-  const blockNumber = vault.blockNumber
+  const blockNumber = BigInt(row.block_number)
 
-  const apr = await readApr(vault.chainId, vault.address, blockNumber, oracleConfig.address)
-  // Intentionally falsy check (not `=== undefined`): for backfill, skip rows where
-  // the oracle still returns 0 — no point overwriting a zero with a zero.
+  const apr = await readApr(row.chain_id, row.address, blockNumber, oracleConfig.address)
+  // Intentionally falsy check: skip rows where the oracle still returns 0.
   if (!apr) return []
 
   const apy = computeApy(apr)
 
   let fees = { management: 0, performance: 0 }
   try {
-    const strategies = await projectStrategies(vault.chainId, vault.address, blockNumber)
-    fees = await extractFees__v3(vault.chainId, vault.address, strategies, blockNumber)
+    const strategies = await projectStrategies(row.chain_id, row.address, blockNumber)
+    fees = await extractFees__v3(row.chain_id, row.address, strategies, blockNumber)
   } catch (error) {
-    console.warn(`  ⚠ fee fetch failed for ${vault.chainId}:${vault.address}:`, error)
+    console.warn(`  ⚠ fee fetch failed for ${row.chain_id}:${row.address}:`, error)
   }
 
   const netApr = computeNetApr(apr, fees)
   const netApy = computeApy(netApr)
-  const blockTime = vault.blockTime
-  const baseRow = {
-    chainId: vault.chainId,
-    address: vault.address,
-    blockNumber,
-    blockTime,
-    seriesTime: vault.seriesTime,
+  const base = {
+    chain_id: row.chain_id,
+    address: row.address,
+    block_number: blockNumber,
+    block_time: row.block_time,
+    series_time: row.series_time,
   }
 
   return [
-    { ...baseRow, label: 'apr-oracle', component: 'apr', value: apr },
-    { ...baseRow, label: 'apr-oracle', component: 'apy', value: apy },
-    { ...baseRow, label: 'apr-oracle', component: 'netApr', value: netApr },
-    { ...baseRow, label: 'apr-oracle', component: 'netApy', value: netApy },
+    { ...base, label: 'apr-oracle', component: 'apr', value: apr },
+    { ...base, label: 'apr-oracle', component: 'apy', value: apy },
+    { ...base, label: 'apr-oracle', component: 'netApr', value: netApr },
+    { ...base, label: 'apr-oracle', component: 'netApy', value: netApy },
   ]
 }
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2))
   const startTime = Date.now()
 
   await rpcs.up()
 
-  console.log(args.dryRun ? 'DRY RUN mode' : 'COMPUTE mode')
-  if (args.chainId !== undefined) console.log(`chainId=${args.chainId}`)
-  if (args.fromProbe) console.log('filtering to faulty vaults from probe-results.json')
+  const vaults = await fetchAffectedVaults()
 
-  const probeFilter = args.fromProbe ? loadProbeResults() : null
-
-  let allVaults = await findAffectedVaults(args.chainId)
-  if (probeFilter) {
-    const before = allVaults.length
-    allVaults = allVaults.filter(v => probeFilter.has(`${v.chainId}:${v.address.toLowerCase()}`))
-    console.log(`found ${before} apr-oracle rows with apr=0, filtered to ${allVaults.length} from probe`)
-  } else {
-    console.log(`found ${allVaults.length} apr-oracle rows with apr=0`)
-  }
-  if (allVaults.length === 0) {
+  if (vaults.length === 0) {
     await rpcs.down()
-    await mq.down()
     await db.end()
     return
   }
 
-  if (!args.dryRun) {
-    await ensureTempTable()
-  }
+  await ensureTempTable()
 
-  // Filter out already-computed rows (pause/resume support)
-  const alreadyComputed = args.dryRun ? new Set<string>() : await getAlreadyComputed()
-  const vaults = allVaults.filter(v => !alreadyComputed.has(
-    `${v.chainId}:${v.address.toLowerCase()}:${v.seriesTime.toISOString()}`
+  const alreadyDone = await db.query(`
+    SELECT DISTINCT chain_id, address FROM ${TEMP_TABLE}
+  `)
+  const doneSet = new Set(alreadyDone.rows.map((r: { chain_id: number; address: string }) =>
+    `${r.chain_id}:${r.address.toLowerCase()}`
   ))
-  if (alreadyComputed.size > 0) {
-    console.log(`skipping ${allVaults.length - vaults.length} already-computed rows (resume)`)
+
+  const remaining = vaults.filter(v => !doneSet.has(`${v.chain_id}:${v.address.toLowerCase()}`))
+  console.log(`${vaults.length} affected vaults, ${doneSet.size} already computed, ${remaining.length} remaining\n`)
+
+  if (remaining.length === 0) {
+    await rpcs.down()
+    await db.end()
+    return
   }
-  console.log(`processing ${vaults.length} rows\n`)
 
-  let fixed = 0
-  let skipped = 0
-  let errors = 0
+  let totalFixed = 0
+  let totalSkipped = 0
+  let totalErrors = 0
 
-  for (let i = 0; i < vaults.length; i += CONCURRENCY) {
-    const batch = vaults.slice(i, i + CONCURRENCY)
+  for (let i = 0; i < remaining.length; i += CONCURRENCY) {
+    const batch = remaining.slice(i, i + CONCURRENCY)
 
-    const results = await Promise.allSettled(batch.map(async (vault) => {
-      const outputs = await computeVaultOracle(vault)
-      return { vault, outputs }
+    await Promise.all(batch.map(async (vault) => {
+      const vaultTimeseries = await db.query(`
+        SELECT * FROM output
+        WHERE label = 'apr-oracle' AND address = $1 AND chain_id = $2
+      `, [vault.address, vault.chain_id])
+
+      let fixed = 0
+      let skipped = 0
+      let errors = 0
+      for (const row of vaultTimeseries.rows) {
+        try {
+          const outputs = await computeVaultOracle(row)
+          if (outputs.length > 0) {
+            await insertTempBatch(outputs)
+            fixed += outputs.length
+          } else {
+            skipped++
+          }
+        } catch (error) {
+          errors++
+          console.error(`  error ${vault.chain_id}:${vault.address} block=${row.block_number}:`, error instanceof Error ? error.message : error)
+        }
+      }
+
+      totalFixed += fixed
+      totalSkipped += skipped
+      totalErrors += errors
+      console.log(`  ${vault.chain_id}:${vault.address} rows=${vaultTimeseries.rows.length} fixed=${fixed} skipped=${skipped} errors=${errors}`)
     }))
 
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        const { vault, outputs } = result.value
-        if (outputs.length > 0) {
-          if (!args.dryRun) await insertTempBatch(outputs)
-          fixed++
-          const apr = outputs.find(o => o.component === 'apr')?.value ?? 0
-          const netApr = outputs.find(o => o.component === 'netApr')?.value ?? 0
-          console.log(`  fix ${vault.chainId}:${vault.address} apr=${apr.toFixed(6)} netApr=${netApr.toFixed(6)}`)
-        } else {
-          skipped++
-          console.log(`  skip ${vault.chainId}:${vault.address} (oracle still returned 0/undefined)`)
-        }
-      } else {
-        errors++
-        console.error('  error:', result.reason instanceof Error ? result.reason.message : String(result.reason))
-      }
-    }
-
-    process.stdout.write(`\r  progress: ${Math.min(i + CONCURRENCY, vaults.length)}/${vaults.length} (${fixed} fixed, ${skipped} skipped, ${errors} errors)`)
+    const done = Math.min(i + CONCURRENCY, remaining.length)
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+    console.log(`[${done}/${remaining.length}] ${elapsed}s elapsed | fixed=${totalFixed} skipped=${totalSkipped} errors=${totalErrors}\n`)
   }
-
-  console.log()
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(2)
-  console.log('\n=== Summary ===')
-  console.log(`Rows processed:   ${fixed + skipped + errors}`)
-  console.log(`Fixed:            ${fixed}`)
-  console.log(`Skipped (apr=0):  ${skipped}`)
-  console.log(`Errors:           ${errors}`)
-  console.log(`Duration:         ${duration}s`)
-
-  if (!args.dryRun) {
-    const count = await db.query(`SELECT COUNT(*) FROM ${TEMP_TABLE}`)
-    console.log(`Temp table:       ${count.rows[0].count} rows in ${TEMP_TABLE}`)
-    console.log('\nRun upsert.ts to promote to the output table.')
-  }
+  console.log('=== Summary ===')
+  console.log(`Vaults:    ${remaining.length}`)
+  console.log(`Fixed:     ${totalFixed}`)
+  console.log(`Skipped:   ${totalSkipped}`)
+  console.log(`Errors:    ${totalErrors}`)
+  console.log(`Duration:  ${duration}s`)
 
   await rpcs.down()
-  await mq.down()
   await db.end()
 }
 
