@@ -83,6 +83,6 @@ export async function cacheMSet(pairs: Array<[string, string]>): Promise<void> {
 }
 
 export async function disconnect(): Promise<void> {
-  if (writeClient.isOpen) await writeClient.disconnect()
+  await writeClient.disconnect()
   await keyv.disconnect()
 }
