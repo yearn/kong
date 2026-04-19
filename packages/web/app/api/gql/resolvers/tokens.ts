@@ -5,22 +5,19 @@ const tokens = async (_: object, args: { chainId?: number }) => {
 
   try {
     const result = await db.query(`
-    SELECT defaults FROM thing WHERE label = 'erc20';`)
+      SELECT
+        (defaults->>'chainId')::int AS "chainId",
+        defaults->>'address' AS address,
+        defaults->>'name' AS name,
+        defaults->>'symbol' AS symbol,
+        (defaults->>'decimals')::int AS decimals
+      FROM thing
+      WHERE label = 'erc20'
+        AND ($1::int IS NULL OR (defaults->>'chainId')::int = $1)
+      ORDER BY "chainId", name
+    `, [chainId ?? null])
 
     return result.rows
-      .map(row => row.defaults)
-      .filter(defaults => !chainId || defaults.chainId === chainId)
-      .sort((a, b) => {
-        if (a.chainId !== b.chainId) return a.chainId - b.chainId
-        return (a.name || '').localeCompare(b.name || '')
-      })
-      .map(defaults => ({
-        chainId: defaults.chainId,
-        address: defaults.address,
-        name: defaults.name,
-        symbol: defaults.symbol,
-        decimals: defaults.decimals
-      }))
 
   } catch (error) {
     console.error(error)

@@ -1,4 +1,5 @@
 import { EstimatedAprSchema } from 'lib/types'
+import { ESTIMATED_APR_LABELS } from 'lib/estimatedApr'
 import { z } from 'zod'
 import db, { firstRow } from '../db'
 
@@ -27,15 +28,15 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string, 
           SELECT block_time FROM output
           WHERE chain_id = $1
           AND address = $2
-          AND label LIKE '%-estimated-apr'
+          AND label = ANY($3::text[])
           AND block_time > NOW() - INTERVAL '7 days'
           ORDER BY block_time DESC
           LIMIT 1
         )
         AND chain_id = $1
         AND address = $2
-        AND label LIKE '%-estimated-apr'
-    `, [chainId, address])
+        AND label = ANY($3::text[])
+    `, [chainId, address, ESTIMATED_APR_LABELS])
 
   if (!result.rows.length) return undefined
 

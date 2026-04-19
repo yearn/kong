@@ -1,5 +1,6 @@
 import db from '../../db'
 import { getAddress } from 'viem'
+import { ESTIMATED_APR_LABELS } from 'lib/estimatedApr'
 
 export type VaultRow = {
   chainId: number
@@ -153,10 +154,10 @@ async function resolveEstimatedAprLabel(
     FROM output
     WHERE chain_id = $1
       AND address = $2
-      AND label LIKE '%-estimated-apr'
+      AND label = ANY($3::text[])
     ORDER BY block_time DESC
     LIMIT 1
-  `, [chainId, vaultAddress])
+  `, [chainId, vaultAddress, ESTIMATED_APR_LABELS])
 
   const label = latest.rows[0]?.label
   return typeof label === 'string' ? label : undefined
