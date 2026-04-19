@@ -2,7 +2,7 @@ previewsEnabled: false
 
 services:
   - type: redis
-    name: redis-starter-ingest-2
+    name: redis-starter-ingest-3
     region: ohio
     plan: starter
     maxmemoryPolicy: noeviction # recommended for message queues
@@ -24,10 +24,10 @@ services:
       - key: REDIS_HOST
         fromService:
           type: redis
-          name: redis-starter-ingest-2
+          name: redis-starter-ingest-3
           property: host
       - key: REDIS_PORT
         fromService:
           type: redis
-          name: redis-starter-ingest-2
+          name: redis-starter-ingest-3
           property: port
