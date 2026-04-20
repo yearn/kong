@@ -87,6 +87,7 @@ type OutputMetricRow = {
   address: string
   component: string | null
   value: number | null
+  label: string
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -136,11 +137,7 @@ function parseComponentStrategyMetric(
   return { strategyAddress, metric }
 }
 
-async function resolveEstimatedAprLabel(
-  chainId: number,
-  vaultAddress: string,
-  snapshot: VaultSnapshot
-): Promise<string | undefined> {
+function getPresetEstimatedAprLabel(snapshot: VaultSnapshot): string | undefined {
   const performance = isRecord(snapshot.performance) ? snapshot.performance : undefined
   const estimated = performance && isRecord(performance.estimated) ? performance.estimated : undefined
   const estimatedType = estimated?.type
@@ -148,47 +145,33 @@ async function resolveEstimatedAprLabel(
   if (typeof estimatedType === 'string' && estimatedType.endsWith('-estimated-apr')) {
     return estimatedType
   }
-
-  const latest = await db.query(`
-    SELECT label
-    FROM output
-    WHERE chain_id = $1
-      AND address = $2
-      AND label = ANY($3::text[])
-    ORDER BY block_time DESC
-    LIMIT 1
-  `, [chainId, vaultAddress, ESTIMATED_APR_LABELS])
-
-  const label = latest.rows[0]?.label
-  return typeof label === 'string' ? label : undefined
+  return undefined
 }
 
 async function fetchLatestEstimatedAprRows(
   chainId: number,
   vaultAddress: string,
   strategyAddresses: string[],
-  label: string
+  presetLabel: string | undefined
 ): Promise<OutputMetricRow[]> {
+  const labels = presetLabel ? [presetLabel] : ESTIMATED_APR_LABELS
   const rows = await db.query(`
     WITH latest AS (
-      SELECT block_time
+      SELECT block_time, label
       FROM output
       WHERE chain_id = $1
         AND address = $2
-        AND label = $3
+        AND label = ANY($3::text[])
       ORDER BY block_time DESC
       LIMIT 1
     )
-    SELECT
-      address,
-      component,
-      value
-    FROM output
-    WHERE chain_id = $1
-      AND label = $3
-      AND block_time = (SELECT block_time FROM latest)
-      AND (address = $2 OR address = ANY($4))
-  `, [chainId, vaultAddress, label, strategyAddresses])
+    SELECT o.address, o.component, o.value, l.label
+    FROM output o, latest l
+    WHERE o.chain_id = $1
+      AND o.label = l.label
+      AND o.block_time = l.block_time
+      AND (o.address = $2 OR o.address = ANY($4))
+  `, [chainId, vaultAddress, labels, strategyAddresses])
 
   return rows.rows as OutputMetricRow[]
 }
@@ -209,11 +192,11 @@ async function hydrateStrategyEstimatedApr(
 
   if (strategies.length === 0) return snapshot
 
-  const label = await resolveEstimatedAprLabel(chainId, vaultAddress, snapshot)
-  if (!label) return snapshot
-
-  const rows = await fetchLatestEstimatedAprRows(chainId, vaultAddress, strategies, label)
+  const presetLabel = getPresetEstimatedAprLabel(snapshot)
+  const rows = await fetchLatestEstimatedAprRows(chainId, vaultAddress, strategies, presetLabel)
   if (!rows.length) return snapshot
+
+  const label = rows[0].label
 
   const strategySet = new Set(strategies)
   const mapped = new Map<string, StrategyEstimated>()
