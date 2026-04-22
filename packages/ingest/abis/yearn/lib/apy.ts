@@ -489,7 +489,10 @@ export async function extractLockedProfit__v3(chainId: number, address: `0x${str
 }
 
 export function computeNetApr(grossApr: number, fees: { management: number; performance: number }): number {
-  return (grossApr - fees.management) * (1 - fees.performance)
+  const net = (grossApr - fees.management) * (1 - fees.performance)
+  const floor = grossApr / 2
+  if (net < floor) return floor
+  return net
 }
 
 export function computeApy(apr: number): number {
