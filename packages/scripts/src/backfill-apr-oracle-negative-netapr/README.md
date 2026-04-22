@@ -1,21 +1,21 @@
 # backfill-apr-oracle-negative-netapr
 
-Backfill scripts for v3 vault apr-oracle output rows where `netApr` / `netApy` were stored as a negative number because the management + performance fees exceeded the gross APR.
+Backfill scripts for v3 vault `apr-oracle` output rows where the stored `netApr` is below the new `grossApr / 2` floor (includes all rows that were stored as negative).
 
 ## Background
 
-`computeNetApr` previously returned `(grossApr - managementFee) * (1 - performanceFee)` unconditionally. When the vault's oracle reports a very small positive gross APR (below the management fee), the expression goes negative, so historical rows were written with negative `netApr` (and correspondingly negative `netApy` from `computeApy`).
+`computeNetApr` previously returned `(grossApr - managementFee) * (1 - performanceFee)` unconditionally. When the management fee (charged on TVL) exceeded a very small gross APR the expression went negative; more generally any row where `(gross - mgmt)(1 - perf) < gross / 2` ended up below the accountant's true 50%-of-profit floor.
 
-Yearn's accountant caps management + performance fees at **50% of profit**, so the true lower bound for net APR is `grossApr / 2`. The hook has been fixed to enforce that floor, but existing timeseries rows still carry the negative values. This backfill rewrites them to `grossApr / 2` (and `netApy` to `computeApy(grossApr / 2)`) to match the new invariant.
+The hook has been fixed to enforce `grossApr / 2` as the lower bound. This backfill replays the fixed hook against every stored timeseries bucket that is currently below that floor, so historical rows match current ingestion.
 
 ## Scripts
 
 ### 1. compute.ts
 
-Copies every affected `apr-oracle` / `netApr` + `netApy` row into a temp table with `value` rewritten to the `grossApr / 2` floor. Skips rows that have no matching same-series_time gross `apr` row or where gross is non-positive (nothing to floor against).
-
-- Writes to `output_temp_netapr_floor_backfill`
-- Matches the existing schema of `output_temp_apr_oracle_backfill` so downstream tooling behaves identically
+1. Truncates the temp table `output_temp_netapr_floor_backfill` (every run starts clean).
+2. Queries `(chain_id, address, series_time)` tuples where `netApr < apr / 2`.
+3. Replays `apr-oracle` timeseries hook at each affected `series_time`.
+4. Stages the 4 returned rows (`apr`, `apy`, `netApr`, `netApy`) into the temp table.
 
 ```
 bun packages/scripts/src/backfill-apr-oracle-negative-netapr/compute.ts
@@ -23,10 +23,10 @@ bun packages/scripts/src/backfill-apr-oracle-negative-netapr/compute.ts
 
 ### 2. upsert.ts
 
-Promotes floored values from the temp table into the production `output` table, then drops the temp table.
+Promotes every row from the temp table into `public.output` and drops the temp table.
 
 ```
-bun packages/scripts/src/backfill-apr-oracle-negative-netapr/upsert.ts [--dry-run]
+bun packages/scripts/src/backfill-apr-oracle-negative-netapr/upsert.ts
 ```
 
 ## Workflow
@@ -35,17 +35,20 @@ bun packages/scripts/src/backfill-apr-oracle-negative-netapr/upsert.ts [--dry-ru
 compute.ts  -->  upsert.ts
 ```
 
-1. Run `compute.ts` to stage the floored rows
-2. Run `upsert.ts --dry-run` to preview, then `upsert.ts` to apply
-3. Trigger a snapshot refresh so updated values propagate to the REST cache
-
 ## Verification
 
 After `upsert.ts` runs, this should return `0`:
 
 ```sql
-SELECT COUNT(*) FROM output
-WHERE label = 'apr-oracle'
-  AND component IN ('netApr', 'netApy')
-  AND value < 0;
+SELECT COUNT(*)
+FROM public.output n
+JOIN public.output g
+  ON g.chain_id    = n.chain_id
+ AND g.address     = n.address
+ AND g.label       = 'apr-oracle'
+ AND g.component   = 'apr'
+ AND g.series_time = n.series_time
+WHERE n.label = 'apr-oracle'
+  AND n.component = 'netApr'
+  AND n.value < g.value / 2;
 ```

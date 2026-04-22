@@ -1,172 +1,150 @@
 import 'lib/global'
 
-import { computeApy } from 'ingest/abis/yearn/lib/apy'
+import aprOracleHook from 'ingest/abis/yearn/3/vault/timeseries/apr-oracle/hook'
 import db from 'ingest/db'
+import { rpcs } from 'ingest/rpcs'
+import type { Output } from 'lib/types'
+import { insertTempBatch, resetTempTable, type TempRow } from '../backfill-shared/tempTable'
 
 /**
- * Compute corrected apr-oracle outputs for rows where netApr/netApy were
- * stored as a negative number because fees exceeded the gross APR.
+ * Recompute apr-oracle outputs for rows where the stored netApr is below the
+ * new floor (grossApr / 2) — which also covers rows stored as negative.
  *
- * Yearn's accountant caps management + performance fees at 50% of profit, so
- * the lower bound for net APR is grossApr / 2. The hook now enforces that
- * floor, and this backfill rewrites existing negative rows to the same value.
- *
- * - Joins each negative netApr/netApy row to its same-series_time gross `apr`
- * - Writes `gross / 2` (or `computeApy(gross / 2)` for netApy) into a temp table
- * - Skips rows with no matching gross apr row or where gross is negative
+ * - Identifies (chain_id, address) + series_time pairs where netApr < apr / 2
+ * - Replays the apr-oracle timeseries hook at each affected series_time
+ * - Stages the full 4-row hook output (apr, apy, netApr, netApy) in the temp table
+ * - Temp table is truncated at the start of every run to avoid stale staged rows
  *
  * Run upsert.ts to promote results to the output table.
  */
 
 const TEMP_TABLE = 'output_temp_netapr_floor_backfill'
+const CONCURRENCY = 8
 
-type NegativeRow = {
+type Affected = {
   chain_id: number
   address: `0x${string}`
-  component: 'netApr' | 'netApy'
-  value: string
-  block_number: string
-  block_time: Date
-  series_time: Date
-  gross_apr: string | null
+  series_times: bigint[]
 }
 
-async function ensureTempTable() {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS ${TEMP_TABLE} (
-      chain_id     integer NOT NULL,
-      address      text NOT NULL,
-      label        text NOT NULL,
-      component    text NOT NULL,
-      value        numeric,
-      block_number bigint NOT NULL,
-      block_time   timestamptz NOT NULL,
-      series_time  timestamptz NOT NULL,
-      PRIMARY KEY  (chain_id, address, label, component, series_time)
-    )
-  `)
-  const count = await db.query(`SELECT COUNT(*) FROM ${TEMP_TABLE}`)
-  console.log(`temp table ${TEMP_TABLE}: ${count.rows[0].count} existing rows`)
-}
-
-async function insertBatch(rows: {
-  chain_id: number
-  address: string
-  component: string
-  value: number
-  block_number: string
-  block_time: Date
-  series_time: Date
-}[]) {
-  if (rows.length === 0) return
-
-  const values: string[] = []
-  const params: (string | number | Date)[] = []
-  let idx = 1
-
-  for (const row of rows) {
-    values.push(`($${idx}, $${idx + 1}, 'apr-oracle', $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6})`)
-    params.push(row.chain_id, row.address, row.component, row.value, row.block_number, row.block_time, row.series_time)
-    idx += 7
-  }
-
-  await db.query(`
-    INSERT INTO ${TEMP_TABLE} (chain_id, address, label, component, value, block_number, block_time, series_time)
-    VALUES ${values.join(', ')}
-    ON CONFLICT (chain_id, address, label, component, series_time)
-    DO UPDATE SET value = EXCLUDED.value, block_number = EXCLUDED.block_number, block_time = EXCLUDED.block_time
-  `, params)
-}
-
-async function main() {
-  const startTime = Date.now()
-
-  await ensureTempTable()
-
-  const preview = await db.query(`
-    SELECT chain_id, address, component, count(*) AS rows, min(value) AS min_value
-    FROM public.output
-    WHERE label = 'apr-oracle'
-      AND component IN ('netApr', 'netApy')
-      AND value < 0
-    GROUP BY chain_id, address, component
-    ORDER BY chain_id, address, component
-  `)
-  console.log(`found negative rows across ${preview.rows.length} (vault, component) pairs`)
-  for (const row of preview.rows) {
-    console.log(`  ${row.chain_id}:${row.address} ${row.component} rows=${row.rows} min=${row.min_value}`)
-  }
-
-  if (preview.rows.length === 0) {
-    console.log('nothing to backfill.')
-    await db.end()
-    return
-  }
-
-  const { rows }: { rows: NegativeRow[] } = await db.query(`
-    SELECT
-      n.chain_id,
-      n.address,
-      n.component,
-      n.value,
-      n.block_number,
-      n.block_time,
-      n.series_time,
-      g.value AS gross_apr
+async function findAffected(): Promise<Affected[]> {
+  const { rows } = await db.query(`
+    SELECT n.chain_id, n.address, n.series_time
     FROM public.output n
-    LEFT JOIN public.output g
+    JOIN public.output g
       ON g.chain_id    = n.chain_id
      AND g.address     = n.address
      AND g.label       = 'apr-oracle'
      AND g.component   = 'apr'
      AND g.series_time = n.series_time
     WHERE n.label = 'apr-oracle'
-      AND n.component IN ('netApr', 'netApy')
-      AND n.value < 0
-    ORDER BY n.chain_id, n.address, n.series_time, n.component
+      AND n.component = 'netApr'
+      AND n.value < g.value / 2
+    ORDER BY n.chain_id, n.address, n.series_time
   `)
 
-  const staged: Parameters<typeof insertBatch>[0] = []
-  let skippedNoGross = 0
-  let skippedNegativeGross = 0
+  const grouped = new Map<string, Affected>()
+  for (const r of rows) {
+    const key = `${r.chain_id}:${r.address.toLowerCase()}`
+    const seriesTime = BigInt(Math.floor(new Date(r.series_time).getTime() / 1000))
+    const existing = grouped.get(key)
+    if (existing) {
+      existing.series_times.push(seriesTime)
+    } else {
+      grouped.set(key, { chain_id: r.chain_id, address: r.address, series_times: [seriesTime] })
+    }
+  }
+  return [...grouped.values()]
+}
 
-  for (const row of rows) {
-    if (row.gross_apr === null) {
-      skippedNoGross++
-      continue
+function outputToTempRow(output: Output): TempRow | null {
+  if (output.component == null || output.value == null) return null
+  return {
+    chain_id: output.chainId,
+    address: output.address,
+    label: output.label,
+    component: output.component,
+    value: output.value,
+    block_number: output.blockNumber,
+    block_time: new Date(Number(output.blockTime) * 1000),
+    series_time: new Date(Number(output.blockTime) * 1000),
+  }
+}
+
+async function replayVault(vault: Affected) {
+  const staged: TempRow[] = []
+  let errors = 0
+
+  for (const seriesTime of vault.series_times) {
+    try {
+      const outputs = await aprOracleHook(vault.chain_id, vault.address, {
+        abiPath: 'yearn/3/vault',
+        chainId: vault.chain_id,
+        address: vault.address,
+        outputLabel: 'apr-oracle',
+        blockTime: seriesTime,
+      })
+      for (const output of outputs) {
+        const row = outputToTempRow(output)
+        if (row) staged.push(row)
+      }
+    } catch (error) {
+      errors++
+      console.error(`  error ${vault.chain_id}:${vault.address} @ ${seriesTime}:`, error instanceof Error ? error.message : error)
     }
-    const gross = Number(row.gross_apr)
-    if (gross < 0) {
-      skippedNegativeGross++
-      continue
-    }
-    const floor = gross / 2
-    const value = row.component === 'netApr' ? floor : computeApy(floor)
-    staged.push({
-      chain_id: row.chain_id,
-      address: row.address,
-      component: row.component,
-      value,
-      block_number: row.block_number,
-      block_time: row.block_time,
-      series_time: row.series_time,
-    })
   }
 
-  const BATCH = 500
-  for (let i = 0; i < staged.length; i += BATCH) {
-    await insertBatch(staged.slice(i, i + BATCH))
+  if (staged.length > 0) {
+    const BATCH = 500
+    for (let i = 0; i < staged.length; i += BATCH) {
+      await insertTempBatch(TEMP_TABLE, staged.slice(i, i + BATCH))
+    }
   }
 
-  const duration = ((Date.now() - startTime) / 1000).toFixed(2)
-  console.log('=== Summary ===')
-  console.log(`Negative rows found:     ${rows.length}`)
-  console.log(`Staged (gross >= 0):     ${staged.length}`)
-  console.log(`Skipped (no gross row):  ${skippedNoGross}`)
-  console.log(`Skipped (gross < 0):     ${skippedNegativeGross}`)
-  console.log(`Duration:                ${duration}s`)
+  console.log(`  ${vault.chain_id}:${vault.address} series=${vault.series_times.length} staged=${staged.length} errors=${errors}`)
+  return { staged: staged.length, errors }
+}
 
-  await db.end()
+async function main() {
+  const startTime = Date.now()
+
+  try {
+    await rpcs.up()
+    await resetTempTable(TEMP_TABLE)
+    console.log(`reset temp table ${TEMP_TABLE}`)
+
+    const affected = await findAffected()
+    const totalSeries = affected.reduce((acc, v) => acc + v.series_times.length, 0)
+    console.log(`${affected.length} vaults, ${totalSeries} series_time rows below floor\n`)
+
+    if (affected.length === 0) {
+      console.log('nothing to backfill.')
+      return
+    }
+
+    let totalStaged = 0
+    let totalErrors = 0
+
+    for (let i = 0; i < affected.length; i += CONCURRENCY) {
+      const batch = affected.slice(i, i + CONCURRENCY)
+      const results = await Promise.all(batch.map(replayVault))
+      for (const r of results) {
+        totalStaged += r.staged
+        totalErrors += r.errors
+      }
+    }
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2)
+    console.log('\n=== Summary ===')
+    console.log(`Vaults:    ${affected.length}`)
+    console.log(`Series:    ${totalSeries}`)
+    console.log(`Staged:    ${totalStaged}`)
+    console.log(`Errors:    ${totalErrors}`)
+    console.log(`Duration:  ${duration}s`)
+  } finally {
+    await rpcs.down()
+    await db.end()
+  }
 }
 
 main().catch(error => {
