@@ -29,7 +29,10 @@ type Affected = {
 
 async function findAffected(): Promise<Affected[]> {
   const { rows } = await db.query(`
-    SELECT n.chain_id, n.address, n.series_time
+    SELECT
+      n.chain_id,
+      n.address,
+      EXTRACT(EPOCH FROM n.series_time)::bigint AS series_time_epoch
     FROM public.output n
     JOIN public.output g
       ON g.chain_id    = n.chain_id
@@ -46,7 +49,7 @@ async function findAffected(): Promise<Affected[]> {
   const grouped = new Map<string, Affected>()
   for (const r of rows) {
     const key = `${r.chain_id}:${r.address.toLowerCase()}`
-    const seriesTime = BigInt(Math.floor(new Date(r.series_time).getTime() / 1000))
+    const seriesTime = BigInt(r.series_time_epoch)
     const existing = grouped.get(key)
     if (existing) {
       existing.series_times.push(seriesTime)
@@ -74,8 +77,14 @@ function outputToTempRow(output: Output): TempRow | null {
 async function replayVault(vault: Affected) {
   const staged: TempRow[] = []
   let errors = 0
+  const total = vault.series_times.length
+  const tag = `${vault.chain_id}:${vault.address}`
+  const logEvery = Math.max(1, Math.floor(total / 10))
 
-  for (const seriesTime of vault.series_times) {
+  console.log(`  ${tag} start series=${total}`)
+
+  for (let i = 0; i < total; i++) {
+    const seriesTime = vault.series_times[i]
     try {
       const outputs = await aprOracleHook(vault.chain_id, vault.address, {
         abiPath: 'yearn/3/vault',
@@ -90,7 +99,11 @@ async function replayVault(vault: Affected) {
       }
     } catch (error) {
       errors++
-      console.error(`  error ${vault.chain_id}:${vault.address} @ ${seriesTime}:`, error instanceof Error ? error.message : error)
+      console.error(`  ${tag} error @ ${seriesTime}:`, error instanceof Error ? error.message : error)
+    }
+
+    if ((i + 1) % logEvery === 0 || i + 1 === total) {
+      console.log(`  ${tag} progress ${i + 1}/${total} staged=${staged.length} errors=${errors}`)
     }
   }
 
@@ -101,7 +114,7 @@ async function replayVault(vault: Affected) {
     }
   }
 
-  console.log(`  ${vault.chain_id}:${vault.address} series=${vault.series_times.length} staged=${staged.length} errors=${errors}`)
+  console.log(`  ${tag} done series=${total} staged=${staged.length} errors=${errors}`)
   return { staged: staged.length, errors }
 }
 
