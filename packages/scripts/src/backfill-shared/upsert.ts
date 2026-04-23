@@ -31,15 +31,16 @@ export async function promoteTempTable(tempTable: string): Promise<void> {
     const client = await db.connect()
     try {
       await client.query('BEGIN')
+      // On conflict we only update `value`. block_time and block_number on the
+      // existing row are left untouched so downstream bucketing/filtering (which
+      // uses block_time, not series_time) stays aligned with the original block.
       const result = await client.query(`
         INSERT INTO output (chain_id, address, label, component, value, block_number, block_time, series_time)
         SELECT chain_id, address, label, component, value, block_number, block_time, series_time
         FROM ${tempTable}
         ON CONFLICT (chain_id, address, label, component, series_time)
         DO UPDATE SET
-          value = EXCLUDED.value,
-          block_number = EXCLUDED.block_number,
-          block_time = EXCLUDED.block_time
+          value = EXCLUDED.value
       `)
       console.log(`upserted ${result.rowCount} rows`)
 

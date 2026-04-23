@@ -49,6 +49,9 @@ type TempRow = {
   series_time: bigint
 }
 
+// TODO: migrate ensureTempTable + insertTempBatch below onto the shared helpers
+// in ../backfill-shared/tempTable.ts (resetTempTable / insertTempBatch). Left
+// as-is to keep the PR that introduced the shared helpers small.
 async function ensureTempTable() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS ${TEMP_TABLE} (

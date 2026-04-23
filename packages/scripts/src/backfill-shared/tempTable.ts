@@ -2,6 +2,9 @@ import 'lib/global'
 
 import db from 'ingest/db'
 
+// NOTE: `name` is interpolated directly into SQL and must be a hardcoded
+// identifier from the caller — never user input.
+
 export type TempRow = {
   chain_id: number
   address: string
