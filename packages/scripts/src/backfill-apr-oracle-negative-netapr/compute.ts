@@ -7,12 +7,13 @@ import type { Output } from 'lib/types'
 import { insertTempBatch, resetTempTable, type TempRow } from '../backfill-shared/tempTable'
 
 /**
- * Recompute apr-oracle outputs for rows where the stored netApr is below the
- * new floor (grossApr / 2) — which also covers rows stored as negative.
+ * Recompute apr-oracle netApr/netApy outputs for rows where either is below
+ * the new floor (grossApr / 2). Covers rows stored as negative.
  *
- * - Identifies (chain_id, address) + series_time pairs where netApr < apr / 2
+ * - Identifies (chain_id, address) + series_time pairs where netApr OR netApy
+ *   is below the corresponding gross apr / 2
  * - Replays the apr-oracle timeseries hook at each affected series_time
- * - Stages the full 4-row hook output (apr, apy, netApr, netApy) in the temp table
+ * - Stages only the recomputed netApr and netApy rows (apr / apy are untouched)
  * - Temp table is truncated at the start of every run to avoid stale staged rows
  *
  * Run upsert.ts to promote results to the output table.
@@ -117,6 +118,11 @@ function outputToTempRow(output: Output): TempRow | null {
   }
 }
 
+// Only the net components are affected by the floor change. Staging the
+// companion `apr` / `apy` rows would rewrite their block_time and value
+// unnecessarily, so we filter here.
+const STAGED_COMPONENTS = new Set(['netApr', 'netApy'])
+
 async function replayVault(vault: Affected) {
   const staged: TempRow[] = []
   let errors = 0
@@ -137,6 +143,7 @@ async function replayVault(vault: Affected) {
         blockTime: seriesTime,
       })
       for (const output of outputs) {
+        if (!output.component || !STAGED_COMPONENTS.has(output.component)) continue
         const row = outputToTempRow(output)
         if (row) staged.push(row)
       }
@@ -199,7 +206,7 @@ async function main() {
     console.log(`Staged (gross >= 0):     ${stageable}`)
     console.log(`Skipped (no gross row):  ${skippedNoGross}`)
     console.log(`Skipped (gross < 0):     ${skippedGrossNegative}`)
-    console.log(`Output rows staged:      ${totalStaged}  (${uniqueSeriesTimes} replays x up to 4 components)`)
+    console.log(`Output rows staged:      ${totalStaged}  (${uniqueSeriesTimes} replays x 2 net components)`)
     console.log(`Vaults replayed:         ${affected.length}`)
     console.log(`Errors:                  ${totalErrors}`)
     console.log(`Duration:                ${duration}s`)

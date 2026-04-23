@@ -26,8 +26,8 @@ export async function promoteTempTable(tempTable: string, options: PromoteOption
   console.log(dryRun ? 'DRY RUN mode' : 'UPSERT mode')
 
   try {
-    const count = await db.query(`SELECT COUNT(*) FROM ${tempTable}`)
-    const rowCount = Number(count.rows[0].count)
+    const count = await db.query(`SELECT COUNT(*)::int AS n FROM ${tempTable}`)
+    const rowCount = count.rows[0].n
     console.log(`found ${rowCount} rows in ${tempTable}`)
 
     if (rowCount === 0) {

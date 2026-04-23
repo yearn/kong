@@ -210,6 +210,10 @@ describe('abis/yearn/lib/apy', function() {
       expect(computeNetApr(0, { management: 0, performance: 0.20 })).to.equal(0)
     })
 
+    it('returns zero for negative gross APR', function() {
+      expect(computeNetApr(-0.01, { management: 0.0025, performance: 0.10 })).to.equal(0)
+    })
+
     it('floors net APR at half gross APR when fees exceed gross APR', function() {
       const gross = 0.00076638918973244
       expect(computeNetApr(gross, { management: 0.0025, performance: 0.10 })).to.equal(gross / 2)
