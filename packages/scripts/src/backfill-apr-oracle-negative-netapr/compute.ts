@@ -27,41 +27,84 @@ type Affected = {
   series_times: bigint[]
 }
 
-async function findAffected(): Promise<Affected[]> {
+type FindAffectedResult = {
+  affected: Affected[]
+  totalBelowFloor: number
+  skippedNoGross: number
+  skippedGrossNegative: number
+  stageable: number
+}
+
+async function findAffected(): Promise<FindAffectedResult> {
+  // Count every netApr and netApy row below floor (both are derived from the
+  // same replay). LEFT JOIN so we can distinguish "no matching gross row"
+  // from "gross is negative"; both are skipped.
   const { rows } = await db.query(`
     SELECT
       n.chain_id,
       n.address,
-      EXTRACT(EPOCH FROM n.series_time)::bigint AS series_time_epoch
+      n.component,
+      EXTRACT(EPOCH FROM n.series_time)::bigint AS series_time_epoch,
+      g.value AS gross_value
     FROM public.output n
-    JOIN public.output g
+    LEFT JOIN public.output g
       ON g.chain_id    = n.chain_id
      AND g.address     = n.address
      AND g.label       = 'apr-oracle'
      AND g.component   = 'apr'
      AND g.series_time = n.series_time
     WHERE n.label = 'apr-oracle'
-      AND n.component = 'netApr'
-      AND n.value < g.value / 2
-    ORDER BY n.chain_id, n.address, n.series_time
+      AND n.component IN ('netApr', 'netApy')
+      AND (g.value IS NULL OR n.value < g.value / 2)
+    ORDER BY n.chain_id, n.address, n.series_time, n.component
   `)
 
+  let skippedNoGross = 0
+  let skippedGrossNegative = 0
+  // Dedupe by (chain, address, series_time): one replay covers both netApr and netApy.
+  const seen = new Set<string>()
   const grouped = new Map<string, Affected>()
+
   for (const r of rows) {
-    const key = `${r.chain_id}:${r.address.toLowerCase()}`
+    if (r.gross_value === null || r.gross_value === undefined) {
+      skippedNoGross++
+      continue
+    }
+    if (Number(r.gross_value) < 0) {
+      skippedGrossNegative++
+      continue
+    }
+    const dedupeKey = `${r.chain_id}:${r.address.toLowerCase()}:${r.series_time_epoch}`
+    if (seen.has(dedupeKey)) continue
+    seen.add(dedupeKey)
+
+    const vaultKey = `${r.chain_id}:${r.address.toLowerCase()}`
     const seriesTime = BigInt(r.series_time_epoch)
-    const existing = grouped.get(key)
+    const existing = grouped.get(vaultKey)
     if (existing) {
       existing.series_times.push(seriesTime)
     } else {
-      grouped.set(key, { chain_id: r.chain_id, address: r.address, series_times: [seriesTime] })
+      grouped.set(vaultKey, { chain_id: r.chain_id, address: r.address, series_times: [seriesTime] })
     }
   }
-  return [...grouped.values()]
+
+  const stageable = rows.length - skippedNoGross - skippedGrossNegative
+
+  return {
+    affected: [...grouped.values()],
+    totalBelowFloor: rows.length,
+    skippedNoGross,
+    skippedGrossNegative,
+    stageable,
+  }
 }
 
 function outputToTempRow(output: Output): TempRow | null {
   if (output.component == null || output.value == null) return null
+  // We pass the original series_time epoch in as `blockTime`, so the hook echoes it
+  // back and series_time/block_time are both the series-bucket timestamp. This matches
+  // the primary key (chain_id, address, label, component, series_time) used on upsert.
+  const seriesDate = new Date(Number(output.blockTime) * 1000)
   return {
     chain_id: output.chainId,
     address: output.address,
@@ -69,8 +112,8 @@ function outputToTempRow(output: Output): TempRow | null {
     component: output.component,
     value: output.value,
     block_number: output.blockNumber,
-    block_time: new Date(Number(output.blockTime) * 1000),
-    series_time: new Date(Number(output.blockTime) * 1000),
+    block_time: seriesDate,
+    series_time: seriesDate,
   }
 }
 
@@ -126,9 +169,12 @@ async function main() {
     await resetTempTable(TEMP_TABLE)
     console.log(`reset temp table ${TEMP_TABLE}`)
 
-    const affected = await findAffected()
-    const totalSeries = affected.reduce((acc, v) => acc + v.series_times.length, 0)
-    console.log(`${affected.length} vaults, ${totalSeries} series_time rows below floor\n`)
+    const { affected, totalBelowFloor, skippedNoGross, skippedGrossNegative, stageable } = await findAffected()
+    const uniqueSeriesTimes = affected.reduce((acc, v) => acc + v.series_times.length, 0)
+    console.log(`Below-floor rows found: ${totalBelowFloor}  (netApr + netApy)`)
+    console.log(`Skipped (no gross row): ${skippedNoGross}`)
+    console.log(`Skipped (gross < 0): ${skippedGrossNegative}`)
+    console.log(`To replay: ${uniqueSeriesTimes} unique series_times across ${affected.length} vaults\n`)
 
     if (affected.length === 0) {
       console.log('nothing to backfill.')
@@ -149,11 +195,14 @@ async function main() {
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2)
     console.log('\n=== Summary ===')
-    console.log(`Vaults:    ${affected.length}`)
-    console.log(`Series:    ${totalSeries}`)
-    console.log(`Staged:    ${totalStaged}`)
-    console.log(`Errors:    ${totalErrors}`)
-    console.log(`Duration:  ${duration}s`)
+    console.log(`Below-floor rows found:  ${totalBelowFloor}`)
+    console.log(`Staged (gross >= 0):     ${stageable}`)
+    console.log(`Skipped (no gross row):  ${skippedNoGross}`)
+    console.log(`Skipped (gross < 0):     ${skippedGrossNegative}`)
+    console.log(`Output rows staged:      ${totalStaged}  (${uniqueSeriesTimes} replays x up to 4 components)`)
+    console.log(`Vaults replayed:         ${affected.length}`)
+    console.log(`Errors:                  ${totalErrors}`)
+    console.log(`Duration:                ${duration}s`)
   } finally {
     await rpcs.down()
     await db.end()

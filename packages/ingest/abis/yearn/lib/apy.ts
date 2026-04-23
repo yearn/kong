@@ -489,6 +489,10 @@ export async function extractLockedProfit__v3(chainId: number, address: `0x${str
 }
 
 export function computeNetApr(grossApr: number, fees: { management: number; performance: number }): number {
+  // Accountant invariant: total fees cap at 50% of profit, so netApr cannot be
+  // worse than grossApr / 2. For non-positive gross, floor at 0 — a negative
+  // "floor" is meaningless and would let netApr stay negative.
+  if (grossApr <= 0) return 0
   const net = (grossApr - fees.management) * (1 - fees.performance)
   const floor = grossApr / 2
   if (net < floor) return floor
