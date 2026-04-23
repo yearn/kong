@@ -7,11 +7,12 @@ import type { Output } from 'lib/types'
 import { insertTempBatch, resetTempTable, type TempRow } from '../backfill-shared/tempTable'
 
 /**
- * Recompute apr-oracle netApr/netApy outputs for rows where either is below
- * the new floor (grossApr / 2). Covers rows stored as negative.
+ * Recompute apr-oracle netApr/netApy outputs for rows whose stored netApr is
+ * below the new floor (grossApr / 2). Covers rows stored as negative.
  *
- * - Identifies (chain_id, address) + series_time pairs where netApr OR netApy
- *   is below the corresponding gross apr / 2
+ * - Identifies (chain_id, address) + series_time pairs where netApr < apr / 2
+ *   (netApy is derived from netApr, so anchoring on netApr is sufficient —
+ *   the replay recomputes both components)
  * - Replays the apr-oracle timeseries hook at each affected series_time
  * - Stages only the recomputed netApr and netApy rows (apr / apy are untouched)
  * - Temp table is truncated at the start of every run to avoid stale staged rows
@@ -37,14 +38,14 @@ type FindAffectedResult = {
 }
 
 async function findAffected(): Promise<FindAffectedResult> {
-  // Count every netApr and netApy row below floor (both are derived from the
-  // same replay). LEFT JOIN so we can distinguish "no matching gross row"
-  // from "gross is negative"; both are skipped.
+  // Target only netApr rows: netApy is derived from netApr via computeApy,
+  // which is non-linear — comparing netApy against apr/2 would be the wrong
+  // check. We identify affected series_times from netApr alone, and the
+  // replay recomputes both netApr and netApy.
   const { rows } = await db.query(`
     SELECT
       n.chain_id,
       n.address,
-      n.component,
       EXTRACT(EPOCH FROM n.series_time)::bigint AS series_time_epoch,
       g.value AS gross_value
     FROM public.output n
@@ -55,15 +56,13 @@ async function findAffected(): Promise<FindAffectedResult> {
      AND g.component   = 'apr'
      AND g.series_time = n.series_time
     WHERE n.label = 'apr-oracle'
-      AND n.component IN ('netApr', 'netApy')
+      AND n.component = 'netApr'
       AND (g.value IS NULL OR n.value < g.value / 2)
-    ORDER BY n.chain_id, n.address, n.series_time, n.component
+    ORDER BY n.chain_id, n.address, n.series_time
   `)
 
   let skippedNoGross = 0
   let skippedGrossNegative = 0
-  // Dedupe by (chain, address, series_time): one replay covers both netApr and netApy.
-  const seen = new Set<string>()
   const grouped = new Map<string, Affected>()
 
   for (const r of rows) {
@@ -75,9 +74,6 @@ async function findAffected(): Promise<FindAffectedResult> {
       skippedGrossNegative++
       continue
     }
-    const dedupeKey = `${r.chain_id}:${r.address.toLowerCase()}:${r.series_time_epoch}`
-    if (seen.has(dedupeKey)) continue
-    seen.add(dedupeKey)
 
     const vaultKey = `${r.chain_id}:${r.address.toLowerCase()}`
     const seriesTime = BigInt(r.series_time_epoch)
@@ -178,7 +174,7 @@ async function main() {
 
     const { affected, totalBelowFloor, skippedNoGross, skippedGrossNegative, stageable } = await findAffected()
     const uniqueSeriesTimes = affected.reduce((acc, v) => acc + v.series_times.length, 0)
-    console.log(`Below-floor rows found: ${totalBelowFloor}  (netApr + netApy)`)
+    console.log(`Below-floor netApr rows found: ${totalBelowFloor}`)
     console.log(`Skipped (no gross row): ${skippedNoGross}`)
     console.log(`Skipped (gross < 0): ${skippedGrossNegative}`)
     console.log(`To replay: ${uniqueSeriesTimes} unique series_times across ${affected.length} vaults\n`)

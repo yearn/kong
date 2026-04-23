@@ -13,10 +13,14 @@ The hook has been fixed to enforce `grossApr / 2` as the lower bound (and `0` fo
 ### 1. compute.ts
 
 1. Truncates the temp table `output_temp_netapr_floor_backfill` (every run starts clean).
-2. Queries `(chain_id, address, series_time)` tuples where `netApr` OR `netApy` `< apr / 2` (LEFT JOIN on the matching `apr` row; rows without a gross row or with a negative gross are skipped).
-3. Dedupes by `(chain, address, series_time)` — one replay covers both net components.
-4. Replays `apr-oracle` timeseries hook at each affected `series_time`.
-5. Stages only the recomputed `netApr` and `netApy` rows into the temp table.
+2. Queries `(chain_id, address, series_time)` tuples where `netApr < apr / 2` (LEFT JOIN on the matching `apr` row). `netApy` is derived from `netApr`, so anchoring on `netApr` is sufficient — the replay recomputes both.
+3. Replays `apr-oracle` timeseries hook at each affected `series_time`.
+4. Stages the recomputed `netApr` and `netApy` rows into the temp table.
+
+**Skipped rows** (logged as counts, left untouched by this backfill):
+
+- Rows where no matching `apr` row exists for the same `series_time` — we can't evaluate the floor without the gross value.
+- Rows where the stored `apr` is negative. Under the fixed hook these would resolve to `netApr = 0`, but we defer to the next natural re-ingest (the regular timeseries fanout) to heal them rather than fabricating a value here.
 
 ```
 bun packages/scripts/src/backfill-apr-oracle-negative-netapr/compute.ts

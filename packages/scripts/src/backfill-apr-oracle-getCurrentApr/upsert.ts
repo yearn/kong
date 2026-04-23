@@ -1,7 +1,6 @@
 import 'lib/global'
 
 import db from 'ingest/db'
-import { mq } from 'lib'
 import { promoteTempTable } from '../backfill-shared/upsert'
 
 /**
@@ -15,7 +14,6 @@ async function main() {
   try {
     await promoteTempTable(TEMP_TABLE)
   } finally {
-    await mq.down()
     await db.end()
   }
 }
