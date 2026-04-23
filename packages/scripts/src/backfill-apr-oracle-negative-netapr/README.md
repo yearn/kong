@@ -24,16 +24,16 @@ bun packages/scripts/src/backfill-apr-oracle-negative-netapr/compute.ts
 
 ### 2. upsert.ts
 
-Promotes every row from the temp table into `public.output` and drops the temp table. Supports `--dry-run` (previews row count, sample, and distinct vaults without writing) and `--help`.
+Promotes every row from the temp table into `public.output` and drops the temp table.
 
 ```
-bun packages/scripts/src/backfill-apr-oracle-negative-netapr/upsert.ts [--dry-run]
+bun packages/scripts/src/backfill-apr-oracle-negative-netapr/upsert.ts
 ```
 
 ## Workflow
 
 ```
-compute.ts  -->  upsert.ts [--dry-run]  -->  upsert.ts
+compute.ts  -->  upsert.ts
 ```
 
 ## Verification

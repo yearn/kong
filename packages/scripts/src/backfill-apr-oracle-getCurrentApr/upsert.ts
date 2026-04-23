@@ -2,7 +2,7 @@ import 'lib/global'
 
 import db from 'ingest/db'
 import { mq } from 'lib'
-import { parsePromoteArgs, promoteTempTable } from '../backfill-shared/upsert'
+import { promoteTempTable } from '../backfill-shared/upsert'
 
 /**
  * Phase 2: Promote computed apr-oracle outputs from the temp table into the
@@ -10,12 +10,10 @@ import { parsePromoteArgs, promoteTempTable } from '../backfill-shared/upsert'
  */
 
 const TEMP_TABLE = 'output_temp_apr_oracle_backfill'
-const SCRIPT_PATH = 'packages/scripts/src/backfill-apr-oracle-getCurrentApr/upsert.ts'
 
 async function main() {
-  const options = parsePromoteArgs(process.argv.slice(2), SCRIPT_PATH, TEMP_TABLE)
   try {
-    await promoteTempTable(TEMP_TABLE, options)
+    await promoteTempTable(TEMP_TABLE)
   } finally {
     await mq.down()
     await db.end()

@@ -2,29 +2,7 @@ import 'lib/global'
 
 import db from 'ingest/db'
 
-export type PromoteOptions = {
-  dryRun?: boolean
-}
-
-export function parsePromoteArgs(argv: string[], scriptPath: string, tempTable: string): PromoteOptions {
-  const hasArg = (flag: string) => argv.includes(flag)
-
-  if (hasArg('--help') || hasArg('-h')) {
-    console.log(`usage:
-  bun ${scriptPath} [--dry-run]
-
-Promotes rows from ${tempTable} into the output table and drops the temp table.
-Run compute.ts first to populate the temp table.`)
-    process.exit(0)
-  }
-
-  return { dryRun: hasArg('--dry-run') }
-}
-
-export async function promoteTempTable(tempTable: string, options: PromoteOptions = {}): Promise<void> {
-  const { dryRun = false } = options
-  console.log(dryRun ? 'DRY RUN mode' : 'UPSERT mode')
-
+export async function promoteTempTable(tempTable: string): Promise<void> {
   try {
     const count = await db.query(`SELECT COUNT(*)::int AS n FROM ${tempTable}`)
     const rowCount = count.rows[0].n
@@ -48,11 +26,6 @@ export async function promoteTempTable(tempTable: string, options: PromoteOption
 
     const vaultCount = await db.query(`SELECT COUNT(DISTINCT (chain_id, address)) FROM ${tempTable}`)
     console.log(`\ndistinct vaults: ${vaultCount.rows[0].count}`)
-
-    if (dryRun) {
-      console.log('\nDRY RUN: no changes made.')
-      return
-    }
 
     console.log('\nupserting...')
     const client = await db.connect()
