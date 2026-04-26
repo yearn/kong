@@ -21,7 +21,7 @@ import { insertTempBatch, resetTempTable, type TempRow } from '../backfill-share
  */
 
 const TEMP_TABLE = 'output_temp_netapr_floor_backfill'
-const CONCURRENCY = 8
+const CONCURRENCY = 150
 
 type Affected = {
   chain_id: number
@@ -42,6 +42,8 @@ async function findAffected(): Promise<FindAffectedResult> {
   // which is non-linear — comparing netApy against apr/2 would be the wrong
   // check. We identify affected series_times from netApr alone, and the
   // replay recomputes both netApr and netApy.
+  console.log('querying below-floor netApr rows...')
+  const queryStart = Date.now()
   const { rows } = await db.query(`
     SELECT
       n.chain_id,
@@ -60,6 +62,7 @@ async function findAffected(): Promise<FindAffectedResult> {
       AND (g.value IS NULL OR n.value < g.value / 2)
     ORDER BY n.chain_id, n.address, n.series_time
   `)
+  console.log(`query returned ${rows.length} rows in ${((Date.now() - queryStart) / 1000).toFixed(2)}s`)
 
   let skippedNoGross = 0
   let skippedGrossNegative = 0
@@ -186,14 +189,23 @@ async function main() {
 
     let totalStaged = 0
     let totalErrors = 0
+    let completedVaults = 0
 
     for (let i = 0; i < affected.length; i += CONCURRENCY) {
       const batch = affected.slice(i, i + CONCURRENCY)
+      const batchStart = Date.now()
+      console.log(`\nbatch ${i / CONCURRENCY + 1}/${Math.ceil(affected.length / CONCURRENCY)}: vaults ${i + 1}-${Math.min(i + CONCURRENCY, affected.length)}/${affected.length}`)
       const results = await Promise.all(batch.map(replayVault))
       for (const r of results) {
         totalStaged += r.staged
         totalErrors += r.errors
       }
+      completedVaults += batch.length
+      const elapsed = (Date.now() - startTime) / 1000
+      const rate = completedVaults / elapsed
+      const remaining = affected.length - completedVaults
+      const eta = rate > 0 ? (remaining / rate).toFixed(0) : '?'
+      console.log(`batch done in ${((Date.now() - batchStart) / 1000).toFixed(2)}s | progress ${completedVaults}/${affected.length} vaults | staged=${totalStaged} errors=${totalErrors} | eta=${eta}s`)
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2)
