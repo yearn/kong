@@ -202,12 +202,21 @@ describe('abis/yearn/lib/apy', function() {
       expect(computeNetApr(0.10, { management: 0.02, performance: 0.20 })).to.be.closeTo(0.064, 1e-10)
     })
 
-    it('returns zero when performance fee is 100%', function() {
-      expect(computeNetApr(0.10, { management: 0, performance: 1.0 })).to.equal(0)
+    it('floors net APR at half gross APR when performance fee is 100%', function() {
+      expect(computeNetApr(0.10, { management: 0, performance: 1.0 })).to.equal(0.05)
     })
 
     it('handles zero gross APR', function() {
       expect(computeNetApr(0, { management: 0, performance: 0.20 })).to.equal(0)
+    })
+
+    it('returns zero for negative gross APR', function() {
+      expect(computeNetApr(-0.01, { management: 0.0025, performance: 0.10 })).to.equal(0)
+    })
+
+    it('floors net APR at half gross APR when fees exceed gross APR', function() {
+      const gross = 0.00076638918973244
+      expect(computeNetApr(gross, { management: 0.0025, performance: 0.10 })).to.equal(gross / 2)
     })
 
     it('handles no strategies (zero fees)', function() {

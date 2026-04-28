@@ -4,11 +4,11 @@ import db from 'ingest/db'
 import { promoteTempTable } from '../backfill-shared/upsert'
 
 /**
- * Phase 2: Promote computed apr-oracle outputs from the temp table into the
+ * Phase 2: Promote floored netApr/netApy outputs from the temp table into the
  * production output table. Run compute.ts first.
  */
 
-const TEMP_TABLE = 'output_temp_apr_oracle_backfill'
+const TEMP_TABLE = 'output_temp_netapr_floor_backfill'
 
 async function main() {
   try {
