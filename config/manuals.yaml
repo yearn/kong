@@ -174,3 +174,33 @@ manuals:
       inceptBlock: 24329199,
       inceptTime: 1769553431
     }
+
+  - chainId: 137
+    address: '0x602920E7e0a335137E02DF139CdF8D1381DAdBfD'
+    label: 'stakingPool'
+    defaults: {
+      vault: '0xF54a15F6da443041Bb075959EA66EE47655DDFcA',
+      source: 'Juiced',
+      inceptBlock: 52593972,
+      inceptTime: 1705867685
+    }
+
+  - chainId: 1
+    address: '0x54C6b2b293297e65b1d163C3E8dbc45338bfE443'
+    label: 'stakingPool'
+    defaults: {
+      vault: '0xe24BA27551aBE96Ca401D39761cA2319Ea14e3CB',
+      source: 'Juiced',
+      inceptBlock: 18981432,
+      inceptTime: 1704948755
+    }
+
+  - chainId: 100
+    address: '0xd4263aBDdD2afdaAE0A0a69Eb09Deb8000dd642e'
+    label: 'stakingPool'
+    defaults: {
+      vault: '0x39b68451f05aaa020611cf887a7338f0991ffd60',
+      source: 'Juiced',
+      inceptBlock: 33344574,
+      inceptTime: 1712609130
+    }
