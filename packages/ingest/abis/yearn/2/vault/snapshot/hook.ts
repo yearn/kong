@@ -1,16 +1,16 @@
-import { z } from 'zod'
-import { parseAbi, toEventSelector, zeroAddress } from 'viem'
-import { rpcs } from '../../../../../rpcs'
-import { EstimatedAprSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
-import db, { getSparkline } from '../../../../../db'
-import { fetchErc20PriceUsd } from '../../../../../prices'
-import { priced } from 'lib/math'
-import { getRiskScore } from '../../../lib/risk'
-import { getTokenMeta, getVaultMeta, getStrategyMeta } from '../../../lib/meta'
-import { fetchOrExtractErc20, throwOnMulticallError } from '../../../lib'
-import { mq } from 'lib'
 import { compare } from 'compare-versions'
+import { mq } from 'lib'
+import { priced } from 'lib/math'
+import { EstimatedAprSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
+import { parseAbi, toEventSelector, zeroAddress } from 'viem'
+import { z } from 'zod'
+import db, { getSparkline } from '../../../../../db'
 import { getLatestApy, getLatestEstimatedApr } from '../../../../../helpers/apy-apr'
+import { fetchErc20PriceUsd } from '../../../../../prices'
+import { rpcs } from '../../../../../rpcs'
+import { fetchOrExtractErc20, throwOnMulticallError } from '../../../lib'
+import { getStrategyMeta, getTokenMeta, getVaultMeta } from '../../../lib/meta'
+import { getRiskScore } from '../../../lib/risk'
 
 export const CompositionSchema = z.object({
   address: zhexstring,
@@ -325,8 +325,8 @@ export async function extractComposition(
     const vaultMeta = await getVaultMeta(chainId, strategy)
     const meta = vaultMeta?.displayName ? vaultMeta : await getStrategyMeta(chainId, strategy)
 
-    // Coalesce name: meta.name → snapshot.name → "Unknown"
-    const name = meta?.displayName || snapshot?.name || 'Unknown'
+    // Coalesce name: snapshot.name → meta.name → "Unknown"
+    const name =  snapshot?.name || meta?.displayName || 'Unknown'
 
     // Parse latestReportApr
     const latestReportApr = snapshot?.latestReportApr ? parseFloat(snapshot.latestReportApr) : null

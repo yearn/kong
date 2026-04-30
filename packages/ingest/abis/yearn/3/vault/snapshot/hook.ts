@@ -10,8 +10,8 @@ import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../..
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
 import * as things from '../../../../../things'
-import { computeApy, computeNetApr } from '../../../lib/apy'
 import { fetchOrExtractErc20 } from '../../../lib'
+import { computeApy, computeNetApr } from '../../../lib/apy'
 import { getStrategyMeta, getTokenMeta, getVaultMeta } from '../../../lib/meta'
 import { getRiskScore } from '../../../lib/risk'
 import { Roles } from '../../../lib/types'
@@ -480,8 +480,8 @@ export async function extractComposition(
     const vaultMeta = await getVaultMeta(chainId, strategy)
     const meta = vaultMeta?.displayName ? vaultMeta : await getStrategyMeta(chainId, strategy)
 
-    // Coalesce name: meta.name → snapshot.name → "Unknown"
-    const name = meta?.displayName || snapshot?.name || 'Unknown'
+    // Coalesce name: snapshot.name → meta.name → "Unknown"
+    const name = snapshot?.name || meta?.displayName || 'Unknown'
 
     // Parse latestReportApr
     const latestReportApr = snapshot?.latestReportApr ? parseFloat(snapshot.latestReportApr) : null
