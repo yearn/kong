@@ -28,6 +28,7 @@ import allocator from './allocator'
 import newSplitterLogs from './splitter'
 import newYieldSplitterLogs from './yieldSplitter'
 import vestingEscrowCreatedLogs from './vestingEscrow'
+import vaultType from './vaultType'
 
 const resolvers = {
   BigInt: bigintScalar,
@@ -61,7 +62,8 @@ const resolvers = {
     newSplitterLogs,
     newYieldSplitterLogs,
     vestingEscrowCreatedLogs
-  }
+  },
+  Vault: vaultType
 }
 
 export default resolvers

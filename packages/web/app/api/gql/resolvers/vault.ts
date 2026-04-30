@@ -29,6 +29,10 @@ const vault = async (_: object, args: { chainId: number, address: `0x${string}` 
       ...row.hook
     }))
 
+    if (!first) {
+      return null
+    }
+
     return first
 
   } catch (error) {

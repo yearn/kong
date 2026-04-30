@@ -164,6 +164,25 @@ type Staking {
   rewards: [StakingReward!]
 }
 
+type YieldSplitter {
+  enabled: Boolean!
+  sourceVaultAddress: String!
+  sourceVaultName: String
+  sourceVaultSymbol: String
+  wantVaultAddress: String!
+  wantVaultName: String
+  wantVaultSymbol: String
+  depositAssetAddress: String
+  depositAssetName: String
+  depositAssetSymbol: String
+  rewardTokenAddresses: [String!]!
+  rewardHandlerAddress: String
+  tokenizedStrategyAddress: String
+  displayType: String!
+  displayKind: String!
+  uiDescription: String!
+}
+
 type Vault {
   DOMAIN_SEPARATOR: String
   FACTORY: String
@@ -240,5 +259,6 @@ type Vault {
   yearn: Boolean
   origin: String
   staking: Staking
+  yieldSplitter: YieldSplitter
 }
 `
