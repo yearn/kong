@@ -325,7 +325,7 @@ export async function extractComposition(
     const vaultMeta = await getVaultMeta(chainId, strategy)
     const meta = vaultMeta?.displayName ? vaultMeta : await getStrategyMeta(chainId, strategy)
 
-    // Coalesce name: meta.name → snapshot.name → "Unknown"
+    // Coalesce name: snapshot.name → meta.name → "Unknown"
     const name =  snapshot?.name || meta?.displayName || 'Unknown'
 
     // Parse latestReportApr
