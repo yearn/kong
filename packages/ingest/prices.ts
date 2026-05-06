@@ -89,7 +89,7 @@ async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, block
     if(!response.ok) return undefined
 
     const data = await response.json() as { coins: Record<string, { symbol: string; prices: { timestamp: number; price: number; confidence: number; source: string }[] }> }
-    const coinData = data.coins[coinId] ?? data.coins[coinId]
+    const coinData = data.coins[coinId]
     const priceUsd = coinData?.prices?.[0]?.price
     if(!priceUsd) return undefined
 
