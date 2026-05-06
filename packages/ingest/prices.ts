@@ -1,11 +1,11 @@
-import { arbitrum, base, fantom, mainnet, optimism } from 'viem/chains'
-import { parseAbi } from 'viem'
-import { cache } from 'lib/cache'
-import { rpcs } from './rpcs'
-import db from './db'
-import { Price, PriceSchema } from 'lib/types'
 import { mq } from 'lib'
 import { getBlockNumber, getBlockTime } from 'lib/blocks'
+import { cache } from 'lib/cache'
+import { Price, PriceSchema } from 'lib/types'
+import { parseAbi } from 'viem'
+import { arbitrum, base, fantom, mainnet, optimism } from 'viem/chains'
+import db from './db'
+import { rpcs } from './rpcs'
 
 export const lens = {
   [mainnet.id]: '0x83d95e0D5f402511dB06817Aff3f9eA88224B030' as `0x${string}`,
@@ -52,10 +52,52 @@ async function __fetchErc20PriceUsd(chainId: number, token: `0x${string}`, block
     }
   }
 
+  if(!result) {
+    result = await fetchPriceServiceUsd(chainId, token, blockNumber)
+    if(result) {
+      await mq.add(mq.job.load.price, result)
+      return result
+    }
+  }
+
   console.warn('🚨', 'no price', chainId, token, blockNumber)
   const empty = { chainId, address: token, priceUsd: 0, priceSource: 'na', blockNumber, blockTime: await getBlockTime(chainId, blockNumber) }
   await mq.add(mq.job.load.price, empty)
   return empty
+}
+
+const PRICE_SERVICE_CHAIN_NAMES: Record<number, string> = {
+  1: 'ethereum', 10: 'optimism', 100: 'xdai', 137: 'polygon',
+  146: 'sonic', 250: 'fantom', 8453: 'base', 42161: 'arbitrum',
+  80094: 'berachain', 747474: 'katana',
+}
+
+async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
+  if(!process.env.PRICE_SERVICE_API_KEY) return undefined
+  const chainName = PRICE_SERVICE_CHAIN_NAMES[chainId]
+  if(!chainName) return undefined
+
+  try {
+    const blockTime = await getBlockTime(chainId, blockNumber)
+    const coinId = `${chainName}:${token}`
+    const coins = encodeURIComponent(JSON.stringify({ [coinId]: [Number(blockTime)] }))
+    const url = `https://prices.yearn.dev/api/prices/batchHistorical?source=defillama&coins=${coins}`
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` }
+    })
+    if(!response.ok) return undefined
+
+    const data = await response.json() as { coins: Record<string, { symbol: string; prices: { timestamp: number; price: number; confidence: number; source: string }[] }> }
+    const coinData = data.coins[coinId] ?? data.coins[coinId]
+    const priceUsd = coinData?.prices?.[0]?.price
+    if(!priceUsd) return undefined
+
+    return PriceSchema.parse({ chainId, address: token, priceUsd, priceSource: 'priceservice', blockNumber, blockTime })
+  } catch(error) {
+    console.warn('🚨', 'price service failed', chainId, token, blockNumber)
+    return undefined
+  }
 }
 
 async function fetchYPriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
@@ -73,7 +115,7 @@ async function fetchYPriceUsd(chainId: number, token: `0x${string}`, blockNumber
     const priceUsd = Number(await result.json())
     if(priceUsd === 0) return undefined
 
-    return PriceSchema.parse({ 
+    return PriceSchema.parse({
       chainId,
       address: token,
       priceUsd,
@@ -121,9 +163,9 @@ async function fetchLensPriceUsd(chainId: number, token: `0x${string}`, blockNum
     return PriceSchema.parse({
       chainId,
       address: token,
-      priceUsd: Number(priceUSDC * 10_000n / BigInt(10 ** 6)) / 10_000, 
+      priceUsd: Number(priceUSDC * 10_000n / BigInt(10 ** 6)) / 10_000,
       priceSource: 'lens',
-      blockNumber, 
+      blockNumber,
       blockTime: await getBlockTime(chainId, blockNumber)
     })
 
@@ -168,9 +210,9 @@ async function fetchYDaemonPriceUsd(chainId: number, token: `0x${string}`, block
     return PriceSchema.parse({
       chainId,
       address: token,
-      priceUsd: price, 
+      priceUsd: price,
       priceSource: 'ydaemon',
-      blockNumber, 
+      blockNumber,
       blockTime: await getBlockTime(chainId, blockNumber)
     })
   } catch(error) {
