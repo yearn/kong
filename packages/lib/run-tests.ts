@@ -1,5 +1,5 @@
-import { Redis, Postgres, dbMigrate, setTestcontainersEnv } from 'lib/helpers/tests'
 import { ChildProcess, spawn } from 'child_process'
+import { Postgres, Redis, dbMigrate, setTestcontainersEnv } from 'lib/helpers/tests'
 import path from 'path'
 import { AbstractStartedContainer } from 'testcontainers'
 
@@ -34,7 +34,7 @@ spawnTestContainersAndRun().then((env) => {
 
   const mochaBin = path.resolve(__dirname, '../../node_modules/.bin/mocha')
 
-  mochaProcess = spawn(mochaBin, ['--timeout 5000'], {
+  mochaProcess = spawn(mochaBin, ['--timeout 5000', '--exit', ...(process.argv.slice(2) || [])], {
     // @ts-expect-error env is not typed
     env: {
       ...customEnv,
@@ -53,6 +53,11 @@ spawnTestContainersAndRun().then((env) => {
   mochaProcess.on('error', (err) => {
     shutdownTestcontainers()
     process.exit(1)
+  })
+
+  mochaProcess.on('exit', (code: number) => {
+    shutdownTestcontainers()
+    process.exit(code)
   })
 
 

@@ -73,7 +73,7 @@ const PRICE_SERVICE_CHAIN_NAMES: Record<number, string> = {
 }
 
 async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
-  if(!process.env.PRICE_SERVICE_API_KEY) return undefined
+  if(!process.env.PRICE_SERVICE_API_KEY || !process.env.PRICE_SERVICE_URL) return undefined
   const chainName = PRICE_SERVICE_CHAIN_NAMES[chainId]
   if(!chainName) return undefined
 
@@ -81,7 +81,7 @@ async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, block
     const blockTime = await getBlockTime(chainId, blockNumber)
     const coinId = `${chainName}:${token}`
     const coins = encodeURIComponent(JSON.stringify({ [coinId]: [Number(blockTime)] }))
-    const url = `https://prices.yearn.dev/api/prices/batchHistorical?source=defillama&coins=${coins}`
+    const url = `${process.env.PRICE_SERVICE_URL}/api/prices/batchHistorical?source=defillama&coins=${coins}`
 
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` }

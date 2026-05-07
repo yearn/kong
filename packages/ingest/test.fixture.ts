@@ -1,11 +1,11 @@
 import 'lib/global'
-import path from 'path'
-import dotenv from 'dotenv'
 import chai from 'chai'
 import chaiAlmost from 'chai-almost'
-import { rpcs } from './rpcs'
-import { cache } from 'lib'
+import dotenv from 'dotenv'
+import { cache, mq } from 'lib'
+import path from 'path'
 import db from './db'
+import { rpcs } from './rpcs'
 
 const envPath = path.join(__dirname, '../..', '.env')
 dotenv.config({ path: envPath })
@@ -19,7 +19,7 @@ export const mochaGlobalSetup = async function() {
 }
 
 export const mochaGlobalTeardown = async () => {
-  await Promise.all([db.end(), rpcs.down(), cache.down()])
+  await Promise.all([db.end(), rpcs.down(), cache.down(), mq.down()])
   console.log('⬇', 'test fixture down')
 }
 

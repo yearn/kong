@@ -39,8 +39,8 @@ describe('prices', function() {
   it('returns priceservice for historic BOLD', async function() {
     if(!process.env.PRICE_SERVICE_API_KEY) return this.skip()
     // BOLD (Liquity v2) is not supported by Lens, so it falls through to price service
-    const { priceSource, priceUsd } = await fetchErc20PriceUsd(mainnet.id, '0x0655977FEb2f289A4aB78af67BAB0d17aAb84367', 21000000n)
-    expect(priceSource).to.equal('priceservice')
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(mainnet.id, '0x6440f144b7e50D6a8439336510312d2F54beB01D', 25035087n)
     expect(priceUsd).to.be.greaterThan(0)
+    expect(priceSource).to.equal('priceservice')
   })
 })
