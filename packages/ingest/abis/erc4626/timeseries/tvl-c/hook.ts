@@ -3,7 +3,7 @@ import { Data } from '../../../../extract/timeseries'
 import { EvmAddressSchema, Output, OutputSchema, Thing, ThingSchema } from 'lib/types'
 import { priced } from 'lib/math'
 import { estimateHeight, getBlock } from 'lib/blocks'
-import { first } from '../../../../db'
+import { firstRow } from '../../../../db'
 import { fetchErc20PriceUsd } from '../../../../prices'
 import { rpcs } from '../../../../rpcs'
 import abi from '../../abi'
@@ -24,12 +24,9 @@ export default async function _process(chainId: number, address: `0x${string}`, 
     ({ number: blockNumber } = await getBlock(chainId, estimate))
   }
 
-  const vault = await first<Thing>(ThingSchema,
-    'SELECT * FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3',
-    [chainId, address, 'vault']
-  )
-
-  if (!vault) return []
+  const vaultRow = await firstRow('SELECT defaults FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3', [chainId, address, 'vault'])
+  if (!vaultRow) return []
+  const vault = ThingSchema.parse({ chainId, address, label: 'vault', defaults: vaultRow.defaults })
 
   const { tvl, totalAssets, priceUsd } = await _compute(vault, blockNumber, latest)
 

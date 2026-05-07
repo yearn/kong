@@ -5,7 +5,7 @@ import { EvmLog, EvmLogSchema, Output, OutputSchema, Thing, ThingSchema, zhexstr
 import { ReadContractParameters, getAddress, parseAbi } from 'viem'
 import { mainnet } from 'viem/chains'
 import { z } from 'zod'
-import { first, query } from '../../../db'
+import { firstRow, query } from '../../../db'
 import { Data } from '../../../extract/timeseries'
 import { rpcs } from '../../../rpcs'
 import { extractFeesBps } from '../2/strategy/event/hook'
@@ -49,12 +49,9 @@ export default async function _process(chainId: number, address: `0x${string}`, 
     return []
   }
 
-  const vault = await first<Thing>(ThingSchema,
-    'SELECT * FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3',
-    [chainId, address, label]
-  )
-
-  if (!vault) return []
+  const vaultRow = await firstRow('SELECT defaults FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3', [chainId, address, label])
+  if (!vaultRow) return []
+  const vault = ThingSchema.parse({ chainId, address, label, defaults: vaultRow.defaults })
 
   const strategies: `0x${string}`[] = []
   if (compare(vault.defaults.apiVersion, '3.0.0', '>=')) {
@@ -155,12 +152,13 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
   // compose PPS values to capture the full economic return, not just the wrapper's bonus.
   // Require apiVersion on the inner vault to confirm it has pricePerShare() (excludes
   // non-Yearn ERC4626 like sDAI which only expose convertToAssets).
-  const assetVault = vault.defaults.asset
-    ? await first<Thing>(ThingSchema,
-      `
-         SELECT * FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3 AND (defaults->'v3')::boolean IS TRUE
-      `,
+  const assetVaultRow = vault.defaults.asset
+    ? await firstRow(
+      'SELECT defaults FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3 AND (defaults->\'v3\')::boolean IS TRUE',
       [chainId, getAddress(vault.defaults.asset as `0x${string}`), 'vault'])
+    : undefined
+  const assetVault: Thing | undefined = assetVaultRow
+    ? ThingSchema.parse({ chainId, address: getAddress(vault.defaults.asset as `0x${string}`), label: 'vault', defaults: assetVaultRow.defaults })
     : undefined
   const assetPpsParameters = assetVault ? {
     address: vault.defaults.asset as `0x${string}`, functionName: 'pricePerShare' as never,

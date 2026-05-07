@@ -17,6 +17,8 @@ import { getRiskScore } from '../../../lib/risk'
 import { Roles } from '../../../lib/types'
 import accountantAbi from '../../accountant/abi'
 
+const STRATEGY_PERFORMANCE_LOOKBACK = '14 days'
+
 export const CompositionSchema = z.object({
   address: zhexstring,
   name: z.string(),
@@ -406,13 +408,15 @@ async function fetchStrategyPerformance(
       SELECT address, label, MAX(block_time) as block_time
       FROM output
       WHERE chain_id = $1 AND address = ANY($2) AND label = ANY($3)
+        AND series_time >= now() - $4::interval
       GROUP BY address, label
     )
     SELECT o.address, o.label, o.component, o.value
     FROM output o
     JOIN latest_times lt ON o.address = lt.address AND o.label = lt.label AND o.block_time = lt.block_time
-    WHERE o.chain_id = $1
-  `, [chainId, strategies, labels])
+    WHERE o.chain_id = $1 AND o.address = ANY($2) AND o.label = ANY($3)
+      AND o.series_time >= now() - $4::interval
+  `, [chainId, strategies, labels, STRATEGY_PERFORMANCE_LOOKBACK])
 
   const map = new Map<string, any>()
 
