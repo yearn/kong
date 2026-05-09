@@ -2,7 +2,7 @@ import { mq } from 'lib'
 import { getBlockNumber, getBlockTime } from 'lib/blocks'
 import { cache } from 'lib/cache'
 import { Price, PriceSchema } from 'lib/types'
-import { parseAbi } from 'viem'
+import { getAddress, parseAbi } from 'viem'
 import { arbitrum, base, fantom, mainnet, optimism } from 'viem/chains'
 import db from './db'
 import { rpcs } from './rpcs'
@@ -72,16 +72,20 @@ const PRICE_SERVICE_CHAIN_NAMES: Record<number, string> = {
   80094: 'berachain', 747474: 'katana',
 }
 
+const PRICE_SERVICE_DEFAULT_URL = 'https://prices.yearn.dev'
+
 async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
-  if(!process.env.PRICE_SERVICE_API_KEY || !process.env.PRICE_SERVICE_URL) return undefined
+  if(!process.env.PRICE_SERVICE_API_KEY) return undefined
   const chainName = PRICE_SERVICE_CHAIN_NAMES[chainId]
   if(!chainName) return undefined
 
+  const baseUrl = process.env.PRICE_SERVICE_URL || PRICE_SERVICE_DEFAULT_URL
+
   try {
     const blockTime = await getBlockTime(chainId, blockNumber)
-    const coinId = `${chainName}:${token}`
+    const coinId = `${chainName}:${token.toLowerCase()}`
     const coins = encodeURIComponent(JSON.stringify({ [coinId]: [Number(blockTime)] }))
-    const url = `${process.env.PRICE_SERVICE_URL}/api/prices/batchHistorical?source=defillama&coins=${coins}`
+    const url = `${baseUrl}/api/prices/batchHistorical?source=defillama&coins=${coins}`
 
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` }
@@ -140,7 +144,7 @@ async function fetchDbPriceUsd(chainId: number, token: `0x${string}`, blockNumbe
       block_number as "blockNumber",
       block_time as "blockTime"
     FROM price WHERE chain_id = $1 AND address = $2 AND block_number = $3`,
-    [chainId, token, blockNumber]
+    [chainId, getAddress(token), blockNumber]
   )
   if(result.rows.length === 0) return undefined
   return PriceSchema.parse(result.rows[0])
