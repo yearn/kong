@@ -33,8 +33,8 @@ export default class TimeseriesFanout {
       WHERE chain_id = $1 AND address = $2 AND label = $3
         AND series_time BETWEEN to_timestamp($4::double precision) AND to_timestamp($5::double precision)
       ORDER BY series_time ASC`,
-      [chainId, address, outputLabel, start, end]))
-        .rows.map(row => BigInt(row.series_time))
+      [chainId, address, outputLabel, Number(start), Number(end)]))
+        .rows.map(row => row.series_time as bigint)
 
       const missing = findMissingTimestamps(start, end, computed)
       if (missing.length === 0 || missing[missing.length - 1] !== end) {

@@ -27,6 +27,7 @@ describe('abis/yearn/2/strategy/snapshot/hook', function() {
   it('extracts estimated apr', async function() {
     const chainId = 1337
     const address = '0x1000000000000000000000000000000000000000'
+    // must be recent: getLatestEstimatedApr filters block_time > NOW() - 7 days
     const blockTime = BigInt(Math.floor(Date.now() / 1000))
     const blockNumber = 1000n
 
