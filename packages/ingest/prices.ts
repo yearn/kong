@@ -16,6 +16,8 @@ export const lens = {
 }
 
 export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber?: bigint, latest = false): Promise<{ priceUsd: number, priceSource: string }>{
+  token = getAddress(token)
+
   if (!blockNumber) {
     blockNumber = await getBlockNumber(chainId)
     latest = true
