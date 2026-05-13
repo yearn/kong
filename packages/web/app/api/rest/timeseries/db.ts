@@ -41,7 +41,7 @@ export async function getFullTimeseries(
       address,
       $3::text AS label,
       component,
-      COALESCE(AVG(NULLIF(value, 0)), 0) AS value,
+      AVG(NULLIF(value, 0)) AS value,
       '1 day'::text AS period,
       time_bucket('1 day'::interval, series_time) AS time
     FROM output
@@ -49,6 +49,7 @@ export async function getFullTimeseries(
       AND address = $2
       AND label = $3
     GROUP BY chain_id, address, component, time
+    HAVING AVG(NULLIF(value, 0)) IS NOT NULL
     ORDER BY time ASC
   `,
     [chainId, getAddress(address as `0x${string}`), label],
@@ -69,7 +70,7 @@ export async function getRecentTimeseries(
       address,
       $3::text AS label,
       component,
-      COALESCE(AVG(NULLIF(value, 0)), 0) AS value,
+      AVG(NULLIF(value, 0)) AS value,
       '1 day'::text AS period,
       time_bucket('1 day'::interval, series_time) AS time
     FROM output
@@ -78,6 +79,7 @@ export async function getRecentTimeseries(
       AND label = $3
       AND series_time >= date_trunc('day', NOW()) - INTERVAL '2 days'
     GROUP BY chain_id, address, component, time
+    HAVING AVG(NULLIF(value, 0)) IS NOT NULL
     ORDER BY time ASC
   `,
     [chainId, getAddress(address as `0x${string}`), label],
