@@ -1,30 +1,30 @@
 version: 2
 updates:
-  - package-ecosystem: npm
+  - package-ecosystem: bun
     directory: "/"
     schedule:
       interval: weekly
-  - package-ecosystem: npm
+  - package-ecosystem: bun
     directory: "/packages/db"
     schedule:
       interval: weekly
-  - package-ecosystem: npm
+  - package-ecosystem: bun
     directory: "/packages/ingest"
     schedule:
       interval: weekly
-  - package-ecosystem: npm
+  - package-ecosystem: bun
     directory: "/packages/lib"
     schedule:
       interval: weekly
-  - package-ecosystem: npm
+  - package-ecosystem: bun
     directory: "/packages/scripts"
     schedule:
       interval: weekly
-  - package-ecosystem: npm
+  - package-ecosystem: bun
     directory: "/packages/terminal"
     schedule:
       interval: weekly
-  - package-ecosystem: npm
+  - package-ecosystem: bun
     directory: "/packages/web"
     schedule:
       interval: weekly
