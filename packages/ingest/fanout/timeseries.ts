@@ -27,13 +27,20 @@ export default class TimeseriesFanout {
       const start = endOfDay(await getBlockTime(chainId, from))
       const end = endOfDay(await getBlockTime(chainId, to))
 
+      // series_time is endOfDay(block_time) at write time
+      // (packages/ingest/load/index.ts). Filtering on series_time within
+      // [start, end] lets Timescale prune chunks; pairs with index
+      // idx_output_chain_address_label_series_time for an index-only scan.
+      // pg timestamptz parser (packages/ingest/db.ts) returns bigint seconds.
       const computed = (await db.query(`
-      SELECT DISTINCT block_time
+      SELECT DISTINCT series_time
       FROM output
       WHERE chain_id = $1 AND address = $2 AND label = $3
-      ORDER BY block_time ASC`,
-      [chainId, address, outputLabel]))
-        .rows.map(row => BigInt(row.block_time))
+        AND series_time >= to_timestamp($4)
+        AND series_time <= to_timestamp($5)
+      ORDER BY series_time ASC`,
+      [chainId, address, outputLabel, Number(start), Number(end)]))
+        .rows.map(row => row.series_time as bigint)
 
       const missing = findMissingTimestamps(start, end, computed)
       if (missing.length === 0 || missing[missing.length - 1] !== end) {

@@ -401,17 +401,19 @@ async function fetchStrategyPerformance(
   const labels = ['apr-oracle', 'apy-bwd-delta-pps']
   if (estimatedAprLabel) labels.push(estimatedAprLabel)
 
+  // series_time predicate enables hypertable chunk exclusion; without it
+  // every chunk of `output` is scanned. 30d window comfortably covers any
+  // active strategy — stale labels just won't show up, which is the
+  // intent for "latest performance".
   const result = await db.query(`
-    WITH latest_times AS (
-      SELECT address, label, MAX(block_time) as block_time
-      FROM output
-      WHERE chain_id = $1 AND address = ANY($2) AND label = ANY($3)
-      GROUP BY address, label
-    )
-    SELECT o.address, o.label, o.component, o.value
+    SELECT DISTINCT ON (o.address, o.label, o.component)
+      o.address, o.label, o.component, o.value
     FROM output o
-    JOIN latest_times lt ON o.address = lt.address AND o.label = lt.label AND o.block_time = lt.block_time
     WHERE o.chain_id = $1
+      AND o.address = ANY($2)
+      AND o.label = ANY($3)
+      AND o.series_time >= now() - interval '30 days'
+    ORDER BY o.address, o.label, o.component, o.series_time DESC
   `, [chainId, strategies, labels])
 
   const map = new Map<string, any>()
