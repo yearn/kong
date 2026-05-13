@@ -7,20 +7,32 @@ import { clean } from 'lib/version'
 export const semver = /^(\d+)\.(\d+)\.(\d+)$/
 
 export async function get(config: ThingsConfig): Promise<Thing[]> {
-  const allthings = await query<Thing>(ThingSchema, 'SELECT * FROM thing WHERE label = $1', [config.label])
-  if(config.filter.length === 0) return allthings
+  const params: string[] = [config.label]
+  const filters = ['label = $1']
+  const semverFilters = config.filter.filter(filter => semver.test(filter.value))
+
+  for (const filter of config.filter) {
+    if (semver.test(filter.value)) continue
+
+    params.push(filter.field, filter.value)
+    const fieldParam = `$${params.length - 1}`
+    const valueParam = `$${params.length}`
+
+    if (filter.op === '=') {
+      filters.push(`defaults->>${fieldParam} = ${valueParam}`)
+    } else if (filter.op === '!=') {
+      filters.push(`defaults->>${fieldParam} IS DISTINCT FROM ${valueParam}`)
+    } else {
+      throw new Error('not implemented')
+    }
+  }
+
+  const allthings = await query<Thing>(ThingSchema, `SELECT * FROM thing WHERE ${filters.join(' AND ')}`, params)
+  if(semverFilters.length === 0) return allthings
   return allthings.filter(thing => {
-    for (const filter of config.filter) {
+    for (const filter of semverFilters) {
       const field = thing.defaults[filter.field]
-      if (semver.test(filter.value)) {
-        if (!(field && compare(clean(field), filter.value, (filter.op as CompareOperator)))) return false
-      } else if (filter.op === '=') {
-        if (String(field) !== String(filter.value)) return false
-      } else if (filter.op === '!=') {
-        if (String(field) === String(filter.value)) return false
-      } else {
-        throw new Error('not implemented')
-      }
+      if (!(field && compare(clean(field), filter.value, (filter.op as CompareOperator)))) return false
     }
     return true
   })

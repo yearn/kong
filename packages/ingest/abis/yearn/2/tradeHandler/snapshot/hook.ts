@@ -16,7 +16,10 @@ async function project(chainId: number, tradeHandler: `0x${string}`) {
   ]
 
   const events = await db.query(`
-  SELECT signature, args
+  SELECT
+    signature,
+    args->>'seller' AS seller,
+    args->>'tokenIn' AS "tokenIn"
   FROM evmlog
   WHERE chain_id = $1 AND address = $2 AND signature = ANY($3)
   ORDER BY block_number ASC, log_index ASC`,
@@ -26,13 +29,13 @@ async function project(chainId: number, tradeHandler: `0x${string}`) {
   const result: Partial<Tradeable>[] = []
 
   for (const event of events.rows) {
-    const index = result.findIndex(r => r.strategy === zhexstring.parse(event.args.seller) && r.token === zhexstring.parse(event.args.tokenIn))
+    const index = result.findIndex(r => r.strategy === zhexstring.parse(event.seller) && r.token === zhexstring.parse(event.tokenIn))
     switch (event.signature) {
     case topics[0]:
       if (index > -1) break
       result.push({
-        strategy: zhexstring.parse(event.args.seller),
-        token: zhexstring.parse(event.args.tokenIn)
+        strategy: zhexstring.parse(event.seller),
+        token: zhexstring.parse(event.tokenIn)
       })
       break
     case topics[1]:

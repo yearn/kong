@@ -19,7 +19,9 @@ async function projectProjects(chainId: number, vault: `0x${string}`, blockNumbe
   const topic = toEventSelector('event NewProject(bytes32 indexed projectId, address indexed roleManager)')
 
   const events = await db.query(`
-  SELECT args
+  SELECT
+    args->>'projectId' AS "projectId",
+    args->>'roleManager' AS "roleManager"
   FROM evmlog
   WHERE chain_id = $1 AND address = $2 AND signature = $3 AND (block_number <= $4 OR $4 IS NULL)
   ORDER BY block_number ASC, log_index ASC`,
@@ -31,9 +33,9 @@ async function projectProjects(chainId: number, vault: `0x${string}`, blockNumbe
 
   for (const event of events.rows) {
     result.push({
-      projectId: zhexstring.parse(event.args.projectId),
-      roleManager: EvmAddressSchema.parse(event.args.roleManager),
-      name: await getProjectName(chainId, event.args.roleManager)
+      projectId: zhexstring.parse(event.projectId),
+      roleManager: EvmAddressSchema.parse(event.roleManager),
+      name: await getProjectName(chainId, event.roleManager)
     })
   }
 

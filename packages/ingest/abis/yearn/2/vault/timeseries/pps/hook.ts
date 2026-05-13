@@ -1,6 +1,6 @@
 import { Data } from '../../../../../../extract/timeseries'
 import { Output, OutputSchema, Thing, ThingSchema } from 'lib/types'
-import { first } from '../../../../../../db'
+import { firstRow } from '../../../../../../db'
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { multicall3 } from 'lib'
 import { ReadContractParameters } from 'viem'
@@ -25,12 +25,9 @@ export default async function process(chainId: number, address: `0x${string}`, d
     return []
   }
 
-  const vault = await first<Thing>(ThingSchema,
-    'SELECT * FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3',
-    [chainId, address, 'vault']
-  )
-
-  if (!vault) return []
+  const vaultRow = await firstRow('SELECT defaults FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3', [chainId, address, 'vault'])
+  if (!vaultRow) return []
+  const vault = ThingSchema.parse({ chainId, address, label: 'vault', defaults: vaultRow.defaults })
 
   const pps = await _compute(vault, blockNumber)
   if (!pps) return []
