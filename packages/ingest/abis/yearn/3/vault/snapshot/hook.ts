@@ -184,7 +184,9 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   const changeType = { [2 ** 0]: 'add', [2 ** 1]: 'revoke' }
   const topic = toEventSelector('event StrategyChanged(address indexed strategy, uint256 change_type)')
   const events = await db.query(`
-  SELECT args
+  SELECT
+    args->>'strategy' AS strategy,
+    args->>'change_type' AS change_type
   FROM evmlog
   WHERE chain_id = $1 AND address = $2 AND signature = $3 AND (block_number <= $4 OR $4 IS NULL)
   ORDER BY block_number ASC, log_index ASC`,
@@ -192,10 +194,10 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   if(events.rows.length === 0) return []
   const result: `0x${string}`[] = []
   for (const event of events.rows) {
-    if (changeType[event.args.change_type] === 'add') {
-      result.push(zhexstring.parse(event.args.strategy))
+    if (changeType[event.change_type] === 'add') {
+      result.push(zhexstring.parse(event.strategy))
     } else {
-      result.splice(result.indexOf(zhexstring.parse(event.args.strategy)), 1)
+      result.splice(result.indexOf(zhexstring.parse(event.strategy)), 1)
     }
   }
 
@@ -209,14 +211,14 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
 export async function projectDebtAllocator(chainId: number, vault: `0x${string}`) {
   const topic = toEventSelector('event NewDebtAllocator(address indexed allocator, address indexed vault)')
   const events = await db.query(`
-  SELECT args
+  SELECT args->>'allocator' AS allocator
   FROM evmlog
   WHERE chain_id = $1 AND signature = $2 AND args->>'vault' = $3
   ORDER BY block_number DESC, log_index DESC
   LIMIT 1`,
   [chainId, topic, vault])
   if(events.rows.length === 0) return undefined
-  return zhexstring.parse(events.rows[0].args.allocator)
+  return zhexstring.parse(events.rows[0].allocator)
 }
 
 export async function projectRoles(chainId: number, vault: `0x${string}`) {
@@ -404,18 +406,12 @@ async function fetchStrategyPerformance(
   if (estimatedAprLabel) labels.push(estimatedAprLabel)
 
   const result = await db.query(`
-    WITH latest_times AS (
-      SELECT address, label, MAX(block_time) as block_time
-      FROM output
-      WHERE chain_id = $1 AND address = ANY($2) AND label = ANY($3)
-        AND series_time >= now() - $4::interval
-      GROUP BY address, label
-    )
-    SELECT o.address, o.label, o.component, o.value
-    FROM output o
-    JOIN latest_times lt ON o.address = lt.address AND o.label = lt.label AND o.block_time = lt.block_time
-    WHERE o.chain_id = $1 AND o.address = ANY($2) AND o.label = ANY($3)
-      AND o.series_time >= now() - $4::interval
+    SELECT DISTINCT ON (address, label, component)
+      address, label, component, value
+    FROM output
+    WHERE chain_id = $1 AND address = ANY($2) AND label = ANY($3)
+      AND series_time >= now() - $4::interval
+    ORDER BY address, label, component, block_time DESC
   `, [chainId, strategies, labels, STRATEGY_PERFORMANCE_LOOKBACK])
 
   const map = new Map<string, any>()

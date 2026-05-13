@@ -134,6 +134,7 @@ export async function getLatestApy(chainId: number, address: string) {
       WHERE chain_id = $1
       AND address = $2
       AND label = 'apy-bwd-delta-pps'
+      AND block_time > NOW() - INTERVAL '7 days'
     )
     AND chain_id = $1
     AND address = $2
@@ -176,6 +177,7 @@ export async function getLatestOracleApr(chainId: number, address: string): Prom
       WHERE chain_id = $1
       AND address = $2
       AND label = 'apr-oracle'
+      AND block_time > NOW() - INTERVAL '7 days'
     )
     AND chain_id = $1
     AND address = $2

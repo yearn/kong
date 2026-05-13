@@ -23,7 +23,9 @@ export async function projectVaults(chainId: number, accountant: `0x${string}`, 
 
   const topic = toEventSelector('event VaultChanged(address indexed vault, uint8 change)')
   const events = await db.query(`
-  SELECT args
+  SELECT
+    args->>'vault' AS vault,
+    args->>'change' AS change
   FROM evmlog
   WHERE chain_id = $1 AND address = $2 AND signature = $3 AND (block_number <= $4 OR $4 IS NULL)
   ORDER BY block_number ASC, log_index ASC`,
@@ -33,10 +35,10 @@ export async function projectVaults(chainId: number, accountant: `0x${string}`, 
 
   const result: `0x${string}`[] = []
   for (const event of events.rows) {
-    if (changeType[event.args.change] === 'add') {
-      result.push(EvmAddressSchema.parse(event.args.vault))
-    } else if (changeType[event.args.change] === 'remove') {
-      result.splice(result.indexOf(EvmAddressSchema.parse(event.args.vault)), 1)
+    if (changeType[event.change] === 'add') {
+      result.push(EvmAddressSchema.parse(event.vault))
+    } else if (changeType[event.change] === 'remove') {
+      result.splice(result.indexOf(EvmAddressSchema.parse(event.vault)), 1)
     }
   }
 
