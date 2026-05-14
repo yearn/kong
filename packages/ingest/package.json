@@ -18,7 +18,7 @@
     "cross-env": "5.0.5",
     "dotenv": "16.4.7",
     "js-yaml": "4.1.0",
-    "lib": "workspace:packages/lib",
+    "lib": "workspace:*",
     "pg": "8.13.1",
     "redis-info": "3.1.0",
     "ts-node": "10.9.2",
