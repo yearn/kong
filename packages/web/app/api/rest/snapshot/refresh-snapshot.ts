@@ -1,6 +1,7 @@
 import { cacheMSet, disconnect } from '../cache'
 import { getVaults, getVaultSnapshot } from './db'
 import { getSnapshotKey } from './redis'
+import { primeYieldSplitterCache } from '../../yieldSplitters'
 
 const BATCH_SIZE = 10
 
@@ -10,6 +11,8 @@ async function refresh(): Promise<void> {
   console.log('Fetching vaults...')
   const vaults = await getVaults()
   console.log(`Found ${vaults.length} vaults (batch size: ${BATCH_SIZE})`)
+
+  await primeYieldSplitterCache()
 
   let processed = 0
 
