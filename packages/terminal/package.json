@@ -19,7 +19,7 @@
     "cross-env": "5.0.5",
     "dotenv": "16.4.7",
     "figlet": "1.8.0",
-    "lib": "workspace:packages/lib",
+    "lib": "workspace:*",
     "pg": "8.13.1",
     "prompts": "2.4.2",
     "redis": "4.7.0",
