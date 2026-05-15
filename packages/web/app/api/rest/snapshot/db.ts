@@ -149,12 +149,20 @@ async function resolveEstimatedAprLabel(
   }
 
   const latest = await db.query(`
-    SELECT label
-    FROM output
-    WHERE chain_id = $1
-      AND address = $2
-      AND label LIKE '%-estimated-apr'
-    ORDER BY block_time DESC
+    SELECT o.label
+    FROM output o
+    WHERE o.chain_id = $1
+      AND o.address = $2
+      AND o.label LIKE '%-estimated-apr'
+      AND NOT EXISTS (
+        SELECT 1 FROM output o2
+        WHERE o2.chain_id = o.chain_id
+          AND o2.address = o.address
+          AND o2.label = o.label
+          AND o2.block_time = o.block_time
+          AND o2.component = 'debtRatio'
+      )
+    ORDER BY o.block_time DESC
     LIMIT 1
   `, [chainId, vaultAddress])
 
