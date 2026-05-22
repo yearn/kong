@@ -24,11 +24,19 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string, 
       SELECT label, component, value
       FROM output
       WHERE block_time = (
-          SELECT block_time FROM output
+          SELECT block_time FROM output o
           WHERE chain_id = $1
           AND address = $2
           AND label LIKE '%-estimated-apr'
           AND block_time > NOW() - INTERVAL '7 days'
+          AND NOT EXISTS (
+            SELECT 1 FROM output o2
+            WHERE o2.chain_id = o.chain_id
+            AND o2.address = o.address
+            AND o2.label = o.label
+            AND o2.block_time = o.block_time
+            AND o2.component = 'debtRatio'
+          )
           ORDER BY block_time DESC
           LIMIT 1
         )
