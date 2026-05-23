@@ -27,7 +27,7 @@ describe('abis/yearn/2/strategy/snapshot/hook', function() {
   it('extracts estimated apr', async function() {
     const chainId = 1337
     const address = '0x1000000000000000000000000000000000000000'
-    const blockTime = 1000n
+    const now = Date.now()
     const blockNumber = 1000n
 
     const outputData = {
@@ -37,8 +37,8 @@ describe('abis/yearn/2/strategy/snapshot/hook', function() {
       component: 'netAPR',
       value: 0.05,
       block_number: blockNumber,
-      block_time: Number(blockTime),
-      series_time: Number(blockTime)
+      block_time: now,
+      series_time: now
     }
 
     await db.query(toUpsertSql('output', 'chain_id, address, label, component, series_time', outputData), Object.values(outputData))

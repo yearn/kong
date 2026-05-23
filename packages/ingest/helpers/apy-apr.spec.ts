@@ -80,7 +80,7 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result!.components).to.deep.equal({ debtRatio: 5000 })
   })
 
-  it('returns rows older than 7 days are excluded', async function() {
+  it('excludes rows older than 7 days', async function() {
     const old = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
     await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.03, old)
     await insertOutput(VAULT_ADDR, LABEL, 'netAPY', 0.031, old)
@@ -148,7 +148,7 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result!.apy).to.equal(0.051)
   })
 
-  it('returns undefined when matching rows have no netAPR/netAPY', async function() {
+  it('returns object with undefined apr/apy when rows lack netAPR/netAPY', async function() {
     const t = new Date()
     await insertOutput(VAULT_ADDR, LABEL, 'someOtherMetric', 0.05, t)
 
@@ -157,5 +157,52 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result!.apr).to.be.undefined
     expect(result!.apy).to.be.undefined
     expect(result!.components).to.deep.equal({ someOtherMetric: 0.05 })
+  })
+
+  it('does not return yvusd-estimated-apr for strategy vault that is also a vault (issue #409)', async function() {
+    const t = new Date()
+    const STRATEGY_VAULT = '0xstrategy_also_vault'
+
+    await insertOutput(STRATEGY_VAULT, 'yvusd-estimated-apr', 'netAPR', 0.08, t)
+    await insertOutput(STRATEGY_VAULT, 'yvusd-estimated-apr', 'netAPY', 0.082, t)
+    await insertOutput(STRATEGY_VAULT, 'yvusd-estimated-apr', 'debtRatio', 5000, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, STRATEGY_VAULT)
+    expect(result).to.be.undefined
+  })
+
+  it('explicit label lookup still resolves for strategy vault with debtRatio (issue #409 composition path)', async function() {
+    const t = new Date()
+    const STRATEGY_VAULT = '0xstrategy_with_debtratio'
+
+    await insertOutput(STRATEGY_VAULT, 'yvusd-estimated-apr', 'netAPR', 0.08, t)
+    await insertOutput(STRATEGY_VAULT, 'yvusd-estimated-apr', 'netAPY', 0.082, t)
+    await insertOutput(STRATEGY_VAULT, 'yvusd-estimated-apr', 'debtRatio', 5000, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, STRATEGY_VAULT, 'yvusd-estimated-apr')
+    expect(result).to.not.be.undefined
+    expect(result!.apr).to.equal(0.08)
+    expect(result!.apy).to.equal(0.082)
+    expect(result!.components).to.deep.equal({ debtRatio: 5000 })
+  })
+
+  it('returns older vault-only block_time when latest has debtRatio and older has none (issue #409 exact scenario)', async function() {
+    const older = new Date(Date.now() - 120_000)
+    const newer = new Date()
+    const STRATEGY_VAULT = '0xstrategy_older_clean'
+
+    await insertOutput(STRATEGY_VAULT, 'yvusd-estimated-apr', 'netAPR', 0.03, older)
+    await insertOutput(STRATEGY_VAULT, 'yvusd-estimated-apr', 'netAPY', 0.031, older)
+
+    await insertOutput(STRATEGY_VAULT, 'yvusd-estimated-apr', 'netAPR', 0.15, newer)
+    await insertOutput(STRATEGY_VAULT, 'yvusd-estimated-apr', 'netAPY', 0.151, newer)
+    await insertOutput(STRATEGY_VAULT, 'yvusd-estimated-apr', 'debtRatio', 9999, newer)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, STRATEGY_VAULT)
+    expect(result).to.not.be.undefined
+    expect(result!.type).to.equal('yvusd-estimated-apr')
+    expect(result!.apr).to.equal(0.03)
+    expect(result!.apy).to.equal(0.031)
+    expect(result!.components).to.deep.equal({})
   })
 })
