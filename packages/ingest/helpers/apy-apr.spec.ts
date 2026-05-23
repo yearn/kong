@@ -133,6 +133,24 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result!.apr).to.equal(0.02)
   })
 
+  it('does not merge debtRatio rows from another label at the selected block_time', async function() {
+    const t = new Date()
+    const labelA = 'crv-estimated-apr'
+    const labelB = 'yvusd-estimated-apr'
+
+    await insertOutput(VAULT_ADDR, labelA, 'netAPR', 0.02, t)
+    await insertOutput(VAULT_ADDR, labelA, 'netAPY', 0.021, t)
+
+    await insertOutput(VAULT_ADDR, labelB, 'netAPR', 0.09, t)
+    await insertOutput(VAULT_ADDR, labelB, 'debtRatio', 1000, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.not.be.undefined
+    expect(result!.type).to.equal(labelA)
+    expect(result!.apr).to.equal(0.02)
+    expect(result!.components).to.deep.equal({})
+  })
+
   it('different addresses do not interfere with each other', async function() {
     const t = new Date()
     const OTHER_ADDR = '0xother_address'

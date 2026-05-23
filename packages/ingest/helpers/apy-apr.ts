@@ -1,61 +1,25 @@
 import { EstimatedAprSchema } from 'lib/types'
+import { getLatestEstimatedAprRows } from 'lib/estimated-apr'
 import { z } from 'zod'
 import db, { firstRow } from '../db'
 
 export async function getLatestEstimatedAprV3(chainId: number, address: string, label?: string) {
-  const result = label
-    ? await db.query(`
-      SELECT label, component, value
-      FROM output
-      WHERE block_time = (
-          SELECT block_time FROM output
-          WHERE chain_id = $1
-          AND address = $2
-          AND label = $3
-          AND block_time > NOW() - INTERVAL '7 days'
-          ORDER BY block_time DESC
-          LIMIT 1
-        )
-        AND chain_id = $1
-        AND address = $2
-        AND label = $3
-    `, [chainId, address, label])
-    : await db.query(`
-      SELECT label, component, value
-      FROM output
-      WHERE block_time = (
-          SELECT o.block_time FROM output o
-          WHERE o.chain_id = $1
-          AND o.address = $2
-          AND o.label LIKE '%-estimated-apr'
-          AND o.block_time > NOW() - INTERVAL '7 days'
-          AND NOT EXISTS (
-            SELECT 1 FROM output o2
-            WHERE o2.chain_id = o.chain_id
-              AND o2.address = o.address
-              AND o2.label = o.label
-              AND o2.block_time = o.block_time
-              AND o2.component = 'debtRatio'
-          )
-          ORDER BY o.block_time DESC
-          LIMIT 1
-        )
-        AND chain_id = $1
-        AND address = $2
-        AND label LIKE '%-estimated-apr'
-    `, [chainId, address])
+  const rows = await getLatestEstimatedAprRows(db, chainId, address, {
+    label,
+    maxAgeDays: 7,
+  })
 
-  if (!result.rows.length) return undefined
+  if (!rows.length) return undefined
 
   const components: Record<string, number> = {}
-  for (const row of result.rows) {
-    if (row.value != null) components[row.component] = row.value
+  for (const row of rows) {
+    if (row.value != null && row.component != null) components[row.component] = row.value
   }
 
   const { netAPR, netAPY, ...rest } = components
 
   return {
-    type: result.rows[0].label,
+    type: rows[0].label,
     ...(netAPR != null ? { apr: netAPR } : {}),
     ...(netAPY != null ? { apy: netAPY } : {}),
     components: rest
