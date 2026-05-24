@@ -6,6 +6,10 @@ import type { StartedTestContainer } from 'testcontainers'
 import { migrate } from 'db'
 import path from 'path'
 import dotenv from 'dotenv'
+import { spawn } from 'child_process'
+import { Pool } from 'pg'
+import { Queue } from 'bullmq'
+import { dump } from 'js-yaml'
 
 const REPO_ROOT = path.resolve(__dirname, '../../..')
 const dotenvParsed = dotenv.config({ path: path.join(REPO_ROOT, '.env') }).parsed || {}
@@ -20,10 +24,28 @@ function rpcEnv(): Record<string, string> {
   return result
 }
 
+export interface AbiSource {
+  chainId: number
+  address: string
+  inceptBlock: number
+}
+
+export interface AbiEntry {
+  abiPath: string
+  sources: AbiSource[]
+}
+
+export interface ManualEntry {
+  chainId: number
+  address: string
+  label: string
+  defaults?: Record<string, unknown>
+}
+
 export interface ConfigOverrides {
-  abis?: string
-  chains?: string
-  manuals?: string
+  chains?: string[]
+  abis?: AbiEntry[]
+  manuals?: ManualEntry[]
 }
 
 export interface IngestContainerOptions {
@@ -43,10 +65,59 @@ export interface TestEnvironmentOptions {
 
 function contentsToCopy(configs: ConfigOverrides) {
   const items: { content: string; target: string }[] = []
-  if (configs.abis) items.push({ content: configs.abis, target: '/app/config/abis.local.yaml' })
-  if (configs.chains) items.push({ content: configs.chains, target: '/app/config/chains.local.yaml' })
-  if (configs.manuals) items.push({ content: configs.manuals, target: '/app/config/manuals.local.yaml' })
+  if (configs.chains)
+    items.push({ content: dump({ chains: configs.chains }), target: '/app/config/chains.local.yaml' })
+  if (configs.abis)
+    items.push({
+      content: dump({
+        cron: { name: 'AbiFanout', queue: 'fanout', job: 'abis', schedule: '*/15 * * * *', start: false },
+        abis: configs.abis,
+      }),
+      target: '/app/config/abis.local.yaml',
+    })
+  if (configs.manuals)
+    items.push({ content: dump({ manuals: configs.manuals }), target: '/app/config/manuals.local.yaml' })
   return items
+}
+
+export function createTestPool(): Pool {
+  return new Pool({
+    host: process.env.POSTGRES_HOST,
+    port: Number(process.env.POSTGRES_PORT),
+    user: process.env.POSTGRES_USER,
+    password: process.env.POSTGRES_PASSWORD,
+    database: process.env.POSTGRES_DATABASE,
+  })
+}
+
+export async function pollForRow(
+  pool: Pool,
+  sql: string,
+  params: unknown[],
+  timeoutMs = 120_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const { rows } = await pool.query(sql, params)
+    if (rows.length > 0) return
+    await new Promise(r => setTimeout(r, 3_000))
+  }
+  throw new Error(`Row not found after ${timeoutMs}ms`)
+}
+
+export async function triggerFanout(
+  jobName: string,
+  data: Record<string, unknown>,
+  jobId?: string,
+): Promise<void> {
+  const queue = new Queue('fanout', {
+    connection: {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: Number(process.env.REDIS_PORT || 6379),
+    },
+  })
+  await queue.add(jobName, data, jobId ? { jobId } : undefined)
+  await queue.close()
 }
 
 // Build images once per process to leverage Docker layer cache
@@ -81,11 +152,19 @@ export class TestEnvironment {
     const net = this.network
 
     const [postgres, redis] = await Promise.all([
-      new PostgreSqlContainer('timescale/timescaledb:2.1.0-pg11')
+      new PostgreSqlContainer('timescale/timescaledb:latest-pg16')
         .withDatabase('user')
         .withUsername('user')
         .withPassword('password')
         .withExposedPorts(5432)
+        .withHealthCheck({
+          test: ['CMD-SHELL', 'pg_isready -U user || exit 1'],
+          interval: 2000,
+          timeout: 5000,
+          retries: 30,
+          startPeriod: 10000,
+        })
+        .withWaitStrategy(Wait.forHealthCheck())
         .withNetwork(net)
         .withNetworkAliases('postgres')
         .start(),
@@ -118,8 +197,12 @@ export class TestEnvironment {
     process.env.POSTGRES_USER = 'user'
     process.env.POSTGRES_PASSWORD = 'password'
     process.env.POSTGRES_DATABASE = 'user'
+    delete process.env.POSTGRES_SSL
     process.env.REDIS_HOST = redis.getHost()
     process.env.REDIS_PORT = String(redis.getMappedPort(6379))
+    const redisUrl = `redis://${redis.getHost()}:${redis.getMappedPort(6379)}`
+    process.env.REST_CACHE_REDIS_URL = redisUrl
+    process.env.GQL_CACHE_REDIS_URL = redisUrl
 
     // Env for service containers — uses Docker network aliases, not localhost mapped ports
     const serviceEnv = {
@@ -182,6 +265,23 @@ export class TestEnvironment {
       ingestContainer: this.ingestContainer,
       webContainer: this.webContainer,
     }
+  }
+
+  runScript(scriptPath: string): Promise<void> {
+    const abs = path.isAbsolute(scriptPath) ? scriptPath : path.join(REPO_ROOT, scriptPath)
+    const tsNode = path.join(REPO_ROOT, 'node_modules/.bin/ts-node')
+    const compilerOptions = JSON.stringify({ module: 'commonjs', moduleResolution: 'node', esModuleInterop: true })
+    return new Promise((resolve, reject) => {
+      let output = ''
+      const proc = spawn(tsNode, ['--transpile-only', '--skip-project', '--compiler-options', compilerOptions, abs], {
+        env: process.env,
+        cwd: REPO_ROOT,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+      proc.stdout?.on('data', (c: Buffer) => { process.stdout.write(c); output += c })
+      proc.stderr?.on('data', (c: Buffer) => { process.stderr.write(c); output += c })
+      proc.on('close', code => code === 0 ? resolve() : reject(new Error(`runScript(${path.basename(abs)}) exited ${code}:\n${output.slice(-3000)}`)))
+    })
   }
 
   async stop() {

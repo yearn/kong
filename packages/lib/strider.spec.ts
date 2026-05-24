@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { add, contains, plan, remove, rollback } from './strider'
 
-describe.only('strider', function() {
+describe('strider', function() {
   it('plans new strides', async function() {
     expect(plan(0n, 100n, undefined)).to.deep.equal([{ from: 0n, to: 100n }])
     expect(plan(0n, 100n, [])).to.deep.equal([{ from: 0n, to: 100n }])
