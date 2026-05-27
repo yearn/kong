@@ -190,6 +190,7 @@ export class TestEnvironment {
       password: 'password',
       database: 'user',
     })
+    console.log('[test-env] ✅ database migrated')
 
     // Set env for the host test process (for tests that import lib/db directly)
     process.env.POSTGRES_HOST = postgres.getHost()
@@ -220,7 +221,9 @@ export class TestEnvironment {
     if (this.options.ingest) {
       const opts = this.options.ingest === true ? {} : this.options.ingest
       const configs = { ...sharedConfigs, ...opts.configs }
+      console.log('[test-env] 🔨 building ingest image (this may take a while on first run)...')
       const image = await getIngestImage()
+      console.log('[test-env] ✅ ingest image ready')
 
       let container = image
         .withNetwork(net)
@@ -233,12 +236,15 @@ export class TestEnvironment {
       if (copies.length) container = container.withCopyContentToContainer(copies)
 
       this.ingestContainer = await container.start()
+      console.log('[test-env] ✅ ingest container started')
     }
 
     if (this.options.web) {
       const opts = this.options.web === true ? {} : this.options.web
       const configs = { ...sharedConfigs }
+      console.log('[test-env] 🔨 building web image...')
       const image = await getWebImage()
+      console.log('[test-env] ✅ web image ready')
 
       let container = image
         .withNetwork(net)
@@ -258,6 +264,7 @@ export class TestEnvironment {
 
       this.webContainer = await container.start()
       this.webUrl = `http://localhost:${this.webContainer.getMappedPort(3001)}`
+      console.log(`[test-env] ✅ web container started at ${this.webUrl}`)
     }
 
     return {
