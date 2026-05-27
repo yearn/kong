@@ -2,6 +2,9 @@ import { EstimatedAprSchema } from 'lib/types'
 import { z } from 'zod'
 import db, { firstRow } from '../db'
 
+const CURRENT_PERFORMANCE_LOOKBACK = process.env.CURRENT_PERFORMANCE_LOOKBACK_DAYS
+  ? `${process.env.CURRENT_PERFORMANCE_LOOKBACK_DAYS} days` : '7 days'
+
 export async function getLatestEstimatedAprV3(chainId: number, address: string, label?: string) {
   const result = label
     ? await db.query(`
@@ -12,7 +15,7 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string, 
           WHERE chain_id = $1
           AND address = $2
           AND label = $3
-          AND block_time > NOW() - INTERVAL '7 days'
+          AND block_time > NOW() - INTERVAL '${CURRENT_PERFORMANCE_LOOKBACK}'
           ORDER BY block_time DESC
           LIMIT 1
         )
@@ -28,7 +31,7 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string, 
           WHERE chain_id = $1
           AND address = $2
           AND label LIKE '%-estimated-apr'
-          AND block_time > NOW() - INTERVAL '7 days'
+          AND block_time > NOW() - INTERVAL '${CURRENT_PERFORMANCE_LOOKBACK}'
           ORDER BY block_time DESC
           LIMIT 1
         )
@@ -79,7 +82,7 @@ export async function getLatestEstimatedApr(chainId: number, address: string) {
       WHERE chain_id = $1
       AND address = $2
       AND label IN ('crv-estimated-apr', 'velo-estimated-apr', 'aero-estimated-apr')
-      AND block_time > NOW() - INTERVAL '7 days'
+      AND block_time > NOW() - INTERVAL '${CURRENT_PERFORMANCE_LOOKBACK}'
     )
     AND chain_id = $1
     AND address = $2
@@ -134,6 +137,7 @@ export async function getLatestApy(chainId: number, address: string) {
       WHERE chain_id = $1
       AND address = $2
       AND label = 'apy-bwd-delta-pps'
+      AND block_time > NOW() - INTERVAL '${CURRENT_PERFORMANCE_LOOKBACK}'
     )
     AND chain_id = $1
     AND address = $2
@@ -176,6 +180,7 @@ export async function getLatestOracleApr(chainId: number, address: string): Prom
       WHERE chain_id = $1
       AND address = $2
       AND label = 'apr-oracle'
+      AND block_time > NOW() - INTERVAL '${CURRENT_PERFORMANCE_LOOKBACK}'
     )
     AND chain_id = $1
     AND address = $2
