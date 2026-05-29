@@ -33,8 +33,9 @@ spawnTestContainersAndRun().then((env) => {
   }
 
   const mochaBin = path.resolve(__dirname, '../../node_modules/.bin/mocha')
-
-  mochaProcess = spawn(mochaBin, ['--timeout 5000', '--exit', ...(process.argv.slice(2) || [])], {
+  const userArgs = process.argv.slice(2).filter(a => a !== '--')
+  const specArgs = userArgs.length > 0 ? userArgs : ['**/*.spec.ts']
+  mochaProcess = spawn(mochaBin, ['--timeout', '5000', '--exit', ...specArgs], {
     // @ts-expect-error env is not typed
     env: {
       ...customEnv,
