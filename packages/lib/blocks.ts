@@ -19,7 +19,12 @@ export async function getBlockTime(chainId: number, blockNumber?: bigint): Promi
   return (await getBlock(chainId, blockNumber)).timestamp
 }
 
+// head changes every block; any specific past block is immutable. only {number,timestamp}
+// is cached, so at worst a shallow reorg shifts a recent block's timestamp by ~seconds.
+const IMMUTABLE_BLOCK_TTL = 30 * 24 * 60 * 60 * 1000
+
 export async function getBlock(chainId: number, blockNumber?: bigint): Promise<Block> {
+  const ttl = blockNumber === undefined ? 10_000 : IMMUTABLE_BLOCK_TTL
   const result = cache.wrap(`getBlock:${chainId}:${blockNumber}`, async () => {
     const block = await __getBlock(chainId, blockNumber)
     return BlockSchema.parse({
@@ -27,7 +32,7 @@ export async function getBlock(chainId: number, blockNumber?: bigint): Promise<B
       number: block.number,
       timestamp: block.timestamp
     })
-  }, 10_000)
+  }, ttl)
   return BlockSchema.parse(await result)
 }
 
@@ -58,23 +63,30 @@ export async function __estimateHeight(chainId: number, timestamp: bigint) {
   return await estimateHeightManual(chainId, timestamp)
 }
 
+// interpolation search over (near-linear, monotonic) block timestamps: picks each probe
+// by linear time->block estimate instead of the midpoint, converging in ~O(log log n)
+// getBlock calls (~4) vs binary search's ~24. each getBlock is cached, so this collapses
+// the dominant RPC cost of timestamp->block resolution.
 async function estimateHeightManual(chainId: number, timestamp: bigint) {
   const top = await getBlock(chainId)
-  let hi = BigInt(top.number)
-  let lo = 0n
-  let block = top
+  let hi = top.number, hiTime = top.timestamp
+  if (timestamp >= hiTime) return hi
 
-  while ((hi - lo) > 1n) {
-    const mid = (hi + lo) / 2n
-    block = await getBlock(chainId, mid)
-    if (block.timestamp < timestamp) {
-      lo = mid + 1n
-    } else {
-      hi = mid - 1n
-    }
+  let lo = 1n, loTime = (await getBlock(chainId, lo)).timestamp
+  if (timestamp <= loTime) return lo
+
+  while (hi - lo > 1n) {
+    let probe = hiTime > loTime
+      ? lo + ((hi - lo) * (timestamp - loTime)) / (hiTime - loTime)
+      : (lo + hi) / 2n
+    if (probe <= lo) probe = lo + 1n
+    else if (probe >= hi) probe = hi - 1n
+    const block = await getBlock(chainId, probe)
+    if (block.timestamp < timestamp) { lo = probe; loTime = block.timestamp }
+    else { hi = probe; hiTime = block.timestamp }
   }
 
-  return block.number
+  return hi
 }
 
 export async function estimateCreationBlock(chainId: number, contract: `0x${string}`): Promise<Block> {
