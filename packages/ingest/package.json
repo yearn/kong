@@ -7,6 +7,7 @@
     "dev": "ts-node index.ts",
     "production": "ts-node --transpile-only index.ts",
     "test": "ts-node run-tests.ts",
+    "test:containers": "mocha --config .mocharc.containers.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
