@@ -29,6 +29,7 @@ describe('abis/yearn/2/strategy/snapshot/hook', function() {
     const address = '0x1000000000000000000000000000000000000000'
     // must be recent: getLatestEstimatedApr filters block_time > NOW() - 7 days
     const blockTime = BigInt(Math.floor(Date.now() / 1000))
+    const now = Number(blockTime)
     const blockNumber = 1000n
 
     const outputData = {
