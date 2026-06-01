@@ -90,19 +90,25 @@ export function createTestPool(): Pool {
   })
 }
 
+// Polls `sql` until it returns a row, or times out. `onTick` runs after each
+// empty result (before the next sleep) — use it to nudge work forward between
+// polls, e.g. re-triggering an idle-tolerant fanout that needs several passes.
 export async function pollForRow(
   pool: Pool,
   sql: string,
   params: unknown[],
-  timeoutMs = 120_000,
+  options: { timeoutMs?: number; intervalMs?: number; onTick?: (attempt: number) => unknown } = {},
 ): Promise<void> {
+  const { timeoutMs = 120_000, intervalMs = 3_000, onTick } = options
   const deadline = Date.now() + timeoutMs
+  let attempt = 0
   while (Date.now() < deadline) {
     const { rows } = await pool.query(sql, params)
     if (rows.length > 0) return
-    await new Promise(r => setTimeout(r, 3_000))
+    await onTick?.(attempt++)
+    await new Promise(r => setTimeout(r, intervalMs))
   }
-  throw new Error(`Row not found after ${timeoutMs}ms`)
+  throw new Error(`pollForRow: condition not met after ${timeoutMs}ms`)
 }
 
 export async function triggerFanout(
