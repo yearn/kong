@@ -3,11 +3,19 @@ import { RedisContainer, StartedRedisContainer } from '@testcontainers/redis'
 import { Wait } from 'testcontainers'
 import { migrate } from 'db'
 
-export const Postgres = new PostgreSqlContainer('timescale/timescaledb:2.1.0-pg11')
+export const Postgres = new PostgreSqlContainer('timescale/timescaledb:latest-pg16')
   .withDatabase('user')
   .withUsername('user')
   .withPassword('password')
   .withExposedPorts(5432)
+  .withHealthCheck({
+    test: ['CMD-SHELL', 'pg_isready -U user || exit 1'],
+    interval: 2000,
+    timeout: 5000,
+    retries: 30,
+    startPeriod: 10000,
+  })
+  .withWaitStrategy(Wait.forHealthCheck())
 
 export const Redis = new RedisContainer('redis:latest').withHealthCheck({
   test: ['CMD', 'redis-cli', 'ping'],

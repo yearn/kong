@@ -1,8 +1,8 @@
 import { expect } from 'chai'
 import { mainnet } from 'viem/chains'
-import { extractLenderStatuses } from './hook'
-import { getLatestEstimatedApr } from '../../../../../helpers/apy-apr'
 import db, { toUpsertSql } from '../../../../../db'
+import { getLatestEstimatedApr } from '../../../../../helpers/apy-apr'
+import { extractLenderStatuses } from './hook'
 
 describe('abis/yearn/2/strategy/snapshot/hook', function() {
   it('extracts lender statuses', async function() {

@@ -1,0 +1,10 @@
+node_modules
+packages/**/node_modules
+.next
+packages/**/.next
+.env
+.env.*
+.git
+*.spec.ts
+run-tests.ts
+test.fixture.ts
