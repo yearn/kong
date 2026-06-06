@@ -209,7 +209,7 @@ export async function projectDebtAllocator(chainId: number, vault: `0x${string}`
   const events = await db.query(`
   SELECT args
   FROM evmlog
-  WHERE chain_id = $1 AND signature = $2 AND args->>'vault' = $3
+  WHERE chain_id = $1 AND signature = $2 AND args ? 'vault' AND args->>'vault' = $3
   ORDER BY block_number DESC, log_index DESC
   LIMIT 1`,
   [chainId, topic, vault])
@@ -406,14 +406,22 @@ async function fetchStrategyPerformance(
   // active strategy — stale labels just won't show up, which is the
   // intent for "latest performance".
   const result = await db.query(`
-    SELECT DISTINCT ON (o.address, o.label, o.component)
-      o.address, o.label, o.component, o.value
+    WITH latest_times AS (
+      SELECT address, label, MAX(series_time) as series_time
+      FROM output
+      WHERE chain_id = $1
+        AND address = ANY($2)
+        AND label = ANY($3)
+        AND series_time >= now() - interval '30 days'
+      GROUP BY address, label
+    )
+    SELECT o.address, o.label, o.component, o.value
     FROM output o
+    JOIN latest_times lt
+      ON o.address = lt.address
+      AND o.label = lt.label
+      AND o.series_time = lt.series_time
     WHERE o.chain_id = $1
-      AND o.address = ANY($2)
-      AND o.label = ANY($3)
-      AND o.series_time >= now() - interval '30 days'
-    ORDER BY o.address, o.label, o.component, o.series_time DESC
   `, [chainId, strategies, labels])
 
   const map = new Map<string, any>()
