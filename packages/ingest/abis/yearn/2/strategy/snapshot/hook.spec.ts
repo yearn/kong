@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { mainnet } from 'viem/chains'
 import { extractLenderStatuses } from './hook'
-import { getLatestEstimatedApr } from '../../../../../helpers/apy-apr'
+import { getLatestEstimatedApr, getLatestEstimatedAprV3 } from '../../../../../helpers/apy-apr'
 import db, { toUpsertSql } from '../../../../../db'
 
 describe('abis/yearn/2/strategy/snapshot/hook', function() {
@@ -27,8 +27,8 @@ describe('abis/yearn/2/strategy/snapshot/hook', function() {
   it('extracts estimated apr', async function() {
     const chainId = 1337
     const address = '0x1000000000000000000000000000000000000000'
-    const blockTime = 1000n
-    const blockNumber = 1000n
+    const blockTime = BigInt(Math.floor(Date.now() / 1000))
+    const blockNumber = blockTime
 
     const outputData = {
       chain_id: chainId,
@@ -47,5 +47,30 @@ describe('abis/yearn/2/strategy/snapshot/hook', function() {
     expect(result).to.not.be.undefined
     expect(result?.type).to.equal('crv')
     expect(result?.apr).to.equal(0.05)
+  })
+
+  it('ignores vault-level v3 estimated apr rows with debt ratios', async function() {
+    const chainId = 1337
+    const address = '0x3000000000000000000000000000000000000003'
+    const blockTime = BigInt(Math.floor(Date.now() / 1000))
+    const blockNumber = blockTime
+
+    for (const [component, value] of [['netAPR', 0.05], ['debtRatio', 1]]) {
+      const outputData = {
+        chain_id: chainId,
+        address,
+        label: 'foo-estimated-apr',
+        component,
+        value,
+        block_number: blockNumber,
+        block_time: Number(blockTime),
+        series_time: Number(blockTime)
+      }
+
+      await db.query(toUpsertSql('output', 'chain_id, address, label, component, series_time', outputData), Object.values(outputData))
+    }
+
+    const result = await getLatestEstimatedAprV3(chainId, address)
+    expect(result).to.be.undefined
   })
 })

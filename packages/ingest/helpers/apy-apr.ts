@@ -2,49 +2,70 @@ import { EstimatedAprSchema } from 'lib/types'
 import { z } from 'zod'
 import db, { firstRow } from '../db'
 
-const CURRENT_PERFORMANCE_LOOKBACK = process.env.CURRENT_PERFORMANCE_LOOKBACK_DAYS
-  ? `${process.env.CURRENT_PERFORMANCE_LOOKBACK_DAYS} days` : '7 days'
+function parseLookbackDays(value: string | undefined, fallback: number) {
+  if (value === undefined) return fallback
+  const days = Number(value)
+  if (!Number.isInteger(days) || days <= 0) {
+    throw new Error(`CURRENT_PERFORMANCE_LOOKBACK_DAYS must be a positive integer, got ${value}`)
+  }
+  return days
+}
+
+const CURRENT_PERFORMANCE_LOOKBACK_DAYS = parseLookbackDays(
+  process.env.CURRENT_PERFORMANCE_LOOKBACK_DAYS,
+  7
+)
 
 export async function getLatestEstimatedAprV3(chainId: number, address: string, label?: string) {
   const result = label
     ? await db.query(`
-      SELECT label, component, value
+      WITH latest AS (
+        SELECT o.block_time, o.label
+        FROM output o
+        WHERE o.chain_id = $1
+          AND o.address = $2
+          AND o.label = $3
+          AND o.block_time > NOW() - make_interval(days => $4::int)
+        ORDER BY o.block_time DESC
+        LIMIT 1
+      )
+      SELECT label, component, value::float8 AS value
       FROM output
-      WHERE block_time = (
-          SELECT block_time FROM output
-          WHERE chain_id = $1
-          AND address = $2
-          AND label = $3
-          AND block_time > NOW() - INTERVAL '${CURRENT_PERFORMANCE_LOOKBACK}'
-          ORDER BY block_time DESC
-          LIMIT 1
-        )
-        AND chain_id = $1
+      WHERE chain_id = $1
         AND address = $2
-        AND label = $3
-    `, [chainId, address, label])
+        AND (block_time, label) = (SELECT block_time, label FROM latest)
+    `, [chainId, address, label, CURRENT_PERFORMANCE_LOOKBACK_DAYS])
     : await db.query(`
-      SELECT label, component, value
+      WITH latest AS (
+        SELECT o.block_time, o.label
+        FROM output o
+        WHERE o.chain_id = $1
+          AND o.address = $2
+          AND o.label LIKE '%-estimated-apr'
+          AND o.block_time > NOW() - make_interval(days => $3::int)
+          AND NOT EXISTS (
+            SELECT 1 FROM output o2
+            WHERE o2.chain_id = o.chain_id
+              AND o2.address = o.address
+              AND o2.label = o.label
+              AND o2.block_time = o.block_time
+              AND o2.component = 'debtRatio'
+          )
+        ORDER BY o.block_time DESC
+        LIMIT 1
+      )
+      SELECT label, component, value::float8 AS value
       FROM output
-      WHERE block_time = (
-          SELECT block_time FROM output
-          WHERE chain_id = $1
-          AND address = $2
-          AND label LIKE '%-estimated-apr'
-          AND block_time > NOW() - INTERVAL '${CURRENT_PERFORMANCE_LOOKBACK}'
-          ORDER BY block_time DESC
-          LIMIT 1
-        )
-        AND chain_id = $1
+      WHERE chain_id = $1
         AND address = $2
-        AND label LIKE '%-estimated-apr'
-    `, [chainId, address])
+        AND (block_time, label) = (SELECT block_time, label FROM latest)
+    `, [chainId, address, CURRENT_PERFORMANCE_LOOKBACK_DAYS])
 
   if (!result.rows.length) return undefined
 
   const components: Record<string, number> = {}
   for (const row of result.rows) {
-    if (row.value != null) components[row.component] = row.value
+    if (row.value != null && row.component != null) components[row.component] = row.value
   }
 
   const { netAPR, netAPY, ...rest } = components
@@ -82,13 +103,13 @@ export async function getLatestEstimatedApr(chainId: number, address: string) {
       WHERE chain_id = $1
       AND address = $2
       AND label IN ('crv-estimated-apr', 'velo-estimated-apr', 'aero-estimated-apr')
-      AND block_time > NOW() - INTERVAL '${CURRENT_PERFORMANCE_LOOKBACK}'
+      AND block_time > NOW() - make_interval(days => $3::int)
     )
     AND chain_id = $1
     AND address = $2
     AND label IN ('crv-estimated-apr', 'velo-estimated-apr', 'aero-estimated-apr')
   GROUP BY chain_id, address, label, block_number, block_time;
-  `, [chainId, address])
+  `, [chainId, address, CURRENT_PERFORMANCE_LOOKBACK_DAYS])
 
   if (!result) return undefined
 
@@ -137,13 +158,13 @@ export async function getLatestApy(chainId: number, address: string) {
       WHERE chain_id = $1
       AND address = $2
       AND label = 'apy-bwd-delta-pps'
-      AND block_time > NOW() - INTERVAL '${CURRENT_PERFORMANCE_LOOKBACK}'
+      AND block_time > NOW() - make_interval(days => $3::int)
     )
     AND chain_id = $1
     AND address = $2
     AND label = 'apy-bwd-delta-pps'
   GROUP BY chain_id, address, label, block_number, block_time;
-  `, [chainId, address])
+  `, [chainId, address, CURRENT_PERFORMANCE_LOOKBACK_DAYS])
 
   if (!first) return undefined
 
@@ -180,13 +201,13 @@ export async function getLatestOracleApr(chainId: number, address: string): Prom
       WHERE chain_id = $1
       AND address = $2
       AND label = 'apr-oracle'
-      AND block_time > NOW() - INTERVAL '${CURRENT_PERFORMANCE_LOOKBACK}'
+      AND block_time > NOW() - make_interval(days => $3::int)
     )
     AND chain_id = $1
     AND address = $2
     AND label = 'apr-oracle'
   GROUP BY chain_id, address, label, block_number, block_time;
-  `, [chainId, address])
+  `, [chainId, address, CURRENT_PERFORMANCE_LOOKBACK_DAYS])
 
   if (!result) return [0, 0]
 

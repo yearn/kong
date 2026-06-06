@@ -17,8 +17,19 @@ import { getRiskScore } from '../../../lib/risk'
 import { Roles } from '../../../lib/types'
 import accountantAbi from '../../accountant/abi'
 
-const STRATEGY_PERFORMANCE_LOOKBACK = process.env.STRATEGY_PERFORMANCE_LOOKBACK_DAYS
-  ? `${process.env.STRATEGY_PERFORMANCE_LOOKBACK_DAYS} days` : '14 days'
+function parseStrategyPerformanceLookbackDays(value: string | undefined, fallback: number) {
+  if (value === undefined) return fallback
+  const days = Number(value)
+  if (!Number.isInteger(days) || days <= 0) {
+    throw new Error(`STRATEGY_PERFORMANCE_LOOKBACK_DAYS must be a positive integer, got ${value}`)
+  }
+  return days
+}
+
+const STRATEGY_PERFORMANCE_LOOKBACK_DAYS = parseStrategyPerformanceLookbackDays(
+  globalThis.process.env.STRATEGY_PERFORMANCE_LOOKBACK_DAYS,
+  14
+)
 
 export const CompositionSchema = z.object({
   address: zhexstring,
@@ -411,14 +422,14 @@ async function fetchStrategyPerformance(
       SELECT address, label, MAX(block_time) as block_time
       FROM output
       WHERE chain_id = $1 AND address = ANY($2) AND label = ANY($3)
-        AND series_time >= now() - $4::interval
+        AND series_time >= now() - make_interval(days => $4::int)
       GROUP BY address, label
     )
     SELECT o.address, o.label, o.component, o.value
     FROM output o
     JOIN latest_times lt ON o.address = lt.address AND o.label = lt.label AND o.block_time = lt.block_time
     WHERE o.chain_id = $1
-  `, [chainId, strategies, labels, STRATEGY_PERFORMANCE_LOOKBACK])
+  `, [chainId, strategies, labels, STRATEGY_PERFORMANCE_LOOKBACK_DAYS])
 
   const map = new Map<string, any>()
 
