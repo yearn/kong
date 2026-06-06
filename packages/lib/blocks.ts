@@ -37,7 +37,7 @@ export async function getBlock(chainId: number, blockNumber?: bigint): Promise<B
 }
 
 async function __getBlock(chainId: number, blockNumber?: bigint) {
-  if (blockNumber) {
+  if (blockNumber !== undefined) {
     const { number: height } = await getBlock(chainId)
     return rpcs.next(chainId, useArchiveNode(height, blockNumber)).getBlock({ blockNumber })
   } else {
