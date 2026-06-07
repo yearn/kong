@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import { describe, expect, it } from 'vitest'
 import { computeNetApr } from '../../../../lib/apy'
 
 describe('abis/yearn/3/vault/timeseries/apr-oracle/hook', function() {

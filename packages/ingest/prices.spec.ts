@@ -1,14 +1,10 @@
-import { expect } from 'chai'
+import { describe, expect, it } from 'vitest'
 import { mainnet } from 'viem/chains'
 import { fetchErc20PriceUsd } from './prices'
 
+const block = 18166519n
+
 describe('prices', function() {
-  this.timeout(2 * 60_000) // TODO: yprice is in beta, expect delays
-
-  before(async function() {
-    this.block = 18166519n
-  })
-
   it('returns ydaemon price for latest WETH', async function() {
     const doesntMatterWhichBlock = 13n
     const { priceSource, priceUsd } = await fetchErc20PriceUsd(mainnet.id, '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', doesntMatterWhichBlock, true)
@@ -17,27 +13,24 @@ describe('prices', function() {
   })
 
   it('returns lens price for historic WETH', async function() {
-    const { priceSource, priceUsd } = await fetchErc20PriceUsd(mainnet.id, '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', this.block)
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(mainnet.id, '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', block)
     expect(priceSource).to.equal('lens')
     expect(priceUsd).to.be.greaterThan(0)
   })
 
-  it('returns yprice for yvCurve-clevCVX-f-f', async function() {
-    if(!JSON.parse(process.env.YPRICE_ENABLED || 'false')) return this.skip()
-    const { priceSource, priceUsd } = await fetchErc20PriceUsd(mainnet.id, '0xc869206adAfD3D874dB22e8BbA662E05F6257613', this.block)
+  it.skipIf(!JSON.parse(process.env.YPRICE_ENABLED || 'false'))('returns yprice for yvCurve-clevCVX-f-f', async function() {
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(mainnet.id, '0xc869206adAfD3D874dB22e8BbA662E05F6257613', block)
     expect(priceSource).to.equal('yprice')
     expect(priceUsd).to.be.greaterThan(0)
   })
 
-  it('returns yprice for crvGEARETH-f', async function() {
-    if(!JSON.parse(process.env.YPRICE_ENABLED || 'false')) return this.skip()
-    const { priceSource, priceUsd } = await fetchErc20PriceUsd(mainnet.id, '0x5Be6C45e2d074fAa20700C49aDA3E88a1cc0025d', this.block)
+  it.skipIf(!JSON.parse(process.env.YPRICE_ENABLED || 'false'))('returns yprice for crvGEARETH-f', async function() {
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(mainnet.id, '0x5Be6C45e2d074fAa20700C49aDA3E88a1cc0025d', block)
     expect(priceSource).to.equal('yprice')
     expect(priceUsd).to.be.greaterThan(0)
   })
 
-  it('returns priceservice for historic BOLD', async function() {
-    if(!process.env.PRICE_SERVICE_API_KEY) return this.skip()
+  it.skipIf(!process.env.PRICE_SERVICE_API_KEY)('returns priceservice for historic BOLD', async function() {
     // BOLD (Liquity v2) is not supported by Lens, so it falls through to price service
     const { priceSource, priceUsd } = await fetchErc20PriceUsd(mainnet.id, '0x6440f144b7e50D6a8439336510312d2F54beB01D', 25035087n)
     expect(priceUsd).to.be.greaterThan(0)

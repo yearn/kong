@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import { describe, expect, it } from 'vitest'
 import { HarvestSchema, computeApr, totalAssets } from './hook'
 import { addresses } from '../../../../../test-addresses'
 

@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import { describe, expect, it } from 'vitest'
 import { add, contains, plan, remove, rollback } from './strider'
 
 describe('strider', function() {

@@ -1,9 +1,8 @@
-import { expect } from 'chai'
+import { describe, expect, it } from 'vitest'
 import { extractComposition } from './hook'
 import db, { toUpsertSql } from '../../../../../db'
 
 describe('abis/yearn/2/vault/snapshot/hook', function() {
-  this.timeout(10000)
 
   it('extracts composition with performance', async function() {
     const chainId = 1337

@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import { afterEach, describe, expect, it } from 'vitest'
 import db from '../db'
 import { getLatestEstimatedAprV3 } from './apy-apr'
 

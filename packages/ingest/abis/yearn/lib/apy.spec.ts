@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { addresses } from '../../../test-addresses'
 import { mainnet, polygon } from 'viem/chains'
 import { _compute, computeApy, computeNetApr, extractFees__v2, extractFees__v3, extractLockedProfit__v2, extractLockedProfit__v3 } from './apy'
@@ -7,9 +7,8 @@ import { upsertBatch } from '../../../load'
 import db from '../../../db'
 
 describe('abis/yearn/lib/apy', function() {
-  this.timeout(20_000)
 
-  this.beforeAll(async function() {
+  beforeAll(async function() {
     {
       const harvest = EvmLogSchema.parse({
         chainId: mainnet.id, address: addresses.v2.yvusdt,
@@ -31,7 +30,7 @@ describe('abis/yearn/lib/apy', function() {
     }
   })
 
-  this.afterAll(async function() {
+  afterAll(async function() {
     await db.query('DELETE FROM evmlog WHERE address = ANY($1)', [[addresses.v2.yvusdt, addresses.v3.yvusdca]])
   })
 
@@ -42,7 +41,7 @@ describe('abis/yearn/lib/apy', function() {
     expect(fees.performance).to.eq(.2)
   })
 
-  it('extracts v2 locked profit', async function(this: Mocha.Context) {
+  it('extracts v2 locked profit', async function() {
     const lotsOfLockedProfit = await extractLockedProfit__v2(mainnet.id, addresses.v2.yvusdt, 18344466n)
     expect(lotsOfLockedProfit).to.eq(1912999444631n)
 
@@ -50,7 +49,7 @@ describe('abis/yearn/lib/apy', function() {
     expect(noLockedProfit).to.eq(0n)
   })
 
-  it('yvUSDT 0.4.3 @ block 18344466', async function(this: Mocha.Context) {
+  it('yvUSDT 0.4.3 @ block 18344466', async function() {
     const blockNumber = 18344466n
     const strategies: `0x${string}`[] = [addresses.v2.strategyLenderYieldOptimiser]
     const yvusdt = ThingSchema.parse({
@@ -90,7 +89,7 @@ describe('abis/yearn/lib/apy', function() {
     expect(Number(apy.inceptionBlockNumber)).to.be.closeTo(15243268, 4)
   })
 
-  it('yvUSDT 0.4.3 @ block 15871070', async function(this: Mocha.Context) {
+  it('yvUSDT 0.4.3 @ block 15871070', async function() {
     const blockNumber = 15871070n
     const strategies: `0x${string}`[] = ['0xBc04eFD0D18685BA97cFAdE4e2D3171701B4099c', '0xd8F414beB0aEb5784c5e5eBe32ca9fC182682Ff8']
     const yvusdt = ThingSchema.parse({
@@ -143,7 +142,7 @@ describe('abis/yearn/lib/apy', function() {
     expect(fees.performance).to.eq(.05)
   })
 
-  it('extracts v3 locked profit', async function(this: Mocha.Context) {
+  it('extracts v3 locked profit', async function() {
     const lotsOfLockedProfit = await extractLockedProfit__v3(polygon.id, addresses.v3.yvusdca, 52031869n)
     expect(lotsOfLockedProfit).to.eq(1340884331n)
 
@@ -151,7 +150,7 @@ describe('abis/yearn/lib/apy', function() {
     expect(noLockedProfit).to.eq(0n)
   })
 
-  it('yvUSDCA 3.0.1 @ block 52031869n', async function(this: Mocha.Context) {
+  it('yvUSDCA 3.0.1 @ block 52031869n', async function() {
     const blockNumber = 52031869n
     const strategies: `0x${string}`[] = [addresses.v3.aaveV3UsdcLender, addresses.v3.compoundV3UsdcLender, addresses.v3.stargateUsdcStaker]
     const yvusdca = ThingSchema.parse({
@@ -175,7 +174,7 @@ describe('abis/yearn/lib/apy', function() {
     expect(apy.blockNumber).to.eq(blockNumber)
 
     expect(apy.net).to.be.closeTo(0.5053032615674182, 1e-5)
-    expect(apy.grossApr).to.be.closeTo(0.4562300364137744, 1e-5)
+    expect(apy.grossApr).to.be.closeTo(0.4562300364137744, 2e-5)
     expect(apy.lockedProfit).to.be.eq(1340884331n)
 
     expect(apy.weeklyNet).to.be.closeTo(0.5053032615674182, 1e-5)

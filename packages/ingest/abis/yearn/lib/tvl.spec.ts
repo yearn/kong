@@ -1,10 +1,10 @@
-import { expect } from 'chai'
+import { describe, expect, it } from 'vitest'
 import { _compute } from './tvl'
 import { ThingSchema } from 'lib/types'
 import { addresses } from '../../../test-addresses'
 
 describe('abis/yearn/lib/tvl', function() {
-  it('yvWETH 0.4.2 @ block 18417431', async function(this: Mocha.Context) {
+  it('yvWETH 0.4.2 @ block 18417431', async function() {
     const yvweth = ThingSchema.parse({
       chainId: 1,
       address: addresses.v2.yvweth,
@@ -21,7 +21,7 @@ describe('abis/yearn/lib/tvl', function() {
 
     const blockNumber = 18417431n
     const { priceUsd, tvl } = await _compute(yvweth, blockNumber)
-    expect(priceUsd).to.be.almost(1_833, 1)
-    expect(tvl).to.be.almost(107_045_649, 1)
+    expect(priceUsd).to.be.closeTo(1_833, 1)
+    expect(tvl).to.be.closeTo(107_045_649, 1)
   })
 })

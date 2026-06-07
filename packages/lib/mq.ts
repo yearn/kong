@@ -84,7 +84,17 @@ export async function add(job: Job, data: any, options?: any) {
     })
   }
   if (!queues[queue]) { queues[queue] = connect(queue) }
-  return await queues[queue].add(job.name, data, { priority: DEFAULT_PRIORITY, attempts: 1, ...options })
+  return await queues[queue].add(job.name, serializeJobData(data), { priority: DEFAULT_PRIORITY, attempts: 1, ...options })
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function serializeJobData(data: any): any {
+  if (typeof data === 'bigint') return data.toString()
+  if (Array.isArray(data)) return data.map(serializeJobData)
+  if (data && typeof data === 'object') {
+    return Object.fromEntries(Object.entries(data).map(([key, value]) => [key, serializeJobData(value)]))
+  }
+  return data
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

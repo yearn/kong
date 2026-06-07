@@ -5,16 +5,13 @@ import dotenv from 'dotenv'
 // load .env so RPC URLs reach the ingest container via TestEnvironment
 dotenv.config({ path: path.join(__dirname, '../..', '.env') })
 
-const mochaBin = path.resolve(__dirname, '../../node_modules/.bin/mocha')
+const vitestBin = path.resolve(__dirname, '../../node_modules/.bin/vitest')
 const userArgs = process.argv.slice(2)
-const specArgs = userArgs.length > 0 ? userArgs : ['containers.spec.ts']
+const specArgs = userArgs.length > 0 ? userArgs : ['containers.spec.ts', 'yvusd-estimated-apr.containers.spec.ts']
 
-const proc = spawn(mochaBin, [
-  '--no-config',
-  '--require', 'ts-node/register',
-  '--extension', 'ts',
-  '--timeout', '600000',
-  '--exit',
+const proc = spawn(vitestBin, [
+  'run',
+  '--config', 'vitest.containers.config.ts',
   ...specArgs,
 ], {
   env: process.env,

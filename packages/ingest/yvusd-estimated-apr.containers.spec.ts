@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { TestEnvironment, createTestPool, pollForRow, triggerFanout } from 'lib/helpers/containers'
 
@@ -133,13 +133,12 @@ const COMPOSITION_ASSEMBLED_SQL = `
 `
 
 describe('e2e: yvusd-estimated-apr scoping (issue #409)', function() {
-  this.timeout(20 * 60_000)
 
   let env: TestEnvironment
   let webUrl: string
   let pool: Pool
 
-  before(async function() {
+  beforeAll(async function() {
     env = new TestEnvironment({
       configs: {
         chains: ['mainnet'],
@@ -189,7 +188,7 @@ describe('e2e: yvusd-estimated-apr scoping (issue #409)', function() {
     await env.runScript('packages/web/app/api/rest/snapshot/refresh-snapshot.ts')
   })
 
-  after(async function() {
+  afterAll(async function() {
     await pool?.end()
     await env?.stop()
   })

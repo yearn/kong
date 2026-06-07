@@ -1,25 +1,26 @@
-import { expect } from 'chai'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { types } from 'lib'
 import { get, exist } from './things'
 import { upsertBatch } from './load'
 import db from './db'
 
 describe('things', function() {
-  this.beforeEach(async function() {
+  let testThings: types.Thing[]
+
+  beforeEach(async function() {
     const thinglet = { chainId: 1, label: 'vault' }
-    this.things = [] as types.Thing[]
-    this.things.push(...[
+    testThings = [
       { ...thinglet, address: '0x1', defaults: { apiVersion: '1.0.0' } } as types.Thing,
       { ...thinglet, address: '0x2', defaults: { apiVersion: '2.0.0' } } as types.Thing,
       { ...thinglet, address: '0x3', defaults: { apiVersion: '3.0.0' } } as types.Thing,
       { ...thinglet, address: '0x4', defaults: { apiVersion: '4.0.0' } } as types.Thing,
       { ...thinglet, address: '0x5', defaults: { label: 'mushi' } } as types.Thing
-    ])
-    await upsertBatch(this.things, 'thing', 'chain_id, address, label')
+    ]
+    await upsertBatch(testThings, 'thing', 'chain_id, address, label')
   })
 
-  this.afterEach(async function() {
-    for (const thing of this.things) {
+  afterEach(async function() {
+    for (const thing of testThings) {
       await db.query('DELETE FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3', [thing.chainId, thing.address, thing.label])
     }
   })
@@ -35,8 +36,8 @@ describe('things', function() {
     })
 
     expect(things.length).to.equal(2)
-    expect(things[0]).to.deep.equal(this.things[2])
-    expect(things[1]).to.deep.equal(this.things[3])
+    expect(things[0]).to.deep.equal(testThings[2])
+    expect(things[1]).to.deep.equal(testThings[3])
   })
 
   it('gets things > and <= apiVersion', async function() {
@@ -51,8 +52,8 @@ describe('things', function() {
     })
 
     expect(things.length).to.equal(2)
-    expect(things[0]).to.deep.equal(this.things[1])
-    expect(things[1]).to.deep.equal(this.things[2])
+    expect(things[0]).to.deep.equal(testThings[1])
+    expect(things[1]).to.deep.equal(testThings[2])
   })
 
   it('gets things by label', async function() {
@@ -64,7 +65,7 @@ describe('things', function() {
     })
 
     expect(things.length).to.equal(1)
-    expect(things[0]).to.deep.equal(this.things[4])
+    expect(things[0]).to.deep.equal(testThings[4])
   })
 
   it('gets things by ~label', async function() {
@@ -76,7 +77,7 @@ describe('things', function() {
     })
 
     expect(things.length).to.equal(4)
-    expect(things).to.deep.equal(this.things.slice(0, 4))
+    expect(things).to.deep.equal(testThings.slice(0, 4))
   })
 
   it('knows if things exist', async function() {

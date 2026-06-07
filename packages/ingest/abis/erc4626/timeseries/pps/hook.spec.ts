@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import { describe, expect, it } from 'vitest'
 import { base, mainnet } from 'viem/chains'
 import { _compute } from './hook'
 import { ThingSchema } from 'lib/types'

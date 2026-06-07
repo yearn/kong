@@ -1,19 +1,23 @@
 import './global'
 import path from 'path'
 import dotenv from 'dotenv'
-import { rpcs } from './rpcs'
-import { cache } from './cache'
+import { AbstractStartedContainer } from 'testcontainers'
+import { Postgres, Redis, dbMigrate, setTestcontainersEnv } from './helpers/tests'
 
 const envPath = path.join(__dirname, '../..', '.env')
 dotenv.config({ path: envPath })
 
+const containers: AbstractStartedContainer[] = []
 
-export const mochaGlobalSetup = async function() {
-  await Promise.all([rpcs.up(), cache.up()])
-  console.log('⬆', 'test fixture up')
-}
+export default async function setup() {
+  const postgres = await Postgres.start()
+  const redis = await Redis.start()
+  containers.push(postgres, redis)
 
-export const mochaGlobalTeardown = async () => {
-  await Promise.all([cache.down(), rpcs.down()])
-  console.log('⬇', 'test fixture down')
+  await dbMigrate({ postgres })
+  setTestcontainersEnv({ postgres, redis })
+
+  return async () => {
+    await Promise.all(containers.map(container => container.stop()))
+  }
 }

@@ -328,7 +328,7 @@ Kong resources are managed monorepo style using a workspace.
 
 `NextJS\Graphql` - Raw x enriched data are made available over graphql running in a serverless nextjs function call.
 
-`Testing` - Kong uses mocha\chai for testing. Tests are co-located with the code they test.
+`Testing` - Kong uses Vitest for testing. Tests are co-located with the code they test.
 
 `yaml config` - Kong's indexing set is defined by yaml file.
 
@@ -518,4 +518,3 @@ There are some tickets related to this, that's why we preferred to still have ya
 | Postgres    | [neon.tech](neon.tech)   |
 | GraphQL    | [vercel.com](vercel.com)   |
 | Cache    | [turso.com](turso.com)   |
-

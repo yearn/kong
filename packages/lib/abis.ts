@@ -59,7 +59,7 @@ const yamlFile = fs.readFileSync(yamlPath, 'utf8')
 const config = YamlConfigSchema.parse(yaml.load(yamlFile))
 const allAbis = config.abis.map(abi => ({
   ...abi,
-  id: keccak256(toBytes(JSON.stringify(abi)))
+  id: keccak256(toBytes(stringifyWithBigInt(abi)))
 }))
 
 const cron = config.cron
@@ -68,7 +68,7 @@ const abis = prune(allAbis)
 export { abis, cron }
 
 export function prune(abis: AbiConfig[]): AbiConfig[] {
-  const copy = AbiConfigSchema.array().parse(JSON.parse(JSON.stringify(abis)))
+  const copy = AbiConfigSchema.array().parse(JSON.parse(stringifyWithBigInt(abis)))
   const someSourceOnly = copy.some(abi => abi.sources.some(source => source.only))
   const someThingOnly = copy.some(abi => abi.things?.only)
 
@@ -86,4 +86,8 @@ export function prune(abis: AbiConfig[]): AbiConfig[] {
     && (abi.sources.length > 0 || abi.things !== undefined)
     && (abi.only || abi.sources.some(source => source.only) || abi.things?.only || !copy.some(c => c.only))
   )
+}
+
+function stringifyWithBigInt(value: unknown) {
+  return JSON.stringify(value, (_, v) => typeof v === 'bigint' ? v.toString() : v)
 }

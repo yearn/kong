@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import { describe, expect, it } from 'vitest'
 import { mainnet } from 'viem/chains'
 import db, { toUpsertSql } from '../../../../../db'
 import { getLatestEstimatedApr } from '../../../../../helpers/apy-apr'

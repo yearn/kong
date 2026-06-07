@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import { describe, expect, it } from 'vitest'
 import { div, max, min } from './math'
 
 describe('math', function() {
