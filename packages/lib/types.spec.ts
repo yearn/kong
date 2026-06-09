@@ -3,7 +3,7 @@ import { OutputSchema } from './types'
 
 const mock = {
   chainId: 1,
-  address: '0x',
+  address: '0x0000000000000000000000000000000000000001',
   label: 'label',
   component: 'component',
   value: 1,
