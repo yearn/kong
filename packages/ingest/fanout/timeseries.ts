@@ -31,16 +31,14 @@ export default class TimeseriesFanout {
       // (packages/ingest/load/index.ts). Filtering on series_time within
       // [start, end] lets Timescale prune chunks; pairs with index
       // idx_output_chain_address_label_series_time for an index-only scan.
-      // pg timestamptz parser (packages/ingest/db.ts) returns bigint seconds.
       const computed = (await db.query(`
-      SELECT DISTINCT series_time
+      SELECT DISTINCT FLOOR(EXTRACT(EPOCH FROM series_time))::bigint AS series_time
       FROM output
       WHERE chain_id = $1 AND address = $2 AND label = $3
-        AND series_time >= to_timestamp($4)
-        AND series_time <= to_timestamp($5)
+        AND series_time BETWEEN to_timestamp($4::double precision) AND to_timestamp($5::double precision)
       ORDER BY series_time ASC`,
       [chainId, address, outputLabel, Number(start), Number(end)]))
-        .rows.map(row => row.series_time as bigint)
+        .rows.map(row => BigInt(row.series_time))
 
       const missing = findMissingTimestamps(start, end, computed)
       if (missing.length === 0 || missing[missing.length - 1] !== end) {
