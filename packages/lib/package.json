@@ -4,7 +4,6 @@
   "main": "index.ts",
   "license": "MIT",
   "scripts": {
-    "pretest": "tsc --noEmit",
     "test": "ts-node run-tests.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
@@ -16,6 +15,7 @@
     "cache-manager-redis-yet": "4.2.0",
     "cross-env": "5.0.5",
     "dotenv": "16.4.7",
+    "pg": "8.13.1",
     "js-yaml": "4.1.0",
     "ts-node": "10.9.2",
     "typescript": "5.7.3",

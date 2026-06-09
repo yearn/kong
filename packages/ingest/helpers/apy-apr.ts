@@ -1,4 +1,5 @@
 import { EstimatedAprSchema } from 'lib/types'
+import { getLatestEstimatedAprRows } from 'lib/estimated-apr'
 import { z } from 'zod'
 import db, { firstRow } from '../db'
 
@@ -17,61 +18,22 @@ const CURRENT_PERFORMANCE_LOOKBACK_DAYS = parseLookbackDays(
 )
 
 export async function getLatestEstimatedAprV3(chainId: number, address: string, label?: string) {
-  const result = label
-    ? await db.query(`
-      WITH latest AS (
-        SELECT o.block_time, o.label
-        FROM output o
-        WHERE o.chain_id = $1
-          AND o.address = $2
-          AND o.label = $3
-          AND o.block_time > NOW() - make_interval(days => $4::int)
-        ORDER BY o.block_time DESC
-        LIMIT 1
-      )
-      SELECT label, component, value::float8 AS value
-      FROM output
-      WHERE chain_id = $1
-        AND address = $2
-        AND (block_time, label) = (SELECT block_time, label FROM latest)
-    `, [chainId, address, label, CURRENT_PERFORMANCE_LOOKBACK_DAYS])
-    : await db.query(`
-      WITH latest AS (
-        SELECT o.block_time, o.label
-        FROM output o
-        WHERE o.chain_id = $1
-          AND o.address = $2
-          AND o.label LIKE '%-estimated-apr'
-          AND o.block_time > NOW() - make_interval(days => $3::int)
-          AND NOT EXISTS (
-            SELECT 1 FROM output o2
-            WHERE o2.chain_id = o.chain_id
-              AND o2.address = o.address
-              AND o2.label = o.label
-              AND o2.block_time = o.block_time
-              AND o2.component = 'debtRatio'
-          )
-        ORDER BY o.block_time DESC
-        LIMIT 1
-      )
-      SELECT label, component, value::float8 AS value
-      FROM output
-      WHERE chain_id = $1
-        AND address = $2
-        AND (block_time, label) = (SELECT block_time, label FROM latest)
-    `, [chainId, address, CURRENT_PERFORMANCE_LOOKBACK_DAYS])
+  const rows = await getLatestEstimatedAprRows(db, chainId, address, {
+    label,
+    maxAgeDays: CURRENT_PERFORMANCE_LOOKBACK_DAYS,
+  })
 
-  if (!result.rows.length) return undefined
+  if (!rows.length) return undefined
 
   const components: Record<string, number> = {}
-  for (const row of result.rows) {
+  for (const row of rows) {
     if (row.value != null && row.component != null) components[row.component] = row.value
   }
 
   const { netAPR, netAPY, ...rest } = components
 
   return {
-    type: result.rows[0].label,
+    type: rows[0].label,
     ...(netAPR != null ? { apr: netAPR } : {}),
     ...(netAPY != null ? { apy: netAPY } : {}),
     components: rest

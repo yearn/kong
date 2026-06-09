@@ -1,8 +1,8 @@
 import { expect } from 'chai'
 import { mainnet } from 'viem/chains'
-import { extractLenderStatuses } from './hook'
-import { getLatestEstimatedApr, getLatestEstimatedAprV3 } from '../../../../../helpers/apy-apr'
 import db, { toUpsertSql } from '../../../../../db'
+import { getLatestEstimatedApr, getLatestEstimatedAprV3 } from '../../../../../helpers/apy-apr'
+import { extractLenderStatuses } from './hook'
 
 describe('abis/yearn/2/strategy/snapshot/hook', function() {
   it('extracts lender statuses', async function() {
@@ -27,8 +27,10 @@ describe('abis/yearn/2/strategy/snapshot/hook', function() {
   it('extracts estimated apr', async function() {
     const chainId = 1337
     const address = '0x1000000000000000000000000000000000000000'
+    // must be recent: getLatestEstimatedApr filters block_time > NOW() - 7 days
     const blockTime = BigInt(Math.floor(Date.now() / 1000))
-    const blockNumber = blockTime
+    const now = Number(blockTime)
+    const blockNumber = 1000n
 
     const outputData = {
       chain_id: chainId,
@@ -37,8 +39,8 @@ describe('abis/yearn/2/strategy/snapshot/hook', function() {
       component: 'netAPR',
       value: 0.05,
       block_number: blockNumber,
-      block_time: Number(blockTime),
-      series_time: Number(blockTime)
+      block_time: now,
+      series_time: now
     }
 
     await db.query(toUpsertSql('output', 'chain_id, address, label, component, series_time', outputData), Object.values(outputData))

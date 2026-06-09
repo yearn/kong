@@ -28,12 +28,13 @@ export default class TimeseriesFanout {
       const end = endOfDay(await getBlockTime(chainId, to))
 
       const computed = (await db.query(`
-      SELECT DISTINCT block_time
+      SELECT DISTINCT FLOOR(EXTRACT(EPOCH FROM series_time))::bigint AS series_time
       FROM output
       WHERE chain_id = $1 AND address = $2 AND label = $3
-      ORDER BY block_time ASC`,
-      [chainId, address, outputLabel]))
-        .rows.map(row => BigInt(row.block_time))
+        AND series_time BETWEEN to_timestamp($4::double precision) AND to_timestamp($5::double precision)
+      ORDER BY series_time ASC`,
+      [chainId, address, outputLabel, Number(start), Number(end)]))
+        .rows.map(row => BigInt(row.series_time))
 
       const missing = findMissingTimestamps(start, end, computed)
       if (missing.length === 0 || missing[missing.length - 1] !== end) {
