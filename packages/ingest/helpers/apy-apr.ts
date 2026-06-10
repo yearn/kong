@@ -2,20 +2,9 @@ import { EstimatedAprSchema } from 'lib/types'
 import { getLatestEstimatedAprRows } from 'lib/estimated-apr'
 import { z } from 'zod'
 import db, { firstRow } from '../db'
+import { parsePositiveIntDays } from './env'
 
-function parseLookbackDays(value: string | undefined, fallback: number) {
-  if (value === undefined) return fallback
-  const days = Number(value)
-  if (!Number.isInteger(days) || days <= 0) {
-    throw new Error(`CURRENT_PERFORMANCE_LOOKBACK_DAYS must be a positive integer, got ${value}`)
-  }
-  return days
-}
-
-const CURRENT_PERFORMANCE_LOOKBACK_DAYS = parseLookbackDays(
-  process.env.CURRENT_PERFORMANCE_LOOKBACK_DAYS,
-  7
-)
+const CURRENT_PERFORMANCE_LOOKBACK_DAYS = parsePositiveIntDays('CURRENT_PERFORMANCE_LOOKBACK_DAYS', 7)
 
 export async function getLatestEstimatedAprV3(chainId: number, address: string, label?: string) {
   const rows = await getLatestEstimatedAprRows(db, chainId, address, {

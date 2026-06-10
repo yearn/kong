@@ -7,6 +7,7 @@ import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
 import db, { getSparkline } from '../../../../../db'
 import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../../../../../helpers/apy-apr'
+import { parsePositiveIntDays } from '../../../../../helpers/env'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
 import * as things from '../../../../../things'
@@ -17,19 +18,7 @@ import { getRiskScore } from '../../../lib/risk'
 import { Roles } from '../../../lib/types'
 import accountantAbi from '../../accountant/abi'
 
-function parseStrategyPerformanceLookbackDays(value: string | undefined, fallback: number) {
-  if (value === undefined) return fallback
-  const days = Number(value)
-  if (!Number.isInteger(days) || days <= 0) {
-    throw new Error(`STRATEGY_PERFORMANCE_LOOKBACK_DAYS must be a positive integer, got ${value}`)
-  }
-  return days
-}
-
-const STRATEGY_PERFORMANCE_LOOKBACK_DAYS = parseStrategyPerformanceLookbackDays(
-  globalThis.process.env.STRATEGY_PERFORMANCE_LOOKBACK_DAYS,
-  14
-)
+const STRATEGY_PERFORMANCE_LOOKBACK_DAYS = parsePositiveIntDays('STRATEGY_PERFORMANCE_LOOKBACK_DAYS', 14)
 
 export const CompositionSchema = z.object({
   address: zhexstring,
@@ -417,9 +406,15 @@ async function fetchStrategyPerformance(
   const labels = ['apr-oracle', 'apy-bwd-delta-pps']
   if (estimatedAprLabel) labels.push(estimatedAprLabel)
 
+  // `output` is partitioned on series_time (= endOfDay(block_time)), so the
+  // lookback window, the GROUP BY MAX, and the join must all use series_time —
+  // mixing in block_time leaves the outer scan with no series_time bound and
+  // defeats chunk exclusion. The outer scan repeats the chain_id/address/label/
+  // series_time predicates (redundant with the join) so chunk exclusion holds
+  // under any join plan, not just a nested loop.
   const result = await db.query(`
     WITH latest_times AS (
-      SELECT address, label, MAX(block_time) as block_time
+      SELECT address, label, MAX(series_time) as series_time
       FROM output
       WHERE chain_id = $1 AND address = ANY($2) AND label = ANY($3)
         AND series_time >= now() - make_interval(days => $4::int)
@@ -427,8 +422,9 @@ async function fetchStrategyPerformance(
     )
     SELECT o.address, o.label, o.component, o.value
     FROM output o
-    JOIN latest_times lt ON o.address = lt.address AND o.label = lt.label AND o.block_time = lt.block_time
-    WHERE o.chain_id = $1
+    JOIN latest_times lt ON o.address = lt.address AND o.label = lt.label AND o.series_time = lt.series_time
+    WHERE o.chain_id = $1 AND o.address = ANY($2) AND o.label = ANY($3)
+      AND o.series_time >= now() - make_interval(days => $4::int)
   `, [chainId, strategies, labels, STRATEGY_PERFORMANCE_LOOKBACK_DAYS])
 
   const map = new Map<string, any>()
