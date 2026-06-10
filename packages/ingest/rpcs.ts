@@ -7,7 +7,7 @@ export const latestBlocks : {
 } = {}
 
 function useArchiveNode(chainId: number, blockNumber?: bigint) {
-  if(!blockNumber) return false
+  if (blockNumber === undefined) return false
   if(!latestBlocks[chainId]) return true
   return blockNumber < latestBlocks[chainId].blockNumber - FULL_NODE_DEPTH
 }
