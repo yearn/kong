@@ -19,7 +19,18 @@ export async function getBlockTime(chainId: number, blockNumber?: bigint): Promi
   return (await getBlock(chainId, blockNumber)).timestamp
 }
 
+// TTLs derived from the indexing workload, not from block immutability. The
+// head is pinned for one 15-minute indexing cycle so every job in a cycle (apy
+// anchors, timeseries bounds, event stride planning) sees one consistent height
+// per chain, and any reorg is picked up next cycle — this also collapses the
+// estimateHeight storm to deterministic cache hits. Historical blocks only need
+// to outlive the backfill reuse window: sweeps re-probe the same day-boundary
+// blocks for hours, then never again. Only {number,timestamp} is cached.
+const HEAD_BLOCK_TTL = 15 * 60 * 1000
+const HISTORICAL_BLOCK_TTL = 24 * 60 * 60 * 1000
+
 export async function getBlock(chainId: number, blockNumber?: bigint): Promise<Block> {
+  const ttl = blockNumber === undefined ? HEAD_BLOCK_TTL : HISTORICAL_BLOCK_TTL
   const result = cache.wrap(`getBlock:${chainId}:${blockNumber}`, async () => {
     const block = await __getBlock(chainId, blockNumber)
     return BlockSchema.parse({
@@ -27,12 +38,12 @@ export async function getBlock(chainId: number, blockNumber?: bigint): Promise<B
       number: block.number,
       timestamp: block.timestamp
     })
-  }, 10_000)
+  }, ttl)
   return BlockSchema.parse(await result)
 }
 
 async function __getBlock(chainId: number, blockNumber?: bigint) {
-  if (blockNumber) {
+  if (blockNumber !== undefined) {
     const { number: height } = await getBlock(chainId)
     return rpcs.next(chainId, useArchiveNode(height, blockNumber)).getBlock({ blockNumber })
   } else {
@@ -58,23 +69,30 @@ export async function __estimateHeight(chainId: number, timestamp: bigint) {
   return await estimateHeightManual(chainId, timestamp)
 }
 
+// interpolation search over (near-linear, monotonic) block timestamps: picks each probe
+// by linear time->block estimate instead of the midpoint, converging in ~O(log log n)
+// getBlock calls (~4) vs binary search's ~24. each getBlock is cached, so this collapses
+// the dominant RPC cost of timestamp->block resolution.
 async function estimateHeightManual(chainId: number, timestamp: bigint) {
   const top = await getBlock(chainId)
-  let hi = BigInt(top.number)
-  let lo = 0n
-  let block = top
+  let hi = top.number, hiTime = top.timestamp
+  if (timestamp >= hiTime) return hi
 
-  while ((hi - lo) > 1n) {
-    const mid = (hi + lo) / 2n
-    block = await getBlock(chainId, mid)
-    if (block.timestamp < timestamp) {
-      lo = mid + 1n
-    } else {
-      hi = mid - 1n
-    }
+  let lo = 1n, loTime = (await getBlock(chainId, lo)).timestamp
+  if (timestamp <= loTime) return lo
+
+  while (hi - lo > 1n) {
+    let probe = hiTime > loTime
+      ? lo + ((hi - lo) * (timestamp - loTime)) / (hiTime - loTime)
+      : (lo + hi) / 2n
+    if (probe <= lo) probe = lo + 1n
+    else if (probe >= hi) probe = hi - 1n
+    const block = await getBlock(chainId, probe)
+    if (block.timestamp < timestamp) { lo = probe; loTime = block.timestamp }
+    else { hi = probe; hiTime = block.timestamp }
   }
 
-  return block.number
+  return hi
 }
 
 export async function estimateCreationBlock(chainId: number, contract: `0x${string}`): Promise<Block> {
@@ -115,6 +133,6 @@ export async function __estimateCreationBlock(chainId: number, contract: `0x${st
 const FULL_NODE_DEPTH = BigInt(process.env.FULL_NODE_DEPTH || 400)
 
 function useArchiveNode(height: bigint, blockNumber?: bigint) {
-  if(!blockNumber) return false
+  if (blockNumber === undefined) return false
   return blockNumber < height - FULL_NODE_DEPTH
 }
