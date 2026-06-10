@@ -35,6 +35,11 @@ describe('blocks', function() {
       expect(block.number).to.equal(0n)
       expect(block.timestamp).to.equal(123n)
       expect(calls.map(call => call.blockNumber)).to.deep.equal([undefined, 0n])
+      // block 0 is the deepest block on the chain, so it must route to an
+      // archive node — guards against the falsy-bigint regression where `!0n`
+      // sent it to a full node.
+      const blockZeroCall = calls.find(call => call.blockNumber === 0n)
+      expect(blockZeroCall?.archive, 'block 0 must use an archive node').to.be.true
     } finally {
       rpcs.next = originalNext
       await cache.del('getBlock:31337:undefined')

@@ -19,12 +19,18 @@ export async function getBlockTime(chainId: number, blockNumber?: bigint): Promi
   return (await getBlock(chainId, blockNumber)).timestamp
 }
 
-// head changes every block; any specific past block is immutable. only {number,timestamp}
-// is cached, so at worst a shallow reorg shifts a recent block's timestamp by ~seconds.
-const IMMUTABLE_BLOCK_TTL = 30 * 24 * 60 * 60 * 1000
+// TTLs derived from the indexing workload, not from block immutability. The
+// head is pinned for one 15-minute indexing cycle so every job in a cycle (apy
+// anchors, timeseries bounds, event stride planning) sees one consistent height
+// per chain, and any reorg is picked up next cycle — this also collapses the
+// estimateHeight storm to deterministic cache hits. Historical blocks only need
+// to outlive the backfill reuse window: sweeps re-probe the same day-boundary
+// blocks for hours, then never again. Only {number,timestamp} is cached.
+const HEAD_BLOCK_TTL = 15 * 60 * 1000
+const HISTORICAL_BLOCK_TTL = 24 * 60 * 60 * 1000
 
 export async function getBlock(chainId: number, blockNumber?: bigint): Promise<Block> {
-  const ttl = blockNumber === undefined ? 10_000 : IMMUTABLE_BLOCK_TTL
+  const ttl = blockNumber === undefined ? HEAD_BLOCK_TTL : HISTORICAL_BLOCK_TTL
   const result = cache.wrap(`getBlock:${chainId}:${blockNumber}`, async () => {
     const block = await __getBlock(chainId, blockNumber)
     return BlockSchema.parse({
@@ -127,6 +133,6 @@ export async function __estimateCreationBlock(chainId: number, contract: `0x${st
 const FULL_NODE_DEPTH = BigInt(process.env.FULL_NODE_DEPTH || 400)
 
 function useArchiveNode(height: bigint, blockNumber?: bigint) {
-  if(!blockNumber) return false
+  if (blockNumber === undefined) return false
   return blockNumber < height - FULL_NODE_DEPTH
 }
