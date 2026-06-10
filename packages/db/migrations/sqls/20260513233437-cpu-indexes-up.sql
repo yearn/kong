@@ -1,20 +1,20 @@
 -- CPU cost reduction indexes.
 -- See docs/cpu-cost-analysis.md.
 --
--- evmlog: PK is (chain_id, address, signature, …). Queries that filter by
--- (chain_id, signature) without address (projectDebtAllocator and friends)
--- end up scanning the whole table. Index #1 below fixes that.
+-- evmlog: a (chain_id, signature, block_number DESC, log_index DESC) index
+-- already exists in prod as idx_evmlog_chain_sig_block, so the generic
+-- chain+signature index this migration originally added would be an exact
+-- duplicate and is omitted (IF NOT EXISTS does not catch the different name).
+-- The partial expression index below stays: it serves the NewDebtAllocator
+-- lookup by vault (projectDebtAllocator), which filters args->>'vault' and is
+-- not a direct seek under the block-ordered index.
 --
--- Index #2 is a partial expression index for the hottest query
--- (NewDebtAllocator lookup by vault), which filters args->>'vault'.
---
--- output: hot "latest snapshot" / "distinct block_time" patterns filter by
--- (chain_id, address, label). idx_output_chain_id_address stops at (chain_id,
--- address). Adding label and series_time DESC lets Timescale prune chunks
--- and serve "max series_time per key" via index-only scans.
-
-CREATE INDEX IF NOT EXISTS evmlog_idx_chain_signature
-  ON evmlog (chain_id, signature, block_number DESC, log_index DESC);
+-- output: hot "latest snapshot" patterns filter by (chain_id, address, label).
+-- idx_output_chain_id_address stops at (chain_id, address). Adding label and
+-- series_time DESC lets Timescale prune chunks and serve "max series_time per
+-- key" via index-only scans. The existing output(chain_id, address, label,
+-- block_time DESC) index is keyed on block_time, which does not give chunk
+-- exclusion; series_time does.
 
 CREATE INDEX IF NOT EXISTS evmlog_idx_chain_signature_args_vault
   ON evmlog (chain_id, signature, (args->>'vault'))
