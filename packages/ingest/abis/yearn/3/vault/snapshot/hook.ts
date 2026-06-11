@@ -403,17 +403,37 @@ async function fetchStrategyPerformance(
   const labels = ['apr-oracle', 'apy-bwd-delta-pps']
   if (estimatedAprLabel) labels.push(estimatedAprLabel)
 
+  // series_time predicate enables hypertable chunk exclusion; without it
+  // every chunk of `output` is scanned. 30d window comfortably covers any
+  // active strategy — stale labels just won't show up, which is the
+  // intent for "latest performance".
+  //
+  // The outer scan repeats the chain_id/address/label/series_time predicates
+  // even though the join already constrains them: they are logically redundant
+  // but guarantee static chunk exclusion and use of
+  // idx_output_chain_address_label_series_time on `o` regardless of whether the
+  // planner picks a nested loop (runtime exclusion via lt) or a hash join
+  // (which would otherwise scan every chunk for the chain).
   const result = await db.query(`
     WITH latest_times AS (
-      SELECT address, label, MAX(block_time) as block_time
+      SELECT address, label, MAX(series_time) as series_time
       FROM output
-      WHERE chain_id = $1 AND address = ANY($2) AND label = ANY($3)
+      WHERE chain_id = $1
+        AND address = ANY($2)
+        AND label = ANY($3)
+        AND series_time >= now() - interval '30 days'
       GROUP BY address, label
     )
     SELECT o.address, o.label, o.component, o.value
     FROM output o
-    JOIN latest_times lt ON o.address = lt.address AND o.label = lt.label AND o.block_time = lt.block_time
+    JOIN latest_times lt
+      ON o.address = lt.address
+      AND o.label = lt.label
+      AND o.series_time = lt.series_time
     WHERE o.chain_id = $1
+      AND o.address = ANY($2)
+      AND o.label = ANY($3)
+      AND o.series_time >= now() - interval '30 days'
   `, [chainId, strategies, labels])
 
   const map = new Map<string, any>()
