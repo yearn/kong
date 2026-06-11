@@ -10,6 +10,16 @@ import { Data } from '../../../extract/timeseries'
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { first } from '../../../db'
 
+// No single vault legitimately holds anywhere near this much (Yearn's entire TVL
+// peaked in the low billions). An exploded TVL means the price source returned
+// garbage (e.g. ydaemon mispricing a dead Curve LP token), so we treat it as no
+// price rather than polluting downstream TVL with the exploded value.
+export const MAX_PLAUSIBLE_TVL_USD = 1e11
+
+export function tvlExploded(tvl: number): boolean {
+  return !Number.isFinite(tvl) || tvl > MAX_PLAUSIBLE_TVL_USD
+}
+
 export default async function _process(chainId: number, address: `0x${string}`, data: Data, components?: boolean): Promise<Output[]> {
   console.info('🧮', data.outputLabel, chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())
 
@@ -30,7 +40,7 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 
   if (!vault) return []
 
-  const { tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd } = await _compute(vault, blockNumber, latest)
+  const { tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd, decimals } = await _compute(vault, blockNumber, latest)
 
   if (components) {
     // componentized outputs
@@ -42,10 +52,10 @@ export default async function _process(chainId: number, address: `0x${string}`, 
       component: 'delegated', value: delegatedTvl
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'totalAssets', value: normalize(totalAssets, vault.defaults.decimals) || 0
+      component: 'totalAssets', value: normalize(totalAssets, decimals) || 0
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'delegatedAssets', value: normalize(delegatedAssets, vault.defaults.decimals) || 0
+      component: 'delegatedAssets', value: normalize(delegatedAssets, decimals) || 0
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
       component: 'priceUsd', value: priceUsd
@@ -64,7 +74,7 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 export async function _compute(vault: Thing, blockNumber: bigint, latest = false) {
   const { chainId, address, defaults } = vault
   const { apiVersion, asset, decimals } = z.object({
-    apiVersion: z.string(),
+    apiVersion: z.string().optional(),
     asset: EvmAddressSchema,
     decimals: z.number({ coerce: true })
   }).parse(defaults)
@@ -73,16 +83,22 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
 
   const totalAssets = await extractTotalAssets(chainId, address, blockNumber)
 
-  if(!totalAssets) return { priceUsd, tvl: 0, totalAssets, delegatedAssets: 0n }
+  if(!totalAssets) return { priceUsd, tvl: 0, delegatedTvl: 0, totalAssets, delegatedAssets: 0n, decimals }
 
-  const delegatedAssets = compare(apiVersion, '3.0.0', '<')
+  // pre-3.0.0 vaults delegate assets to strategies; v3 and bare erc4626 (no apiVersion) do not
+  const delegatedAssets = apiVersion && compare(apiVersion, '3.0.0', '<')
     ? await extractTotalDelegatedAssets(chainId, address, blockNumber)
     : 0n
 
   const tvl = priced(totalAssets, decimals, priceUsd)
   const delegatedTvl = priced(delegatedAssets, decimals, priceUsd)
 
-  return { priceUsd, tvl, delegatedTvl, totalAssets, delegatedAssets }
+  if (tvlExploded(tvl)) {
+    console.warn('🚨', 'tvl exploded, zeroing price/tvl', chainId, address, { priceUsd, tvl })
+    return { priceUsd: 0, tvl: 0, delegatedTvl: 0, totalAssets, delegatedAssets, decimals }
+  }
+
+  return { priceUsd, tvl, delegatedTvl, totalAssets, delegatedAssets, decimals }
 }
 
 export async function extractTotalDelegatedAssets(chainId: number, vault: `0x${string}`, blockNumber: bigint) {
