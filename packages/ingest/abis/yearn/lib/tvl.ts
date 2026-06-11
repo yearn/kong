@@ -10,16 +10,6 @@ import { Data } from '../../../extract/timeseries'
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { first } from '../../../db'
 
-// No single vault legitimately holds anywhere near this much (Yearn's entire TVL
-// peaked in the low billions). An exploded TVL means the price source returned
-// garbage (e.g. ydaemon mispricing a dead Curve LP token), so we treat it as no
-// price rather than polluting downstream TVL with the exploded value.
-export const MAX_PLAUSIBLE_TVL_USD = 1e11
-
-export function tvlExploded(tvl: number): boolean {
-  return !Number.isFinite(tvl) || tvl > MAX_PLAUSIBLE_TVL_USD
-}
-
 export default async function _process(chainId: number, address: `0x${string}`, data: Data, components?: boolean): Promise<Output[]> {
   console.info('🧮', data.outputLabel, chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())
 
@@ -83,7 +73,8 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
 
   const totalAssets = await extractTotalAssets(chainId, address, blockNumber)
 
-  if(!totalAssets) return { priceUsd, tvl: 0, delegatedTvl: 0, totalAssets, delegatedAssets: 0n, decimals }
+  // no price or no assets means no real tvl; keep the real priceUsd for the price component
+  if (!priceUsd || !totalAssets) return { priceUsd, tvl: 0, delegatedTvl: 0, totalAssets, delegatedAssets: 0n, decimals }
 
   // pre-3.0.0 vaults delegate assets to strategies; v3 and bare erc4626 (no apiVersion) do not
   const delegatedAssets = apiVersion && compare(apiVersion, '3.0.0', '<')
@@ -92,11 +83,6 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
 
   const tvl = priced(totalAssets, decimals, priceUsd)
   const delegatedTvl = priced(delegatedAssets, decimals, priceUsd)
-
-  if (tvlExploded(tvl)) {
-    console.warn('🚨', 'tvl exploded, zeroing price/tvl', chainId, address, { priceUsd, tvl })
-    return { priceUsd: 0, tvl: 0, delegatedTvl: 0, totalAssets, delegatedAssets, decimals }
-  }
 
   return { priceUsd, tvl, delegatedTvl, totalAssets, delegatedAssets, decimals }
 }
