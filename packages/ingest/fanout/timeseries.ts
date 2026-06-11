@@ -27,6 +27,10 @@ export default class TimeseriesFanout {
       const start = endOfDay(await getBlockTime(chainId, from))
       const end = endOfDay(await getBlockTime(chainId, to))
 
+      // series_time is endOfDay(block_time) at write time
+      // (packages/ingest/load/index.ts). Filtering on series_time within
+      // [start, end] lets Timescale prune chunks; pairs with index
+      // idx_output_chain_address_label_series_time for an index-only scan.
       const computed = (await db.query(`
       SELECT DISTINCT FLOOR(EXTRACT(EPOCH FROM series_time))::bigint AS series_time
       FROM output
