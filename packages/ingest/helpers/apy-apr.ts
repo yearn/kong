@@ -49,11 +49,15 @@ export async function getLatestEstimatedApr(chainId: number, address: string) {
     block_number as "blockNumber",
     block_time as "blockTime"
   FROM output
-  WHERE block_time = (
+  -- series_time floor only prunes hypertable chunks; series_time >= block_time
+  -- always holds, so it never drops a row the block_time bound keeps.
+  WHERE series_time > NOW() - make_interval(days => $3::int)
+    AND block_time = (
       SELECT MAX(block_time) FROM output
       WHERE chain_id = $1
       AND address = $2
       AND label IN ('crv-estimated-apr', 'velo-estimated-apr', 'aero-estimated-apr')
+      AND series_time > NOW() - make_interval(days => $3::int)
       AND block_time > NOW() - make_interval(days => $3::int)
     )
     AND chain_id = $1
@@ -104,11 +108,15 @@ export async function getLatestApy(chainId: number, address: string) {
     block_number as "blockNumber",
     block_time as "blockTime"
   FROM output
-  WHERE block_time = (
+  -- series_time floor only prunes hypertable chunks; series_time >= block_time
+  -- always holds, so it never drops a row the block_time bound keeps.
+  WHERE series_time > NOW() - make_interval(days => $3::int)
+    AND block_time = (
       SELECT MAX(block_time) FROM output
       WHERE chain_id = $1
       AND address = $2
       AND label = 'apy-bwd-delta-pps'
+      AND series_time > NOW() - make_interval(days => $3::int)
       AND block_time > NOW() - make_interval(days => $3::int)
     )
     AND chain_id = $1
@@ -147,11 +155,15 @@ export async function getLatestOracleApr(chainId: number, address: string): Prom
     block_number as "blockNumber",
     block_time as "blockTime"
   FROM output
-  WHERE block_time = (
+  -- series_time floor only prunes hypertable chunks; series_time >= block_time
+  -- always holds, so it never drops a row the block_time bound keeps.
+  WHERE series_time > NOW() - make_interval(days => $3::int)
+    AND block_time = (
       SELECT MAX(block_time) FROM output
       WHERE chain_id = $1
       AND address = $2
       AND label = 'apr-oracle'
+      AND series_time > NOW() - make_interval(days => $3::int)
       AND block_time > NOW() - make_interval(days => $3::int)
     )
     AND chain_id = $1
