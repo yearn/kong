@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import db from '../db'
-import { getLatestEstimatedAprV3 } from './apy-apr'
+import { getLatestApy, getLatestEstimatedAprV3 } from './apy-apr'
 
 const TEST_CHAIN = 99999
 const VAULT_ADDR = '0xtest_vault_apr_spec'
@@ -222,5 +222,28 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result!.apr).to.equal(0.03)
     expect(result!.apy).to.equal(0.031)
     expect(result!.components).to.deep.equal({})
+  })
+})
+
+describe('getLatestApy', function() {
+  afterEach(cleanup)
+
+  it('returns the latest block_time net within the lookback window', async function() {
+    const older = new Date(Date.now() - 60_000)
+    const newer = new Date()
+    await insertOutput(VAULT_ADDR, 'apy-bwd-delta-pps', 'net', 0.04, older, 1)
+    await insertOutput(VAULT_ADDR, 'apy-bwd-delta-pps', 'net', 0.08, newer, 2)
+
+    const result = await getLatestApy(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.not.be.undefined
+    expect(result!.net).to.equal(0.08)
+  })
+
+  it('excludes rows older than the lookback window', async function() {
+    const old = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
+    await insertOutput(VAULT_ADDR, 'apy-bwd-delta-pps', 'net', 0.03, old)
+
+    const result = await getLatestApy(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.be.undefined
   })
 })

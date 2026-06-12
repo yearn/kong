@@ -2,11 +2,14 @@ import { EstimatedAprSchema } from 'lib/types'
 import { getLatestEstimatedAprRows } from 'lib/estimated-apr'
 import { z } from 'zod'
 import db, { firstRow } from '../db'
+import { parsePositiveIntDays } from './env'
+
+const CURRENT_PERFORMANCE_LOOKBACK_DAYS = parsePositiveIntDays('CURRENT_PERFORMANCE_LOOKBACK_DAYS', 7)
 
 export async function getLatestEstimatedAprV3(chainId: number, address: string, label?: string) {
   const rows = await getLatestEstimatedAprRows(db, chainId, address, {
     label,
-    maxAgeDays: 7,
+    maxAgeDays: CURRENT_PERFORMANCE_LOOKBACK_DAYS,
   })
 
   if (!rows.length) return undefined
@@ -46,18 +49,22 @@ export async function getLatestEstimatedApr(chainId: number, address: string) {
     block_number as "blockNumber",
     block_time as "blockTime"
   FROM output
-  WHERE block_time = (
+  -- series_time floor only prunes hypertable chunks; series_time >= block_time
+  -- always holds, so it never drops a row the block_time bound keeps.
+  WHERE series_time > NOW() - make_interval(days => $3::int)
+    AND block_time = (
       SELECT MAX(block_time) FROM output
       WHERE chain_id = $1
       AND address = $2
       AND label IN ('crv-estimated-apr', 'velo-estimated-apr', 'aero-estimated-apr')
-      AND block_time > NOW() - INTERVAL '7 days'
+      AND series_time > NOW() - make_interval(days => $3::int)
+      AND block_time > NOW() - make_interval(days => $3::int)
     )
     AND chain_id = $1
     AND address = $2
     AND label IN ('crv-estimated-apr', 'velo-estimated-apr', 'aero-estimated-apr')
   GROUP BY chain_id, address, label, block_number, block_time;
-  `, [chainId, address])
+  `, [chainId, address, CURRENT_PERFORMANCE_LOOKBACK_DAYS])
 
   if (!result) return undefined
 
@@ -101,17 +108,22 @@ export async function getLatestApy(chainId: number, address: string) {
     block_number as "blockNumber",
     block_time as "blockTime"
   FROM output
-  WHERE block_time = (
+  -- series_time floor only prunes hypertable chunks; series_time >= block_time
+  -- always holds, so it never drops a row the block_time bound keeps.
+  WHERE series_time > NOW() - make_interval(days => $3::int)
+    AND block_time = (
       SELECT MAX(block_time) FROM output
       WHERE chain_id = $1
       AND address = $2
       AND label = 'apy-bwd-delta-pps'
+      AND series_time > NOW() - make_interval(days => $3::int)
+      AND block_time > NOW() - make_interval(days => $3::int)
     )
     AND chain_id = $1
     AND address = $2
     AND label = 'apy-bwd-delta-pps'
   GROUP BY chain_id, address, label, block_number, block_time;
-  `, [chainId, address])
+  `, [chainId, address, CURRENT_PERFORMANCE_LOOKBACK_DAYS])
 
   if (!first) return undefined
 
@@ -143,17 +155,22 @@ export async function getLatestOracleApr(chainId: number, address: string): Prom
     block_number as "blockNumber",
     block_time as "blockTime"
   FROM output
-  WHERE block_time = (
+  -- series_time floor only prunes hypertable chunks; series_time >= block_time
+  -- always holds, so it never drops a row the block_time bound keeps.
+  WHERE series_time > NOW() - make_interval(days => $3::int)
+    AND block_time = (
       SELECT MAX(block_time) FROM output
       WHERE chain_id = $1
       AND address = $2
       AND label = 'apr-oracle'
+      AND series_time > NOW() - make_interval(days => $3::int)
+      AND block_time > NOW() - make_interval(days => $3::int)
     )
     AND chain_id = $1
     AND address = $2
     AND label = 'apr-oracle'
   GROUP BY chain_id, address, label, block_number, block_time;
-  `, [chainId, address])
+  `, [chainId, address, CURRENT_PERFORMANCE_LOOKBACK_DAYS])
 
   if (!result) return [0, 0]
 
