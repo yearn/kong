@@ -32,6 +32,9 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 
   const { tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd, decimals } = await _compute(vault, blockNumber, latest)
 
+  // extractTotalAssets returns undefined on multicall failure; skip emitting a false zero (a genuine empty vault is 0n)
+  if (totalAssets === undefined) return []
+
   if (components) {
     // componentized outputs
     return OutputSchema.array().parse([{
@@ -73,16 +76,17 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
 
   const totalAssets = await extractTotalAssets(chainId, address, blockNumber)
 
-  // no price or no assets means no real tvl; keep the real priceUsd for the price component
-  if (!priceUsd || !totalAssets) return { priceUsd, tvl: 0, delegatedTvl: 0, totalAssets, delegatedAssets: 0n, decimals }
+  // no assets means no real tvl; keep the real priceUsd for the price component
+  if (!totalAssets) return { priceUsd, tvl: 0, delegatedTvl: 0, totalAssets, delegatedAssets: 0n, decimals }
 
   // pre-3.0.0 vaults delegate assets to strategies; v3 and bare erc4626 (no apiVersion) do not
   const delegatedAssets = apiVersion && compare(apiVersion, '3.0.0', '<')
     ? await extractTotalDelegatedAssets(chainId, address, blockNumber)
     : 0n
 
-  const tvl = priced(totalAssets, decimals, priceUsd)
-  const delegatedTvl = priced(delegatedAssets, decimals, priceUsd)
+  // no price means no usd tvl, but the on-chain asset components are still real
+  const tvl = priceUsd ? priced(totalAssets, decimals, priceUsd) : 0
+  const delegatedTvl = priceUsd ? priced(delegatedAssets, decimals, priceUsd) : 0
 
   return { priceUsd, tvl, delegatedTvl, totalAssets, delegatedAssets, decimals }
 }
