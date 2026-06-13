@@ -30,7 +30,10 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 
   if (!vault) return []
 
-  const { tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd } = await _compute(vault, blockNumber, latest)
+  const { tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd, decimals } = await _compute(vault, blockNumber, latest)
+
+  // extractTotalAssets returns undefined on multicall failure; skip emitting a false zero (a genuine empty vault is 0n)
+  if (totalAssets === undefined) return []
 
   if (components) {
     // componentized outputs
@@ -42,10 +45,10 @@ export default async function _process(chainId: number, address: `0x${string}`, 
       component: 'delegated', value: delegatedTvl
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'totalAssets', value: normalize(totalAssets, vault.defaults.decimals) || 0
+      component: 'totalAssets', value: normalize(totalAssets, decimals) || 0
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'delegatedAssets', value: normalize(delegatedAssets, vault.defaults.decimals) || 0
+      component: 'delegatedAssets', value: normalize(delegatedAssets, decimals) || 0
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
       component: 'priceUsd', value: priceUsd
@@ -64,7 +67,7 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 export async function _compute(vault: Thing, blockNumber: bigint, latest = false) {
   const { chainId, address, defaults } = vault
   const { apiVersion, asset, decimals } = z.object({
-    apiVersion: z.string(),
+    apiVersion: z.string().optional(),
     asset: EvmAddressSchema,
     decimals: z.number({ coerce: true })
   }).parse(defaults)
@@ -73,16 +76,19 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
 
   const totalAssets = await extractTotalAssets(chainId, address, blockNumber)
 
-  if(!totalAssets) return { priceUsd, tvl: 0, totalAssets, delegatedAssets: 0n }
+  // no assets means no real tvl; keep the real priceUsd for the price component
+  if (!totalAssets) return { priceUsd, tvl: 0, delegatedTvl: 0, totalAssets, delegatedAssets: 0n, decimals }
 
-  const delegatedAssets = compare(apiVersion, '3.0.0', '<')
+  // pre-3.0.0 vaults delegate assets to strategies; v3 and bare erc4626 (no apiVersion) do not
+  const delegatedAssets = apiVersion && compare(apiVersion, '3.0.0', '<')
     ? await extractTotalDelegatedAssets(chainId, address, blockNumber)
     : 0n
 
-  const tvl = priced(totalAssets, decimals, priceUsd)
-  const delegatedTvl = priced(delegatedAssets, decimals, priceUsd)
+  // no price means no usd tvl, but the on-chain asset components are still real
+  const tvl = priceUsd ? priced(totalAssets, decimals, priceUsd) : 0
+  const delegatedTvl = priceUsd ? priced(delegatedAssets, decimals, priceUsd) : 0
 
-  return { priceUsd, tvl, delegatedTvl, totalAssets, delegatedAssets }
+  return { priceUsd, tvl, delegatedTvl, totalAssets, delegatedAssets, decimals }
 }
 
 export async function extractTotalDelegatedAssets(chainId: number, vault: `0x${string}`, blockNumber: bigint) {
