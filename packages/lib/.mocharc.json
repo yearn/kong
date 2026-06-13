@@ -1,5 +1,0 @@
-{
-  "extension": ["ts"],
-  "spec": "**/*.spec.ts",
-  "require": ["ts-node/register", "./test.fixture.ts"]
-}
