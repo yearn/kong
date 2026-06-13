@@ -1,6 +1,6 @@
 import { Queue, Worker } from 'bullmq'
 import chains from './chains'
-import { countMetric, flush as flushSentry } from './sentry'
+import { captureException, countMetric, flush as flushSentry } from './sentry'
 import { Job } from './types'
 
 const MQ_INVENTORY = process.env.MQ_INVENTORY === 'true'
@@ -103,6 +103,7 @@ export function worker(queueName: string, handler: (job: any) => Promise<any>, c
       await handler(job)
     } catch(error) {
       console.error('🤬', error)
+      captureException(error, { tags: { component: 'mq.worker', queue: queueName } })
       throw error
     }
   }, {

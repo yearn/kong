@@ -27,6 +27,16 @@ export function captureMessage(
   })
 }
 
+export function captureException(
+  exception: unknown,
+  options?: Parameters<(typeof import('@sentry/node'))['captureException']>[1]
+) {
+  void getSentry().then(Sentry => {
+    if (!Sentry) return
+    Sentry.captureException(exception, options)
+  })
+}
+
 export function countMetric(
   name: string,
   value: number,

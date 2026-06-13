@@ -8,7 +8,7 @@ dotenv.config({ path: envPath })
 import fs from 'fs'
 import { rpcs } from './rpcs'
 import { Processor, ProcessorPool } from 'lib/processor'
-import { cache, chains, abisConfig, crons as cronsConfig, mq } from 'lib'
+import { cache, chains, abisConfig, crons as cronsConfig, mq, sentry } from 'lib'
 import db from './db'
 import { camelToSnake } from 'lib/strings'
 
@@ -63,6 +63,13 @@ const abis = abisConfig.cron.start
     console.log('⬆', 'abis up')
   }) : Promise<null>
 
+async function fatal(phase: string, error: unknown) {
+  console.error('🤬', phase, error)
+  sentry.captureException(error, { tags: { component: 'ingest', phase } })
+  await sentry.flush(2000)
+  process.exit(1)
+}
+
 function up() {
   Promise.all([
     rpcs.up(),
@@ -74,10 +81,7 @@ function up() {
 
     console.log('🐒 ingest up')
 
-  }).catch(error => {
-    console.error('🤬', error)
-    process.exit(1)
-  })
+  }).catch(error => fatal('up', error))
 }
 
 function down() {
@@ -91,12 +95,11 @@ function down() {
     console.log('🐒 ingest down')
     process.exit(0)
 
-  }).catch(error => {
-    console.error('🤬', error)
-    process.exit(1)
-  })
+  }).catch(error => fatal('down', error))
 }
 
 up()
 process.on('SIGINT', down)
 process.on('SIGTERM', down)
+process.on('unhandledRejection', reason => fatal('unhandledRejection', reason))
+process.on('uncaughtException', error => fatal('uncaughtException', error))
