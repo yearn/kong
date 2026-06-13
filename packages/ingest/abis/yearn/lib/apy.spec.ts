@@ -6,10 +6,8 @@ import { EvmLogSchema, ThingSchema } from 'lib/types'
 import { upsertBatch } from '../../../load'
 import db from '../../../db'
 
-describe('abis/yearn/lib/apy', function() {
-  this.timeout(20_000)
-
-  this.beforeAll(async function() {
+describe('abis/yearn/lib/apy', () => {
+  beforeAll(async () => {
     {
       const harvest = EvmLogSchema.parse({
         chainId: mainnet.id, address: addresses.v2.yvusdt,
@@ -31,26 +29,26 @@ describe('abis/yearn/lib/apy', function() {
     }
   })
 
-  this.afterAll(async function() {
+  afterAll(async () => {
     await db.query('DELETE FROM evmlog WHERE address = ANY($1)', [[addresses.v2.yvusdt, addresses.v3.yvusdca]])
   })
 
-  it('extracts v2 fees', async function() {
+  it('extracts v2 fees', async () => {
     const strategies: `0x${string}`[] = [addresses.v2.strategyLenderYieldOptimiser]
     const fees = await extractFees__v2(mainnet.id, addresses.v2.yvusdt, strategies, 15871070n)
     expect(fees.management).to.eq(0)
     expect(fees.performance).to.eq(.2)
-  })
+  }, 20_000)
 
-  it('extracts v2 locked profit', async function(this: Mocha.Context) {
+  it('extracts v2 locked profit', async () => {
     const lotsOfLockedProfit = await extractLockedProfit__v2(mainnet.id, addresses.v2.yvusdt, 18344466n)
     expect(lotsOfLockedProfit).to.eq(1912999444631n)
 
     const noLockedProfit = await extractLockedProfit__v2(mainnet.id, addresses.v2.yvusdt, 18965226n)
     expect(noLockedProfit).to.eq(0n)
-  })
+  }, 20_000)
 
-  it('yvUSDT 0.4.3 @ block 18344466', async function(this: Mocha.Context) {
+  it('yvUSDT 0.4.3 @ block 18344466', async () => {
     const blockNumber = 18344466n
     const strategies: `0x${string}`[] = [addresses.v2.strategyLenderYieldOptimiser]
     const yvusdt = ThingSchema.parse({
@@ -88,9 +86,9 @@ describe('abis/yearn/lib/apy', function() {
     expect(apy.inceptionNet).to.be.closeTo(0.019352846869146623, 1e-5)
     expect(apy.inceptionPricePerShare).to.be.eq(1000000n)
     expect(Number(apy.inceptionBlockNumber)).to.be.closeTo(15243268, 4)
-  })
+  }, 20_000)
 
-  it('yvUSDT 0.4.3 @ block 15871070', async function(this: Mocha.Context) {
+  it('yvUSDT 0.4.3 @ block 15871070', async () => {
     const blockNumber = 15871070n
     const strategies: `0x${string}`[] = ['0xBc04eFD0D18685BA97cFAdE4e2D3171701B4099c', '0xd8F414beB0aEb5784c5e5eBe32ca9fC182682Ff8']
     const yvusdt = ThingSchema.parse({
@@ -128,30 +126,30 @@ describe('abis/yearn/lib/apy', function() {
     expect(apy.inceptionNet).to.be.closeTo(0.007697361270727177, 1e-5)
     expect(apy.inceptionPricePerShare).to.be.eq(1000000n)
     expect(Number(apy.inceptionBlockNumber)).to.be.closeTo(15243268, 4)
-  })
+  }, 20_000)
 
-  it('extracts v3 vault fees', async function() {
+  it('extracts v3 vault fees', async () => {
     const strategies: `0x${string}`[] = [addresses.v3.aaveV3UsdcLender, addresses.v3.compoundV3UsdcLender, addresses.v3.stargateUsdcStaker]
     const fees = await extractFees__v3(polygon.id, addresses.v3.yvusdca, strategies, 52031869n)
     expect(fees.management).to.eq(0)
     expect(fees.performance).to.eq(.1)
-  })
+  }, 20_000)
 
-  it('extracts v3 tokenized strat fees', async function() {
+  it('extracts v3 tokenized strat fees', async () => {
     const fees = await extractFees__v3(polygon.id, addresses.v3.aaveV3UsdcLender, [], 52031869n)
     expect(fees.management).to.eq(0)
     expect(fees.performance).to.eq(.05)
-  })
+  }, 20_000)
 
-  it('extracts v3 locked profit', async function(this: Mocha.Context) {
+  it('extracts v3 locked profit', async () => {
     const lotsOfLockedProfit = await extractLockedProfit__v3(polygon.id, addresses.v3.yvusdca, 52031869n)
     expect(lotsOfLockedProfit).to.eq(1340884331n)
 
     const noLockedProfit = await extractLockedProfit__v3(polygon.id, addresses.v3.yvusdca, 49181585n)
     expect(noLockedProfit).to.eq(0n)
-  })
+  }, 20_000)
 
-  it('yvUSDCA 3.0.1 @ block 52031869n', async function(this: Mocha.Context) {
+  it('yvUSDCA 3.0.1 @ block 52031869n', async () => {
     const blockNumber = 52031869n
     const strategies: `0x${string}`[] = [addresses.v3.aaveV3UsdcLender, addresses.v3.compoundV3UsdcLender, addresses.v3.stargateUsdcStaker]
     const yvusdca = ThingSchema.parse({
@@ -189,53 +187,53 @@ describe('abis/yearn/lib/apy', function() {
     expect(apy.inceptionNet).to.be.closeTo(0.13935788133629456, 1e-5)
     expect(apy.inceptionPricePerShare).to.be.eq(1000000n)
     expect(Number(apy.inceptionBlockNumber)).to.be.closeTo(49181585, 4)
-  })
+  }, 20_000)
 
-  describe('computeNetApr', function() {
-    it('returns gross APR when fees are zero', function() {
+  describe('computeNetApr', () => {
+    it('returns gross APR when fees are zero', () => {
       expect(computeNetApr(0.10, { management: 0, performance: 0 })).to.equal(0.10)
     })
 
-    it('correctly applies performance and management fees', function() {
+    it('correctly applies performance and management fees', () => {
       // grossApr=0.10, management=0.02, performance=0.20
       // netApr = (0.10 - 0.02) * (1 - 0.20) = 0.08 * 0.80 = 0.064
       expect(computeNetApr(0.10, { management: 0.02, performance: 0.20 })).to.be.closeTo(0.064, 1e-10)
     })
 
-    it('floors net APR at half gross APR when performance fee is 100%', function() {
+    it('floors net APR at half gross APR when performance fee is 100%', () => {
       expect(computeNetApr(0.10, { management: 0, performance: 1.0 })).to.equal(0.05)
     })
 
-    it('handles zero gross APR', function() {
+    it('handles zero gross APR', () => {
       expect(computeNetApr(0, { management: 0, performance: 0.20 })).to.equal(0)
     })
 
-    it('returns zero for negative gross APR', function() {
+    it('returns zero for negative gross APR', () => {
       expect(computeNetApr(-0.01, { management: 0.0025, performance: 0.10 })).to.equal(0)
     })
 
-    it('floors net APR at half gross APR when fees exceed gross APR', function() {
+    it('floors net APR at half gross APR when fees exceed gross APR', () => {
       const gross = 0.00076638918973244
       expect(computeNetApr(gross, { management: 0.0025, performance: 0.10 })).to.equal(gross / 2)
     })
 
-    it('handles no strategies (zero fees)', function() {
+    it('handles no strategies (zero fees)', () => {
       expect(computeNetApr(0.05, { management: 0, performance: 0 })).to.equal(0.05)
     })
   })
 
-  describe('computeApy', function() {
-    it('returns 0 for zero APR', function() {
+  describe('computeApy', () => {
+    it('returns 0 for zero APR', () => {
       expect(computeApy(0)).to.equal(0)
     })
 
-    it('compounds weekly (52 periods)', function() {
+    it('compounds weekly (52 periods)', () => {
       const apr = 0.10
       const expected = (1 + apr / 52) ** 52 - 1
       expect(computeApy(apr)).to.be.closeTo(expected, 1e-15)
     })
 
-    it('returns 0 for Infinity', function() {
+    it('returns 0 for Infinity', () => {
       expect(computeApy(Infinity)).to.equal(0)
     })
   })

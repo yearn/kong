@@ -5,14 +5,12 @@ import { TestEnvironment, createTestPool, pollForRow, triggerFanout } from 'lib/
 const VAULT_ADDRESS = '0x696d02Db93291651ED510704c9b286841d506987'
 const CHAIN_ID = 1
 
-describe('e2e: ingest → web snapshot', function() {
-  this.timeout(8 * 60_000)
-
+describe('e2e: ingest → web snapshot', () => {
   let env: TestEnvironment
   let webUrl: string
   let pool: Pool
 
-  before(async function() {
+  beforeAll(async () => {
     env = new TestEnvironment({
       configs: {
         chains: ['mainnet'],
@@ -46,12 +44,12 @@ describe('e2e: ingest → web snapshot', function() {
     await env.runScript('packages/web/app/api/rest/snapshot/refresh-snapshot.ts')
   })
 
-  after(async function() {
+  afterAll(async () => {
     await pool?.end()
     await env?.stop()
   })
 
-  it('web serves snapshot for vault', async function() {
+  it('web serves snapshot for vault', async () => {
     const res = await fetch(`${webUrl}/api/rest/snapshot/${CHAIN_ID}/${VAULT_ADDRESS.toLowerCase()}`)
     expect(res.status).to.equal(200)
     const body = await res.json() as Record<string, unknown>

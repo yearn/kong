@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "bun test",
+    "test": "vitest run",
     "clean": "rm -rf .next && rm -rf node_modules",
     "lint": "next lint"
   },
