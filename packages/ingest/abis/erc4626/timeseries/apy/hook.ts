@@ -3,10 +3,9 @@ import { Output, OutputSchema, Thing, ThingSchema } from 'lib/types'
 import { first } from '../../../../db'
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { math, multicall3 } from 'lib'
-import { ReadContractParameters } from 'viem'
 import { mainnet } from 'viem/chains'
 import { rpcs } from '../../../../rpcs'
-import abi from '../../abi'
+import { ppsReadParameters } from '../../lib'
 import { APYSchema } from '../../../yearn/lib/apy'
 
 export const outputLabel = 'apy-bwd-delta-pps'
@@ -112,10 +111,7 @@ export async function _compute(vault: Thing, blockNumber: bigint) {
     blockTime: block.timestamp,
   })
 
-  const ppsParameters = {
-    abi, address, functionName: 'convertToAssets',
-    args: [10n ** BigInt(vault.defaults.decimals ?? 0n)]
-  } as ReadContractParameters
+  const ppsParameters = await ppsReadParameters(chainId, address, vault.defaults.decimals)
 
   const day = 24n * 60n * 60n
   result.weeklyBlockNumber = await estimateHeight(chainId, block.timestamp - 7n * day)
