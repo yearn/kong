@@ -51,7 +51,7 @@ writes results to a staging table (`output_temp_fapy_oracle`).
 
 ```bash
 bun packages/scripts/src/issue-225/compute.ts \
-  --vaults 1:0x0963232eB842BAF53E8e517691f81745C1F228a0 \
+  [--vaults 1:0x0963232eB842BAF53E8e517691f81745C1F228a0] \
   [--labels apy,oracle] \
   [--start 2025-01-01] \
   [--end 2026-04-09] \
@@ -60,16 +60,19 @@ bun packages/scripts/src/issue-225/compute.ts \
 
 | Flag | Description |
 |---|---|
-| `--vaults` | Required. Comma-separated `chainId:address` pairs |
+| `--vaults` | Optional. Comma-separated `chainId:address` pairs. Omit to auto-discover every plain erc4626 vault (`erc4626=true`, `yearn!=true`) — the "all plain erc4626" query below |
 | `--labels` | Optional. `apy`, `oracle`, or both (default `apy,oracle`) |
 | `--start` | Optional. Only recompute the grid from this date |
 | `--end` | Optional. Only recompute the grid up to this date |
 | `--dry-run` | Run without writing to the staging table |
 
-Runs `CONCURRENCY=25`. The staging table is reset on each run, so re-run with the
-full `--vaults` set you want staged before upserting. Vaults with no
-`apy-bwd-delta-pps` history are skipped (run a normal fanout for those). Use
-`--dry-run` to preview without writing.
+All vaults' grid points are flattened into one work list and processed by a single
+pool (default 25 in flight; override with `RECOMPUTE_CONCURRENCY`), so it stays busy
+across vaults instead of running them one at a time. Peak RPC concurrency is still
+the pool size. The staging table is reset on each run, so re-run with the full
+`--vaults` set you want staged before upserting. Vaults with no `apy-bwd-delta-pps`
+history are skipped (run a normal fanout for those). Use `--dry-run` to preview
+without writing.
 
 ### `upsert.ts`
 

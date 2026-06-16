@@ -12,7 +12,7 @@ import { resetTempTable, insertTempBatch, type TempRow } from '../backfill-share
 
 const TEMP_TABLE = 'output_temp_fapy_oracle'
 const GRID_LABEL = 'apy-bwd-delta-pps'
-const CONCURRENCY = 25
+const CONCURRENCY = Number(process.env.RECOMPUTE_CONCURRENCY ?? 25)
 
 type HookFn = (chainId: number, address: `0x${string}`, data: Data) => Promise<Output[]>
 
@@ -32,7 +32,10 @@ function parseArgs(argv: string[]) {
 
   if (hasArg('--help') || hasArg('-h')) {
     console.log(`usage:
-  bun packages/scripts/src/issue-225/compute.ts --vaults chainId:0xABC,... [--labels apy,oracle] [--start 2025-01-01] [--end 2026-04-09] [--dry-run]
+  bun packages/scripts/src/issue-225/compute.ts [--vaults chainId:0xABC,...] [--labels apy,oracle] [--start 2025-01-01] [--end 2026-04-09] [--dry-run]
+
+Omit --vaults to auto-discover every plain erc4626 vault from the thing table
+(defaults erc4626=true, yearn!=true).
 
 Recomputes historical apy (apy-bwd-delta-pps) and historical oracle apy (apr-oracle)
 for plain erc4626 vaults affected by the share-vs-asset decimals fix (issue #225).
@@ -43,15 +46,12 @@ ${TEMP_TABLE} (reset on each run); run upsert.ts to promote them to the output t
   }
 
   const vaultsArg = getArg('--vaults')
-  if (!vaultsArg) {
-    console.error('Required: --vaults chainId:0xABC,chainId:0xDEF,...')
-    process.exit(1)
-  }
-
-  const vaults = vaultsArg.split(',').map(pair => {
-    const [chainIdStr, address] = pair.split(':')
-    return { chainId: Number(chainIdStr), address: getAddress(address as `0x${string}`) }
-  })
+  const vaults = vaultsArg
+    ? vaultsArg.split(',').map(pair => {
+      const [chainIdStr, address] = pair.split(':')
+      return { chainId: Number(chainIdStr), address: getAddress(address as `0x${string}`) }
+    })
+    : undefined
 
   const labelsArg = getArg('--labels')
   const labels = (labelsArg ? labelsArg.split(',') : ['apy', 'oracle']).map(l => l.trim())
@@ -69,6 +69,22 @@ ${TEMP_TABLE} (reset on each run); run upsert.ts to promote them to the output t
     end: getArg('--end'),
     dryRun: hasArg('--dry-run'),
   }
+}
+
+async function discoverVaults(): Promise<{ chainId: number, address: `0x${string}` }[]> {
+  // every plain erc4626 vault (apr-oracle is new for all of them); same set
+  // as the README "Discovering affected vaults" query
+  const result = await db.query(`
+    SELECT chain_id AS "chainId", address
+    FROM thing
+    WHERE label = 'vault'
+      AND defaults->>'erc4626' = 'true'
+      AND COALESCE(defaults->>'yearn', '') <> 'true'
+    ORDER BY chain_id, address
+  `)
+  return result.rows.map((row: { chainId: number, address: string }) => ({
+    chainId: row.chainId, address: getAddress(row.address as `0x${string}`),
+  }))
 }
 
 async function getGridBlockTimes(
@@ -112,14 +128,34 @@ function toTempRows(outputs: Output[]): TempRow[] {
   }))
 }
 
+async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
+  let cursor = 0
+  const size = Math.max(1, Math.min(limit, items.length))
+  await Promise.all(Array.from({ length: size }, async () => {
+    while (cursor < items.length) {
+      await worker(items[cursor++])
+    }
+  }))
+}
+
+function fmtDuration(seconds: number): string {
+  if (!isFinite(seconds) || seconds < 0) return '?'
+  const m = Math.floor(seconds / 60)
+  const s = Math.round(seconds % 60)
+  return m > 0 ? `${m}m${s.toString().padStart(2, '0')}s` : `${s}s`
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   const startTime = Date.now()
 
   await rpcs.up()
 
+  const vaults = args.vaults ?? await discoverVaults()
+  if (!args.vaults) console.log(`Discovered ${vaults.length} plain erc4626 vaults from thing (erc4626=true, yearn!=true)`)
+
   console.log(args.dryRun ? 'DRY RUN mode' : 'COMPUTE mode')
-  console.log(`Vaults: ${args.vaults.length}`)
+  console.log(`Vaults: ${vaults.length}`)
   console.log(`Labels: ${args.labels.join(', ')}`)
   if (args.start) console.log(`Start: ${args.start}`)
   if (args.end) console.log(`End: ${args.end}`)
@@ -130,61 +166,76 @@ async function main() {
   let totalOutputs = 0
   let totalErrors = 0
 
-  for (const vault of args.vaults) {
-    const { chainId, address } = vault
-    console.log(`\n--- ${chainId}:${address} ---`)
+  // resolve every vault's daily grid first (cheap DB reads), then flatten into one
+  // work list so a single global pool keeps the RPC pipe full across vaults instead
+  // of stalling between them. peak concurrency stays CONCURRENCY (same RPC ceiling
+  // the per-vault batch had before), it just no longer idles between vaults.
+  type Task = { chainId: number, address: `0x${string}`, blockTime: bigint }
+  const tasks: Task[] = []
+  let skipped = 0
 
+  console.log(`\nResolving grids for ${vaults.length} vaults...`)
+  let resolved = 0
+  await runPool(vaults, 10, async ({ chainId, address }) => {
     const grid = await getGridBlockTimes(chainId, address, args.start, args.end)
-    console.log(`  ${grid.length} grid points (from '${GRID_LABEL}')`)
+    resolved++
     if (grid.length === 0) {
-      console.log(`  skip: no '${GRID_LABEL}' history -- run a normal fanout to backfill this vault`)
-      continue
+      skipped++
+      console.log(`  [${resolved}/${vaults.length}] skip ${chainId}:${address} -- no '${GRID_LABEL}' history (run a normal fanout)`)
+      return
     }
-    totalEntries += grid.length
+    console.log(`  [${resolved}/${vaults.length}] ${chainId}:${address} -> ${grid.length} pts`)
+    for (const blockTime of grid) tasks.push({ chainId, address, blockTime })
+  })
 
-    let processed = 0
-    let errors = 0
+  totalEntries = tasks.length
+  console.log(`\nGrid resolved: ${tasks.length} points across ${vaults.length - skipped} vaults (${skipped} skipped)`)
 
-    for (let i = 0; i < grid.length; i += CONCURRENCY) {
-      const batch = grid.slice(i, i + CONCURRENCY)
-      const results = await Promise.allSettled(batch.map(async (blockTime) => {
-        const outputs: Output[] = []
-        for (const key of args.labels) {
-          const { outputLabel, compute } = LABELS[key]
-          outputs.push(...await compute(chainId, address, {
-            abiPath: 'erc4626', chainId, address, outputLabel, blockTime,
-          }))
-        }
-        return outputs
-      }))
-
-      for (const result of results) {
-        if (result.status === 'fulfilled') {
-          if (result.value.length > 0) {
-            if (!args.dryRun) await insertTempBatch(TEMP_TABLE, toTempRows(result.value))
-            totalOutputs += result.value.length
-          }
-          processed++
-        } else {
-          errors++
-          totalErrors++
-          console.error('  Error:', result.reason instanceof Error ? result.reason.message : String(result.reason))
-        }
-      }
-
-      process.stdout.write(`\r  ${processed}/${grid.length} processed, ${errors} errors`)
-    }
-
-    console.log()
+  if (tasks.length === 0) {
+    console.log('Nothing to recompute -- exiting.')
+    await rpcs.down()
+    await db.end()
+    return
   }
+
+  console.log(`Computing at concurrency ${CONCURRENCY}${args.dryRun ? ' (dry run -- not writing)' : ''}...`)
+  const computeStart = Date.now()
+  let processed = 0
+  await runPool(tasks, CONCURRENCY, async ({ chainId, address, blockTime }) => {
+    try {
+      const outputs: Output[] = []
+      for (const key of args.labels) {
+        const { outputLabel, compute } = LABELS[key]
+        outputs.push(...await compute(chainId, address, {
+          abiPath: 'erc4626', chainId, address, outputLabel, blockTime,
+        }))
+      }
+      if (outputs.length > 0) {
+        if (!args.dryRun) await insertTempBatch(TEMP_TABLE, toTempRows(outputs))
+        totalOutputs += outputs.length
+      }
+    } catch (error) {
+      totalErrors++
+      console.error(`\n  Error ${chainId}:${address} @ ${blockTime}:`, error instanceof Error ? error.message : String(error))
+    }
+    if (++processed % 25 === 0 || processed === tasks.length) {
+      const elapsed = (Date.now() - computeStart) / 1000
+      const rate = processed / elapsed
+      const eta = rate > 0 ? (tasks.length - processed) / rate : 0
+      const pct = ((processed / tasks.length) * 100).toFixed(0)
+      process.stdout.write(`\r  ${processed}/${tasks.length} (${pct}%) | ${rate.toFixed(1)}/s | ${totalOutputs} outputs | ${totalErrors} err | elapsed ${fmtDuration(elapsed)} | ETA ${fmtDuration(eta)}    `)
+    }
+  })
+  console.log()
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(2)
   console.log('\n=== Summary ===')
-  console.log(`Vaults:     ${args.vaults.length}`)
+  console.log(`Vaults:     ${vaults.length}`)
   console.log(`Grid pts:   ${totalEntries}`)
   console.log(`Outputs:    ${totalOutputs}`)
   console.log(`Errors:     ${totalErrors}`)
   console.log(`Duration:   ${duration}s`)
+  console.log(`Rate:       ${(totalEntries / Number(duration)).toFixed(1)} pts/s`)
 
   if (!args.dryRun) {
     const count = await db.query(`SELECT COUNT(*) FROM ${TEMP_TABLE}`)
