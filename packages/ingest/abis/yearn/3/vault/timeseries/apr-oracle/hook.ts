@@ -61,32 +61,37 @@ export async function readApr(
   }
 }
 
+// Resolve the oracle apr/apy for any vault address at a given blockTime. Shared
+// with the erc4626 apr-oracle hook — the oracle prices vaults purely by address,
+// so both v3 and plain erc4626 vaults go through here.
+export async function resolveOracleApr(
+  chainId: number,
+  address: `0x${string}`,
+  data: Data,
+): Promise<{ apr: number, apy: number, blockNumber: bigint } | undefined> {
+  const oracleConfig = getOracleConfig(chainId)
+  if (!oracleConfig) return undefined
+
+  const blockNumber = data.blockTime >= BigInt(Math.floor(Date.now() / 1000))
+    ? (await getBlock(chainId)).number
+    : await estimateHeight(chainId, data.blockTime)
+
+  if (blockNumber < oracleConfig.inceptBlock) return undefined
+
+  const apr = await readApr(chainId, address, blockNumber, oracleConfig.address)
+  if (apr === undefined) return undefined
+
+  return { apr, apy: computeApy(apr), blockNumber }
+}
+
 export default async function (
   chainId: number,
   address: `0x${string}`,
   data: Data,
 ): Promise<Output[]> {
-  const oracleConfig = getOracleConfig(chainId)
-  if (!oracleConfig) {
-    return []
-  }
-
-  let blockNumber: bigint
-
-  if (data.blockTime >= BigInt(Math.floor(Date.now() / 1000))) {
-    blockNumber = (await getBlock(chainId)).number
-  } else {
-    blockNumber = await estimateHeight(chainId, data.blockTime)
-  }
-
-  if (blockNumber < oracleConfig.inceptBlock) {
-    return []
-  }
-
-  const apr = await readApr(chainId, address, blockNumber, oracleConfig.address)
-  if (apr === undefined) return []
-
-  const apy = computeApy(apr)
+  const resolved = await resolveOracleApr(chainId, address, data)
+  if (!resolved) return []
+  const { apr, apy, blockNumber } = resolved
 
   let fees = { management: 0, performance: 0 }
   try {
@@ -97,46 +102,15 @@ export default async function (
   }
 
   const netApr = computeNetApr(apr, fees)
-  const netApy = computeApy(netApr)
 
-  const outputs: Output[] = [
-    {
-      label: outputLabel,
-      component: 'apr',
-      value: apr,
-      chainId,
-      address,
-      blockNumber,
-      blockTime: data.blockTime,
-    },
-    {
-      label: outputLabel,
-      component: 'apy',
-      value: apy,
-      chainId,
-      address,
-      blockNumber,
-      blockTime: data.blockTime,
-    },
-    {
-      label: outputLabel,
-      component: 'netApr',
-      value: netApr,
-      chainId,
-      address,
-      blockNumber,
-      blockTime: data.blockTime,
-    },
-    {
-      label: outputLabel,
-      component: 'netApy',
-      value: netApy,
-      chainId,
-      address,
-      blockNumber,
-      blockTime: data.blockTime,
-    },
-  ]
+  const output = (component: string, value: number): Output => ({
+    label: outputLabel, component, value, chainId, address, blockNumber, blockTime: data.blockTime,
+  })
 
-  return OutputSchema.array().parse(outputs)
+  return OutputSchema.array().parse([
+    output('apr', apr),
+    output('apy', apy),
+    output('netApr', netApr),
+    output('netApy', computeApy(netApr)),
+  ])
 }
