@@ -120,7 +120,8 @@ export type VaultWithSnapshot = {
  */
 export async function getVaultsWithSnapshots(): Promise<VaultWithSnapshot[]> {
   const result = await db.query(`
-    SELECT DISTINCT
+    SELECT * FROM (
+    SELECT DISTINCT ON (thing.chain_id, thing.address)
       thing.chain_id AS "chainId",
       thing.address,
 
@@ -223,7 +224,10 @@ export async function getVaultsWithSnapshots(): Promise<VaultWithSnapshot[]> {
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
     WHERE thing.label = 'vault'
-    ORDER BY (snapshot.hook->'tvl'->>'close')::double precision DESC NULLS LAST
+    -- DISTINCT ON requires its key as the leading ORDER BY; the outer query restores TVL ordering.
+    ORDER BY thing.chain_id, thing.address
+    ) vaults
+    ORDER BY tvl DESC NULLS LAST
   `)
 
   return result.rows.map((row) => {
