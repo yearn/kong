@@ -25,7 +25,7 @@
     "@testcontainers/postgresql": "10.18.0",
     "@testcontainers/redis": "10.18.0",
     "bun-types": "1.2.2",
-    "vitest": "3.2.4"
+    "vitest": "3.2.6"
   },
   "dependencies": {
     "@types/bun": "1.2.2"
