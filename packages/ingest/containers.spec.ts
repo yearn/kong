@@ -43,7 +43,7 @@ describe('e2e: ingest → web snapshot', function() {
       WHERE t.chain_id = $1 AND lower(t.address) = lower($2) AND t.label = 'vault'
     `, [CHAIN_ID, VAULT_ADDRESS])
 
-    await env.runScript('packages/web/app/api/rest/snapshot/refresh-snapshot.ts')
+    await env.runScript('packages/web/app/api/rest/refresh.ts')
   })
 
   after(async function() {

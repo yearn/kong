@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import db from '../../db'
+import type { VaultSnapshot } from '../snapshot/db'
 
 const CoerceNumber = z.preprocess(
   (val) => (val === null || val === undefined) ? null : Number(val),
@@ -95,13 +96,29 @@ export const VaultListItemSchema = z.object({
 
 export type VaultListItem = z.infer<typeof VaultListItemSchema>
 
+export type VaultWithSnapshot = {
+  listItem: VaultListItem | null
+  listError: z.ZodError | null
+  snapshot: VaultSnapshot | null
+}
+
 /**
- * Get all vaults with expanded metadata for listing
- * Uses Zod to ensure only specified fields are returned
+ * Get every vault with expanded listing metadata AND its full snapshot, in a
+ * single pass over `thing` + `snapshot`.
  *
- * @returns All vaults with rich metadata
+ * Replaces the previous two-script approach (one curated query for the list +
+ * an N+1 query-per-vault loop for snapshots). The join is 1:1 because
+ * `thing` is filtered to `label = 'vault'` and `snapshot` is keyed on
+ * `(chain_id, address)`, so a single scan yields everything both caches need:
+ *  - the curated list columns (extracted in SQL, parsed by the Zod schema)
+ *  - the raw `defaults` / `snapshot` / `hook` blobs, merged in JS into the
+ *    same shape the snapshot endpoint serves.
+ *
+ * List parsing is intentionally independent from snapshot construction: a
+ * malformed list-only row should fail the list refresh, but it should not block
+ * snapshot cache writes that only need chain/address plus the raw blobs.
  */
-export async function getVaultsList(): Promise<VaultListItem[]> {
+export async function getVaultsWithSnapshots(): Promise<VaultWithSnapshot[]> {
   const result = await db.query(`
     SELECT DISTINCT
       thing.chain_id AS "chainId",
@@ -193,7 +210,13 @@ export async function getVaultsList(): Promise<VaultListItem[]> {
       ELSE NULL END AS staking,
 
       -- Price
-      (snapshot.snapshot->>'pricePerShare')::numeric AS "pricePerShare"
+      (snapshot.snapshot->>'pricePerShare')::numeric AS "pricePerShare",
+
+      -- Raw blobs for the full snapshot cache (reused from the same scan)
+      thing.defaults AS "_defaults",
+      snapshot.snapshot AS "_snapshot",
+      snapshot.hook AS "_hook",
+      (snapshot.chain_id IS NOT NULL) AS "_hasSnapshot"
 
     FROM thing
     LEFT JOIN snapshot
@@ -203,5 +226,25 @@ export async function getVaultsList(): Promise<VaultListItem[]> {
     ORDER BY (snapshot.hook->'tvl'->>'close')::double precision DESC NULLS LAST
   `)
 
-  return z.array(VaultListItemSchema).parse(result.rows)
+  return result.rows.map((row) => {
+    const { _defaults, _snapshot, _hook, _hasSnapshot, ...listColumns } = row
+    const parsedListItem = VaultListItemSchema.safeParse(listColumns)
+
+    // Mirror the snapshot endpoint's merge: defaults < snapshot < hook.
+    const snapshot: VaultSnapshot | null = _hasSnapshot
+      ? {
+        chainId: row.chainId,
+        address: row.address,
+        ...(_defaults ?? {}),
+        ...(_snapshot ?? {}),
+        ...(_hook ?? {}),
+      }
+      : null
+
+    return {
+      listItem: parsedListItem.success ? parsedListItem.data : null,
+      listError: parsedListItem.success ? null : parsedListItem.error,
+      snapshot,
+    }
+  })
 }

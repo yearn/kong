@@ -186,7 +186,7 @@ describe('e2e: yvusd-estimated-apr scoping (issue #409)', function() {
       { timeoutMs: 15 * 60_000, intervalMs: 15_000, onTick: () => triggerFanout('abis', {}) },
     )
 
-    await env.runScript('packages/web/app/api/rest/snapshot/refresh-snapshot.ts')
+    await env.runScript('packages/web/app/api/rest/refresh.ts')
   })
 
   after(async function() {

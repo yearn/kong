@@ -1,5 +1,9 @@
-name: snapshot-refresh
+name: refresh-cache
 
+# Combined list + snapshot cache refresh.
+# Replaces the former `refresh-lists` and `snapshot-refresh` workflows: a single
+# run pulls vault list metadata and full snapshots in one DB pass and writes both
+# Redis caches.
 on:
   schedule:
     - cron: '*/30 * * * *'
@@ -13,7 +17,7 @@ jobs:
       - uses: oven-sh/setup-bun@f4d14e03ff726c06358e5557344e1da148b56cf7 # v1
       - name: Install dependencies
         run: bun install --frozen-lockfile
-      - name: Refresh snapshot cache
+      - name: Refresh list + snapshot cache
         env:
           POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
           POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
@@ -23,12 +27,16 @@ jobs:
           POSTGRES_SSL: ${{ secrets.POSTGRES_SSL }}
           POSTGRES_POOL_MAX: ${{ vars.POSTGRES_POOL_MAX }}
           REST_CACHE_REDIS_URL: ${{ secrets.REST_CACHE_REDIS_URL }}
-        run: bun packages/web/app/api/rest/snapshot/refresh-snapshot.ts
+        run: bun packages/web/app/api/rest/refresh.ts
       - name: Report success to Uptime Kuma
         if: success()
         continue-on-error: true
-        run: curl -fsS -m 10 -o /dev/null "${{ secrets.UPTIME_KUMA_PUSH_URL_SNAPSHOT_REFRESH }}?status=up&msg=OK"
+        run: |
+          curl -fsS -m 10 -o /dev/null "${{ secrets.UPTIME_KUMA_PUSH_URL_SNAPSHOT_REFRESH }}?status=up&msg=OK"
+          curl -fsS -m 10 -o /dev/null "${{ secrets.UPTIME_KUMA_PUSH_URL_REFRESH_LISTS }}?status=up&msg=OK"
       - name: Report failure to Uptime Kuma
         if: failure()
         continue-on-error: true
-        run: curl -fsS -m 10 -o /dev/null "${{ secrets.UPTIME_KUMA_PUSH_URL_SNAPSHOT_REFRESH }}?status=down&msg=Run+failed"
+        run: |
+          curl -fsS -m 10 -o /dev/null "${{ secrets.UPTIME_KUMA_PUSH_URL_SNAPSHOT_REFRESH }}?status=down&msg=Run+failed"
+          curl -fsS -m 10 -o /dev/null "${{ secrets.UPTIME_KUMA_PUSH_URL_REFRESH_LISTS }}?status=down&msg=Run+failed"

@@ -142,5 +142,5 @@ bun packages/scripts/src/issue-225/compute.ts --vaults <result>
 bun packages/scripts/src/issue-225/upsert.ts
 
 # 4. Refresh cache
-bun packages/web/app/api/rest/snapshot/refresh-snapshot.ts
+bun packages/web/app/api/rest/refresh.ts
 ```

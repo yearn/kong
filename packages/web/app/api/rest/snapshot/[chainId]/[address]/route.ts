@@ -32,6 +32,7 @@ export async function GET(
 
   const addressLower = address.toLowerCase()
   const cacheKey = getSnapshotKey(Number(chainId), addressLower)
+
   let parsed: VaultSnapshot | undefined
   try {
     parsed = await keyv.get(cacheKey)
