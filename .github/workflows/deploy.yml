@@ -1,9 +1,10 @@
 name: deploy
 
 # Deploy the ingest worker to Render with 1Password as the source of truth for
-# secrets. Every env var lives in the 1Password `kong` item (vault webops-prod);
-# this workflow pushes them into the Render env group `kong` (fromGroup: kong in
-# render.yaml) and then triggers a deploy via the Render API.
+# secrets. Secrets live in the 1Password `kong` item (vault webops-prod) and are
+# declared in .github/deploy.env.tpl. This workflow resolves them with
+# 1Password/load-secrets-action, pushes each into the Render env group `kong`
+# (fromGroup: kong in render.yaml), then triggers a deploy via the Render API.
 #
 # IMPORTANT: turn OFF Render's own Auto-Deploy for the ingest-v-2 service so this
 # workflow is the only thing that deploys (otherwise the git push and this API
@@ -22,39 +23,39 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  OP_VAULT: webops-prod
-  OP_ITEM: kong
+  ENV_TEMPLATE: .github/deploy.env.tpl
   RENDER_ENV_GROUP_ID: evg-d3dkc7jipnbc73ce23lg
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: 1Password/install-cli-action@v1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Sync 1Password -> Render env group
+      - name: Load secrets from 1Password
+        uses: 1password/load-secrets-action@v4
+        with:
+          export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_ENV_FILE: ${{ env.ENV_TEMPLATE }}
+
+      - name: Sync secrets to Render env group
+        env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           set -euo pipefail
 
-          # Keys managed on the service itself (render.yaml), not the group.
-          EXCLUDE="REDIS_HOST REDIS_PORT NODE_VERSION"
-
-          # Enumerate env-var fields from the 1Password item. Upper-snake labels
-          # only, skipping op defaults (notesPlain, username, password, ...).
-          keys="$(op item get "$OP_ITEM" --vault "$OP_VAULT" --format json \
-            | jq -r '.fields[] | select(.value != null) | select(.label | test("^[A-Z][A-Z0-9_]+$")) | .label')"
-
-          if [ -z "$keys" ]; then
-            echo "no env-var fields found in 1Password item $OP_VAULT/$OP_ITEM" >&2
-            exit 1
-          fi
+          # Derive the key list from the same template load-secrets-action used,
+          # so the two can never drift.
+          keys="$(grep -oE '^[A-Z][A-Z0-9_]*' "$ENV_TEMPLATE")"
 
           for key in $keys; do
-            case " $EXCLUDE " in *" $key "*) echo "skip $key (service-managed)"; continue;; esac
-            value="$(op read "op://${OP_VAULT}/${OP_ITEM}/${key}")"
+            value="$(printenv "$key" || true)"
+            if [ -z "$value" ]; then
+              echo "warn: $key resolved empty, skipping" >&2
+              continue
+            fi
             curl -fsS -X PUT \
               "https://api.render.com/v1/env-groups/${RENDER_ENV_GROUP_ID}/env-vars/${key}" \
               -H "Authorization: Bearer ${RENDER_API_KEY}" \
