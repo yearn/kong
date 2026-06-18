@@ -458,12 +458,19 @@ async function fetchStrategyPerformance(
       if (row.component === 'monthlyNet') perf.historical.monthlyNet = row.value ?? null
       if (row.component === 'inceptionNet') perf.historical.inceptionNet = row.value ?? null
     } else if (estimatedAprLabel && row.label === estimatedAprLabel) {
-      if (!perf.estimated) perf.estimated = { type: estimatedAprLabel }
-      if (row.component === 'apr' || row.component === 'netAPR') perf.estimated.apr = row.value
-      else if (row.component === 'apy' || row.component === 'netAPY') perf.estimated.apy = row.value
-      else if (!perf.estimated.components) {
-        perf.estimated.components = { [row.component]: row.value }
-      } else {
+      if (!perf.estimated) perf.estimated = { type: estimatedAprLabel, components: {} }
+      if (!perf.estimated.components) perf.estimated.components = {}
+      if (row.component === 'apr' && row.value != null) perf.estimated.apr = row.value
+      else if (row.component === 'netAPR' && row.value != null) {
+        perf.estimated.netAPR = row.value
+        if (perf.estimated.apr == null) perf.estimated.apr = row.value
+      }
+      else if (row.component === 'apy' && row.value != null) perf.estimated.apy = row.value
+      else if (row.component === 'netAPY' && row.value != null) {
+        perf.estimated.netAPY = row.value
+        if (perf.estimated.apy == null) perf.estimated.apy = row.value
+      }
+      else if (row.component != null && row.value != null) {
         perf.estimated.components[row.component] = row.value
       }
     }

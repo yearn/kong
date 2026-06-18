@@ -36,6 +36,8 @@ describe('getLatestEstimatedAprV3', function() {
       type: LABEL,
       apr: 0.05,
       apy: 0.051,
+      netAPR: 0.05,
+      netAPY: 0.051,
       components: {}
     })
   })
@@ -53,6 +55,8 @@ describe('getLatestEstimatedAprV3', function() {
       type: LABEL,
       apr: 0.1,
       apy: 0.11,
+      netAPR: 0.09,
+      netAPY: 0.095,
       components: {
         baseNetAPY: 0.07,
       }

@@ -136,6 +136,8 @@ type EstimatedAprComponents {
 type EstimatedApr {
   apr: Float
   apy: Float
+  netAPR: Float
+  netAPY: Float
   type: String!
   components: EstimatedAprComponents!
 }

@@ -31,6 +31,8 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string, 
     type: rows[0].label,
     ...(apr != null ? { apr } : netAPR != null ? { apr: netAPR } : {}),
     ...(apy != null ? { apy } : netAPY != null ? { apy: netAPY } : {}),
+    ...(netAPR != null ? { netAPR } : {}),
+    ...(netAPY != null ? { netAPY } : {}),
     components: rest
   }
 }

@@ -444,6 +444,8 @@ export type Incept = z.infer<typeof InceptSchema>
 export const EstimatedAprSchema = z.object({
   apr: z.number().optional(),
   apy: z.number().optional(),
+  netAPR: z.number().optional(),
+  netAPY: z.number().optional(),
   type: z.string(),
   components: z.record(z.string(), z.number().nullish())
 })

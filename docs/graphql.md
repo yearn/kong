@@ -1076,6 +1076,8 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 |-------|------|-------------|
 | `apr` | `Float` | Estimated APR |
 | `apy` | `Float` | Estimated APY |
+| `netAPR` | `Float` | Fee-adjusted estimated APR |
+| `netAPY` | `Float` | Fee-adjusted estimated APY |
 | `type` | `String` | APR type |
 | `components` | [`EstimatedAprComponents`](#estimatedaprcomponents) | APR breakdown |
 
