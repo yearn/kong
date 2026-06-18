@@ -12,6 +12,13 @@ export { computeNetApr } from '../../../../lib/apy'
 
 export const outputLabel = 'apr-oracle'
 
+export type OracleAprSource = 'getStrategyApr' | 'getCurrentApr'
+
+type OracleAprRead = {
+  apr: number
+  source: OracleAprSource
+}
+
 function parseApr(rawApr: bigint): number | undefined {
   const apr = Number(rawApr) / 1e18
   if (isNaN(apr) || !isFinite(apr)) return undefined
@@ -28,7 +35,7 @@ export async function readApr(
   address: `0x${string}`,
   blockNumber: bigint,
   oracleAddress: `0x${string}`,
-): Promise<number | undefined> {
+): Promise<OracleAprRead | undefined> {
   try {
     const rawApr = await rpcs.next(chainId).readContract({
       abi: V3_ORACLE_ABI,
@@ -38,7 +45,8 @@ export async function readApr(
       blockNumber,
     })
 
-    return parseApr(rawApr)
+    const apr = parseApr(rawApr)
+    return apr === undefined ? undefined : { apr, source: 'getStrategyApr' }
   } catch (error) {
     if (!isExpectedStrategyAprFallback(error)) throw error
   }
@@ -54,7 +62,8 @@ export async function readApr(
       blockNumber,
     })
     console.warn('🚨', 'apr-oracle getCurrentApr success', chainId, address, String(blockNumber), rawApr)
-    return parseApr(rawApr)
+    const apr = parseApr(rawApr)
+    return apr === undefined ? undefined : { apr, source: 'getCurrentApr' }
   } catch {
     console.warn('🚨', 'apr-oracle getCurrentApr failed', chainId, address, String(blockNumber))
     return undefined
@@ -68,7 +77,7 @@ export async function resolveOracleApr(
   chainId: number,
   address: `0x${string}`,
   data: Data,
-): Promise<{ apr: number, apy: number, blockNumber: bigint } | undefined> {
+): Promise<{ apr: number, apy: number, source: OracleAprSource, blockNumber: bigint } | undefined> {
   const oracleConfig = getOracleConfig(chainId)
   if (!oracleConfig) return undefined
 
@@ -78,10 +87,10 @@ export async function resolveOracleApr(
 
   if (blockNumber < oracleConfig.inceptBlock) return undefined
 
-  const apr = await readApr(chainId, address, blockNumber, oracleConfig.address)
-  if (apr === undefined) return undefined
+  const read = await readApr(chainId, address, blockNumber, oracleConfig.address)
+  if (!read) return undefined
 
-  return { apr, apy: computeApy(apr), blockNumber }
+  return { apr: read.apr, apy: computeApy(read.apr), source: read.source, blockNumber }
 }
 
 export default async function (
@@ -110,6 +119,7 @@ export default async function (
   return OutputSchema.array().parse([
     output('apr', apr),
     output('apy', apy),
+    output(`source:${resolved.source}`, 1),
     output('netApr', netApr),
     output('netApy', computeApy(netApr)),
   ])

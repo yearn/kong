@@ -106,6 +106,7 @@ type Oracle {
   apr: Float
   netAPR: Float
   apy: Float
+  source: String
 }
 
 type EstimatedAprComponents {
@@ -121,6 +122,13 @@ type EstimatedAprComponents {
   grossAPR: Float
   baseNetAPR: Float
   baseNetAPY: Float
+  morphoBaseAPY: Float
+  morphoRewardsAPR: Float
+  morphoRewardsAPY: Float
+  morphoKatRewardsAPR: Float
+  steerAPY: Float
+  oracleAPY: Float
+  estimatedDebtCoverage: Float
   lockerBonusAPR: Float
   lockerBonusAPY: Float
 }

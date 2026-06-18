@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import db from '../db'
-import { getLatestApy, getLatestEstimatedAprV3 } from './apy-apr'
+import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from './apy-apr'
 
 const TEST_CHAIN = 99999
 const VAULT_ADDR = '0xtest_vault_apr_spec'
@@ -37,6 +37,25 @@ describe('getLatestEstimatedAprV3', function() {
       apr: 0.05,
       apy: 0.051,
       components: {}
+    })
+  })
+
+  it('promotes explicit apr and apy components before legacy net names', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'apr', 0.1, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'apy', 0.11, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.09, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPY', 0.095, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'baseNetAPY', 0.07, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.deep.equal({
+      type: LABEL,
+      apr: 0.1,
+      apy: 0.11,
+      components: {
+        baseNetAPY: 0.07,
+      }
     })
   })
 
@@ -245,5 +264,20 @@ describe('getLatestApy', function() {
 
     const result = await getLatestApy(TEST_CHAIN, VAULT_ADDR)
     expect(result).to.be.undefined
+  })
+})
+
+describe('getLatestOracleApr', function() {
+  afterEach(cleanup)
+
+  it('returns the latest oracle apr, apy, and accepted oracle function source', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, 'apr-oracle', 'apr', 0.05, t)
+    await insertOutput(VAULT_ADDR, 'apr-oracle', 'apy', 0.051, t)
+    await insertOutput(VAULT_ADDR, 'apr-oracle', 'source:getStrategyApr', 1, t)
+
+    const result = await getLatestOracleApr(TEST_CHAIN, VAULT_ADDR)
+
+    expect(result).to.deep.equal([0.05, 0.051, 'getStrategyApr'])
   })
 })

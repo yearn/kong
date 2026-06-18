@@ -14,8 +14,9 @@ describe('abis/erc4626/timeseries/apr-oracle/hook', function() {
     // erc4626 path. The oracle still prices it via getStrategyApr.
     const oracle = getOracleConfig(mainnet.id)
     expect(oracle).to.not.equal(undefined)
-    const apr = await readApr(mainnet.id, morphoUsdt, 25211174n, oracle!.address)
-    expect(apr).to.be.closeTo(0.11878347712984644, 1e-6)
+    const read = await readApr(mainnet.id, morphoUsdt, 25211174n, oracle!.address)
+    expect(read?.apr).to.be.closeTo(0.11878347712984644, 1e-6)
+    expect(read?.source).to.equal('getStrategyApr')
   })
 
   it('returns nothing when the chain has no oracle configured', async function() {
@@ -32,12 +33,13 @@ describe('abis/erc4626/timeseries/apr-oracle/hook', function() {
       outputLabel, blockTime: BigInt(Math.floor(Date.now() / 1000)) + 60n
     }
     const outputs = await hook(mainnet.id, morphoUsdt, data)
-    expect(outputs.map(o => o.component).sort()).to.deep.equal(['apr', 'apy'])
+    expect(outputs.map(o => o.component).sort()).to.deep.equal(['apr', 'apy', 'source:getStrategyApr'])
     expect(outputs.every(o => o.label === outputLabel)).to.equal(true)
 
     const apr = outputs.find(o => o.component === 'apr')!.value as number
     const apy = outputs.find(o => o.component === 'apy')!.value as number
     expect(apr).to.be.greaterThan(0)
     expect(apy).to.be.closeTo(computeApy(apr), 1e-9)
+    expect(outputs.find(o => o.component === 'source:getStrategyApr')!.value).to.equal(1)
   })
 })

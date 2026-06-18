@@ -19,12 +19,18 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string, 
     if (row.value != null && row.component != null) components[row.component] = row.value
   }
 
-  const { netAPR, netAPY, ...rest } = components
+  const {
+    apr,
+    apy,
+    netAPR,
+    netAPY,
+    ...rest
+  } = components
 
   return {
     type: rows[0].label,
-    ...(netAPR != null ? { apr: netAPR } : {}),
-    ...(netAPY != null ? { apy: netAPY } : {}),
+    ...(apr != null ? { apr } : netAPR != null ? { apr: netAPR } : {}),
+    ...(apy != null ? { apy } : netAPY != null ? { apy: netAPY } : {}),
     components: rest
   }
 }
@@ -144,7 +150,7 @@ export async function getLatestApy(chainId: number, address: string) {
   }).parse(first)
 }
 
-export async function getLatestOracleApr(chainId: number, address: string): Promise<[number, number]> {
+export async function getLatestOracleApr(chainId: number, address: string): Promise<[number, number, string | undefined]> {
   const result = await firstRow(`
   SELECT
     chain_id as "chainId",
@@ -152,6 +158,7 @@ export async function getLatestOracleApr(chainId: number, address: string): Prom
     label,
     MAX(CASE WHEN component = 'apr' THEN value END) AS apr,
     MAX(CASE WHEN component = 'apy' THEN value END) AS apy,
+    MAX(CASE WHEN component LIKE 'source:%' THEN substring(component from 8) END) AS source,
     block_number as "blockNumber",
     block_time as "blockTime"
   FROM output
@@ -172,7 +179,7 @@ export async function getLatestOracleApr(chainId: number, address: string): Prom
   GROUP BY chain_id, address, label, block_number, block_time;
   `, [chainId, address, CURRENT_PERFORMANCE_LOOKBACK_DAYS])
 
-  if (!result) return [0, 0]
+  if (!result) return [0, 0, undefined]
 
-  return [result.apr || 0, result.apy || 0]
+  return [result.apr || 0, result.apy || 0, result.source || undefined]
 }

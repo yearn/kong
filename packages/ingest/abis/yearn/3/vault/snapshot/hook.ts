@@ -28,7 +28,8 @@ export const CompositionSchema = z.object({
       netAPR: z.number().nullish(),
       netAPY: z.number().nullish(),
       apr: z.number().nullish(),
-      apy: z.number().nullish()
+      apy: z.number().nullish(),
+      source: z.string().nullish()
     }).nullish(),
     historical: z.object({
       net: z.number().nullish(),
@@ -136,7 +137,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   }
 
   const apy = await getLatestApy(chainId, address)
-  const [oracleApr, oracleApy] = await getLatestOracleApr(chainId, address)
+  const [oracleApr, oracleApy, oracleSource] = await getLatestOracleApr(chainId, address)
 
   // Query DB for staking pool associated with this vault
   const stakingPool = await db.query(`
@@ -166,6 +167,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
         netAPR: oracleNetApr,
         apy: oracleApy,
         netAPY: oracleNetApr != null ? computeApy(oracleNetApr) : undefined,
+        source: oracleSource,
       },
       historical: apy ? {
         net: apy.net,
@@ -380,7 +382,8 @@ async function fetchStrategySnapshots(chainId: number, strategies: `0x${string}`
       estimated: EstimatedAprSchema.nullish(),
       oracle: z.object({
         apr: z.number().nullish(),
-        apy: z.number().nullish()
+        apy: z.number().nullish(),
+        source: z.string().nullish()
       }).nullish(),
       historical: z.object({
         net: z.number().nullish(),
@@ -446,6 +449,9 @@ async function fetchStrategyPerformance(
     if (row.label === 'apr-oracle') {
       if (row.component === 'apr') perf.oracle.apr = row.value ?? 0
       if (row.component === 'apy') perf.oracle.apy = row.value ?? 0
+      if (typeof row.component === 'string' && row.component.startsWith('source:')) {
+        perf.oracle.source = row.component.slice('source:'.length)
+      }
     } else if (row.label === 'apy-bwd-delta-pps') {
       if (row.component === 'net') perf.historical.net = row.value ?? null
       if (row.component === 'weeklyNet') perf.historical.weeklyNet = row.value ?? null
@@ -453,8 +459,8 @@ async function fetchStrategyPerformance(
       if (row.component === 'inceptionNet') perf.historical.inceptionNet = row.value ?? null
     } else if (estimatedAprLabel && row.label === estimatedAprLabel) {
       if (!perf.estimated) perf.estimated = { type: estimatedAprLabel }
-      if (row.component === 'netAPR') perf.estimated.apr = row.value
-      else if (row.component === 'netAPY') perf.estimated.apy = row.value
+      if (row.component === 'apr' || row.component === 'netAPR') perf.estimated.apr = row.value
+      else if (row.component === 'apy' || row.component === 'netAPY') perf.estimated.apy = row.value
       else if (!perf.estimated.components) {
         perf.estimated.components = { [row.component]: row.value }
       } else {

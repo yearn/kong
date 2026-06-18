@@ -31,7 +31,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
       estimated: undefined,
       oracle: (oracle[0] || oracle[1]) ? {
         apr: oracle[0],
-        apy: oracle[1]
+        apy: oracle[1],
+        source: oracle[2]
       } : undefined,
       historical: historical ? {
         net: historical.net,
