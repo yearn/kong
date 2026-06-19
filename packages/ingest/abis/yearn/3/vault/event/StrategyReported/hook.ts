@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { parseAbi, toEventSelector } from 'viem'
 import { priced } from 'lib/math'
+import { sentry } from 'lib'
 import { fetchOrExtractAssetAddress, fetchOrExtractDecimals } from '../../../../lib'
 import { fetchErc20PriceUsd } from '../../../../../../prices'
 import { EvmAddressSchema, EvmLog, EvmLogSchema } from 'lib/types'
@@ -83,6 +84,7 @@ async function performanceFee(harvest: Harvest) {
     }) as number
   } catch(error) {
     console.error('🤬', '!performanceFee')
+    sentry.captureException(error, { tags: { component: 'ingest', hook: 'StrategyReported.performanceFee' } })
     return 0
   }
 }
