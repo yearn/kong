@@ -136,7 +136,7 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   ]
 
   const events = await db.query(`
-  SELECT signature, args
+  SELECT signature, args->>'strategy' AS strategy, args->>'newVersion' AS "newVersion"
   FROM evmlog
   WHERE chain_id = $1 AND address = $2 AND signature = ANY($3) AND (block_number <= $4 OR $4 IS NULL)
   ORDER BY block_number ASC, log_index ASC`,
@@ -148,13 +148,13 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   for (const event of events.rows) {
     switch (event.signature) {
     case topics[0]:
-      result.push(zhexstring.parse(event.args.strategy))
+      result.push(zhexstring.parse(event.strategy))
       break
     case topics[1]:
-      result.push(zhexstring.parse(event.args.newVersion))
+      result.push(zhexstring.parse(event.newVersion))
       break
     case topics[2]:
-      result.splice(result.indexOf(zhexstring.parse(event.args.strategy)), 1)
+      result.splice(result.indexOf(zhexstring.parse(event.strategy)), 1)
       break
     }
   }
