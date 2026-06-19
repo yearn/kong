@@ -32,7 +32,14 @@ export async function getLatestEstimatedAprRows(
   return result.rows
 }
 
-function latestEstimatedAprRowsSql(latestWhere: string, includeAddressesParam: string) {
+// series_time is the `output` hypertable partition column; a floor on it prunes
+// chunks. series_time >= block_time always holds, so a floor at the same
+// maxAgeDays bound never drops a row the block_time bound keeps.
+function latestEstimatedAprRowsSql(
+  latestWhere: string,
+  includeAddressesParam: string,
+  maxAgeParam: string
+) {
   return `
     WITH latest AS (
       SELECT o.block_time, o.label
@@ -49,6 +56,7 @@ function latestEstimatedAprRowsSql(latestWhere: string, includeAddressesParam: s
     FROM output
     WHERE chain_id = $1
       AND (block_time, label) = (SELECT block_time, label FROM latest)
+      AND (${maxAgeParam}::int IS NULL OR series_time > NOW() - (${maxAgeParam}::int * INTERVAL '1 day'))
       AND (address = $2 OR address = ANY(${includeAddressesParam}::text[]))
   `
 }
@@ -58,13 +66,15 @@ const LATEST_ROWS_BY_LABEL_SQL = latestEstimatedAprRowsSql(`
         AND o.address = $2
         AND o.label = $3
         AND ($4::int IS NULL OR o.block_time > NOW() - ($4::int * INTERVAL '1 day'))
-`, '$5')
+        AND ($4::int IS NULL OR o.series_time > NOW() - ($4::int * INTERVAL '1 day'))
+`, '$5', '$4')
 
 const LATEST_ROWS_BY_ESTIMATED_APR_SQL = latestEstimatedAprRowsSql(`
         o.chain_id = $1
         AND o.address = $2
         AND o.label LIKE '%-estimated-apr'
         AND ($3::int IS NULL OR o.block_time > NOW() - ($3::int * INTERVAL '1 day'))
+        AND ($3::int IS NULL OR o.series_time > NOW() - ($3::int * INTERVAL '1 day'))
         AND NOT EXISTS (
           SELECT 1 FROM output o2
           WHERE o2.chain_id = o.chain_id
@@ -72,5 +82,6 @@ const LATEST_ROWS_BY_ESTIMATED_APR_SQL = latestEstimatedAprRowsSql(`
             AND o2.label = o.label
             AND o2.block_time = o.block_time
             AND o2.component = 'debtRatio'
+            AND ($3::int IS NULL OR o2.series_time > NOW() - ($3::int * INTERVAL '1 day'))
         )
-`, '$4')
+`, '$4', '$3')
