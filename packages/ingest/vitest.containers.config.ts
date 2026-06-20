@@ -5,6 +5,8 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     globals: true,
+    // Pin TZ so date-bucketing specs are deterministic on any dev machine (CI runs UTC).
+    env: { TZ: 'UTC' },
     include: ['**/*containers.spec.ts'],
     setupFiles: ['./vitest.containers.setup.ts'],
     pool: 'forks',
