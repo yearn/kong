@@ -3,8 +3,9 @@ name: deploy
 # Deploy the ingest worker to Render with 1Password as the source of truth for
 # secrets. Secrets live in the 1Password `kong` item (vault webops-prod) and are
 # declared in .github/deploy.env.tpl. This workflow resolves them with
-# 1Password/load-secrets-action, pushes each into the Render env group `kong`
-# (fromGroup: kong in render.yaml), then triggers a deploy via the Render API.
+# 1Password/load-secrets-action, writes them as the `.env` secret file on the
+# Render env group `kong` (fromGroup: kong in render.yaml; the worker reads it via
+# dotenv), then triggers a deploy via the Render API.
 #
 # IMPORTANT: turn OFF Render's own Auto-Deploy for the ingest-v-2 service so this
 # workflow is the only thing that deploys (otherwise the git push and this API
@@ -40,30 +41,31 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           OP_ENV_FILE: ${{ env.ENV_TEMPLATE }}
 
-      - name: Sync secrets to Render env group
+      - name: Sync secrets to Render env group `.env` secret file
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_ENV_GROUP_ID: ${{ env.RENDER_ENV_GROUP_ID }}
         run: |
           set -euo pipefail
 
-          # Derive the key list from the same template load-secrets-action used,
-          # so the two can never drift.
-          keys="$(grep -oE '^[A-Z][A-Z0-9_]*' "$ENV_TEMPLATE")"
-
-          for key in $keys; do
+          # Build the .env body from the same template (so the two can never drift),
+          # pulling each resolved value from the env load-secrets-action exported.
+          # One PUT replaces the whole secret file -> keys removed from the template
+          # are pruned, keeping the file a true mirror of this template.
+          # ponytail: KEY=value assumes single-line values (RPC URLs, creds, tokens
+          # qualify); a value with a literal newline would corrupt the file.
+          content="$(grep -oE '^[A-Z][A-Z0-9_]*' "$ENV_TEMPLATE" | while read -r key; do
             value="$(printenv "$key" || true)"
-            if [ -z "$value" ]; then
-              echo "warn: $key resolved empty, skipping" >&2
-              continue
-            fi
-            curl -fsS -X PUT \
-              "https://api.render.com/v1/env-groups/${RENDER_ENV_GROUP_ID}/env-vars/${key}" \
-              -H "Authorization: Bearer ${RENDER_API_KEY}" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n --arg v "$value" '{value: $v}')" \
-              -o /dev/null
-            echo "synced $key"
-          done
+            [ -n "$value" ] && printf '%s=%s\n' "$key" "$value"
+          done)"
+
+          curl -fsS -X PUT \
+            "https://api.render.com/v1/env-groups/${RENDER_ENV_GROUP_ID}/secret-files/.env" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg c "$content" '{content: $c}')" \
+            -o /dev/null
+          echo "synced .env secret file ($(printf '%s\n' "$content" | grep -cE '^[A-Z][A-Z0-9_]*=') vars)"
 
       - name: Trigger Render deploy
         env:
