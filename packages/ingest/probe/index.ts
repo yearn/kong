@@ -1,7 +1,7 @@
-import os from 'os'
-import { chains, mq } from 'lib'
 import { Queue, Worker } from 'bullmq'
+import { chains, mq } from 'lib'
 import { Processor } from 'lib/processor'
+import os from 'os'
 import { parse as parseRedisRaw } from 'redis-info'
 import db from '../db'
 
@@ -201,7 +201,7 @@ export default class Probe implements Processor {
 
   private async fetchEventCounts() {
     const now = Date.now()
-    if (now - this.eventCountsCache.ts < 300_000) return this.eventCountsCache.rows
+    if (now - this.eventCountsCache.ts < 3_600_000) return this.eventCountsCache.rows
     const query = 'SELECT event_name, count(*) FROM evmlog GROUP BY event_name ORDER BY count DESC;'
     this.eventCountsCache = { rows: (await db.query(query)).rows, ts: now }
     return this.eventCountsCache.rows

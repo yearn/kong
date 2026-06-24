@@ -77,7 +77,10 @@ export async function getTravelledStrides(chainId: number, address: `0x${string}
 }
 
 export async function getSparkline(chainId: number, address: string, label: string, component?: string) {
-  const result = await db.query(`
+  // series_time floor prunes hypertable chunks. If the 90d window holds all 3
+  // buckets they're the 3 most recent overall; fall back to a full scan when
+  // fewer, so sparse/stale vaults keep their full series.
+  const sql = (floor: string) => `
     SELECT
       CAST($1 AS int4) AS "chainId",
       CAST($2 AS text) AS address,
@@ -87,10 +90,15 @@ export async function getSparkline(chainId: number, address: string, label: stri
       COALESCE(LAST(NULLIF(value, 0), block_number), 0) AS close
     FROM output
     WHERE chain_id = $1 AND address = $2 AND label = $3 AND (component = $4 OR $4 IS NULL)
+      ${floor}
     GROUP BY "blockTime"
     ORDER BY "blockTime" DESC
     LIMIT 3;
-  `, [chainId, address, label, component])
+  `
+
+  const params = [chainId, address, label, component]
+  let result = await db.query(sql('AND series_time >= now() - make_interval(days => 90)'), params)
+  if (result.rows.length < 3) result = await db.query(sql(''), params)
 
   return z.object({
     chainId: z.number(),
