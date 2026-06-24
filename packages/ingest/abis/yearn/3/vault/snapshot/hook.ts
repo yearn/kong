@@ -1,4 +1,4 @@
-import { mq } from 'lib'
+import { mq, sentry } from 'lib'
 import { estimateCreationBlock } from 'lib/blocks'
 import { priced } from 'lib/math'
 import { snakeToCamelCols } from 'lib/strings'
@@ -650,6 +650,7 @@ export async function extractFeesBps(chainId: number, address: `0x${string}`, sn
 
   } catch(err) {
     console.error('🤬', '!extractFeesBps', err)
+    sentry.captureException(err, { tags: { component: 'ingest', hook: 'vault.snapshot.extractFeesBps' } })
     return {
       managementFee: 0,
       performanceFee: 0

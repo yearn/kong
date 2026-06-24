@@ -27,6 +27,25 @@ export function captureMessage(
   })
 }
 
+// Errors we never report: expected, high-volume blockchain read failures.
+// Matched by name since viem does not export PositionOutOfBoundsError from
+// its package root.
+const IGNORED_ERROR_NAMES = new Set([
+  'PositionOutOfBoundsError',
+  'ContractFunctionExecutionError'
+])
+
+export function captureException(
+  exception: unknown,
+  options?: Parameters<(typeof import('@sentry/node'))['captureException']>[1]
+) {
+  if (exception instanceof Error && IGNORED_ERROR_NAMES.has(exception.name)) return
+  void getSentry().then(Sentry => {
+    if (!Sentry) return
+    Sentry.captureException(exception, options)
+  })
+}
+
 export function countMetric(
   name: string,
   value: number,

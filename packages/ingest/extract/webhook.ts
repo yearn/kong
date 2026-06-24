@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { createHmac } from 'crypto'
-import { mq } from 'lib'
+import { mq, sentry } from 'lib'
 import { OutputSchema, zhexstring } from 'lib/types'
 import { WebhookSubscription, WebhookSubscriptionSchema } from 'lib/subscriptions'
 
@@ -78,10 +78,20 @@ export class WebhookExtractor {
       const valid = [...grouped].flatMap(([key, group]) => {
         if (group.length > MAX_OUTPUTS_PER_VAULT) {
           console.error(`🤬 ${subscription.id} skipping ${key}: ${group.length} outputs > ${MAX_OUTPUTS_PER_VAULT}`)
+          sentry.captureMessage('WEBHOOK_OUTPUTS_OVER_LIMIT', {
+            level: 'warning',
+            tags: { component: 'ingest', job: 'extract.webhook' },
+            extra: { subscriptionId: subscription.id, key, outputs: group.length, max: MAX_OUTPUTS_PER_VAULT }
+          })
           return []
         }
         if (group.some(o => !subscription.labels.includes(o.label))) {
           console.error(`🤬 ${subscription.id} skipping ${key}: unexpected labels`)
+          sentry.captureMessage('WEBHOOK_UNEXPECTED_LABELS', {
+            level: 'warning',
+            tags: { component: 'ingest', job: 'extract.webhook' },
+            extra: { subscriptionId: subscription.id, key }
+          })
           return []
         }
         return group

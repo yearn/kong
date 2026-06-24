@@ -4,8 +4,7 @@ import fs from 'fs/promises'
 import { getHookType, isHookPath, parseHookPath, requireHooks } from '.'
 
 describe('abis', function() {
-  describe('hook resolver', function() {
-    this.timeout(10_000)  // hook resolver is kinda slow rn
+  describe('hook resolver', () => {
     const root = path.join(__dirname, '.spec')
 
     beforeEach(async function() {

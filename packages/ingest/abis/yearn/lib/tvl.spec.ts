@@ -4,7 +4,7 @@ import { ThingSchema } from 'lib/types'
 import { addresses } from '../../../test-addresses'
 
 describe('abis/yearn/lib/tvl', function() {
-  it('yvWETH 0.4.2 @ block 18417431', async function(this: Mocha.Context) {
+  it('yvWETH 0.4.2 @ block 18417431', async function() {
     const yvweth = ThingSchema.parse({
       chainId: 1,
       address: addresses.v2.yvweth,

@@ -3,7 +3,7 @@ import { parseAbi, toEventSelector } from 'viem'
 import { priced } from 'lib/math'
 import { fetchOrExtractAssetAddress, fetchOrExtractDecimals } from '../../../lib'
 import { fetchErc20PriceUsd } from '../../../../../prices'
-import { math, multicall3 } from 'lib'
+import { math, multicall3, sentry } from 'lib'
 import { rpcs } from '../../../../../rpcs'
 import { first } from '../../../../../db'
 import { EvmLog, EvmLogSchema, zhexstring } from 'lib/types'
@@ -69,6 +69,7 @@ export async function totalAssets(harvest: Harvest) {
     }) as bigint
   } catch(error) {
     console.error('🤬', '!totalAssets')
+    sentry.captureException(error, { tags: { component: 'ingest', hook: 'strategy.event.totalAssets' } })
     return 0n
   }
 }
