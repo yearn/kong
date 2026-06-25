@@ -1,55 +1,39 @@
 import { cacheMSet, disconnect } from '../cache'
-import { getRecentTimeseries, getVaults, TimeseriesRow } from './db'
+import { getRecentTimeseriesByLabel, getVaults } from './db'
 import { labels } from './labels'
 import { getTimeseriesLatestKey } from './redis'
 
-const BATCH_SIZE = 10
+// Empty envelope for vaults with no data in the recent window; written so stale
+// latest entries get cleared, matching the previous per-vault overwrite.
+const EMPTY_SERIES = '{"value": []}'
 
 async function refreshLatest(): Promise<void> {
   console.time('refreshLatest')
 
   console.log('Fetching vaults...')
   const vaults = await getVaults()
-  console.log(`Found ${vaults.length} vaults (batch size: ${BATCH_SIZE})`)
+  console.log(`Found ${vaults.length} vaults across ${labels.length} labels`)
 
-  let processed = 0
+  // One chunk-pruned scan per label (4 total) instead of vaults × labels queries.
+  for (const { label } of labels) {
+    const rows = await getRecentTimeseriesByLabel(label)
+    const byVault = new Map(
+      rows.map((row) => [`${row.chainId}:${row.address.toLowerCase()}`, row.payload]),
+    )
 
-  for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
-    const batch = vaults.slice(i, i + BATCH_SIZE)
-    const pairs: Array<[string, string]> = []
-
-    await Promise.all(batch.map(async (vault) => {
+    const pairs: Array<[string, string]> = vaults.map((vault) => {
       const addressLower = vault.address.toLowerCase()
-
-      await Promise.all(labels.map(async ({ label }) => {
-        const rows: TimeseriesRow[] = await getRecentTimeseries(
-          vault.chainId,
-          vault.address,
-          label,
-        )
-
-        const minimal = rows.map(row => ({
-          time: Number(row.time),
-          component: row.component,
-          value: row.value,
-        }))
-
-        pairs.push([
-          getTimeseriesLatestKey(label, vault.chainId, addressLower),
-          JSON.stringify({ value: minimal }),
-        ])
-      }))
-    }))
+      return [
+        getTimeseriesLatestKey(label, vault.chainId, addressLower),
+        byVault.get(`${vault.chainId}:${addressLower}`) ?? EMPTY_SERIES,
+      ]
+    })
 
     await cacheMSet(pairs)
-
-    processed += batch.length
-    if (processed % 10 === 0) {
-      console.log(`Processed ${processed}/${vaults.length} vaults`)
-    }
+    console.log(`✓ ${label}: ${rows.length}/${vaults.length} vaults with recent data`)
   }
 
-  console.log(`✓ Completed: ${processed} vaults processed`)
+  console.log(`✓ Completed: ${vaults.length} vaults processed`)
   console.timeEnd('refreshLatest')
 }
 

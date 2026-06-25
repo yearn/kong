@@ -1,9 +1,11 @@
 import { cacheMSet, disconnect } from '../cache'
-import { getFullTimeseries, getVaults, TimeseriesRow } from './db'
+import { getFullTimeseries, getVaults } from './db'
 import { labels } from './labels'
 import { getTimeseriesKey } from './redis'
 
 const BATCH_SIZE = 10
+const EMPTY_SERIES = '{"value": []}'
+const labelList = labels.map(({ label }) => label)
 
 async function refreshHistorical(): Promise<void> {
   console.time('refreshHistorical')
@@ -20,31 +22,27 @@ async function refreshHistorical(): Promise<void> {
 
     await Promise.all(batch.map(async (vault) => {
       const addressLower = vault.address.toLowerCase()
+      // One indexed query per vault for all labels; payloads are ready-to-cache
+      // `{"value":[…]}` envelopes built in SQL.
+      const byLabel = new Map(
+        (await getFullTimeseries(vault.chainId, vault.address, labelList))
+          .map(({ label, payload }) => [label, payload]),
+      )
 
-      await Promise.all(labels.map(async ({ label }) => {
-        const rows: TimeseriesRow[] = await getFullTimeseries(
-          vault.chainId,
-          vault.address,
-          label,
-        )
-
-        const minimal = rows.map(row => ({
-          time: Number(row.time),
-          component: row.component,
-          value: row.value,
-        }))
-
+      // Write every label (empty when the vault has none) so a label that lost
+      // its data still gets cleared, matching the old per-label overwrite.
+      for (const label of labelList) {
         pairs.push([
           getTimeseriesKey(label, vault.chainId, addressLower),
-          JSON.stringify({ value: minimal }),
+          byLabel.get(label) ?? EMPTY_SERIES,
         ])
-      }))
+      }
     }))
 
     await cacheMSet(pairs)
 
     processed += batch.length
-    if (processed % 10 === 0) {
+    if (processed % 100 === 0) {
       console.log(`Processed ${processed}/${vaults.length} vaults`)
     }
   }
