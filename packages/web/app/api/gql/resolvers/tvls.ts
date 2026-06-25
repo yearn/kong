@@ -2,6 +2,33 @@ import db from '@/app/api/db'
 import { snakeToCamelCols } from '@/lib/strings'
 import { getAddress } from 'viem'
 
+const CACHE_TTL_MS = 60_000
+const cache = new Map<string, { expiresAt: number, rows: unknown[] }>()
+
+function pruneExpired(now: number) {
+  cache.forEach((value, key) => {
+    if (value.expiresAt <= now) cache.delete(key)
+  })
+}
+
+function cacheKey(args: object) {
+  return JSON.stringify(args, (_, value) =>
+    typeof value === 'bigint' ? value.toString() : value
+  )
+}
+
+async function cachedRows(args: object, fetchRows: () => Promise<unknown[]>) {
+  const key = cacheKey(args)
+  const now = Date.now()
+  const cached = cache.get(key)
+  if (cached && cached.expiresAt > now) return cached.rows
+
+  const rows = await fetchRows()
+  if (cache.size > 1_000) pruneExpired(now)
+  cache.set(key, { expiresAt: now + CACHE_TTL_MS, rows })
+  return rows
+}
+
 const tvls = async (_: object, args: {
   chainId: number,
   address?: `0x${string}`,
@@ -10,9 +37,15 @@ const tvls = async (_: object, args: {
   timestamp?: bigint
 }) => {
   const { chainId, address, period, limit, timestamp } = args
+  const timeFloor = timestamp != null
+    ? `
+        AND o.block_time > to_timestamp($4)
+        AND o.series_time >= date_trunc('day', to_timestamp($4))`
+    : ''
 
   try {
-    const result = await db.query(`
+    const rows = await cachedRows(args, async () => {
+      const result = await db.query(`
     WITH asset_info AS (
       SELECT
         chain_id,
@@ -38,7 +71,7 @@ const tvls = async (_: object, args: {
         AND (o.address = $2 OR $2 IS NULL)
         AND o.label = 'tvl-c'
         AND o.component = 'tvl'
-        AND (o.block_time > to_timestamp($4) OR $4 IS NULL)
+        ${timeFloor}
       GROUP BY o.chain_id, o.address, time, a.asset_address
       ORDER BY time ASC
       LIMIT $5
@@ -57,9 +90,11 @@ const tvls = async (_: object, args: {
       ON t.chain_id = p.chain_id
       AND t.asset_address = p.address
       AND t.block_number = p.block_number`,
-    [chainId, address ? getAddress(address) : null, period ?? '1 day', timestamp, limit ?? 100])
+      [chainId, address ? getAddress(address) : null, period ?? '1 day', timestamp, limit ?? 100])
+      return result.rows
+    })
 
-    return snakeToCamelCols(result.rows)
+    return snakeToCamelCols(rows)
 
   } catch (error) {
     console.error(error)

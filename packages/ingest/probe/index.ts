@@ -197,14 +197,8 @@ export default class Probe implements Processor {
     return counts
   }
 
-  private eventCountsCache: { rows: any[], ts: number } = { rows: [], ts: 0 }
-
   private async fetchEventCounts() {
-    const now = Date.now()
-    if (now - this.eventCountsCache.ts < 3_600_000) return this.eventCountsCache.rows
-    const query = 'SELECT event_name, count(*) FROM evmlog GROUP BY event_name ORDER BY count DESC;'
-    this.eventCountsCache = { rows: (await db.query(query)).rows, ts: now }
-    return this.eventCountsCache.rows
+    return []
   }
 
   private async probeIndexStats() {

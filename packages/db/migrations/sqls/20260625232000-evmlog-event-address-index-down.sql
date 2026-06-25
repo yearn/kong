@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS evmlog_idx_chain_address_event_block;
