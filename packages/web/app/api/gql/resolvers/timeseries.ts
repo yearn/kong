@@ -1,6 +1,7 @@
 import db from '@/app/api/db'
 import { snakeToCamelCols } from '@/lib/strings'
 import { getAddress } from 'viem'
+import { clampLimit, resolvePeriod } from './guards'
 
 const timeseries = async (_: object, args: {
   chainId?: number,
@@ -13,8 +14,13 @@ const timeseries = async (_: object, args: {
   yearn?: boolean
 }) => {
 
+  // Bound caller-controlled aggregation cost before issuing the query (throws on
+  // invalid input ahead of the generic catch so the message reaches the client).
+  const period = resolvePeriod(args.period)
+  const limit = clampLimit(args.limit)
+
   try {
-    const result = await (args.yearn ? yearntimeseries : alltimeseries)(args)
+    const result = await (args.yearn ? yearntimeseries : alltimeseries)({ ...args, period, limit })
     return snakeToCamelCols(result.rows)
   } catch (error) {
     console.error(error)

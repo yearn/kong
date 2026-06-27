@@ -1,6 +1,7 @@
 import db from '@/app/api/db'
 import { snakeToCamelCols } from '@/lib/strings'
 import { getAddress } from 'viem'
+import { clampLimit, resolvePeriod } from './guards'
 
 const tvls = async (_: object, args: {
   chainId: number,
@@ -9,7 +10,11 @@ const tvls = async (_: object, args: {
   limit?: number,
   timestamp?: bigint
 }) => {
-  const { chainId, address, period, limit, timestamp } = args
+  const { chainId, address, timestamp } = args
+
+  // Bound caller-controlled aggregation cost before issuing the chain-wide query.
+  const period = resolvePeriod(args.period)
+  const limit = clampLimit(args.limit)
 
   try {
     const result = await db.query(`
@@ -57,7 +62,7 @@ const tvls = async (_: object, args: {
       ON t.chain_id = p.chain_id
       AND t.asset_address = p.address
       AND t.block_number = p.block_number`,
-    [chainId, address ? getAddress(address) : null, period ?? '1 day', timestamp, limit ?? 100])
+    [chainId, address ? getAddress(address) : null, period, timestamp, limit])
 
     return snakeToCamelCols(result.rows)
 
