@@ -11,9 +11,19 @@ const WebhookFilterSchema = z.object({
   })).optional()
 }).optional()
 
+// Block non-https schemes and private/loopback/link-local hosts so a webhook URL
+// can't point worker egress at internal or metadata endpoints (FINDINGS.md 6, SSRF).
+const PRIVATE_HOST = /^(localhost|0\.0\.0\.0|::1?|127\.|10\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)|(\.local|\.internal)$/i
+
+export function isPublicHttpsUrl(raw: string): boolean {
+  let url: URL
+  try { url = new URL(raw) } catch { return false }
+  return url.protocol === 'https:' && !PRIVATE_HOST.test(url.hostname.replace(/^\[|\]$/g, ''))
+}
+
 export const WebhookSubscriptionSchema = z.object({
   id: z.string(),
-  url: z.string().url(),
+  url: z.string().url().refine(isPublicHttpsUrl, 'webhook url must be public https'),
   abiPath: z.string(),
   type: z.enum(['timeseries']),
   labels: z.array(z.string()),

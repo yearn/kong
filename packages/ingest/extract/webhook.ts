@@ -31,6 +31,9 @@ function getWebhookSecret(subscriptionId: string): string {
   return secret
 }
 
+const WEBHOOK_TIMEOUT_MS = 30_000
+const MAX_RESPONSE_BYTES = 10 * 1024 * 1024 // 10 MiB
+
 async function fetchResponse(subscription: WebhookSubscription, data: Data): Promise<Response> {
   try {
     const timestamp = Math.floor(Date.now() / 1000)
@@ -44,12 +47,38 @@ async function fetchResponse(subscription: WebhookSubscription, data: Data): Pro
         'Content-Type': 'application/json',
         'Kong-Signature': signature
       },
-      body
+      body,
+      redirect: 'manual', // a receiver must not redirect worker egress elsewhere (SSRF)
+      signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS)
     })
   } catch (error) {
     console.error('🤬', 'webhook failed', subscription)
     throw error
   }
+}
+
+// Read and JSON-parse a response while enforcing a hard byte ceiling, so a receiver
+// can't exhaust worker memory with an oversized (or content-length-lying) body.
+export async function readJsonCapped(response: Response, maxBytes = MAX_RESPONSE_BYTES): Promise<unknown> {
+  const declared = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new Error(`Webhook response too large: ${declared} > ${maxBytes} bytes`)
+  }
+  const reader = response.body?.getReader()
+  if (!reader) return response.json()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.length
+    if (total > maxBytes) {
+      await reader.cancel()
+      throw new Error(`Webhook response exceeded ${maxBytes} bytes`)
+    }
+    chunks.push(value)
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
 export const MAX_OUTPUTS_PER_VAULT = 100
@@ -113,7 +142,7 @@ export class WebhookExtractor {
         throw new Error(`Webhook returned ${response.status}: ${response.statusText}`)
       }
 
-      const body = await response.json()
+      const body = await readJsonCapped(response)
       const outputs = OutputSchema.array().parse(body)
       const valid = selectValidOutputs(outputs, data)
 

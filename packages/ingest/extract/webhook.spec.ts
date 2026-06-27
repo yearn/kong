@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert'
-import { selectValidOutputs, MAX_OUTPUTS_PER_VAULT } from './webhook'
+import { selectValidOutputs, readJsonCapped, MAX_OUTPUTS_PER_VAULT } from './webhook'
 import type { Data } from './webhook'
 import type { Output } from 'lib/types'
 import type { WebhookSubscription } from 'lib/subscriptions'
@@ -69,5 +69,22 @@ describe('selectValidOutputs', () => {
     const many = Array.from({ length: MAX_OUTPUTS_PER_VAULT + 1 }, () => output(VAULT_A))
     const valid = selectValidOutputs(many, data([VAULT_A]))
     assert.equal(valid.length, 0)
+  })
+})
+
+describe('readJsonCapped', () => {
+  it('parses a body under the cap', async () => {
+    const response = new Response(JSON.stringify({ a: 1 }))
+    assert.deepEqual(await readJsonCapped(response, 1024), { a: 1 })
+  })
+
+  it('rejects when the declared content-length exceeds the cap', async () => {
+    const fake = { headers: { get: () => '999999' } } as unknown as Response
+    await assert.rejects(() => readJsonCapped(fake, 10))
+  })
+
+  it('rejects when the streamed body exceeds the cap', async () => {
+    const big = JSON.stringify(Array.from({ length: 1000 }, (_, i) => i))
+    await assert.rejects(() => readJsonCapped(new Response(big), 10))
   })
 })
