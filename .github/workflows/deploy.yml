@@ -1,0 +1,103 @@
+name: deploy
+
+# Deploy the ingest worker to Render with 1Password as the source of truth for
+# secrets. Secrets live in the 1Password `kong` item (vault webops-prod) and are
+# declared in .github/deploy.env.tpl. This workflow resolves them with
+# 1Password/load-secrets-action, writes them as the `.env` secret file on the
+# Render env group `kong` (fromGroup: kong in render.yaml; the worker reads it via
+# dotenv), then triggers a deploy via the Render API.
+#
+# IMPORTANT: turn OFF Render's own Auto-Deploy for the ingest-v-2 service so this
+# workflow is the only thing that deploys (otherwise the git push and this API
+# call both fire a deploy).
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-render
+  cancel-in-progress: false
+
+env:
+  ENV_TEMPLATE: .github/deploy.env.tpl
+  RENDER_ENV_GROUP_ID: evg-d3dkc7jipnbc73ce23lg
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Load secrets from 1Password
+        uses: 1password/load-secrets-action@v4
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_ENV_FILE: ${{ env.ENV_TEMPLATE }}
+
+      - name: Sync secrets to Render env group `.env` secret file
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_ENV_GROUP_ID: ${{ env.RENDER_ENV_GROUP_ID }}
+        run: |
+          set -euo pipefail
+
+          # Build the .env body from the same template (so the two can never drift),
+          # pulling each resolved value from the env load-secrets-action exported.
+          # One PUT replaces the whole secret file -> keys removed from the template
+          # are pruned, keeping the file a true mirror of this template.
+          # ponytail: KEY=value assumes single-line values (RPC URLs, creds, tokens
+          # qualify); a value with a literal newline would corrupt the file.
+          content="$(grep -oE '^[A-Z][A-Z0-9_]*' "$ENV_TEMPLATE" | while read -r key; do
+            value="$(printenv "$key" || true)"
+            [ -n "$value" ] && printf '%s=%s\n' "$key" "$value"
+          done)"
+
+          curl -fsS -X PUT \
+            "https://api.render.com/v1/env-groups/${RENDER_ENV_GROUP_ID}/secret-files/.env" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg c "$content" '{content: $c}')" \
+            -o /dev/null
+          echo "synced .env secret file ($(printf '%s\n' "$content" | grep -cE '^[A-Z][A-Z0-9_]*=') vars)"
+
+      - name: Trigger Render deploy
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          set -euo pipefail
+
+          deploy_id="$(curl -fsS -X POST \
+            "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache":"do_not_clear"}' | jq -r '.id')"
+
+          if [ -z "$deploy_id" ] || [ "$deploy_id" = "null" ]; then
+            echo "failed to create deploy" >&2
+            exit 1
+          fi
+          echo "deploy $deploy_id created; waiting for it to go live"
+
+          for _ in $(seq 1 80); do
+            status="$(curl -fsS \
+              "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/${deploy_id}" \
+              -H "Authorization: Bearer ${RENDER_API_KEY}" | jq -r '.status')"
+            echo "status=$status"
+            case "$status" in
+              live) echo "deploy succeeded"; exit 0 ;;
+              build_failed|update_failed|pre_deploy_failed|canceled|deactivated)
+                echo "deploy failed: $status" >&2; exit 1 ;;
+            esac
+            sleep 15
+          done
+
+          echo "timed out waiting for deploy $deploy_id" >&2
+          exit 1
