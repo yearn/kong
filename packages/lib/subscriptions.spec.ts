@@ -14,6 +14,7 @@ describe('isPublicHttpsUrl', () => {
 
   it('rejects localhost and loopback hosts', () => {
     assert.equal(isPublicHttpsUrl('https://localhost/x'), false)
+    assert.equal(isPublicHttpsUrl('https://api.localhost/x'), false)
     assert.equal(isPublicHttpsUrl('https://127.0.0.1/x'), false)
     assert.equal(isPublicHttpsUrl('https://[::1]/x'), false)
   })
