@@ -9,10 +9,11 @@ const MAX_PRICE_ROWS = 50000
 const prices = async (_: object, args: { chainId?: number, address?: `0x${string}`, timestamp?: bigint }) => {
   const { chainId, address, timestamp } = args
 
-  // Require a selective partition so an anonymous caller cannot scan the 124M-row
-  // price table with no filters (FINDINGS.md finding 1, CWE-400).
-  if (!address && timestamp == null) {
-    throw new Error('prices requires address or timestamp')
+  // Require the selective address partition so an anonymous caller cannot scan the
+  // 124M-row price table. timestamp alone (e.g. to_timestamp(0)) is a near-full
+  // table scan, so it does not qualify (FINDINGS.md finding 1, CWE-400).
+  if (!address) {
+    throw new Error('prices requires an address')
   }
 
   try {
