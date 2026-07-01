@@ -1,6 +1,7 @@
 import db from '@/app/api/db'
 import { snakeToCamelCols } from '@/lib/strings'
 import { getAddress } from 'viem'
+import { clampLimit, resolvePeriod } from './guards'
 
 const timeseries = async (_: object, args: {
   chainId?: number,
@@ -13,8 +14,13 @@ const timeseries = async (_: object, args: {
   yearn?: boolean
 }) => {
 
+  // Bound caller-controlled aggregation cost before issuing the query (throws on
+  // invalid input ahead of the generic catch so the message reaches the client).
+  const period = resolvePeriod(args.period)
+  const limit = clampLimit(args.limit)
+
   try {
-    const result = await (args.yearn ? yearntimeseries : alltimeseries)(args)
+    const result = await (args.yearn ? yearntimeseries : alltimeseries)({ ...args, period, limit })
     return snakeToCamelCols(result.rows)
   } catch (error) {
     console.error(error)
@@ -50,7 +56,7 @@ async function alltimeseries(args: {
     GROUP BY chain_id, address, component, time
     ORDER BY time ASC
     LIMIT $6`,
-  [chainId, address ? getAddress(address) : null, label, component, period ?? '1 day', limit ?? 100, timestamp])
+  [chainId, address ? getAddress(address) : null, label, component, period, limit, timestamp])
 }
 
 async function yearntimeseries(args: {
@@ -85,7 +91,7 @@ async function yearntimeseries(args: {
     GROUP BY output.chain_id, output.address, output.component, time
     ORDER BY time ASC
     LIMIT $6`,
-  [chainId, address, label, component, period ?? '1 day', limit ?? 100, timestamp])
+  [chainId, address, label, component, period, limit, timestamp])
 }
 
 export default timeseries

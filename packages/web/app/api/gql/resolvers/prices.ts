@@ -1,8 +1,21 @@
 import db from '@/app/api/db'
 import { getAddress } from 'viem'
 
+// Backstop cap so a single-token history can never return the whole table.
+// ponytail: a fixed ceiling, not cursor pagination — selective filters keep real
+// queries far under it; raise + add a cursor if a token legitimately exceeds it.
+const MAX_PRICE_ROWS = 50000
+
 const prices = async (_: object, args: { chainId?: number, address?: `0x${string}`, timestamp?: bigint }) => {
   const { chainId, address, timestamp } = args
+
+  // Require the selective address partition so an anonymous caller cannot scan the
+  // 124M-row price table. timestamp alone (e.g. to_timestamp(0)) is a near-full
+  // table scan, so it does not qualify (FINDINGS.md finding 1, CWE-400).
+  if (!address) {
+    throw new Error('prices requires an address')
+  }
+
   try {
 
     const result = await db.query(`
@@ -17,7 +30,8 @@ const prices = async (_: object, args: { chainId?: number, address?: `0x${string
     WHERE (chain_id = $1 OR $1 IS NULL)
       AND (address = $2 OR $2 IS NULL)
       AND (block_time > to_timestamp($3) OR $3 IS NULL)
-    ORDER BY block_time ASC`,
+    ORDER BY block_time ASC
+    LIMIT ${MAX_PRICE_ROWS}`,
     [chainId, address ? getAddress(address) : null, timestamp])
 
     return result.rows

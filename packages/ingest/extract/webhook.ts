@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { createHmac } from 'crypto'
 import { mq, sentry } from 'lib'
-import { OutputSchema, zhexstring } from 'lib/types'
+import { Output, OutputSchema, zhexstring } from 'lib/types'
 import { WebhookSubscription, WebhookSubscriptionSchema } from 'lib/subscriptions'
 
 export const DataSchema = z.object({
@@ -31,6 +31,9 @@ function getWebhookSecret(subscriptionId: string): string {
   return secret
 }
 
+const WEBHOOK_TIMEOUT_MS = 30_000
+const MAX_RESPONSE_BYTES = 10 * 1024 * 1024 // 10 MiB
+
 async function fetchResponse(subscription: WebhookSubscription, data: Data): Promise<Response> {
   try {
     const timestamp = Math.floor(Date.now() / 1000)
@@ -44,12 +47,81 @@ async function fetchResponse(subscription: WebhookSubscription, data: Data): Pro
         'Content-Type': 'application/json',
         'Kong-Signature': signature
       },
-      body
+      body,
+      redirect: 'manual', // a receiver must not redirect worker egress elsewhere (SSRF)
+      signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS)
     })
   } catch (error) {
     console.error('🤬', 'webhook failed', subscription)
     throw error
   }
+}
+
+// Read and JSON-parse a response while enforcing a hard byte ceiling, so a receiver
+// can't exhaust worker memory with an oversized (or content-length-lying) body.
+export async function readJsonCapped(response: Response, maxBytes = MAX_RESPONSE_BYTES): Promise<unknown> {
+  const declared = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new Error(`Webhook response too large: ${declared} > ${maxBytes} bytes`)
+  }
+  const reader = response.body?.getReader()
+  if (!reader) return response.json()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.length
+    if (total > maxBytes) {
+      await reader.cancel()
+      throw new Error(`Webhook response exceeded ${maxBytes} bytes`)
+    }
+    chunks.push(value)
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+}
+
+export const MAX_OUTPUTS_PER_VAULT = 100
+
+// Drop any receiver output that isn't for the chain/vaults we asked it to compute,
+// exceeds the per-vault cap, or carries an unexpected label, before it reaches the
+// load queue. Scope filtering also bounds total groups to the requested vault set
+// (FINDINGS.md findings 4-5, CWE-20 / CWE-400).
+export function selectValidOutputs(outputs: Output[], data: Data): Output[] {
+  const { subscription } = data
+  const requestedVaults = new Set(data.vaults.map(v => v.toLowerCase()))
+  const grouped = Map.groupBy(outputs, o => `${o.chainId}:${o.address}`)
+  return [...grouped].flatMap(([key, group]) => {
+    const [first] = group
+    if (first.chainId !== data.chainId || !requestedVaults.has(first.address.toLowerCase())) {
+      console.error(`🤬 ${subscription.id} skipping ${key}: out of requested scope`)
+      sentry.captureMessage('WEBHOOK_OUT_OF_SCOPE', {
+        level: 'warning',
+        tags: { component: 'ingest', job: 'extract.webhook' },
+        extra: { subscriptionId: subscription.id, key, requestedChainId: data.chainId }
+      })
+      return []
+    }
+    if (group.length > MAX_OUTPUTS_PER_VAULT) {
+      console.error(`🤬 ${subscription.id} skipping ${key}: ${group.length} outputs > ${MAX_OUTPUTS_PER_VAULT}`)
+      sentry.captureMessage('WEBHOOK_OUTPUTS_OVER_LIMIT', {
+        level: 'warning',
+        tags: { component: 'ingest', job: 'extract.webhook' },
+        extra: { subscriptionId: subscription.id, key, outputs: group.length, max: MAX_OUTPUTS_PER_VAULT }
+      })
+      return []
+    }
+    if (group.some(o => !subscription.labels.includes(o.label))) {
+      console.error(`🤬 ${subscription.id} skipping ${key}: unexpected labels`)
+      sentry.captureMessage('WEBHOOK_UNEXPECTED_LABELS', {
+        level: 'warning',
+        tags: { component: 'ingest', job: 'extract.webhook' },
+        extra: { subscriptionId: subscription.id, key }
+      })
+      return []
+    }
+    return group
+  })
 }
 
 export class WebhookExtractor {
@@ -70,32 +142,9 @@ export class WebhookExtractor {
         throw new Error(`Webhook returned ${response.status}: ${response.statusText}`)
       }
 
-      const body = await response.json()
+      const body = await readJsonCapped(response)
       const outputs = OutputSchema.array().parse(body)
-
-      const MAX_OUTPUTS_PER_VAULT = 100
-      const grouped = Map.groupBy(outputs, o => `${o.chainId}:${o.address}`)
-      const valid = [...grouped].flatMap(([key, group]) => {
-        if (group.length > MAX_OUTPUTS_PER_VAULT) {
-          console.error(`🤬 ${subscription.id} skipping ${key}: ${group.length} outputs > ${MAX_OUTPUTS_PER_VAULT}`)
-          sentry.captureMessage('WEBHOOK_OUTPUTS_OVER_LIMIT', {
-            level: 'warning',
-            tags: { component: 'ingest', job: 'extract.webhook' },
-            extra: { subscriptionId: subscription.id, key, outputs: group.length, max: MAX_OUTPUTS_PER_VAULT }
-          })
-          return []
-        }
-        if (group.some(o => !subscription.labels.includes(o.label))) {
-          console.error(`🤬 ${subscription.id} skipping ${key}: unexpected labels`)
-          sentry.captureMessage('WEBHOOK_UNEXPECTED_LABELS', {
-            level: 'warning',
-            tags: { component: 'ingest', job: 'extract.webhook' },
-            extra: { subscriptionId: subscription.id, key }
-          })
-          return []
-        }
-        return group
-      })
+      const valid = selectValidOutputs(outputs, data)
 
       await mq.add(mq.job.load.output, { batch: valid })
     } finally {
