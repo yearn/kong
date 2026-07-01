@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { mq, strider, types } from 'lib'
-import db, { firstRow, getTravelledStrides, toUpsertSql } from '../db'
+import db, { firstRow, getTravelledStrides, toUpsertSql, upsertThingDefaults } from '../db'
 import { Processor } from 'lib/processor'
 import { PoolClient } from 'pg'
 import { OutputSchema, SnapshotSchema, ThingSchema, zhexstring } from 'lib/types'
@@ -121,26 +121,7 @@ export async function upsertSnapshot(data: object) {
 
 export async function upsertThing(data: object) {
   const thing = ThingSchema.parse(data)
-  const client = await db.connect()
-
-  try {
-    await client.query('BEGIN')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const currentDefaults: any = (await client.query(
-      'SELECT defaults FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3 FOR UPDATE',
-      [thing.chainId, thing.address, thing.label]))
-      .rows[0]?.defaults
-    if (currentDefaults) thing.defaults = { ...currentDefaults, ...thing.defaults }
-    await upsert(thing, 'thing', 'chain_id, address, label', undefined, client)
-    await client.query('COMMIT')
-
-  } catch(error) {
-    await client.query('ROLLBACK')
-    throw error
-
-  } finally {
-    client.release()
-  }
+  await upsertThingDefaults(thing)
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

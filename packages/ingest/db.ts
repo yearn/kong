@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import { strings } from 'lib'
-import { StrideSchema } from 'lib/types'
+import { StrideSchema, Thing } from 'lib/types'
 import { Pool, PoolClient, types as pgTypes } from 'pg'
 import { snakeToCamelCols } from 'lib/strings'
 
@@ -108,6 +108,21 @@ export async function getSparkline(chainId: number, address: string, label: stri
     blockTime: z.bigint({ coerce: true }),
     close: z.number()
   }).array().parse(result.rows)
+}
+
+export async function upsertThingDefaults(thing: Thing, client?: PoolClient) {
+  // Single-statement upsert with an in-DB jsonb merge, replacing a prior
+  // SELECT ... FOR UPDATE + read-modify-write that serialized concurrent ingest
+  // on hot `thing` rows (the lock wait dominated the cost). `||` is a shallow
+  // right-wins merge, matching the former { ...currentDefaults, ...thing.defaults },
+  // and runs atomically under the row lock taken by ON CONFLICT, so there is no
+  // lost-update race left to guard against.
+  await (client ?? db).query(`
+    INSERT INTO thing (chain_id, address, label, defaults)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (chain_id, address, label)
+    DO UPDATE SET defaults = COALESCE(thing.defaults, '{}'::jsonb) || EXCLUDED.defaults
+  `, [thing.chainId, thing.address, thing.label, thing.defaults])
 }
 
 export function toUpsertSql(table: string, pk: string, data: object, where?: string) {
