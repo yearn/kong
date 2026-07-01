@@ -56,7 +56,7 @@ async function alltimeseries(args: {
     GROUP BY chain_id, address, component, time
     ORDER BY time ASC
     LIMIT $6`,
-  [chainId, address ? getAddress(address) : null, label, component, period ?? '1 day', limit ?? 100, timestamp])
+  [chainId, address ? getAddress(address) : null, label, component, period, limit, timestamp])
 }
 
 async function yearntimeseries(args: {
@@ -91,7 +91,7 @@ async function yearntimeseries(args: {
     GROUP BY output.chain_id, output.address, output.component, time
     ORDER BY time ASC
     LIMIT $6`,
-  [chainId, address, label, component, period ?? '1 day', limit ?? 100, timestamp])
+  [chainId, address, label, component, period, limit, timestamp])
 }
 
 export default timeseries
