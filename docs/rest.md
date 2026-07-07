@@ -165,6 +165,17 @@ Historical timeseries data for a vault.
 |-----------|------|-------------|
 | `components` | `string[]` | Override default component(s) |
 
+**`apr-oracle` components**
+
+| Component | Description |
+|-----------|-------------|
+| `apr` | Resolved oracle APR (strategy APR, or current APR when no strategy oracle) — the default |
+| `apy` | Resolved oracle APR compounded to APY |
+| `netApr` / `netApy` | Resolved APR/APY net of vault fees (v3 vaults only) |
+| `currentApr` | Oracle `getCurrentApr(vault)`, the vault-level current APR indexed for comparison against the resolved/strategy APR |
+| `currentApy` | `currentApr` compounded to APY |
+| `currentNetApr` / `currentNetApy` | `currentApr`/`currentApy` net of vault fees (v3 vaults only) |
+
 ```bash
 # historical APY
 curl -s https://kong.yearn.fi/api/rest/timeseries/apy-historical/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1 | jq
@@ -174,6 +185,12 @@ curl -s https://kong.yearn.fi/api/rest/timeseries/tvl/1/0x6faf8b7ffee3306efcfc2b
 
 # price per share
 curl -s https://kong.yearn.fi/api/rest/timeseries/pps/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1 | jq
+
+# oracle current APR (v3 vaults)
+curl -s "https://kong.yearn.fi/api/rest/timeseries/apr-oracle/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1?components=currentApr" | jq
+
+# compare resolved oracle APR against current APR (repeated components)
+curl -s "https://kong.yearn.fi/api/rest/timeseries/apr-oracle/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1?components=apr&components=currentApr" | jq
 ```
 
 **Response**
