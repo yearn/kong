@@ -99,7 +99,7 @@ async function computeVaultOracle(row: AffectedRow): Promise<TempRow[]> {
   if (!oracleConfig) return []
   const blockNumber = BigInt(row.block_number)
 
-  const apr = await readApr(row.chain_id, row.address, blockNumber, oracleConfig.address)
+  const { apr } = await readApr(row.chain_id, row.address, blockNumber, oracleConfig.address)
   // Intentionally falsy check: skip rows where the oracle still returns 0.
   if (!apr) return []
 

@@ -14,8 +14,10 @@ describe('abis/erc4626/timeseries/apr-oracle/hook', function() {
     // erc4626 path. The oracle still prices it via getStrategyApr.
     const oracle = getOracleConfig(mainnet.id)
     expect(oracle).to.not.equal(undefined)
-    const apr = await readApr(mainnet.id, morphoUsdt, 25211174n, oracle!.address)
+    const { apr, currentApr } = await readApr(mainnet.id, morphoUsdt, 25211174n, oracle!.address)
     expect(apr).to.be.closeTo(0.11878347712984644, 1e-6)
+    // getStrategyApr succeeds, so the fallback never runs and currentApr stays undefined.
+    expect(currentApr).to.equal(undefined)
   })
 
   it('returns nothing when the chain has no oracle configured', async function() {
@@ -26,18 +28,27 @@ describe('abis/erc4626/timeseries/apr-oracle/hook', function() {
     expect(await hook(999999, morphoUsdt, data)).to.deep.equal([])
   })
 
-  it('emits apr and apy outputs', async function() {
+  it('emits apr/apy, plus currentApr/currentApy when the oracle returns a current apr', async function() {
     const data: Data = {
       abiPath: 'erc4626', chainId: mainnet.id, address: morphoUsdt,
       outputLabel, blockTime: BigInt(Math.floor(Date.now() / 1000)) + 60n
     }
     const outputs = await hook(mainnet.id, morphoUsdt, data)
-    expect(outputs.map(o => o.component).sort()).to.deep.equal(['apr', 'apy'])
+    const components = outputs.map(o => o.component)
+    // net* stays v3-only; erc4626 emits apr/apy and optionally currentApr/currentApy.
+    expect(components).to.include.members(['apr', 'apy'])
+    expect(components.every(c => ['apr', 'apy', 'currentApr', 'currentApy'].includes(c))).to.equal(true)
     expect(outputs.every(o => o.label === outputLabel)).to.equal(true)
 
-    const apr = outputs.find(o => o.component === 'apr')!.value as number
-    const apy = outputs.find(o => o.component === 'apy')!.value as number
-    expect(apr).to.be.greaterThan(0)
-    expect(apy).to.be.closeTo(computeApy(apr), 1e-9)
+    const value = (component: string) => outputs.find(o => o.component === component)?.value as number | undefined
+    expect(value('apr')!).to.be.greaterThan(0)
+    expect(value('apy')!).to.be.closeTo(computeApy(value('apr')!), 1e-9)
+
+    // currentApr/currentApy travel as a pair with the same apy relationship.
+    const currentApr = value('currentApr')
+    expect(components.includes('currentApy')).to.equal(currentApr !== undefined)
+    if (currentApr !== undefined) {
+      expect(value('currentApy')!).to.be.closeTo(computeApy(currentApr), 1e-9)
+    }
   })
 })
