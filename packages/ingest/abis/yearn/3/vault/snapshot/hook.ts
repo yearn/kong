@@ -6,7 +6,7 @@ import { EstimatedAprSchema, EvmAddressSchema, ThingSchema, TokenMetaSchema, Vau
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
 import db, { getSparkline } from '../../../../../db'
-import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../../../../../helpers/apy-apr'
+import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr, promoteEstimatedAprComponents } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
 import * as things from '../../../../../things'
@@ -28,7 +28,8 @@ export const CompositionSchema = z.object({
       netAPR: z.number().nullish(),
       netAPY: z.number().nullish(),
       apr: z.number().nullish(),
-      apy: z.number().nullish()
+      apy: z.number().nullish(),
+      source: z.string().nullish()
     }).nullish(),
     historical: z.object({
       net: z.number().nullish(),
@@ -136,7 +137,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   }
 
   const apy = await getLatestApy(chainId, address)
-  const [oracleApr, oracleApy] = await getLatestOracleApr(chainId, address)
+  const [oracleApr, oracleApy, oracleSource] = await getLatestOracleApr(chainId, address)
 
   // Query DB for staking pool associated with this vault
   const stakingPool = await db.query(`
@@ -166,6 +167,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
         netAPR: oracleNetApr,
         apy: oracleApy,
         netAPY: oracleNetApr != null ? computeApy(oracleNetApr) : undefined,
+        source: oracleSource,
       },
       historical: apy ? {
         net: apy.net,
@@ -380,7 +382,8 @@ async function fetchStrategySnapshots(chainId: number, strategies: `0x${string}`
       estimated: EstimatedAprSchema.nullish(),
       oracle: z.object({
         apr: z.number().nullish(),
-        apy: z.number().nullish()
+        apy: z.number().nullish(),
+        source: z.string().nullish()
       }).nullish(),
       historical: z.object({
         net: z.number().nullish(),
@@ -446,20 +449,24 @@ async function fetchStrategyPerformance(
     if (row.label === 'apr-oracle') {
       if (row.component === 'apr') perf.oracle.apr = row.value ?? 0
       if (row.component === 'apy') perf.oracle.apy = row.value ?? 0
+      if (row.component === 'source:getStrategyApr') perf.oracle.source = 'getStrategyApr'
+      if (row.component === 'source:getCurrentApr') perf.oracle.source = 'getCurrentApr'
     } else if (row.label === 'apy-bwd-delta-pps') {
       if (row.component === 'net') perf.historical.net = row.value ?? null
       if (row.component === 'weeklyNet') perf.historical.weeklyNet = row.value ?? null
       if (row.component === 'monthlyNet') perf.historical.monthlyNet = row.value ?? null
       if (row.component === 'inceptionNet') perf.historical.inceptionNet = row.value ?? null
     } else if (estimatedAprLabel && row.label === estimatedAprLabel) {
-      if (!perf.estimated) perf.estimated = { type: estimatedAprLabel }
-      if (row.component === 'netAPR') perf.estimated.apr = row.value
-      else if (row.component === 'netAPY') perf.estimated.apy = row.value
-      else if (!perf.estimated.components) {
-        perf.estimated.components = { [row.component]: row.value }
-      } else {
+      if (!perf.estimated) perf.estimated = { type: estimatedAprLabel, components: {} }
+      if (row.value != null && row.component != null) {
         perf.estimated.components[row.component] = row.value
       }
+    }
+  }
+
+  for (const perf of map.values()) {
+    if (perf.estimated) {
+      perf.estimated = promoteEstimatedAprComponents(perf.estimated.type, perf.estimated.components)
     }
   }
 

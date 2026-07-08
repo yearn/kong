@@ -34,6 +34,7 @@ export const VaultListItemSchema = z.object({
       netAPR: CoerceNumber,
       apy: CoerceNumber,
       netAPY: CoerceNumber,
+      source: z.string().nullish(),
     }).nullish(),
     historical: z.object({
       net: CoerceNumber,
@@ -44,6 +45,10 @@ export const VaultListItemSchema = z.object({
     estimated: z.object({
       apr: z.number().optional(),
       apy: z.number().optional(),
+      grossAPR: z.number().optional(),
+      grossAPY: z.number().optional(),
+      netAPR: z.number().optional(),
+      netAPY: z.number().optional(),
       type: z.string(),
       components: z.record(z.string(), z.union([z.number(), z.string()]).nullable()).optional(),
     }).nullish(),

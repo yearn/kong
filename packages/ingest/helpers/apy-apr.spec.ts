@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import db from '../db'
-import { getLatestApy, getLatestEstimatedAprV3 } from './apy-apr'
+import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from './apy-apr'
 
 const TEST_CHAIN = 99999
 const VAULT_ADDR = '0xtest_vault_apr_spec'
@@ -36,6 +36,51 @@ describe('getLatestEstimatedAprV3', function() {
       type: LABEL,
       apr: 0.05,
       apy: 0.051,
+      netAPR: 0.05,
+      netAPY: 0.051,
+      components: {}
+    })
+  })
+
+  it('promotes explicit legacy, gross, and net rows without leaving them in components', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'apr', 0.04, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'apy', 0.041, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'grossAPR', 0.06, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'grossAPY', 0.061, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.05, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPY', 0.051, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'baseNetAPY', 0.03, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.deep.equal({
+      type: LABEL,
+      apr: 0.04,
+      apy: 0.041,
+      grossAPR: 0.06,
+      grossAPY: 0.061,
+      netAPR: 0.05,
+      netAPY: 0.051,
+      components: { baseNetAPY: 0.03 }
+    })
+  })
+
+  it('falls back to net rows for legacy apr and apy when explicit legacy rows are absent', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'grossAPR', 0.06, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'grossAPY', 0.061, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.05, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPY', 0.051, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.deep.equal({
+      type: LABEL,
+      apr: 0.05,
+      apy: 0.051,
+      grossAPR: 0.06,
+      grossAPY: 0.061,
+      netAPR: 0.05,
+      netAPY: 0.051,
       components: {}
     })
   })
@@ -77,6 +122,8 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result).to.not.be.undefined
     expect(result!.apr).to.equal(0.08)
     expect(result!.apy).to.equal(0.082)
+    expect(result!.netAPR).to.equal(0.08)
+    expect(result!.netAPY).to.equal(0.082)
     expect(result!.components).to.deep.equal({ debtRatio: 5000 })
   })
 
@@ -174,6 +221,10 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result).to.not.be.undefined
     expect(result!.apr).to.be.undefined
     expect(result!.apy).to.be.undefined
+    expect(result!.grossAPR).to.be.undefined
+    expect(result!.grossAPY).to.be.undefined
+    expect(result!.netAPR).to.be.undefined
+    expect(result!.netAPY).to.be.undefined
     expect(result!.components).to.deep.equal({ someOtherMetric: 0.05 })
   })
 
@@ -201,6 +252,8 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result).to.not.be.undefined
     expect(result!.apr).to.equal(0.08)
     expect(result!.apy).to.equal(0.082)
+    expect(result!.netAPR).to.equal(0.08)
+    expect(result!.netAPY).to.equal(0.082)
     expect(result!.components).to.deep.equal({ debtRatio: 5000 })
   })
 
@@ -245,5 +298,19 @@ describe('getLatestApy', function() {
 
     const result = await getLatestApy(TEST_CHAIN, VAULT_ADDR)
     expect(result).to.be.undefined
+  })
+})
+
+describe('getLatestOracleApr', function() {
+  afterEach(cleanup)
+
+  it('returns source metadata when source output row exists', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, 'apr-oracle', 'apr', 0.05, t)
+    await insertOutput(VAULT_ADDR, 'apr-oracle', 'apy', 0.051, t)
+    await insertOutput(VAULT_ADDR, 'apr-oracle', 'source:getStrategyApr', 1, t)
+
+    const result = await getLatestOracleApr(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.deep.equal([0.05, 0.051, 'getStrategyApr'])
   })
 })

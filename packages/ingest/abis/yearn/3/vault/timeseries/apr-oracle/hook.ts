@@ -28,7 +28,7 @@ export async function readApr(
   address: `0x${string}`,
   blockNumber: bigint,
   oracleAddress: `0x${string}`,
-): Promise<number | undefined> {
+): Promise<{ apr: number, source: 'getStrategyApr' | 'getCurrentApr' } | undefined> {
   try {
     const rawApr = await rpcs.next(chainId).readContract({
       abi: V3_ORACLE_ABI,
@@ -38,7 +38,8 @@ export async function readApr(
       blockNumber,
     })
 
-    return parseApr(rawApr)
+    const apr = parseApr(rawApr)
+    return apr === undefined ? undefined : { apr, source: 'getStrategyApr' }
   } catch (error) {
     if (!isExpectedStrategyAprFallback(error)) throw error
   }
@@ -54,7 +55,8 @@ export async function readApr(
       blockNumber,
     })
     console.warn('🚨', 'apr-oracle getCurrentApr success', chainId, address, String(blockNumber), rawApr)
-    return parseApr(rawApr)
+    const apr = parseApr(rawApr)
+    return apr === undefined ? undefined : { apr, source: 'getCurrentApr' }
   } catch {
     console.warn('🚨', 'apr-oracle getCurrentApr failed', chainId, address, String(blockNumber))
     return undefined
@@ -68,7 +70,7 @@ export async function resolveOracleApr(
   chainId: number,
   address: `0x${string}`,
   data: Data,
-): Promise<{ apr: number, apy: number, blockNumber: bigint } | undefined> {
+): Promise<{ apr: number, apy: number, blockNumber: bigint, source: 'getStrategyApr' | 'getCurrentApr' } | undefined> {
   const oracleConfig = getOracleConfig(chainId)
   if (!oracleConfig) return undefined
 
@@ -78,10 +80,10 @@ export async function resolveOracleApr(
 
   if (blockNumber < oracleConfig.inceptBlock) return undefined
 
-  const apr = await readApr(chainId, address, blockNumber, oracleConfig.address)
-  if (apr === undefined) return undefined
+  const resolved = await readApr(chainId, address, blockNumber, oracleConfig.address)
+  if (!resolved) return undefined
 
-  return { apr, apy: computeApy(apr), blockNumber }
+  return { apr: resolved.apr, apy: computeApy(resolved.apr), blockNumber, source: resolved.source }
 }
 
 export default async function (
@@ -112,5 +114,6 @@ export default async function (
     output('apy', apy),
     output('netApr', netApr),
     output('netApy', computeApy(netApr)),
+    output(`source:${resolved.source}`, 1),
   ])
 }

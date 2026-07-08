@@ -23,5 +23,6 @@ export default async function (
   return OutputSchema.array().parse([
     output('apr', resolved.apr),
     output('apy', resolved.apy),
+    output(`source:${resolved.source}`, 1),
   ])
 }

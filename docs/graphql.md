@@ -1069,6 +1069,7 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 |-------|------|-------------|
 | `apr` | `Float` | Annual percentage rate |
 | `apy` | `Float` | Annual percentage yield |
+| `source` | `String` | APR oracle read source, such as `getStrategyApr` or `getCurrentApr` |
 
 ### EstimatedApr
 
@@ -1076,6 +1077,10 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 |-------|------|-------------|
 | `apr` | `Float` | Estimated APR |
 | `apy` | `Float` | Estimated APY |
+| `grossAPR` | `Float` | Gross current forward APR estimate |
+| `grossAPY` | `Float` | Gross current forward APY estimate |
+| `netAPR` | `Float` | Fee-adjusted current forward APR estimate |
+| `netAPY` | `Float` | Fee-adjusted current forward APY estimate |
 | `type` | `String` | APR type |
 | `components` | [`EstimatedAprComponents`](#estimatedaprcomponents) | APR breakdown |
 

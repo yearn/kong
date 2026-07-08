@@ -49,9 +49,18 @@ curl -s 'https://kong.yearn.fi/api/rest/list/vaults?origin=yearn' | jq
     },
     "tvl": 12345678.90,
     "performance": {
-      "oracle": { "apr": 0.045, "apy": 0.046 },
+      "oracle": { "apr": 0.045, "apy": 0.046, "source": "getStrategyApr" },
       "historical": { "net": 0.042, "weeklyNet": 0.041, "monthlyNet": 0.043, "inceptionNet": 0.05 },
-      "estimated": { "apr": 0.044, "apy": 0.045, "type": "base", "components": {} }
+      "estimated": {
+        "apr": 0.044,
+        "apy": 0.045,
+        "grossAPR": 0.052,
+        "grossAPY": 0.053,
+        "netAPR": 0.044,
+        "netAPY": 0.045,
+        "type": "base",
+        "components": {}
+      }
     },
     "fees": { "managementFee": 0, "performanceFee": 1000 },
     "category": "Stablecoin",

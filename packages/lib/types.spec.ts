@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { OutputSchema } from './types'
+import { EstimatedAprSchema, OutputSchema } from './types'
 
 const mock = {
   chainId: 1,
@@ -21,5 +21,23 @@ describe('types', function() {
     expect(OutputSchema.parse({ ...output, value: Infinity }).value).to.be.undefined
     expect(OutputSchema.parse({ ...output, value: 'string' }).value).to.be.undefined
     expect(OutputSchema.parse({ ...output, value: {} }).value).to.be.undefined
+  })
+
+  it('parses estimated APR gross and net fields', async function() {
+    const estimated = EstimatedAprSchema.parse({
+      apr: 0.01,
+      apy: 0.011,
+      grossAPR: 0.02,
+      grossAPY: 0.021,
+      netAPR: 0.015,
+      netAPY: 0.016,
+      type: 'katana-estimated-apr',
+      components: { baseNetAPY: 0.012 }
+    })
+
+    expect(estimated.grossAPR).to.equal(0.02)
+    expect(estimated.grossAPY).to.equal(0.021)
+    expect(estimated.netAPR).to.equal(0.015)
+    expect(estimated.netAPY).to.equal(0.016)
   })
 })

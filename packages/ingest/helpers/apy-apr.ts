@@ -1,10 +1,42 @@
 import { EstimatedAprSchema } from 'lib/types'
+import type { EstimatedApr } from 'lib/types'
 import { getLatestEstimatedAprRows } from 'lib/estimated-apr'
 import { z } from 'zod'
 import db, { firstRow } from '../db'
 import { parsePositiveIntDays } from './env'
 
 const CURRENT_PERFORMANCE_LOOKBACK_DAYS = parsePositiveIntDays('CURRENT_PERFORMANCE_LOOKBACK_DAYS', 7)
+
+const ESTIMATED_APR_PROMOTED_COMPONENTS = ['apr', 'apy', 'grossAPR', 'grossAPY', 'netAPR', 'netAPY'] as const
+
+type EstimatedAprPromotedComponent = typeof ESTIMATED_APR_PROMOTED_COMPONENTS[number]
+
+export function promoteEstimatedAprComponents(
+  type: string,
+  components: Record<string, number>
+): EstimatedApr {
+  const promoted = Object.fromEntries(
+    ESTIMATED_APR_PROMOTED_COMPONENTS.map(component => [component, components[component]])
+      .filter(([, value]) => value != null)
+  ) as Partial<Record<EstimatedAprPromotedComponent, number>>
+
+  const rest = Object.fromEntries(
+    Object.entries(components).filter(([component]) =>
+      !ESTIMATED_APR_PROMOTED_COMPONENTS.includes(component as EstimatedAprPromotedComponent)
+    )
+  )
+
+  return EstimatedAprSchema.parse({
+    type,
+    ...(promoted.apr != null ? { apr: promoted.apr } : promoted.netAPR != null ? { apr: promoted.netAPR } : {}),
+    ...(promoted.apy != null ? { apy: promoted.apy } : promoted.netAPY != null ? { apy: promoted.netAPY } : {}),
+    ...(promoted.grossAPR != null ? { grossAPR: promoted.grossAPR } : {}),
+    ...(promoted.grossAPY != null ? { grossAPY: promoted.grossAPY } : {}),
+    ...(promoted.netAPR != null ? { netAPR: promoted.netAPR } : {}),
+    ...(promoted.netAPY != null ? { netAPY: promoted.netAPY } : {}),
+    components: rest
+  })
+}
 
 export async function getLatestEstimatedAprV3(chainId: number, address: string, label?: string) {
   const rows = await getLatestEstimatedAprRows(db, chainId, address, {
@@ -19,14 +51,7 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string, 
     if (row.value != null && row.component != null) components[row.component] = row.value
   }
 
-  const { netAPR, netAPY, ...rest } = components
-
-  return {
-    type: rows[0].label,
-    ...(netAPR != null ? { apr: netAPR } : {}),
-    ...(netAPY != null ? { apy: netAPY } : {}),
-    components: rest
-  }
+  return promoteEstimatedAprComponents(rows[0].label, components)
 }
 
 export async function getLatestEstimatedApr(chainId: number, address: string) {
@@ -144,7 +169,7 @@ export async function getLatestApy(chainId: number, address: string) {
   }).parse(first)
 }
 
-export async function getLatestOracleApr(chainId: number, address: string): Promise<[number, number]> {
+export async function getLatestOracleApr(chainId: number, address: string): Promise<[number, number, string?]> {
   const result = await firstRow(`
   SELECT
     chain_id as "chainId",
@@ -152,6 +177,8 @@ export async function getLatestOracleApr(chainId: number, address: string): Prom
     label,
     MAX(CASE WHEN component = 'apr' THEN value END) AS apr,
     MAX(CASE WHEN component = 'apy' THEN value END) AS apy,
+    MAX(CASE WHEN component = 'source:getStrategyApr' THEN 'getStrategyApr'
+             WHEN component = 'source:getCurrentApr' THEN 'getCurrentApr' END) AS source,
     block_number as "blockNumber",
     block_time as "blockTime"
   FROM output
@@ -174,5 +201,5 @@ export async function getLatestOracleApr(chainId: number, address: string): Prom
 
   if (!result) return [0, 0]
 
-  return [result.apr || 0, result.apy || 0]
+  return [result.apr || 0, result.apy || 0, result.source || undefined]
 }
