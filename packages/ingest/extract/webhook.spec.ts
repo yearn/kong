@@ -1,11 +1,11 @@
 import { strict as assert } from 'node:assert'
-import { selectValidOutputs, readJsonCapped, MAX_OUTPUTS_PER_VAULT } from './webhook'
+import { mq } from 'lib'
+import { readJsonCapped, WebhookExtractor } from './webhook'
 import type { Data } from './webhook'
 import type { Output } from 'lib/types'
 import type { WebhookSubscription } from 'lib/subscriptions'
 
 const VAULT_A = '0x1111111111111111111111111111111111111111'
-const VAULT_B = '0x2222222222222222222222222222222222222222'
 const OUT_OF_SCOPE = '0x3333333333333333333333333333333333333333'
 
 const subscription: WebhookSubscription = {
@@ -39,36 +39,33 @@ function output(address: string, label = 'apr', chainId = 1): Output {
   }
 }
 
-describe('selectValidOutputs', () => {
-  it('keeps outputs for requested vaults with allowed labels', () => {
-    const valid = selectValidOutputs([output(VAULT_A), output(VAULT_B)], data([VAULT_A, VAULT_B]))
-    assert.equal(valid.length, 2)
-  })
+describe('WebhookExtractor', () => {
+  it('loads an output for an address other than the triggering vault without composition lookup', async () => {
+    const originalFetch = globalThis.fetch
+    const originalSecret = process.env.WEBHOOK_SECRET_S_TEST
+    const responseOutput = {
+      ...output(OUT_OF_SCOPE),
+      blockNumber: '1',
+      blockTime: '1'
+    }
+    const add = vi.spyOn(mq, 'add').mockResolvedValue({} as never)
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify([responseOutput])))
+    process.env.WEBHOOK_SECRET_S_TEST = 'secret'
 
-  it('drops outputs for vaults that were not requested', () => {
-    const valid = selectValidOutputs([output(OUT_OF_SCOPE)], data([VAULT_A]))
-    assert.equal(valid.length, 0)
-  })
+    try {
+      await new WebhookExtractor().extract(data([VAULT_A]))
 
-  it('drops outputs for a different chain than requested', () => {
-    const valid = selectValidOutputs([output(VAULT_A, 'apr', 10)], data([VAULT_A], 1))
-    assert.equal(valid.length, 0)
-  })
-
-  it('matches vault addresses case-insensitively', () => {
-    const valid = selectValidOutputs([output(VAULT_A.toUpperCase().replace('0X', '0x'))], data([VAULT_A.toLowerCase()]))
-    assert.equal(valid.length, 1)
-  })
-
-  it('drops a vault group with an unexpected label', () => {
-    const valid = selectValidOutputs([output(VAULT_A, 'not-allowed')], data([VAULT_A]))
-    assert.equal(valid.length, 0)
-  })
-
-  it('drops a vault group over the per-vault cap', () => {
-    const many = Array.from({ length: MAX_OUTPUTS_PER_VAULT + 1 }, () => output(VAULT_A))
-    const valid = selectValidOutputs(many, data([VAULT_A]))
-    assert.equal(valid.length, 0)
+      assert.equal(add.mock.calls.length, 1)
+      assert.deepEqual(add.mock.calls[0], [
+        mq.job.load.output,
+        { batch: [output(OUT_OF_SCOPE)] }
+      ])
+    } finally {
+      add.mockRestore()
+      globalThis.fetch = originalFetch
+      if (originalSecret === undefined) delete process.env.WEBHOOK_SECRET_S_TEST
+      else process.env.WEBHOOK_SECRET_S_TEST = originalSecret
+    }
   })
 })
 
