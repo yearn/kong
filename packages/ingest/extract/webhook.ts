@@ -1,8 +1,8 @@
-import { z } from 'zod'
 import { createHmac } from 'crypto'
-import { mq, sentry } from 'lib'
-import { Output, OutputSchema, zhexstring } from 'lib/types'
+import { mq } from 'lib'
 import { WebhookSubscription, WebhookSubscriptionSchema } from 'lib/subscriptions'
+import { OutputSchema, zhexstring } from 'lib/types'
+import { z } from 'zod'
 
 export const DataSchema = z.object({
   abiPath: z.string(),
@@ -82,48 +82,6 @@ export async function readJsonCapped(response: Response, maxBytes = MAX_RESPONSE
 }
 
 export const MAX_OUTPUTS_PER_VAULT = 100
-
-// Drop any receiver output that isn't for the chain/vaults we asked it to compute,
-// exceeds the per-vault cap, or carries an unexpected label, before it reaches the
-// load queue. Scope filtering also bounds total groups to the requested vault set
-// (FINDINGS.md findings 4-5, CWE-20 / CWE-400).
-export function selectValidOutputs(outputs: Output[], data: Data): Output[] {
-  const { subscription } = data
-  const requestedVaults = new Set(data.vaults.map(v => v.toLowerCase()))
-  const grouped = Map.groupBy(outputs, o => `${o.chainId}:${o.address}`)
-  return [...grouped].flatMap(([key, group]) => {
-    const [first] = group
-    if (first.chainId !== data.chainId || !requestedVaults.has(first.address.toLowerCase())) {
-      console.error(`🤬 ${subscription.id} skipping ${key}: out of requested scope`)
-      sentry.captureMessage('WEBHOOK_OUT_OF_SCOPE', {
-        level: 'warning',
-        tags: { component: 'ingest', job: 'extract.webhook' },
-        extra: { subscriptionId: subscription.id, key, requestedChainId: data.chainId }
-      })
-      return []
-    }
-    if (group.length > MAX_OUTPUTS_PER_VAULT) {
-      console.error(`🤬 ${subscription.id} skipping ${key}: ${group.length} outputs > ${MAX_OUTPUTS_PER_VAULT}`)
-      sentry.captureMessage('WEBHOOK_OUTPUTS_OVER_LIMIT', {
-        level: 'warning',
-        tags: { component: 'ingest', job: 'extract.webhook' },
-        extra: { subscriptionId: subscription.id, key, outputs: group.length, max: MAX_OUTPUTS_PER_VAULT }
-      })
-      return []
-    }
-    if (group.some(o => !subscription.labels.includes(o.label))) {
-      console.error(`🤬 ${subscription.id} skipping ${key}: unexpected labels`)
-      sentry.captureMessage('WEBHOOK_UNEXPECTED_LABELS', {
-        level: 'warning',
-        tags: { component: 'ingest', job: 'extract.webhook' },
-        extra: { subscriptionId: subscription.id, key }
-      })
-      return []
-    }
-    return group
-  })
-}
-
 export class WebhookExtractor {
   async extract(data: Data) {
     data = DataSchema.parse(data)
@@ -144,9 +102,8 @@ export class WebhookExtractor {
 
       const body = await readJsonCapped(response)
       const outputs = OutputSchema.array().parse(body)
-      const valid = selectValidOutputs(outputs, data)
 
-      await mq.add(mq.job.load.output, { batch: valid })
+      await mq.add(mq.job.load.output, { batch: outputs })
     } finally {
       semaphore.release()
     }
