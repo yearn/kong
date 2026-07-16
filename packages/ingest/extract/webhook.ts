@@ -1,8 +1,8 @@
-import { z } from 'zod'
 import { createHmac } from 'crypto'
 import { mq, sentry } from 'lib'
-import { Output, OutputSchema, zhexstring } from 'lib/types'
 import { WebhookSubscription, WebhookSubscriptionSchema } from 'lib/subscriptions'
+import { Output, OutputSchema, zhexstring } from 'lib/types'
+import { z } from 'zod'
 
 export const DataSchema = z.object({
   abiPath: z.string(),
@@ -81,33 +81,53 @@ export async function readJsonCapped(response: Response, maxBytes = MAX_RESPONSE
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
-export const MAX_OUTPUTS_PER_VAULT = 100
+export const MAX_OUTPUTS_PER_ADDRESS = 100
+export const MAX_OUTPUT_GROUPS = 1_000
+export const MAX_TOTAL_OUTPUTS = 10_000
 
-// Drop any receiver output that isn't for the chain/vaults we asked it to compute,
-// exceeds the per-vault cap, or carries an unexpected label, before it reaches the
-// load queue. Scope filtering also bounds total groups to the requested vault set
-// (FINDINGS.md findings 4-5, CWE-20 / CWE-400).
+// A configured webhook is a trusted producer for its configured labels. It may
+// publish for any address on the requested chain, but each response remains
+// bounded before it reaches the load queue.
 export function selectValidOutputs(outputs: Output[], data: Data): Output[] {
   const { subscription } = data
-  const requestedVaults = new Set(data.vaults.map(v => v.toLowerCase()))
-  const grouped = Map.groupBy(outputs, o => `${o.chainId}:${o.address}`)
+  if (outputs.length > MAX_TOTAL_OUTPUTS) {
+    console.error(`🤬 ${subscription.id} skipping response: ${outputs.length} outputs > ${MAX_TOTAL_OUTPUTS}`)
+    sentry.captureMessage('WEBHOOK_TOTAL_OUTPUTS_OVER_LIMIT', {
+      level: 'warning',
+      tags: { component: 'ingest', job: 'extract.webhook' },
+      extra: { subscriptionId: subscription.id, outputs: outputs.length, max: MAX_TOTAL_OUTPUTS }
+    })
+    return []
+  }
+
+  const grouped = Map.groupBy(outputs, o => `${o.chainId}:${o.address.toLowerCase()}`)
+  if (grouped.size > MAX_OUTPUT_GROUPS) {
+    console.error(`🤬 ${subscription.id} skipping response: ${grouped.size} output groups > ${MAX_OUTPUT_GROUPS}`)
+    sentry.captureMessage('WEBHOOK_OUTPUT_GROUPS_OVER_LIMIT', {
+      level: 'warning',
+      tags: { component: 'ingest', job: 'extract.webhook' },
+      extra: { subscriptionId: subscription.id, groups: grouped.size, max: MAX_OUTPUT_GROUPS }
+    })
+    return []
+  }
+
   return [...grouped].flatMap(([key, group]) => {
     const [first] = group
-    if (first.chainId !== data.chainId || !requestedVaults.has(first.address.toLowerCase())) {
-      console.error(`🤬 ${subscription.id} skipping ${key}: out of requested scope`)
-      sentry.captureMessage('WEBHOOK_OUT_OF_SCOPE', {
+    if (first.chainId !== data.chainId) {
+      console.error(`🤬 ${subscription.id} skipping ${key}: unexpected chain`)
+      sentry.captureMessage('WEBHOOK_UNEXPECTED_CHAIN', {
         level: 'warning',
         tags: { component: 'ingest', job: 'extract.webhook' },
         extra: { subscriptionId: subscription.id, key, requestedChainId: data.chainId }
       })
       return []
     }
-    if (group.length > MAX_OUTPUTS_PER_VAULT) {
-      console.error(`🤬 ${subscription.id} skipping ${key}: ${group.length} outputs > ${MAX_OUTPUTS_PER_VAULT}`)
+    if (group.length > MAX_OUTPUTS_PER_ADDRESS) {
+      console.error(`🤬 ${subscription.id} skipping ${key}: ${group.length} outputs > ${MAX_OUTPUTS_PER_ADDRESS}`)
       sentry.captureMessage('WEBHOOK_OUTPUTS_OVER_LIMIT', {
         level: 'warning',
         tags: { component: 'ingest', job: 'extract.webhook' },
-        extra: { subscriptionId: subscription.id, key, outputs: group.length, max: MAX_OUTPUTS_PER_VAULT }
+        extra: { subscriptionId: subscription.id, key, outputs: group.length, max: MAX_OUTPUTS_PER_ADDRESS }
       })
       return []
     }
@@ -144,9 +164,8 @@ export class WebhookExtractor {
 
       const body = await readJsonCapped(response)
       const outputs = OutputSchema.array().parse(body)
-      const valid = selectValidOutputs(outputs, data)
 
-      await mq.add(mq.job.load.output, { batch: valid })
+      await mq.add(mq.job.load.output, { batch: selectValidOutputs(outputs, data) })
     } finally {
       semaphore.release()
     }
