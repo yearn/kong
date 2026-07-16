@@ -1,6 +1,13 @@
 import { strict as assert } from 'node:assert'
 import { mq } from 'lib'
-import { readJsonCapped, WebhookExtractor } from './webhook'
+import {
+  MAX_OUTPUT_GROUPS,
+  MAX_OUTPUTS_PER_ADDRESS,
+  MAX_TOTAL_OUTPUTS,
+  readJsonCapped,
+  selectValidOutputs,
+  WebhookExtractor
+} from './webhook'
 import type { Data } from './webhook'
 import type { Output } from 'lib/types'
 import type { WebhookSubscription } from 'lib/subscriptions'
@@ -39,8 +46,37 @@ function output(address: string, label = 'apr', chainId = 1): Output {
   }
 }
 
+describe('selectValidOutputs', () => {
+  it('keeps configured-label outputs for an address other than the triggering vault', () => {
+    assert.deepEqual(selectValidOutputs([output(OUT_OF_SCOPE)], data([VAULT_A])), [output(OUT_OF_SCOPE)])
+  })
+
+  it('drops outputs for a different chain than requested', () => {
+    assert.deepEqual(selectValidOutputs([output(OUT_OF_SCOPE, 'apr', 10)], data([VAULT_A])), [])
+  })
+
+  it('drops a group with an unexpected label', () => {
+    assert.deepEqual(selectValidOutputs([output(OUT_OF_SCOPE, 'not-allowed')], data([VAULT_A])), [])
+  })
+
+  it('drops a group over the per-address cap', () => {
+    const many = Array.from({ length: MAX_OUTPUTS_PER_ADDRESS + 1 }, () => output(OUT_OF_SCOPE))
+    assert.deepEqual(selectValidOutputs(many, data([VAULT_A])), [])
+  })
+
+  it('drops a response over the total output cap', () => {
+    const many = Array.from({ length: MAX_TOTAL_OUTPUTS + 1 }, () => output(OUT_OF_SCOPE))
+    assert.deepEqual(selectValidOutputs(many, data([VAULT_A])), [])
+  })
+
+  it('drops a response over the output group cap', () => {
+    const many = Array.from({ length: MAX_OUTPUT_GROUPS + 1 }, (_, i) => output(`0x${i.toString(16).padStart(40, '0')}`))
+    assert.deepEqual(selectValidOutputs(many, data([VAULT_A])), [])
+  })
+})
+
 describe('WebhookExtractor', () => {
-  it('loads an output for an address other than the triggering vault without composition lookup', async () => {
+  it('loads a cross-address output without composition lookup', async () => {
     const originalFetch = globalThis.fetch
     const originalSecret = process.env.WEBHOOK_SECRET_S_TEST
     const responseOutput = {

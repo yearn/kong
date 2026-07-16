@@ -1,7 +1,7 @@
 import { createHmac } from 'crypto'
-import { mq } from 'lib'
+import { mq, sentry } from 'lib'
 import { WebhookSubscription, WebhookSubscriptionSchema } from 'lib/subscriptions'
-import { OutputSchema, zhexstring } from 'lib/types'
+import { Output, OutputSchema, zhexstring } from 'lib/types'
 import { z } from 'zod'
 
 export const DataSchema = z.object({
@@ -81,7 +81,69 @@ export async function readJsonCapped(response: Response, maxBytes = MAX_RESPONSE
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
-export const MAX_OUTPUTS_PER_VAULT = 100
+export const MAX_OUTPUTS_PER_ADDRESS = 100
+export const MAX_OUTPUT_GROUPS = 1_000
+export const MAX_TOTAL_OUTPUTS = 10_000
+
+// A configured webhook is a trusted producer for its configured labels. It may
+// publish for any address on the requested chain, but each response remains
+// bounded before it reaches the load queue.
+export function selectValidOutputs(outputs: Output[], data: Data): Output[] {
+  const { subscription } = data
+  if (outputs.length > MAX_TOTAL_OUTPUTS) {
+    console.error(`🤬 ${subscription.id} skipping response: ${outputs.length} outputs > ${MAX_TOTAL_OUTPUTS}`)
+    sentry.captureMessage('WEBHOOK_TOTAL_OUTPUTS_OVER_LIMIT', {
+      level: 'warning',
+      tags: { component: 'ingest', job: 'extract.webhook' },
+      extra: { subscriptionId: subscription.id, outputs: outputs.length, max: MAX_TOTAL_OUTPUTS }
+    })
+    return []
+  }
+
+  const grouped = Map.groupBy(outputs, o => `${o.chainId}:${o.address.toLowerCase()}`)
+  if (grouped.size > MAX_OUTPUT_GROUPS) {
+    console.error(`🤬 ${subscription.id} skipping response: ${grouped.size} output groups > ${MAX_OUTPUT_GROUPS}`)
+    sentry.captureMessage('WEBHOOK_OUTPUT_GROUPS_OVER_LIMIT', {
+      level: 'warning',
+      tags: { component: 'ingest', job: 'extract.webhook' },
+      extra: { subscriptionId: subscription.id, groups: grouped.size, max: MAX_OUTPUT_GROUPS }
+    })
+    return []
+  }
+
+  return [...grouped].flatMap(([key, group]) => {
+    const [first] = group
+    if (first.chainId !== data.chainId) {
+      console.error(`🤬 ${subscription.id} skipping ${key}: unexpected chain`)
+      sentry.captureMessage('WEBHOOK_UNEXPECTED_CHAIN', {
+        level: 'warning',
+        tags: { component: 'ingest', job: 'extract.webhook' },
+        extra: { subscriptionId: subscription.id, key, requestedChainId: data.chainId }
+      })
+      return []
+    }
+    if (group.length > MAX_OUTPUTS_PER_ADDRESS) {
+      console.error(`🤬 ${subscription.id} skipping ${key}: ${group.length} outputs > ${MAX_OUTPUTS_PER_ADDRESS}`)
+      sentry.captureMessage('WEBHOOK_OUTPUTS_OVER_LIMIT', {
+        level: 'warning',
+        tags: { component: 'ingest', job: 'extract.webhook' },
+        extra: { subscriptionId: subscription.id, key, outputs: group.length, max: MAX_OUTPUTS_PER_ADDRESS }
+      })
+      return []
+    }
+    if (group.some(o => !subscription.labels.includes(o.label))) {
+      console.error(`🤬 ${subscription.id} skipping ${key}: unexpected labels`)
+      sentry.captureMessage('WEBHOOK_UNEXPECTED_LABELS', {
+        level: 'warning',
+        tags: { component: 'ingest', job: 'extract.webhook' },
+        extra: { subscriptionId: subscription.id, key }
+      })
+      return []
+    }
+    return group
+  })
+}
+
 export class WebhookExtractor {
   async extract(data: Data) {
     data = DataSchema.parse(data)
@@ -103,7 +165,7 @@ export class WebhookExtractor {
       const body = await readJsonCapped(response)
       const outputs = OutputSchema.array().parse(body)
 
-      await mq.add(mq.job.load.output, { batch: outputs })
+      await mq.add(mq.job.load.output, { batch: selectValidOutputs(outputs, data) })
     } finally {
       semaphore.release()
     }
