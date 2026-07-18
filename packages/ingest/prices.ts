@@ -19,61 +19,17 @@ const DAY_SECONDS = 86_400
 const PAST_DAY_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const LATEST_CACHE_TTL_MS = 30_000
 
-/** Trial metrics for USE_PRICE_SERVICE HTTP lookups (by chain / outcome). */
-export const priceServiceMetrics = {
-  requests: 0,
-  hits: 0,
-  misses: 0,
-  errors: 0,
-  byChain: {} as Record<number, number>,
-  reset() {
-    this.requests = 0
-    this.hits = 0
-    this.misses = 0
-    this.errors = 0
-    this.byChain = {}
-  }
-}
-
-/**
- * When true, indexer reads prices from yearn-prices and skips the Postgres price table.
- * Service mode is not strictly service-only: it keeps the §5 fallback policy
- * (past-day: service→lens→yprice; current-day: yDaemon→spot→lens) so a single
- * service miss doesn't materialize tvl=0. Don't "simplify" this to service-only.
- */
+/** When true, indexer reads prices from yearn-prices and skips the Postgres price table. */
 export function usePriceService(): boolean {
   return JSON.parse(process.env.USE_PRICE_SERVICE || 'false')
 }
 
-/** Fail closed when service mode lacks a key. Call from ingest startup. */
-export function assertPriceSourceConfig(): void {
-  if (usePriceService() && !process.env.PRICE_SERVICE_API_KEY) {
-    throw new Error('USE_PRICE_SERVICE=true requires PRICE_SERVICE_API_KEY')
-  }
-}
-
-/** UTC day start (unix seconds): floor(ts/86400)*86400 — cache key, not service day-end. */
 export function utcDayStart(blockTime: bigint | number): number {
   return Math.floor(Number(blockTime) / DAY_SECONDS) * DAY_SECONDS
 }
 
 export function isCurrentUtcDay(blockTime: bigint | number, nowSec = Math.floor(Date.now() / 1000)): boolean {
   return utcDayStart(blockTime) === utcDayStart(nowSec)
-}
-
-function recordServiceOutcome(chainId: number, token: string, day: number, outcome: 'hit' | 'miss' | 'error') {
-  priceServiceMetrics.requests++
-  priceServiceMetrics.byChain[chainId] = (priceServiceMetrics.byChain[chainId] || 0) + 1
-  if (outcome === 'hit') priceServiceMetrics.hits++
-  else if (outcome === 'miss') priceServiceMetrics.misses++
-  else priceServiceMetrics.errors++
-  console.info(JSON.stringify({
-    event: 'price_service',
-    chainId,
-    token,
-    day,
-    outcome
-  }))
 }
 
 async function maybePersistPrice(result: Price) {
@@ -94,16 +50,12 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
     const blockTime = await getBlockTime(chainId, blockNumber)
     if (!isCurrentUtcDay(blockTime)) {
       const day = utcDayStart(blockTime)
-      // v2: bump namespace so the corrected cache-write policy isn't shadowed by
-      // block-specific fallback entries a prior trial wrote under the old key.
       const key = `fetchErc20PriceUsd:service:v2:${chainId}:${token}:${day}`
       const cached = await cache.get(key) as Price | undefined
       if (cached) return cached
       const result = await __fetchErc20PriceUsd(chainId, token, blockNumber, latest, blockTime)
-      // Only the day-granular service result is safe to cache under a day key. Block-accurate
-      // fallbacks (lens/yprice) and unknowns must not be reused across other blocks in the
-      // same day — doing so would corrupt historical TVL/APR (§5, and a transient miss must
-      // not stick tvl=0 for a day).
+      // Cache only day-granular service results; block-accurate fallbacks and unknowns
+      // must not be reused across other blocks in the same day.
       if (result.priceSource === 'priceservice') await cache.set(key, result, PAST_DAY_CACHE_TTL_MS)
       return result
     }
@@ -173,8 +125,8 @@ async function __fetchErc20PriceUsdFromTable(chainId: number, token: `0x${string
 /**
  * Service path (USE_PRICE_SERVICE=true): no table read/write.
  * Past UTC days: price service is primary (day-granularity historical).
- * Current day / latest: yDaemon or service /spot only — never treat mid-day
- * spot as that day's historical close (and we never persist in this mode).
+ * Current day / latest: yDaemon then lens — never treat a mid-day price as
+ * that day's historical close (and we never persist in this mode).
  */
 async function __fetchErc20PriceUsdFromService(
   chainId: number,
@@ -192,10 +144,6 @@ async function __fetchErc20PriceUsdFromService(
     let live = await fetchYDaemonPriceUsd(chainId, token, blockNumber)
     if (live && live.priceUsd > 0) return live
 
-    live = await fetchPriceServiceSpotUsd(chainId, token, blockNumber)
-    if (live) return live
-
-    // On-chain lens is block-accurate, not a mid-day close substitute for history.
     live = await fetchLensPriceUsd(chainId, token, blockNumber)
     if (live) return live
 
@@ -245,13 +193,11 @@ async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, block
   if (!chainName) return undefined
 
   const baseUrl = process.env.PRICE_SERVICE_URL || PRICE_SERVICE_DEFAULT_URL
-  let day = 0
 
   try {
     // Inside the try: a transient getBlockTime RPC failure must fall through to
     // undefined (the caller's fallback), not reject the whole lookup.
     const blockTime = knownBlockTime ?? await getBlockTime(chainId, blockNumber)
-    day = utcDayStart(blockTime)
     const coinId = `${chainName}:${token.toLowerCase()}`
     const coins = encodeURIComponent(JSON.stringify({ [coinId]: [Number(blockTime)] }))
     // No source= filter: service uses its default priority (defillama → … → enso).
@@ -260,69 +206,16 @@ async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, block
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` }
     })
-    if (!response.ok) {
-      recordServiceOutcome(chainId, token, day, 'error')
-      return undefined
-    }
+    if (!response.ok) return undefined
 
     const data = await response.json() as { coins: Record<string, { symbol: string; prices: { timestamp: number; price: number; confidence: number; source: string }[] }> }
     const coinData = data.coins[coinId]
     const priceUsd = coinData?.prices?.[0]?.price
-    if (!priceUsd) {
-      recordServiceOutcome(chainId, token, day, 'miss')
-      return undefined
-    }
+    if (!priceUsd) return undefined
 
-    recordServiceOutcome(chainId, token, day, 'hit')
     return PriceSchema.parse({ chainId, address: token, priceUsd, priceSource: 'priceservice', blockNumber, blockTime })
   } catch {
-    recordServiceOutcome(chainId, token, day, 'error')
     console.warn('🚨', 'price service failed', chainId, token, blockNumber)
-    return undefined
-  }
-}
-
-/** Live spot from price-service (current-day / latest only — not written as historical close). */
-async function fetchPriceServiceSpotUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
-  if (!process.env.PRICE_SERVICE_API_KEY) return undefined
-  const chainName = PRICE_SERVICE_CHAIN_NAMES[chainId]
-  if (!chainName) return undefined
-
-  const baseUrl = process.env.PRICE_SERVICE_URL || PRICE_SERVICE_DEFAULT_URL
-  const day = utcDayStart(Math.floor(Date.now() / 1000))
-
-  try {
-    const coinId = `${chainName}:${token.toLowerCase()}`
-    const coins = encodeURIComponent(JSON.stringify([coinId]))
-    const url = `${baseUrl}/api/prices/spot?coins=${coins}`
-
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` }
-    })
-    if (!response.ok) {
-      recordServiceOutcome(chainId, token, day, 'error')
-      return undefined
-    }
-
-    const data = await response.json() as { coins: Record<string, { symbol: string; prices: { timestamp: number; price: number; confidence: number; source: string }[] }> }
-    const priceUsd = data.coins[coinId]?.prices?.[0]?.price
-    if (!priceUsd) {
-      recordServiceOutcome(chainId, token, day, 'miss')
-      return undefined
-    }
-
-    recordServiceOutcome(chainId, token, day, 'hit')
-    return PriceSchema.parse({
-      chainId,
-      address: token,
-      priceUsd,
-      priceSource: 'priceservice-spot',
-      blockNumber,
-      blockTime: await getBlockTime(chainId, blockNumber)
-    })
-  } catch {
-    recordServiceOutcome(chainId, token, day, 'error')
-    console.warn('🚨', 'price service spot failed', chainId, token, blockNumber)
     return undefined
   }
 }
