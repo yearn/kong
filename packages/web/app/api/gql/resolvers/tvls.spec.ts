@@ -37,8 +37,8 @@ describe('tvls resolver', () => {
     assert.equal(sql.includes('JOIN price'), false)
     assert.equal(sql.includes('LEFT JOIN price'), false)
     assert.equal(sql.includes('FROM price'), false)
-    assert.equal(sql.includes("NULL::numeric AS price_usd"), true)
-    assert.equal(sql.includes("'na'::text AS price_source"), true)
+    assert.equal(sql.includes('NULL::numeric AS price_usd'), true)
+    assert.equal(sql.includes('\'na\'::text AS price_source'), true)
     assert.equal(sql.includes('asset_address'), false)
 
     expect(rows).toEqual([{
@@ -60,7 +60,7 @@ describe('tvls resolver', () => {
 
     const sql = query.mock.calls[0][0] as string
     const params = query.mock.calls[0][1] as unknown[]
-    assert.equal(sql.includes("t.label = 'vault'"), true)
+    assert.equal(sql.includes('t.label = \'vault\''), true)
     assert.equal(sql.includes('ORDER BY time ASC'), true)
     assert.equal(params[0], 1)
     assert.equal(params[2], '1 week')
