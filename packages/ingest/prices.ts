@@ -94,12 +94,17 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
     const blockTime = await getBlockTime(chainId, blockNumber)
     if (!isCurrentUtcDay(blockTime)) {
       const day = utcDayStart(blockTime)
-      const key = `fetchErc20PriceUsd:service:${chainId}:${token}:${day}`
+      // v2: bump namespace so the corrected cache-write policy isn't shadowed by
+      // block-specific fallback entries a prior trial wrote under the old key.
+      const key = `fetchErc20PriceUsd:service:v2:${chainId}:${token}:${day}`
       const cached = await cache.get(key) as Price | undefined
       if (cached) return cached
       const result = await __fetchErc20PriceUsd(chainId, token, blockNumber, latest, blockTime)
-      // Never cache an unknown: a transient service failure must not stick tvl=0 for a day (§5).
-      if (result.priceSource !== 'na') await cache.set(key, result, PAST_DAY_CACHE_TTL_MS)
+      // Only the day-granular service result is safe to cache under a day key. Block-accurate
+      // fallbacks (lens/yprice) and unknowns must not be reused across other blocks in the
+      // same day — doing so would corrupt historical TVL/APR (§5, and a transient miss must
+      // not stick tvl=0 for a day).
+      if (result.priceSource === 'priceservice') await cache.set(key, result, PAST_DAY_CACHE_TTL_MS)
       return result
     }
   }
@@ -199,7 +204,7 @@ async function __fetchErc20PriceUsdFromService(
   }
 
   // Past day: service first, then lens/yprice fallbacks. Explicit unknown if none.
-  let result = await fetchPriceServiceUsd(chainId, token, blockNumber)
+  let result = await fetchPriceServiceUsd(chainId, token, blockNumber, blockTime)
   if (result) return result
 
   result = await fetchLensPriceUsd(chainId, token, blockNumber)
@@ -234,16 +239,19 @@ export const PRICE_SERVICE_CHAIN_NAMES: Record<number, string> = {
 
 const PRICE_SERVICE_DEFAULT_URL = 'https://prices.yearn.dev'
 
-async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
+async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint, knownBlockTime?: bigint) {
   if (!process.env.PRICE_SERVICE_API_KEY) return undefined
   const chainName = PRICE_SERVICE_CHAIN_NAMES[chainId]
   if (!chainName) return undefined
 
   const baseUrl = process.env.PRICE_SERVICE_URL || PRICE_SERVICE_DEFAULT_URL
-  const blockTime = await getBlockTime(chainId, blockNumber)
-  const day = utcDayStart(blockTime)
+  let day = 0
 
   try {
+    // Inside the try: a transient getBlockTime RPC failure must fall through to
+    // undefined (the caller's fallback), not reject the whole lookup.
+    const blockTime = knownBlockTime ?? await getBlockTime(chainId, blockNumber)
+    day = utcDayStart(blockTime)
     const coinId = `${chainName}:${token.toLowerCase()}`
     const coins = encodeURIComponent(JSON.stringify({ [coinId]: [Number(blockTime)] }))
     // No source= filter: service uses its default priority (defillama → … → enso).
