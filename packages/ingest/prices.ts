@@ -35,7 +35,12 @@ export const priceServiceMetrics = {
   }
 }
 
-/** When true, indexer reads prices from yearn-prices and skips the Postgres price table. */
+/**
+ * When true, indexer reads prices from yearn-prices and skips the Postgres price table.
+ * Service mode is not strictly service-only: it keeps the §5 fallback policy
+ * (past-day: service→lens→yprice; current-day: yDaemon→spot→lens) so a single
+ * service miss doesn't materialize tvl=0. Don't "simplify" this to service-only.
+ */
 export function usePriceService(): boolean {
   return JSON.parse(process.env.USE_PRICE_SERVICE || 'false')
 }
@@ -89,11 +94,13 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
     const blockTime = await getBlockTime(chainId, blockNumber)
     if (!isCurrentUtcDay(blockTime)) {
       const day = utcDayStart(blockTime)
-      return cache.wrap(
-        `fetchErc20PriceUsd:service:${chainId}:${token}:${day}`,
-        async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, latest, blockTime),
-        PAST_DAY_CACHE_TTL_MS
-      )
+      const key = `fetchErc20PriceUsd:service:${chainId}:${token}:${day}`
+      const cached = await cache.get(key) as Price | undefined
+      if (cached) return cached
+      const result = await __fetchErc20PriceUsd(chainId, token, blockNumber, latest, blockTime)
+      // Never cache an unknown: a transient service failure must not stick tvl=0 for a day (§5).
+      if (result.priceSource !== 'na') await cache.set(key, result, PAST_DAY_CACHE_TTL_MS)
+      return result
     }
   }
 
@@ -175,8 +182,10 @@ async function __fetchErc20PriceUsdFromService(
   const useLive = latest || isCurrentUtcDay(blockTime)
 
   if (useLive) {
+    // yDaemon returns a 0-price object (not undefined) for tokens it doesn't know;
+    // treat that as a miss so the spot/lens fallbacks below actually fire.
     let live = await fetchYDaemonPriceUsd(chainId, token, blockNumber)
-    if (live) return live
+    if (live && live.priceUsd > 0) return live
 
     live = await fetchPriceServiceSpotUsd(chainId, token, blockNumber)
     if (live) return live
