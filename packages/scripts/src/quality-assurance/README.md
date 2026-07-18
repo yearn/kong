@@ -94,9 +94,88 @@ bun run tvl-backfill.ts --update tvls \
 3. Run `tvl-backfill.ts --update tvls` to compute TVL from the backfilled data
 4. Re-run `tvl-detect-gaps.ts` to verify the gaps are resolved
 
+## compare-rest-prod-fork.ts
+
+Issue [#439](https://github.com/yearn/kong/issues/439) Phase 2 verification.
+
+**Always compares against prod.** Prod is the baseline (`--prod`, default `https://kong.yearn.fi`). The fork is the trial side (`--fork`, required) — e.g. local web, Neon branch deploy, or any host running with `USE_PRICE_SERVICE`.
+
+For each vault it hits the same REST paths on **both** bases and diffs price-influenced fields (`tvl`, `priceUsd`) plus on-chain anchors (`totalAssets`, `pricePerShare`).
+
+Slight intraday drift is expected (price service is day-granular). Overall TVL and anything derived from price should stay within `--threshold`.
+
+### What it compares (prod vs fork)
+
+| Source | Fields |
+|--------|--------|
+| `GET /api/rest/list/vaults` | `tvl`, `pricePerShare`, oracle/historical performance |
+| `GET /api/rest/snapshot/:chainId/:address` | `tvl.close`, `totalAssets`, `pricePerShare` |
+| `GET /api/rest/timeseries/tvl/...` | last N days of `tvl`, `priceUsd`, `totalAssets`, **anchored to the fork's newest point** (prod-only history ignored; empty fork timeseries is skipped) |
+
+### Default vaults (mainnet)
+
+| Label | Address |
+|-------|---------|
+| BTC (yvWBTC-1) | `0x751F0cC6115410A3eE9eC92d08f46Ff6Da98b708` |
+| ETH (yvWETH-1) | `0xc56413869c6CDf96496f2b1eF801fEDBdFA7dDB0` |
+| Curve (yvCurve-DOLA-sUSDe-f) | `0x1Fc80CfCF5B345b904A0fB36d4222196Ed9eB8a5` |
+| YVUSD | `0x696d02Db93291651ED510704c9b286841d506987` |
+| YBOLD | `0x9F4330700a36B29952869fac9b33f45EEdd8A3d8` |
+
+### Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--fork` | Fork / trial base URL (**required**) | — |
+| `--prod` | Prod baseline base URL | `https://kong.yearn.fi` |
+| `--threshold` | Max relative diff for price fields | `0.05` (5%) |
+| `--assets-threshold` | Max relative diff for `totalAssets` / PPS | `0.001` (0.1%) |
+| `--days` | Timeseries lookback from the **fork's latest** point | `14` |
+| `--vaults` | Comma-separated `chainId:address` pairs | curated set above |
+| `--json, -j` | Write full JSON report to file | none |
+
+Status bands:
+- **ok** — within threshold
+- **warn** — between 1× and 2× threshold (expected slight intraday drift)
+- **fail** — beyond 2× threshold
+- **missing** — present on one side only
+
+Exit code `1` if any **fail**, **missing**, or vault fetch error. Warn-only is exit `0`.
+
+### Examples
+
+```sh
+# compare fork against prod (default prod = https://kong.yearn.fi)
+bun run src/quality-assurance/compare-rest-prod-fork.ts \
+  --fork http://localhost:3001
+
+# same thing, prod spelled out
+bun run src/quality-assurance/compare-rest-prod-fork.ts \
+  --prod https://kong.yearn.fi \
+  --fork https://my-fork.example.com
+
+# tighter price tolerance, full JSON report
+bun run src/quality-assurance/compare-rest-prod-fork.ts \
+  --fork https://my-fork.example.com \
+  --threshold 0.02 \
+  --days 30 \
+  --json /tmp/price-compare.json
+
+# custom vault set
+bun run src/quality-assurance/compare-rest-prod-fork.ts \
+  --fork http://localhost:3001 \
+  --vaults 1:0x751F0cC6115410A3eE9eC92d08f46Ff6Da98b708,1:0x696d02Db93291651ED510704c9b286841d506987
+```
+
+### Environment
+
+No database credentials required — HTTP only against the two REST bases (`--prod` and `--fork`).
+
+---
+
 ## Environment
 
-Both scripts read from a `.env` file in this directory. Required variables:
+DB-backed scripts (`tvl-detect-gaps`, `tvl-backfill`) read from a `.env` file in this directory. Required variables:
 
 - `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DATABASE`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
 - `POSTGRES_SSL` — set to `true` for SSL (default: false)

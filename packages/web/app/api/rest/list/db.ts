@@ -125,11 +125,12 @@ export async function getVaultsWithSnapshots(): Promise<VaultWithSnapshot[]> {
       thing.chain_id AS "chainId",
       thing.address,
 
-      -- Name with fallback
+      -- Name with fallback (address when snapshot has not populated name yet)
       COALESCE(
         thing.defaults->>'name',
         snapshot.snapshot->>'name',
-        snapshot.hook->'meta'->>'displayName'
+        snapshot.hook->'meta'->>'displayName',
+        thing.address
       ) AS name,
 
       -- Symbol
