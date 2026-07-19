@@ -21,7 +21,7 @@ const LATEST_CACHE_TTL_MS = 30_000
 
 /** When true, indexer reads prices from yearn-prices and skips the Postgres price table. */
 export function usePriceService(): boolean {
-  return JSON.parse(process.env.USE_PRICE_SERVICE || 'false')
+  return (process.env.USE_PRICE_SERVICE || '').trim().toLowerCase() === 'true'
 }
 
 export function utcDayStart(blockTime: bigint | number): number {
