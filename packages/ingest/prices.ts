@@ -15,27 +15,11 @@ export const lens = {
   [arbitrum.id]: '0x043518AB266485dC085a1DB095B8d9C2Fc78E9b9' as `0x${string}`
 }
 
-const DAY_SECONDS = 86_400
-const PAST_DAY_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const LATEST_CACHE_TTL_MS = 30_000
 
 /** When true, indexer reads prices from yearn-prices and skips the Postgres price table. */
 export function usePriceService(): boolean {
   return (process.env.USE_PRICE_SERVICE || '').trim().toLowerCase() === 'true'
-}
-
-export function utcDayStart(blockTime: bigint | number): number {
-  return Math.floor(Number(blockTime) / DAY_SECONDS) * DAY_SECONDS
-}
-
-export function isCurrentUtcDay(blockTime: bigint | number, nowSec = Math.floor(Date.now() / 1000)): boolean {
-  return utcDayStart(blockTime) === utcDayStart(nowSec)
-}
-
-async function maybePersistPrice(result: Price) {
-  if (!usePriceService()) {
-    await mq.add(mq.job.load.price, result)
-  }
 }
 
 export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber?: bigint, latest = false): Promise<{ priceUsd: number, priceSource: string }>{
@@ -46,21 +30,6 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
     latest = true
   }
 
-  if (usePriceService() && !latest) {
-    const blockTime = await getBlockTime(chainId, blockNumber)
-    if (!isCurrentUtcDay(blockTime)) {
-      const day = utcDayStart(blockTime)
-      const key = `fetchErc20PriceUsd:service:v2:${chainId}:${token}:${day}`
-      const cached = await cache.get(key) as Price | undefined
-      if (cached) return cached
-      const result = await __fetchErc20PriceUsd(chainId, token, blockNumber, latest, blockTime)
-      // Cache only day-granular service results; block-accurate fallbacks and unknowns
-      // must not be reused across other blocks in the same day.
-      if (result.priceSource === 'priceservice') await cache.set(key, result, PAST_DAY_CACHE_TTL_MS)
-      return result
-    }
-  }
-
   return cache.wrap(
     `fetchErc20PriceUsd:${chainId}:${token}:${blockNumber}`,
     async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, latest),
@@ -68,15 +37,11 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
   )
 }
 
-async function __fetchErc20PriceUsd(
-  chainId: number,
-  token: `0x${string}`,
-  blockNumber: bigint,
-  latest = false,
-  knownBlockTime?: bigint
-) {
+async function __fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint, latest = false) {
+  // USE_PRICE_SERVICE=true: price service is the only source — no table read/write,
+  // no fallbacks. Unknown price when the service has nothing.
   if (usePriceService()) {
-    return __fetchErc20PriceUsdFromService(chainId, token, blockNumber, latest, knownBlockTime)
+    return (await fetchPriceServiceUsd(chainId, token, blockNumber)) ?? unknownPrice(chainId, token, blockNumber)
   }
   return __fetchErc20PriceUsdFromTable(chainId, token, blockNumber, latest)
 }
@@ -88,7 +53,7 @@ async function __fetchErc20PriceUsdFromTable(chainId: number, token: `0x${string
   if (latest) {
     result = await fetchYDaemonPriceUsd(chainId, token, blockNumber)
     if (result) {
-      await maybePersistPrice(result)
+      await mq.add(mq.job.load.price, result)
       return result
     }
   }
@@ -98,73 +63,28 @@ async function __fetchErc20PriceUsdFromTable(chainId: number, token: `0x${string
 
   result = await fetchLensPriceUsd(chainId, token, blockNumber)
   if (result) {
-    await maybePersistPrice(result)
+    await mq.add(mq.job.load.price, result)
     return result
   }
 
   if (JSON.parse(process.env.YPRICE_ENABLED || 'false')) {
     result = await fetchYPriceUsd(chainId, token, blockNumber)
     if (result) {
-      await maybePersistPrice(result)
+      await mq.add(mq.job.load.price, result)
       return result
     }
   }
 
   result = await fetchPriceServiceUsd(chainId, token, blockNumber)
   if (result) {
-    await maybePersistPrice(result)
+    await mq.add(mq.job.load.price, result)
     return result
   }
 
   console.warn('🚨', 'no price', chainId, token, blockNumber)
   const empty = await unknownPrice(chainId, token, blockNumber)
-  await maybePersistPrice(empty)
+  await mq.add(mq.job.load.price, empty)
   return empty
-}
-
-/**
- * Service path (USE_PRICE_SERVICE=true): no table read/write.
- * Past UTC days: price service is primary (day-granularity historical).
- * Current day / latest: yDaemon then lens — never treat a mid-day price as
- * that day's historical close (and we never persist in this mode).
- */
-async function __fetchErc20PriceUsdFromService(
-  chainId: number,
-  token: `0x${string}`,
-  blockNumber: bigint,
-  latest = false,
-  knownBlockTime?: bigint
-) {
-  const blockTime = knownBlockTime ?? await getBlockTime(chainId, blockNumber)
-  const useLive = latest || isCurrentUtcDay(blockTime)
-
-  if (useLive) {
-    // yDaemon returns a 0-price object (not undefined) for tokens it doesn't know;
-    // treat that as a miss so the spot/lens fallbacks below actually fire.
-    let live = await fetchYDaemonPriceUsd(chainId, token, blockNumber)
-    if (live && live.priceUsd > 0) return live
-
-    live = await fetchLensPriceUsd(chainId, token, blockNumber)
-    if (live) return live
-
-    console.warn('🚨', 'no live price', chainId, token, blockNumber)
-    return unknownPrice(chainId, token, blockNumber)
-  }
-
-  // Past day: service first, then lens/yprice fallbacks. Explicit unknown if none.
-  let result = await fetchPriceServiceUsd(chainId, token, blockNumber, blockTime)
-  if (result) return result
-
-  result = await fetchLensPriceUsd(chainId, token, blockNumber)
-  if (result) return result
-
-  if (JSON.parse(process.env.YPRICE_ENABLED || 'false')) {
-    result = await fetchYPriceUsd(chainId, token, blockNumber)
-    if (result) return result
-  }
-
-  console.warn('🚨', 'no price (service mode, explicit unknown)', chainId, token, blockNumber, utcDayStart(blockTime))
-  return unknownPrice(chainId, token, blockNumber)
 }
 
 async function unknownPrice(chainId: number, token: `0x${string}`, blockNumber: bigint): Promise<Price> {
@@ -187,7 +107,7 @@ export const PRICE_SERVICE_CHAIN_NAMES: Record<number, string> = {
 
 const PRICE_SERVICE_DEFAULT_URL = 'https://prices.yearn.dev'
 
-async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint, knownBlockTime?: bigint) {
+async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
   if (!process.env.PRICE_SERVICE_API_KEY) return undefined
   const chainName = PRICE_SERVICE_CHAIN_NAMES[chainId]
   if (!chainName) return undefined
@@ -195,9 +115,7 @@ async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, block
   const baseUrl = process.env.PRICE_SERVICE_URL || PRICE_SERVICE_DEFAULT_URL
 
   try {
-    // Inside the try: a transient getBlockTime RPC failure must fall through to
-    // undefined (the caller's fallback), not reject the whole lookup.
-    const blockTime = knownBlockTime ?? await getBlockTime(chainId, blockNumber)
+    const blockTime = await getBlockTime(chainId, blockNumber)
     const coinId = `${chainName}:${token.toLowerCase()}`
     const coins = encodeURIComponent(JSON.stringify({ [coinId]: [Number(blockTime)] }))
     // No source= filter: service uses its default priority (defillama → … → enso).
