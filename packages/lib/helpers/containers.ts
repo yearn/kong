@@ -17,7 +17,7 @@ const dotenvParsed = dotenv.config({ path: path.join(REPO_ROOT, '.env') }).parse
 function rpcEnv(): Record<string, string> {
   const merged = { ...dotenvParsed, ...process.env }
   const result: Record<string, string> = {}
-  const prefixes = ['HTTP_ARCHIVE_', 'HTTP_FULLNODE_', 'YDAEMON_', 'YPRICE_', 'PRICE_SERVICE_']
+  const prefixes = ['HTTP_ARCHIVE_', 'HTTP_FULLNODE_', 'YDAEMON_', 'YPRICE_', 'PRICE_SERVICE_', 'WEBHOOK_SECRET_']
   for (const [k, v] of Object.entries(merged)) {
     if (v && prefixes.some(p => k.startsWith(p))) result[k] = v
   }
