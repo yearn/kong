@@ -130,6 +130,16 @@ describe('e2e: netAPR/netAPY-only estimated-apr rows must not freeze snapshots (
       { timeoutMs: 15 * 60_000, intervalMs: 15_000, onTick: () => triggerFanout('abis', {}) },
     )
 
+    // StrategyChanged registers every strategy as a vault thing without a name.
+    // Test abis have no `things` filter, so those never get snapshotted and
+    // refresh-vaults fails Zod on name. Drop orphans; only manuals matter here.
+    await pool.query(
+      `DELETE FROM thing
+       WHERE label = 'vault'
+         AND lower(address) NOT IN (lower($1), lower($2))`,
+      [STRATEGY_VAULT, PARENT_VAULT],
+    )
+
     await env.runScript('packages/web/app/api/rest/refresh-vaults.ts')
   })
 
