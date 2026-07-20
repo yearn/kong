@@ -1,6 +1,6 @@
 import { expect } from 'chai'
-import { Pool } from 'pg'
 import { TestEnvironment, createTestPool, pollForRow, triggerFanout } from 'lib/helpers/containers'
+import { Pool } from 'pg'
 
 // Issue #409: yvusd-estimated-apr leaking into non-yvUSD vault context.
 //
@@ -182,6 +182,16 @@ describe('e2e: yvusd-estimated-apr scoping (issue #409)', () => {
       COMPOSITION_ASSEMBLED_SQL,
       [CHAIN_ID, YVUSD_VAULT, USDC2_VAULT, STRATEGY_VAULT, LABEL],
       { timeoutMs: 15 * 60_000, intervalMs: 15_000, onTick: () => triggerFanout('abis', {}) },
+    )
+
+    // StrategyChanged registers every strategy as a vault thing without a name.
+    // Test abis have no `things` filter, so those never get snapshotted and
+    // refresh-vaults fails Zod on name. Drop orphans; only manuals matter here.
+    await pool.query(
+      `DELETE FROM thing
+       WHERE label = 'vault'
+         AND lower(address) NOT IN (lower($1), lower($2), lower($3))`,
+      [YVUSD_VAULT, STRATEGY_VAULT, USDC2_VAULT],
     )
 
     await env.runScript('packages/web/app/api/rest/refresh-vaults.ts')
