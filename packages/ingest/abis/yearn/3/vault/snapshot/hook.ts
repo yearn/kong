@@ -189,7 +189,6 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   WHERE chain_id = $1 AND address = $2 AND signature = $3 AND (block_number <= $4 OR $4 IS NULL)
   ORDER BY block_number ASC, log_index ASC`,
   [chainId, vault, topic, blockNumber])
-  if(events.rows.length === 0) return []
   const result: `0x${string}`[] = []
   for (const event of events.rows) {
     if (changeType[event.change_type] === 'add') {
