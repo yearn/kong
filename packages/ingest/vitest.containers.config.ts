@@ -1,7 +1,8 @@
 import { defineConfig } from 'vitest/config'
 
-// e2e suite: each spec brings up its own full ingest+web stack via
-// lib/helpers/containers, so there is no shared testcontainers globalSetup here.
+// e2e suite: each *containers.spec.ts owns a full TestEnvironment stack
+// (postgres+redis+ingest+web) and mutates process.env for host-side pool/
+// redis access. Run files in parallel, one isolated fork each.
 export default defineConfig({
   test: {
     globals: true,
@@ -10,9 +11,8 @@ export default defineConfig({
     include: ['**/*containers.spec.ts'],
     setupFiles: ['./vitest.containers.setup.ts'],
     pool: 'forks',
-    poolOptions: { forks: { singleFork: true } },
-    fileParallelism: false,
-    isolate: false,
+    fileParallelism: true,
+    isolate: true,
     testTimeout: 1_200_000,
     hookTimeout: 1_200_000,
     teardownTimeout: 120_000,

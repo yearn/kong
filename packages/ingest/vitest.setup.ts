@@ -7,6 +7,12 @@ import { beforeAll, inject } from 'vitest'
 import { cache } from 'lib'
 import { rpcs } from './rpcs'
 
+declare module 'vitest' {
+  interface ProvidedContext {
+    testcontainers: Record<string, string | number>
+  }
+}
+
 dotenv.config({ path: path.join(__dirname, '../..', '.env') })
 chai.use(chaiAlmost())
 
