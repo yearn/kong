@@ -189,7 +189,6 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   WHERE chain_id = $1 AND address = $2 AND signature = $3 AND (block_number <= $4 OR $4 IS NULL)
   ORDER BY block_number ASC, log_index ASC`,
   [chainId, vault, topic, blockNumber])
-  if(events.rows.length === 0) return []
   const result: `0x${string}`[] = []
   for (const event of events.rows) {
     if (changeType[event.change_type] === 'add') {
@@ -452,14 +451,10 @@ async function fetchStrategyPerformance(
       if (row.component === 'monthlyNet') perf.historical.monthlyNet = row.value ?? null
       if (row.component === 'inceptionNet') perf.historical.inceptionNet = row.value ?? null
     } else if (estimatedAprLabel && row.label === estimatedAprLabel) {
-      if (!perf.estimated) perf.estimated = { type: estimatedAprLabel }
+      if (!perf.estimated) perf.estimated = { type: estimatedAprLabel, components: {} }
       if (row.component === 'netAPR') perf.estimated.apr = row.value
       else if (row.component === 'netAPY') perf.estimated.apy = row.value
-      else if (!perf.estimated.components) {
-        perf.estimated.components = { [row.component]: row.value }
-      } else {
-        perf.estimated.components[row.component] = row.value
-      }
+      else perf.estimated.components[row.component] = row.value
     }
   }
 
@@ -548,7 +543,13 @@ export async function extractComposition(
     })
   }
 
-  return CompositionSchema.array().parse(composition)
+  try {
+    return CompositionSchema.array().parse(composition)
+  } catch(err) {
+    console.error('🤬', '!extractComposition', err)
+    sentry.captureException(err, { tags: { component: 'ingest', hook: 'vault.snapshot.extractComposition' }, extra: { chainId, vault } })
+    throw err
+  }
 }
 
 async function extractLockerMeta(chainId: number, accountant: `0x${string}`) {

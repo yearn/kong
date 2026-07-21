@@ -100,7 +100,13 @@ export function selectValidOutputs(outputs: Output[], data: Data): Output[] {
     return []
   }
 
-  const grouped = Map.groupBy(outputs, o => `${o.chainId}:${o.address.toLowerCase()}`)
+  const grouped = new Map<string, typeof outputs>()
+  for (const o of outputs) {
+    const key = `${o.chainId}:${o.address.toLowerCase()}`
+    const group = grouped.get(key)
+    if (group) group.push(o)
+    else grouped.set(key, [o])
+  }
   if (grouped.size > MAX_OUTPUT_GROUPS) {
     console.error(`🤬 ${subscription.id} skipping response: ${grouped.size} output groups > ${MAX_OUTPUT_GROUPS}`)
     sentry.captureMessage('WEBHOOK_OUTPUT_GROUPS_OVER_LIMIT', {
