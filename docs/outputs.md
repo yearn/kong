@@ -122,17 +122,74 @@ Price per share tracking over time. This represents the value of one vault share
 **Implementation Differences**:
 - **ERC4626**: Uses `convertToAssets(10^decimals)` function
 - **Yearn v2/v3**: Uses `pricePerShare()` function (v2) or `convertToAssets()` (v3)
+- **yTranche**: `authoritativeAssets × 10^decimals / totalSupply`, where authoritative
+  assets come from `trancheController.liveAssets(tranche)`
+
+---
+
+### 5. `tranche-accounting`
+
+**Status**: Active
+
+**Available for**: yTranche tranches
+
+**Address**: the tranche
+
+**Components**:
+- `baselineAssets`: principal plus accrued target plus realized excess
+- `pendingExcess`: profit assigned but not yet realized through a report
+- `liveAssets`: authoritative tranche assets, excluding `pendingExcess`
+- `claim`: what the tranche claims
+- `covered`: how much of that claim the system's backing covers
+- `coverageRatio`: `covered / claim`, null when there is no claim
+- `targetRatePerSecondWad`: target accrual rate, raw WAD
+- `excessShareBps`: share of surplus, basis points
+- `accrualPaused`: 1 when accrual is paused (the tranche absorbed a loss), else 0
+
+**Description**:
+Daily per-tranche accounting read from the tranche controller — not from the
+tranche's own ERC-4626 view, which does not know what the tranche has accrued or
+what losses it has absorbed. Asset amounts are normalized to the asset's
+decimals. `coverageRatio` is accounting coverage and is not a statement about
+withdrawal capacity.
+
+---
+
+### 6. `tranche-system`
+
+**Status**: Active
+
+**Available for**: yTranche controllers
+
+**Address**: the controller
+
+**Components**:
+- `totalClaims`: what the tranches collectively claim
+- `vaultAssets`: main vault assets held for the system
+- `reserveAssets`: reserve vault assets
+- `backingAssets`: what actually stands behind the claims
+- `coverageRatio`: `backingAssets / totalClaims`, null when there are no claims
+
+**Description**:
+Daily system-wide backing, read at the controller. Each observation reads at a
+single historical block. See [ytranche](ytranche.md) for accounting semantics.
 
 ---
 
 ## Protocol Coverage
 
-| Output Type | ERC4626 | Yearn v2 | Yearn v3 |
-|-------------|---------|----------|----------|
-| `tvl` (legacy) | ✓ | ✓ | ✓ |
-| `tvl-c` | ✓ | ✓ | ✓ |
-| `apy-bwd-delta-pps` | ✓ | ✓ | ✓ |
-| `pps` | ✓ | ✓ | ✓ |
+| Output Type | ERC4626 | Yearn v2 | Yearn v3 | yTranche |
+|-------------|---------|----------|----------|----------|
+| `tvl` (legacy) | ✓ | ✓ | ✓ | — |
+| `tvl-c` | ✓ | ✓ | ✓ | ✓ |
+| `apy-bwd-delta-pps` | ✓ | ✓ | ✓ | ✓ |
+| `pps` | ✓ | ✓ | ✓ | ✓ |
+| `tranche-accounting` | — | — | — | ✓ |
+| `tranche-system` | — | — | — | controller |
+
+Tranches deliberately emit no legacy `tvl`: tranche TVL is a claim on the main
+vault's backing rather than additional protocol assets, and `tvl` is the label
+naive aggregates sum. Their `tvl-c` and `pps` come from controller-backed assets.
 
 ## Querying Outputs
 

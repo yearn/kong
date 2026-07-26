@@ -158,6 +158,8 @@ Historical timeseries data for a vault.
 | `apy-historical` | `apy-bwd-delta-pps` | `net` | Historical APY |
 | `apr-oracle` | `apr-oracle` | `apr` | Oracle APR |
 | `tvl` | `tvl-c` | `tvl` | Total value locked |
+| `tranche-accounting` | `tranche-accounting` | `liveAssets` | yTranche controller accounting, per tranche address |
+| `tranche-system` | `tranche-system` | `backingAssets` | yTranche claims vs backing, at the controller address |
 
 **Query Parameters**
 
@@ -168,6 +170,12 @@ Historical timeseries data for a vault.
 ```bash
 # historical APY
 curl -s https://kong.yearn.fi/api/rest/timeseries/apy-historical/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1 | jq
+
+# tranche coverage over time (address is the tranche)
+curl -s 'https://kong.yearn.fi/api/rest/timeseries/tranche-accounting/1/0x2d4f47208853a3d20eadcbda0f03900771c6eba3?components=coverageRatio' | jq
+
+# system backing over time (address is the controller)
+curl -s https://kong.yearn.fi/api/rest/timeseries/tranche-system/1/0xf0145433e5289dd10712650dcd28333fa317ef36 | jq
 
 # TVL timeseries
 curl -s https://kong.yearn.fi/api/rest/timeseries/tvl/1/0x6faf8b7ffee3306efcfc2ba9fec912b4d49834c1 | jq
@@ -186,6 +194,114 @@ curl -s https://kong.yearn.fi/api/rest/timeseries/pps/1/0x6faf8b7ffee3306efcfc2b
 ```
 
 **Errors**: `400` invalid params, `404` segment not found.
+
+---
+
+### yTranche
+
+#### `GET /api/rest/tranche/:chainId`
+
+The yTranche system on a chain: controller, asset, main vault, reserve vault,
+system accounting, and the tranches in priority order.
+
+**URL Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `chainId` | `number` | Chain ID (Ethereum only, at present) |
+
+```bash
+curl -s https://kong.yearn.fi/api/rest/tranche/1 | jq
+```
+
+**Response**
+
+```json
+{
+  "chainId": 1,
+  "controller": "0xF0145433E5289dd10712650dCd28333FA317eF36",
+  "asset": { "address": "0xA0b8...eB48", "name": "USD Coin", "symbol": "USDC", "decimals": 6 },
+  "mainVault": "0xDa87123895a043Ed3610155550177C54ce8ba49B",
+  "reserveVault": null,
+  "accounting": {
+    "totalClaims": 2001.200086,
+    "vaultAssets": 2000.980609,
+    "reserveAssets": 0,
+    "backingAssets": 2000.980609,
+    "vaultMaxWithdraw": 2000.980608,
+    "coverageRatio": 0.99989
+  },
+  "tranches": [
+    {
+      "address": "0x2D4F47208853a3D20EADCbdA0F03900771C6Eba3",
+      "name": "yvUSD Fixed",
+      "symbol": "yvUSD-A",
+      "decimals": 6,
+      "apiVersion": "3.1.0",
+      "priority": 0,
+      "trancheType": "base",
+      "inceptBlock": 25576299,
+      "inceptTime": 1784579135,
+      "hook": "0x776DEd3273440f1481d07B6CE916b5d5Fac170dC",
+      "hookState": {
+        "open": true,
+        "rateLimitWindow": 3600,
+        "depositLimit": 1000000,
+        "depositRateLimit": {
+          "used": 1000, "windowStart": 1784581631, "rateLimit": 100000,
+          "effectiveUsed": 0, "remaining": 100000
+        },
+        "withdrawRateLimit": {
+          "used": 0, "windowStart": 0, "rateLimit": 100000,
+          "effectiveUsed": 0, "remaining": 100000
+        },
+        "depositCap": 100000,
+        "withdrawCap": 2000.980608
+      },
+      "accounting": {
+        "registered": true,
+        "accrualPaused": false,
+        "excessShareBps": 0,
+        "targetRatePerSecondWad": "1584436925",
+        "baselineAssets": 1000.000256,
+        "lastAccrual": 1784581955,
+        "pendingExcess": 0,
+        "liveAssets": 1000.800086
+      },
+      "coverage": { "claim": 1000.800086, "covered": 1000.800086, "ratio": 1 },
+      "pricePerShare": { "raw": 1000800, "humanized": 1.0008 },
+      "capacity": {
+        "deposit": { "cap": 100000, "limit": 1000000 },
+        "withdraw": { "cap": 2000.980608 }
+      },
+      "blockNumber": 25600000,
+      "blockTime": 1784590000
+    }
+  ],
+  "blockNumber": 25600000,
+  "blockTime": 1784864807
+}
+```
+
+**Notes**
+
+- Asset amounts are normalized to `asset.decimals`; `pricePerShare` carries both
+  the raw and humanized forms, and `targetRatePerSecondWad` stays a raw WAD
+  string.
+- `hook` is the Hook's address; `hookState` is what that Hook reports for the
+  tranche. Both are as of the tranche's own `blockNumber` / `blockTime`, which is
+  independent of the system block at the top level.
+- `capacity` is deliverable capacity as the Hook derives it — bounded by
+  aggregate limits, the fixed-window rate limits, and for withdrawals by
+  main-vault liquidity. `coverage` is an accounting measure and is not a
+  statement about what can be withdrawn now.
+- Rate-limit windows are fixed, not sliding: `effectiveUsed` is zero once the
+  snapshot's timestamp passes `windowStart + rateLimitWindow`.
+- `pricePerShare` is controller-backed, and `liveAssets` already excludes
+  `pendingExcess`. Tranche claims are not additional protocol TVL — see
+  [ytranche](ytranche.md).
+
+**Errors**: `400` invalid chainId, `404` no tranche deployment indexed for the chain.
 
 ---
 

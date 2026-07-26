@@ -445,6 +445,8 @@ A strides array that looks like `[{"from":"19419991","to":"19800000"}, {"from":"
 
 - [**Outputs (Timeseries)**](docs/outputs.md) - Comprehensive guide to Kong's timeseries outputs including TVL, APY, and PPS calculations. Covers the `tvl` → `tvl-c` migration, component schemas, and query examples.
 
+- [**yTranche**](docs/ytranche.md) - How Kong indexes yTranche: controller-driven discovery, the `hook` vs `hookState` snapshot distinction, controller-backed assets and price per share, accounting semantics, and why tranche claims aren't additional protocol TVL.
+
 
 ## Motivation
 Robust indexing is tough. Some observations,
