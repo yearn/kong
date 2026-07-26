@@ -199,19 +199,45 @@ curl -s https://kong.yearn.fi/api/rest/timeseries/pps/1/0x6faf8b7ffee3306efcfc2b
 
 ### yTranche
 
-#### `GET /api/rest/tranche/:chainId`
+A tranche controller is bound to one asset class: its `ASSET` and `VAULT` are
+constructor arguments with no setters. So a chain holds one controller per asset
+class — USD, BTC, ETH — and each is its own system document.
 
-The yTranche system on a chain: controller, asset, main vault, reserve vault,
-system accounting, and the tranches in priority order.
+#### `GET /api/rest/tranche/:chainId/controllers`
 
-**URL Parameters**
+Every tranche system on a chain, one document per controller.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `chainId` | `number` | Chain ID (Ethereum only, at present) |
 
 ```bash
-curl -s https://kong.yearn.fi/api/rest/tranche/1 | jq
+curl -s https://kong.yearn.fi/api/rest/tranche/1/controllers | jq
+
+# just the deployments and their sizes
+curl -s https://kong.yearn.fi/api/rest/tranche/1/controllers \
+  | jq -r '.[] | [.asset.symbol, .controller, (.tranches | length)] | @tsv'
+```
+
+Returns an array of the document below. `404` if the chain has no indexed
+deployment.
+
+---
+
+#### `GET /api/rest/tranche/:chainId/:controller`
+
+One tranche system: controller, asset, main vault, reserve vault, system
+accounting, and its tranches in priority order.
+
+**URL Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `chainId` | `number` | Chain ID |
+| `controller` | `string` | Controller address (either case) |
+
+```bash
+curl -s https://kong.yearn.fi/api/rest/tranche/1/0xF0145433E5289dd10712650dCd28333FA317eF36 | jq
 ```
 
 **Response**
@@ -301,7 +327,9 @@ curl -s https://kong.yearn.fi/api/rest/tranche/1 | jq
   `pendingExcess`. Tranche claims are not additional protocol TVL — see
   [ytranche](ytranche.md).
 
-**Errors**: `400` invalid chainId, `404` no tranche deployment indexed for the chain.
+**Errors**: `400` invalid chainId or missing controller, `404` no such controller
+indexed. `/api/rest/tranche/:chainId` is a bare prefix and is not routed — use
+`/controllers` for the collection.
 
 ---
 

@@ -8,13 +8,25 @@ holds the accounting that decides what each tranche is owed.
 
 ## Deployment
 
-Ethereum only, at present.
+**One controller per asset class.** A controller takes its asset and main vault as
+constructor arguments and exposes them as `ASSET()` / `VAULT()` with no setters,
+so it can never be repointed: a USD, BTC and ETH tranche system each require
+their own controller. Treat "the controller" as one deployment among several, and
+never assume a chain has exactly one.
+
+Currently indexed — Ethereum, USD:
 
 | Component | Address |
 |---|---|
 | Main vault (yvUSD) | `0xDa87123895a043Ed3610155550177C54ce8ba49B` |
 | Tranche controller | `0xF0145433E5289dd10712650dCd28333FA317eF36` |
 | Hook | `0x776DEd3273440f1481d07B6CE916b5d5Fac170dC` |
+
+Adding a deployment means one more `sources` entry under
+`yearn/3/tranche/controller` in `config/abis.yaml`. Everything downstream is
+keyed by controller address and scales without further changes: discovery, the
+`tranche-system` series, the REST collection, and the per-tranche
+`trancheController` default that routes assets and pps.
 
 Tranches are **not** configured — the controller is a static source and Kong
 discovers its tranches by walking `tranchesByPriority(index)`. At the time of
@@ -147,7 +159,12 @@ evidence of full coverage. Tranches also carry the standard `pps`,
 
 ## REST
 
-`GET /api/rest/tranche/:chainId` serves the whole system as one document. The new
-timeseries labels are exposed through the existing timeseries mechanism as the
-`tranche-accounting` and `tranche-system` segments. There are no GraphQL fields
-for yTranche. See [rest](rest.md).
+`GET /api/rest/tranche/:chainId/controllers` lists every system on a chain, and
+`GET /api/rest/tranche/:chainId/:controller` serves one as a single document.
+`controllers` is a static route segment, so it resolves ahead of the sibling
+member route and can never be confused for an address.
+
+The new timeseries labels are exposed through the existing timeseries mechanism
+as the `tranche-accounting` (addressed by tranche) and `tranche-system` (addressed
+by controller) segments. There are no GraphQL fields for yTranche. See
+[rest](rest.md).

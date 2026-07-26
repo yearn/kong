@@ -1,45 +1,52 @@
 import { cacheMSet, disconnect } from '../cache'
 import { getTrancheSystems } from './db'
-import { getTrancheKey } from './redis'
+import { getTrancheControllersKey, getTrancheSystemKey } from './redis'
 
 /**
  * yTranche system cache refresh.
  *
- * Writes one `rest:tranche:{chainId}` entry per chain that has a tranche
- * controller. A chain with several controllers keeps the one with the most
- * tranches — the endpoint describes a single deployment per chain — and logs the
- * others so a second deployment can't be silently dropped.
+ * A controller is asset-class-bound by construction — ASSET and VAULT are
+ * constructor arguments with no setters — so a chain holds one controller per
+ * asset class, not one controller. Every controller found gets its own
+ * `rest:tranche:{chainId}:{controller}` entry, and each chain gets a
+ * `rest:tranche:{chainId}:controllers` collection holding all of them.
  */
 async function refresh(): Promise<void> {
   console.time('refresh tranche')
 
   const systems = await getTrancheSystems()
-  const byChain = new Map<number, typeof systems[number]>()
 
+  const byChain = new Map<number, typeof systems>()
   for (const system of systems) {
-    const existing = byChain.get(system.chainId)
-    if (!existing) {
-      byChain.set(system.chainId, system)
-      continue
-    }
-    const [keep, drop] = system.tranches.length > existing.tranches.length
-      ? [system, existing]
-      : [existing, system]
-    console.warn(
-      `! chain ${system.chainId} has multiple tranche controllers; ` +
-      `keeping ${keep.controller} (${keep.tranches.length} tranches), skipping ${drop.controller}`,
-    )
-    byChain.set(system.chainId, keep)
+    const chain = byChain.get(system.chainId) ?? []
+    chain.push(system)
+    byChain.set(system.chainId, chain)
   }
 
-  const pairs: Array<[string, string]> = Array.from(byChain.values()).map((system) => [
-    getTrancheKey(system.chainId),
-    JSON.stringify({ value: system }),
-  ])
+  const pairs: Array<[string, string]> = []
+
+  for (const system of systems) {
+    pairs.push([
+      getTrancheSystemKey(system.chainId, system.controller),
+      JSON.stringify({ value: system }),
+    ])
+  }
+
+  for (const [chainId, chainSystems] of Array.from(byChain.entries())) {
+    pairs.push([
+      getTrancheControllersKey(chainId),
+      JSON.stringify({ value: chainSystems }),
+    ])
+  }
 
   await cacheMSet(pairs)
 
-  console.log(`✓ Completed: ${pairs.length} tranche system(s) cached`)
+  for (const [chainId, chainSystems] of Array.from(byChain.entries())) {
+    console.log(`  chain ${chainId}: ${chainSystems.map((system) =>
+      `${system.asset.symbol ?? system.asset.address} (${system.tranches.length} tranches)`).join(', ')}`)
+  }
+
+  console.log(`✓ Completed: ${systems.length} tranche system(s) across ${byChain.size} chain(s)`)
   console.timeEnd('refresh tranche')
 }
 
