@@ -98,9 +98,9 @@ export async function extractTrancheAccounting(
     const [
       registered, accrualPaused, excessShareBps, targetRatePerSecondWad,
       baselineAssets, lastAccrual, pendingExcess
-    ] = multicall[priority * 3 + 0].result as readonly [boolean, boolean, number, bigint, bigint, bigint, bigint]
+    ] = multicall[priority * 3 + 0].result as unknown as readonly [boolean, boolean, number, bigint, bigint, bigint, bigint]
     const liveAssets = multicall[priority * 3 + 1].result as bigint
-    const [claim, covered] = multicall[priority * 3 + 2].result as readonly [bigint, bigint]
+    const [claim, covered] = multicall[priority * 3 + 2].result as unknown as readonly [bigint, bigint]
 
     return TrancheAccountingSchema.parse({
       address,
