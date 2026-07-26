@@ -11,6 +11,7 @@ import { rpcs } from '../../../rpcs'
 import { extractFeesBps } from '../2/strategy/event/hook'
 import * as snapshot__v2 from '../2/vault/snapshot/hook'
 import * as snapshot__v3 from '../3/vault/snapshot/hook'
+import { readPps } from './assets'
 
 export const APYSchema = z.object({
   chainId: z.number(),
@@ -146,11 +147,6 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
 
   result.inceptionBlockNumber = inceptionBlockNumber
 
-  const ppsParameters = {
-    address, functionName: 'pricePerShare' as never,
-    abi: parseAbi(['function pricePerShare() view returns (uint256)'])
-  } as ReadContractParameters
-
   // When the vault's asset is itself a yield-bearing vault (e.g. Locked yvUSD wraps yvUSD),
   // compose PPS values to capture the full economic return, not just the wrapper's bonus.
   // Require apiVersion on the inner vault to confirm it has pricePerShare() (excludes
@@ -172,8 +168,10 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
   result.weeklyBlockNumber = await estimateHeight(chainId, block.timestamp - 7n * day)
   result.monthlyBlockNumber = await estimateHeight(chainId, block.timestamp - 30n * day)
 
-  result.pricePerShare = await rpcs.next(chainId, blockNumber).readContract({...ppsParameters, blockNumber}) as bigint
-  result.inceptionPricePerShare = await rpcs.next(chainId, result.inceptionBlockNumber).readContract({...ppsParameters, blockNumber: result.inceptionBlockNumber}) as bigint
+  // every observation goes through the shared pps reader, so a controller-backed
+  // tranche and an ordinary vault are measured the same way
+  result.pricePerShare = await readPps(vault, blockNumber)
+  result.inceptionPricePerShare = await readPps(vault, result.inceptionBlockNumber)
 
   if (assetPpsParameters) {
     const assetPps = await rpcs.next(chainId, blockNumber).readContract({...assetPpsParameters, blockNumber}) as bigint
@@ -184,8 +182,8 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
 
   if (result.pricePerShare === result.inceptionPricePerShare) return result
 
-  result.weeklyPricePerShare = result.weeklyBlockNumber < result.inceptionBlockNumber ? undefined : await rpcs.next(chainId, result.weeklyBlockNumber).readContract({...ppsParameters, blockNumber: result.weeklyBlockNumber}) as bigint
-  result.monthlyPricePerShare = result.monthlyBlockNumber < result.inceptionBlockNumber ? undefined : await rpcs.next(chainId, result.monthlyBlockNumber).readContract({...ppsParameters, blockNumber: result.monthlyBlockNumber}) as bigint
+  result.weeklyPricePerShare = result.weeklyBlockNumber < result.inceptionBlockNumber ? undefined : await readPps(vault, result.weeklyBlockNumber)
+  result.monthlyPricePerShare = result.monthlyBlockNumber < result.inceptionBlockNumber ? undefined : await readPps(vault, result.monthlyBlockNumber)
 
   if (assetPpsParameters) {
     if (result.weeklyPricePerShare !== undefined) {

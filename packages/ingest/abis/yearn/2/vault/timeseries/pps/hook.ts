@@ -3,9 +3,7 @@ import { Output, OutputSchema, Thing, ThingSchema } from 'lib/types'
 import { first } from '../../../../../../db'
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { multicall3 } from 'lib'
-import { ReadContractParameters } from 'viem'
-import { rpcs } from '../../../../../../rpcs'
-import abi from '../../abi'
+import { readPps } from '../../../../lib/assets'
 import { div } from 'lib/math'
 
 export const outputLabel = 'pps'
@@ -45,10 +43,9 @@ export default async function process(chainId: number, address: `0x${string}`, d
 }
 
 export async function _compute(vault: Thing, blockNumber: bigint) {
-  const { chainId, address } = vault
+  const { chainId } = vault
   const block = await getBlock(chainId, blockNumber)
-  const ppsParameters = { abi, address, functionName: 'pricePerShare' } as ReadContractParameters
-  const raw = await rpcs.next(chainId, blockNumber).readContract({...ppsParameters, blockNumber}) as bigint
+  const raw = await readPps(vault, blockNumber)
   const humanized = div(raw, 10n ** BigInt(vault.defaults.decimals ?? 0n))
   return { ...block, raw, humanized }
 }

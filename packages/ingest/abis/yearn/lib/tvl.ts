@@ -9,6 +9,7 @@ import { extractWithdrawalQueue } from '../2/vault/snapshot/hook'
 import { Data } from '../../../extract/timeseries'
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { first } from '../../../db'
+import { readAuthoritativeAssets } from './assets'
 
 export default async function _process(chainId: number, address: `0x${string}`, data: Data, components?: boolean): Promise<Output[]> {
   console.info('🧮', data.outputLabel, chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())
@@ -32,7 +33,7 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 
   const { tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd, decimals } = await _compute(vault, blockNumber, latest)
 
-  // extractTotalAssets returns undefined on multicall failure; skip emitting a false zero (a genuine empty vault is 0n)
+  // readAuthoritativeAssets returns undefined on read failure; skip emitting a false zero (a genuine empty vault is 0n)
   if (totalAssets === undefined) return []
 
   if (components) {
@@ -74,7 +75,9 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
 
   const { priceUsd } = await fetchErc20PriceUsd(chainId, asset, blockNumber, latest)
 
-  const totalAssets = await extractTotalAssets(chainId, address, blockNumber)
+  // tranche vaults resolve to controller-backed assets; every other vault to its
+  // own totalAssets(). Both arrive through the same reader so tvl-c keeps one shape.
+  const totalAssets = await readAuthoritativeAssets(vault, blockNumber)
 
   // no assets means no real tvl; keep the real priceUsd for the price component
   if (!totalAssets) return { priceUsd, tvl: 0, delegatedTvl: 0, totalAssets, delegatedAssets: 0n, decimals }
@@ -117,21 +120,3 @@ async function extractDelegatedAssets(chainId: number, addresses: `0x${string}` 
   return results
 }
 
-export async function extractTotalAssets(chainId: number, address: `0x${string}`, blockNumber: bigint) {
-  const multicall = await rpcs.next(chainId, blockNumber).multicall({
-    contracts: [
-      { address, functionName: 'totalAssets', abi: parseAbi(['function totalAssets() view returns (uint256)']) },
-      { address, functionName: 'estimatedTotalAssets', abi: parseAbi(['function estimatedTotalAssets() view returns (uint256)']) }
-    ],
-    blockNumber
-  })
-
-  if (!multicall.some(result => result.status === 'success')) {
-    console.warn('🚨', 'extractTotalAssets', 'multicall fail', chainId, address, blockNumber)
-    return undefined
-  }
-
-  const totalAssets = multicall[0].status === 'success' ? BigInt(multicall[0].result as bigint) : undefined
-  const estimated = multicall[1].status === 'success' ? BigInt(multicall[1].result as bigint) : undefined
-  return totalAssets ?? estimated ?? undefined
-}
