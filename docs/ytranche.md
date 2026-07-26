@@ -58,7 +58,16 @@ path's hooks to all child paths, which would cross-wire the two.
 
 ### Things
 
-Discovery creates three things per tranche address — `tranche`, `vault` and
+The controller gets a `trancheController` thing, carrying `asset`, `mainVault`,
+inception and the v3 / yearn flags. Nothing else would create one — the controller
+is a configured source, not a discovered address — but it is how deployments are
+enumerated without walking tranches, which matters for a controller whose tranches
+aren't registered yet, and it puts the deployment on the dashboard's thing counts.
+It deliberately carries no `reserveVault` default: that one is settable, so the
+current value belongs to the snapshot rather than to defaults where it would go
+stale.
+
+Discovery then creates three things per tranche address — `tranche`, `vault` and
 `strategy` — sharing one set of defaults:
 
 ```text

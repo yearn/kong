@@ -125,15 +125,17 @@ function toRateLimit(
 
 type ControllerRow = { chainId: number, controller: string }
 
+// Controllers are read from their own things rather than derived from the
+// tranches that point at them, so a deployment with nothing registered yet is
+// still discoverable.
 export async function getTrancheControllers(): Promise<ControllerRow[]> {
   const result = await db.query(`
-    SELECT DISTINCT
+    SELECT
       chain_id AS "chainId",
-      defaults->>'trancheController' AS controller
+      address AS controller
     FROM thing
-    WHERE label = 'tranche'
-      AND defaults->>'trancheController' IS NOT NULL
-    ORDER BY chain_id, controller
+    WHERE label = 'trancheController'
+    ORDER BY chain_id, address
   `)
   return result.rows as ControllerRow[]
 }

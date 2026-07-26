@@ -44,17 +44,16 @@ export async function getTranches(): Promise<VaultRow[]> {
 
 /**
  * Addresses that carry controller-scoped series (`tranche-system`). A controller
- * is not a vault, so it never shows up in getVaults() — its address is recorded
- * on the tranches it owns.
+ * is not a vault, so it never shows up in getVaults() — it has a thing of its own
+ * under the `trancheController` label.
  */
 export async function getTrancheControllers(): Promise<VaultRow[]> {
   const result = await db.query(`
-    SELECT DISTINCT
+    SELECT
       chain_id AS "chainId",
-      defaults->>'trancheController' AS address
+      address
     FROM thing
-    WHERE label = 'tranche'
-      AND defaults->>'trancheController' IS NOT NULL
+    WHERE label = 'trancheController'
     ORDER BY chain_id, address
   `)
 

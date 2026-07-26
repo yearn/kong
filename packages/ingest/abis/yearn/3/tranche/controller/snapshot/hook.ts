@@ -48,9 +48,44 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const addresses = await extractTranchesByPriority(chainId, address, snapshot.tranchesLength, blockNumber)
   const tranches = await extractTrancheAccounting(chainId, address, addresses, blockNumber)
 
+  await projectControllerThing(chainId, address, snapshot)
   await projectTrancheThings(chainId, address, snapshot, tranches)
 
   return { tranches }
+}
+
+// The controller gets a thing of its own. It is a configured source rather than a
+// discovered address, so nothing else would create one — but it is the identity
+// every tranche points at, it carries the chain's asset-class-scoped deployment,
+// and consumers need to enumerate deployments without walking tranches (a
+// controller with no tranches registered yet still exists). Deliberately no
+// `reserveVault` default: that one is settable, and the current value belongs to
+// the snapshot rather than to defaults, where it would go stale.
+async function projectControllerThing(
+  chainId: number,
+  controller: `0x${string}`,
+  snapshot: Snapshot
+) {
+  const incept = await estimateCreationBlock(chainId, controller)
+
+  await mq.add(mq.job.load.thing, ThingSchema.parse({
+    chainId,
+    address: controller,
+    label: 'trancheController',
+    defaults: {
+      asset: snapshot.ASSET,
+      mainVault: snapshot.VAULT,
+      inceptBlock: incept.number,
+      inceptTime: incept.timestamp,
+      v3: true,
+      yearn: true
+    }
+  }))
+
+  const asset = await fetchOrExtractErc20(chainId, snapshot.ASSET)
+  await mq.add(mq.job.load.thing, ThingSchema.parse({
+    chainId, address: asset.address, label: 'erc20', defaults: asset
+  }))
 }
 
 // Discovery walks tranchesByPriority(index) rather than getTranchesByPriority()
@@ -131,13 +166,6 @@ async function projectTrancheThings(
   snapshot: Snapshot,
   tranches: TrancheAccounting[]
 ) {
-  if (tranches.length === 0) return
-
-  const asset = await fetchOrExtractErc20(chainId, snapshot.ASSET)
-  await mq.add(mq.job.load.thing, ThingSchema.parse({
-    chainId, address: asset.address, label: 'erc20', defaults: asset
-  }))
-
   for (const tranche of tranches) {
     const meta = await extractTrancheMeta(chainId, tranche.address, snapshot.blockNumber)
     const incept = await estimateCreationBlock(chainId, tranche.address)
