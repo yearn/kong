@@ -70,11 +70,13 @@ export const ResultSchema = z.object({
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
-  const oldold = compare(data.apiVersion, '0.3.1', '<=')
-  const strategies = await projectStrategies(chainId, address)
+  const { strategies: projected, revoked } = await projectStrategyEvents(chainId, address)
   const withdrawalQueue = await extractWithdrawalQueue(chainId, address)
-  const debts = oldold ? [] : await extractDebts(chainId, address)
-  const composition = oldold ? [] : await extractComposition(chainId, address, strategies, withdrawalQueue, debts)
+  const candidates = union(projected, withdrawalQueue, revoked)
+  const allDebts = await extractDebts(chainId, address, data, candidates)
+  const strategies = resolveStrategies(projected, withdrawalQueue, revoked, allDebts)
+  const debts = allDebts.filter(d => strategies.some(s => s.toLowerCase() === d.strategy.toLowerCase()))
+  const composition = await extractComposition(chainId, address, strategies, withdrawalQueue, debts, data.apiVersion)
   const risk = await getRiskScore(chainId, address)
   const meta = await getVaultMeta(chainId, address)
   const token = await getTokenMeta(chainId, data.token)
@@ -128,11 +130,22 @@ export default async function process(chainId: number, address: `0x${string}`, d
   }
 }
 
-export async function projectStrategies(chainId: number, vault: `0x${string}`, blockNumber?: bigint) {
+export function union(...lists: `0x${string}`[][]) {
+  const result: `0x${string}`[] = []
+  for (const list of lists) {
+    for (const address of list) {
+      if (!result.some(a => a.toLowerCase() === address.toLowerCase())) result.push(address)
+    }
+  }
+  return result
+}
+
+export async function projectStrategyEvents(chainId: number, vault: `0x${string}`, blockNumber?: bigint) {
   const topics = [
     toEventSelector('event StrategyAdded(address indexed strategy, uint256 debtRatio, uint256 minDebtPerHarvest, uint256 maxDebtPerHarvest, uint256 performanceFee)'),
     toEventSelector('event StrategyMigrated(address indexed oldVersion, address indexed newVersion)'),
-    toEventSelector('event StrategyRevoked(address indexed strategy)')
+    toEventSelector('event StrategyRevoked(address indexed strategy)'),
+    toEventSelector('event StrategyAdded(address indexed strategy, uint256 debtRatio, uint256 rateLimit, uint256 performanceFee)')
   ]
 
   const events = await db.query(`
@@ -141,28 +154,77 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   WHERE chain_id = $1 AND address = $2 AND signature = ANY($3) AND (block_number <= $4 OR $4 IS NULL)
   ORDER BY block_number ASC, log_index ASC`,
   [chainId, vault, topics, blockNumber])
-  if(events.rows.length === 0) return []
 
-  const result: `0x${string}`[] = []
+  const strategies: `0x${string}`[] = []
+  const revoked: `0x${string}`[] = []
+
+  const add = (list: `0x${string}`[], address: `0x${string}`) => {
+    if (!list.some(a => a.toLowerCase() === address.toLowerCase())) list.push(address)
+  }
+
+  const remove = (list: `0x${string}`[], address: `0x${string}`) => {
+    const index = list.findIndex(a => a.toLowerCase() === address.toLowerCase())
+    if (index >= 0) list.splice(index, 1)
+  }
 
   for (const event of events.rows) {
     switch (event.signature) {
     case topics[0]:
-      result.push(zhexstring.parse(event.strategy))
+    case topics[3]: {
+      const strategy = zhexstring.parse(event.strategy)
+      add(strategies, strategy)
+      remove(revoked, strategy)
       break
-    case topics[1]:
-      result.push(zhexstring.parse(event.newVersion))
+    }
+    case topics[1]: {
+      const newVersion = zhexstring.parse(event.newVersion)
+      add(strategies, newVersion)
+      remove(revoked, newVersion)
       break
-    case topics[2]:
-      result.splice(result.indexOf(zhexstring.parse(event.strategy)), 1)
+    }
+    case topics[2]: {
+      const strategy = zhexstring.parse(event.strategy)
+      remove(strategies, strategy)
+      add(revoked, strategy)
       break
+    }
     }
   }
 
-  return result
+  return { strategies, revoked }
 }
 
-async function extractDebts(chainId: number, vault: `0x${string}`) {
+export async function projectStrategies(chainId: number, vault: `0x${string}`, blockNumber?: bigint) {
+  return (await projectStrategyEvents(chainId, vault, blockNumber)).strategies
+}
+
+// revoked strategies stay listed only while they still carry debt, so residual
+// debt is not silently dropped and sums still reconcile to vault totalDebt
+export function resolveStrategies(
+  projected: `0x${string}`[],
+  withdrawalQueue: `0x${string}`[],
+  revoked: `0x${string}`[],
+  debts: { strategy: `0x${string}`, totalDebt: bigint }[]
+) {
+  const residuals = revoked.filter(r =>
+    (debts.find(d => d.strategy.toLowerCase() === r.toLowerCase())?.totalDebt ?? 0n) > 0n
+  )
+  return union(projected, withdrawalQueue, residuals)
+}
+
+export function mapStrategyParams(apiVersion: string, fields: readonly bigint[]) {
+  if (compare(apiVersion, '0.3.2', '<')) {
+    const [performanceFee, activation, debtRatioOrLimit, , lastReport, totalDebt, totalGain, totalLoss] = fields
+    // pre-0.3.0 field 3 is debtLimit, an absolute token amount, not bps — don't publish it as debtRatio
+    const debtRatio = compare(apiVersion, '0.3.0', '<') ? 0n : debtRatioOrLimit
+    return { performanceFee, activation, debtRatio, minDebtPerHarvest: 0n, maxDebtPerHarvest: 0n, lastReport, totalDebt, totalGain, totalLoss }
+  }
+  const [performanceFee, activation, debtRatio, minDebtPerHarvest, maxDebtPerHarvest, lastReport, totalDebt, totalGain, totalLoss] = fields
+  return { performanceFee, activation, debtRatio, minDebtPerHarvest, maxDebtPerHarvest, lastReport, totalDebt, totalGain, totalLoss }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function extractDebts(chainId: number, vault: `0x${string}`, data: any, strategies: `0x${string}`[]) {
   const results = z.object({
     strategy: zhexstring,
     performanceFee: z.bigint({ coerce: true }),
@@ -179,33 +241,28 @@ async function extractDebts(chainId: number, vault: `0x${string}`) {
     totalLossUsd: z.number()
   }).array().parse([])
 
-  const snapshot = await db.query(
-    `SELECT
-      snapshot->'token' AS token,
-      snapshot->'decimals' AS decimals,
-      hook->'strategies' AS strategies
-    FROM snapshot
-    WHERE chain_id = $1 AND address = $2`,
-    [chainId, vault]
-  )
-
-  const { token, decimals, strategies } = z.object({
+  const { apiVersion, token, decimals } = z.object({
+    apiVersion: z.string(),
     token: zhexstring.nullish(),
-    decimals: z.number({ coerce: true }).nullish(),
-    strategies: zhexstring.array().nullish()
-  }).parse(snapshot.rows[0] || {})
+    decimals: z.number({ coerce: true }).nullish()
+  }).parse({ apiVersion: data.apiVersion, token: data.token, decimals: data.decimals })
 
-  if (!(token && decimals && strategies) || strategies.length === 0) return []
+  if (token == null || decimals == null || strategies.length === 0) return []
 
-  const abi = parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)'])
+  const abi = compare(apiVersion, '0.3.2', '<')
+    ? parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)'])
+    : parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)'])
+
   const multicall = await rpcs.next(chainId).multicall({ contracts: strategies.map(strategy => ({
     address: vault, functionName: 'strategies', args: [strategy], abi
   })) })
 
   throwOnMulticallError(multicall)
 
+  const { priceUsd } = await fetchErc20PriceUsd(chainId, token)
+
   for (let i = 0; i < strategies.length; i++) {
-    const [
+    const {
       performanceFee,
       activation,
       debtRatio,
@@ -215,9 +272,8 @@ async function extractDebts(chainId: number, vault: `0x${string}`) {
       totalDebt,
       totalGain,
       totalLoss
-    ] = multicall[i].result!
+    } = mapStrategyParams(apiVersion, multicall[i].result!)
 
-    const { priceUsd } = await fetchErc20PriceUsd(chainId, token)
     const totalDebtUsd = priced(totalDebt, decimals, priceUsd)
     const totalGainUsd = priced(totalGain, decimals, priceUsd)
     const totalLossUsd = priced(totalLoss, decimals, priceUsd)
@@ -310,15 +366,19 @@ export async function extractComposition(
   vault: `0x${string}`,
   strategies: `0x${string}`[],
   withdrawalQueue: `0x${string}`[],
-  debts: Awaited<ReturnType<typeof extractDebts>>
+  debts: Awaited<ReturnType<typeof extractDebts>>,
+  apiVersion: string
 ) {
   // Batch-fetch strategy snapshots for name and APR
   const strategySnapshots = await fetchStrategySnapshots(chainId, strategies)
 
   const composition: z.infer<typeof CompositionSchema>[] = []
 
+  // pre-0.3.0 vaults have no debtRatio, so queue membership stands in for it
+  const ratioless = compare(apiVersion, '0.3.0', '<')
+
   for (const strategy of strategies) {
-    const debt = debts.find(d => d.strategy === strategy)
+    const debt = debts.find(d => d.strategy.toLowerCase() === strategy.toLowerCase())
     const snapshot = strategySnapshots.find(s => s.address.toLowerCase() === strategy.toLowerCase())
 
     // Fetch strategy metadata (try vault meta first for dual-role addresses)
@@ -334,7 +394,7 @@ export async function extractComposition(
     // Compute status based on debt and withdrawal queue membership
     let status: 'active' | 'inactive' | 'unallocated'
     const isInQueue = withdrawalQueue.some(addr => addr.toLowerCase() === strategy.toLowerCase())
-    const hasDebt = debt && debt.totalDebt > 0n && debt.debtRatio > 0n
+    const hasDebt = debt && debt.totalDebt > 0n && (debt.debtRatio > 0n || (ratioless && isInQueue))
 
     if (hasDebt) {
       status = 'active'
