@@ -21,4 +21,4 @@ COPY config ./config
 
 WORKDIR /app/packages/ingest
 
-CMD ["../../node_modules/.bin/ts-node", "--transpile-only", "index.ts"]
+CMD ["../../node_modules/.bin/tsx", "index.ts"]

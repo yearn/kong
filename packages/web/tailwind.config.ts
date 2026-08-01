@@ -1,8 +1,8 @@
 import type { Config } from 'tailwindcss'
 
 function heightSafeList() {
-  const maxheight = 101;
-  return Array(maxheight).fill(0).map((_, index) => `h-[${index}%]`);
+  const maxheight = 101
+  return Array(maxheight).fill(0).map((_, index) => `h-[${index}%]`)
 }
 
 const config: Config = {

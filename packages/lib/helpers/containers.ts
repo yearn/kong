@@ -282,11 +282,10 @@ export class TestEnvironment {
 
   runScript(scriptPath: string): Promise<void> {
     const abs = path.isAbsolute(scriptPath) ? scriptPath : path.join(REPO_ROOT, scriptPath)
-    const tsNode = path.join(REPO_ROOT, 'node_modules/.bin/ts-node')
-    const compilerOptions = JSON.stringify({ module: 'commonjs', moduleResolution: 'node', esModuleInterop: true })
+    const tsx = path.join(REPO_ROOT, 'node_modules/.bin/tsx')
     return new Promise((resolve, reject) => {
       let output = ''
-      const proc = spawn(tsNode, ['--transpile-only', '--skip-project', '--compiler-options', compilerOptions, abs], {
+      const proc = spawn(tsx, [abs], {
         env: process.env,
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe'],

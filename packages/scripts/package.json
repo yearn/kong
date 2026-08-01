@@ -7,7 +7,7 @@
     "@types/node": "20.17.17"
   },
   "peerDependencies": {
-    "typescript": "5.7.3"
+    "typescript": "7.0.2"
   },
   "dependencies": {
     "dotenv": "16.4.7",
