@@ -36,7 +36,6 @@ export default [{
       requireConfigFile: false,
       babelOptions: {
         presets: [
-          '@babel/preset-react',
           '@babel/preset-typescript'
         ]
       }
@@ -75,10 +74,28 @@ export default [{
     quotes: ['error', 'single'],
   },
 }, {
+  files: ['**/*.jsx', '**/*.tsx'],
+
+  languageOptions: {
+    parser: babelParser,
+    parserOptions: {
+      requireConfigFile: false,
+      babelOptions: {
+        presets: [
+          '@babel/preset-react',
+          '@babel/preset-typescript'
+        ]
+      }
+    }
+  },
+}, {
   files: ['**/*.ts', '**/*.tsx'],
   rules: {
     'no-undef': 'off',
     'no-redeclare': 'off',
-    'no-unused-vars': ['warn', { varsIgnorePattern: '^[A-Z_]' }],
+    'no-unused-vars': ['warn', {
+      args: 'none',
+      varsIgnorePattern: '^[A-Z][a-zA-Z0-9]*$',
+    }],
   },
 }]

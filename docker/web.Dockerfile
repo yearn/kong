@@ -12,7 +12,7 @@ COPY packages/db/package.json ./packages/db/
 COPY packages/scripts/package.json ./packages/scripts/
 COPY packages/terminal/package.json ./packages/terminal/
 
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --linker=hoisted
 
 COPY packages/web ./packages/web
 COPY packages/lib ./packages/lib

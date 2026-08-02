@@ -25,7 +25,7 @@ E2E tests use `TestEnvironment` from `lib/helpers/containers` to run the full st
 ### Running
 
 ```bash
-node_modules/.bin/ts-node packages/ingest/run-e2e.ts
+bun --filter ingest test:containers
 ```
 
 ---

@@ -1,2 +1,16 @@
 import rootConfig from '../../eslint.config.mjs'
-export default [{ ignores: ['next.config.js', 'postcss.config.js', 'next-env.d.ts'] }, ...rootConfig]
+
+export default [{
+  ignores: ['next-env.d.ts'],
+}, ...rootConfig, {
+  files: ['*.config.js'],
+  languageOptions: {
+    sourceType: 'commonjs',
+    globals: {
+      module: 'writable',
+      require: 'readonly',
+      process: 'readonly',
+      __dirname: 'readonly',
+    },
+  },
+}]

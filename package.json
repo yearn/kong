@@ -33,6 +33,7 @@
     "vitest": "3.2.6"
   },
   "dependencies": {
-    "@types/bun": "1.2.2"
+    "@types/bun": "1.2.2",
+    "tsx": "4.23.1"
   }
 }
