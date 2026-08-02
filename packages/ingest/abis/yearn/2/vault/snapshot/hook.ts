@@ -68,7 +68,6 @@ export const ResultSchema = z.object({
 
 
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const { strategies: projected, revoked } = await projectStrategyEvents(chainId, address)
   const withdrawalQueue = await extractWithdrawalQueue(chainId, address)
@@ -223,7 +222,6 @@ export function mapStrategyParams(apiVersion: string, fields: readonly bigint[])
   return { performanceFee, activation, debtRatio, minDebtPerHarvest, maxDebtPerHarvest, lastReport, totalDebt, totalGain, totalLoss }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function extractDebts(chainId: number, vault: `0x${string}`, data: any, strategies: `0x${string}`[]) {
   const results = z.object({
     strategy: zhexstring,

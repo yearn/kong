@@ -23,7 +23,6 @@ export default class Extract implements Processor {
   }
 
   async up() {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handler = async (job: any) => {
       const label = job.data.replay
         ? `🎭 ${job.name} ${job.id} ${job.data.chainId}`

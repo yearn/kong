@@ -8,7 +8,6 @@ export const topics = [
   'event Register(address indexed gauge, uint256 idx)'
 ].map(e => toEventSelector(e))
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const { gauge } = z.object({
     gauge: zhexstring

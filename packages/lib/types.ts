@@ -1,7 +1,6 @@
 import { getAddress } from 'viem'
 import { z } from 'zod'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const zhexstring = z.custom<`0x${string}`>((val: any) => /^0x/.test(val))
 export const zvaultType = z.string()
 export type HexString = z.infer<typeof zhexstring>

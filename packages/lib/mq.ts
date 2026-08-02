@@ -69,7 +69,6 @@ export function connect(queueName: string) {
   return new Queue(queueName, bull)
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function add(job: Job, data: any, options?: any) {
   const queue = job.bychain ? `${job.queue}-${data.chainId}` : job.queue
   if (MQ_INVENTORY) {
@@ -87,14 +86,12 @@ export async function add(job: Job, data: any, options?: any) {
   return await queues[queue].add(job.name, data, { priority: DEFAULT_PRIORITY, attempts: 1, ...options })
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function workers(queueSuffix: string, handler: (job: any) => Promise<any>) {
   const result: Worker[] = []
   for (const chain of chains) { result.push(worker(`${queueSuffix}-${chain.id}`, handler, chain.id)) }
   return result
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function worker(queueName: string, handler: (job: any) => Promise<any>, chainId?: number) {
   let concurrency = 1
   const queue = new Queue(queueName, bull)

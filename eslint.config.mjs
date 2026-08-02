@@ -1,6 +1,5 @@
-import typescriptEslint from '@typescript-eslint/eslint-plugin'
+import babelParser from '@babel/eslint-parser'
 import react from 'eslint-plugin-react'
-import tsParser from '@typescript-eslint/parser'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import js from '@eslint/js'
@@ -25,16 +24,23 @@ export default [{
   ],
 }, ...compat.extends(
   'eslint:recommended',
-  'plugin:@typescript-eslint/recommended',
   'plugin:react/recommended'
 ), {
   plugins: {
-    '@typescript-eslint': typescriptEslint,
     react
   },
 
   languageOptions: {
-    parser: tsParser,
+    parser: babelParser,
+    parserOptions: {
+      requireConfigFile: false,
+      babelOptions: {
+        presets: [
+          '@babel/preset-react',
+          '@babel/preset-typescript'
+        ]
+      }
+    }
   },
 
   settings: {
@@ -44,12 +50,7 @@ export default [{
   },
 
   rules: {
-    '@typescript-eslint/explicit-function-return-type': 'off',
-    '@typescript-eslint/no-unused-vars': 'warn',
-    '@typescript-eslint/no-explicit-any': 'warn',
-    '@typescript-eslint/no-unused-expressions': 'off',
-    '@typescript-eslint/no-unused-disable': 'off',
-    '@typescript-eslint/no-require-imports': 'off',
+    'no-unused-vars': 'warn',
 
     'react/react-in-jsx-scope': 'off',
     'react/prop-types': 'off',
@@ -72,5 +73,12 @@ export default [{
     indent: ['error', 2],
     semi: ['error', 'never'],
     quotes: ['error', 'single'],
+  },
+}, {
+  files: ['**/*.ts', '**/*.tsx'],
+  rules: {
+    'no-undef': 'off',
+    'no-redeclare': 'off',
+    'no-unused-vars': ['warn', { varsIgnorePattern: '^[A-Z_]' }],
   },
 }]

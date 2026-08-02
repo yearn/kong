@@ -4,7 +4,6 @@ import { firstRow } from '../../../../../db'
 import { fetchOrExtractErc20 } from '../../../lib'
 import { getStrategyMeta, getVaultMeta } from '../../../lib/meta'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const asset = await fetchOrExtractErc20(chainId, data.asset)
   const vaultMeta = await getVaultMeta(chainId, address)

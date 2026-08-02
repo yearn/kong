@@ -127,11 +127,9 @@ export async function tooSmall(chainId: number, address: EvmAddress, args: any) 
   return math.div(BigInt(amount), 10n ** BigInt(decimals)) < 0.1
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function extractLogArgs(log: any) {
   if (!log.args) return {}
   if (Array.isArray(log.args)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return log.args.reduce((acc: any, arg: any, i: number) => {
       acc[`arg${i}`] = arg
       return acc

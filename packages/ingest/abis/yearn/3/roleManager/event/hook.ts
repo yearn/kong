@@ -22,7 +22,6 @@ const HookSchema = z.object({
 
 type Hook = z.infer<typeof HookSchema>
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const {
     number: inceptBlock,

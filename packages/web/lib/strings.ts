@@ -9,10 +9,8 @@ export const removeTrailingSlash = (str: string) => str.endsWith('/') ? str.slic
 
 export const removeLeadingAndTrailingSlash = (str: string) => removeTrailingSlash(removeLeadingSlash(str))
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const snakeToCamelCols = (rows: any[]) => {
   return rows.map(row => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result: { [key: string]: any } = {}
     for (const key of Object.keys(row)) {
       result[snakeToCamel(key)] = row[key]
@@ -21,9 +19,7 @@ export const snakeToCamelCols = (rows: any[]) => {
   })
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const snakeToCamelObject = (obj: { [key: string]: any }) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: { [key: string]: any } = {}
   for (const key of Object.keys(obj)) {
     result[snakeToCamel(key)] = obj[key]

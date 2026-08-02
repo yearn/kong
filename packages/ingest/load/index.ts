@@ -10,7 +10,6 @@ import { endOfDay } from 'lib/dates'
 export default class Load implements Processor {
   worker: Worker | undefined
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handlers: Record<string, (data: any) => Promise<any>> = {
     [mq.job.load.block.name]: async data =>
       await upsert(data, 'latest_block', 'chain_id',
@@ -124,7 +123,6 @@ export async function upsertThing(data: object) {
   await upsertThingDefaults(thing)
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function upsertOutput(data: any) {
   const output = {
     ...OutputSchema.parse(data),
@@ -133,7 +131,6 @@ export async function upsertOutput(data: any) {
   await upsert(output, 'output', 'chain_id, address, label, component, series_time')
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function upsertBatchOutput(batch: any[]) {
   const outputs = OutputSchema.array().parse(batch).map(output => ({
     ...output,
@@ -149,7 +146,6 @@ export async function upsert(data: object, table: string, pk: string, where?: st
   )
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function upsertBatch(batch: any[], table: string, pk: string, where?: string, _client?: PoolClient) {
   const client = _client ?? await db.connect()
   try {

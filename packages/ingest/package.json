@@ -35,8 +35,6 @@
     "@types/compare-versions": "3.3.3",
     "@types/js-yaml": "4.0.9",
     "@types/redis-info": "3.0.3",
-    "@typescript-eslint/eslint-plugin": "8.23.0",
-    "@typescript-eslint/parser": "8.23.0",
     "chai": "4.5.0",
     "chai-almost": "1.0.1",
     "chain": "0.4.0",

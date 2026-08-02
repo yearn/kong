@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // adapted from https://github.com/apollographql/apollo-server/blob/597f6e1cb7abc65282737ff46d3c008bc8384c25/packages/plugin-response-cache/src/ApolloServerPluginResponseCache.ts
 
 import type { CacheHint } from '@apollo/cache-control-types'

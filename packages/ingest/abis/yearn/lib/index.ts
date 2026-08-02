@@ -16,7 +16,6 @@ export async function fetchDecimals(chainId: number, address: `0x${string}`) {
   )).rows[0]?.decimals as number
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function safeFetchOrExtractDecimals(chainId: number, address: `0x${string}`): Promise<{ success: true, error: undefined, decimals: number } | { success: false, error: any, decimals: undefined }> {
   try {
     return {
@@ -118,7 +117,6 @@ export async function extractErc20(chainId: number, address: `0x${string}`) {
 }
 
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function throwOnMulticallError(multicall: any[]) {
   if (multicall.some(result => result.status !== 'success')) {
     const first = multicall.find(result => result.status !== 'success')

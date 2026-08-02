@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Cache, caching } from 'cache-manager'
 import { redisStore } from 'cache-manager-redis-yet'

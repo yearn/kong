@@ -7,7 +7,6 @@ export const topics = [
   'event StakingPoolAdded(address indexed token, address stakingPool)'
 ].map(e => toEventSelector(e))
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const { token, stakingPool } = z.object({
     token: zhexstring,

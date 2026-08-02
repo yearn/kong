@@ -32,7 +32,6 @@ export const SnapshotSchema = z.object({
 const SECONDS_PER_YEAR = 31_556_952
 const SECONDS_PER_WEEK = 604_800
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const snapshot = SnapshotSchema.parse(data)
 
