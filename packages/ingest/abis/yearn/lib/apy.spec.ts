@@ -1,10 +1,13 @@
 import { expect } from 'chai'
 import { addresses } from '../../../test-addresses'
 import { mainnet, polygon } from 'viem/chains'
+import { chains } from 'lib'
 import { _compute, computeApy, computeNetApr, extractFees__v2, extractFees__v3, extractLockedProfit__v2, extractLockedProfit__v3 } from './apy'
 import { EvmLogSchema, ThingSchema } from 'lib/types'
 import { upsertBatch } from '../../../load'
 import db from '../../../db'
+
+const hasPolygon = chains.some(chain => chain.id === polygon.id)
 
 describe('abis/yearn/lib/apy', () => {
   beforeAll(async () => {
@@ -128,20 +131,20 @@ describe('abis/yearn/lib/apy', () => {
     expect(Number(apy.inceptionBlockNumber)).to.be.closeTo(15243268, 4)
   }, 20_000)
 
-  it('extracts v3 vault fees', async () => {
+  it.skipIf(!hasPolygon)('extracts v3 vault fees', async () => {
     const strategies: `0x${string}`[] = [addresses.v3.aaveV3UsdcLender, addresses.v3.compoundV3UsdcLender, addresses.v3.stargateUsdcStaker]
     const fees = await extractFees__v3(polygon.id, addresses.v3.yvusdca, strategies, 52031869n)
     expect(fees.management).to.eq(0)
     expect(fees.performance).to.eq(.1)
   }, 20_000)
 
-  it('extracts v3 tokenized strat fees', async () => {
+  it.skipIf(!hasPolygon)('extracts v3 tokenized strat fees', async () => {
     const fees = await extractFees__v3(polygon.id, addresses.v3.aaveV3UsdcLender, [], 52031869n)
     expect(fees.management).to.eq(0)
     expect(fees.performance).to.eq(.05)
   }, 20_000)
 
-  it('extracts v3 locked profit', async () => {
+  it.skipIf(!hasPolygon)('extracts v3 locked profit', async () => {
     const lotsOfLockedProfit = await extractLockedProfit__v3(polygon.id, addresses.v3.yvusdca, 52031869n)
     expect(lotsOfLockedProfit).to.eq(1340884331n)
 
@@ -149,7 +152,7 @@ describe('abis/yearn/lib/apy', () => {
     expect(noLockedProfit).to.eq(0n)
   }, 20_000)
 
-  it('yvUSDCA 3.0.1 @ block 52031869n', async () => {
+  it.skipIf(!hasPolygon)('yvUSDCA 3.0.1 @ block 52031869n', async () => {
     const blockNumber = 52031869n
     const strategies: `0x${string}`[] = [addresses.v3.aaveV3UsdcLender, addresses.v3.compoundV3UsdcLender, addresses.v3.stargateUsdcStaker]
     const yvusdca = ThingSchema.parse({
