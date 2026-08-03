@@ -1,11 +1,11 @@
 import 'lib/global'
-import { cacheMSet, disconnect } from '../cache'
+import { cacheMSet } from '../cache'
 import { getStrategyReports, getVaults } from './db'
 import { getReportKey } from './redis'
 
 const BATCH_SIZE = parseInt(process.env.REFRESH_BATCH_SIZE || '10', 10)
 
-async function refreshHistorical(): Promise<void> {
+export async function refreshHistorical(): Promise<void> {
   console.time('refresh vault_reports historical')
 
   console.log('Fetching vaults...')
@@ -37,17 +37,4 @@ async function refreshHistorical(): Promise<void> {
 
   console.log(`✓ Completed: ${processed} vaults processed`)
   console.timeEnd('refresh vault_reports historical')
-}
-
-if (require.main === module) {
-  refreshHistorical()
-    .then(async () => {
-      await disconnect()
-      process.exit(0)
-    })
-    .catch(async (err) => {
-      console.error(err)
-      await disconnect()
-      process.exit(1)
-    })
 }

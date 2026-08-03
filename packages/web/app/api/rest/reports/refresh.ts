@@ -1,11 +1,11 @@
 import 'lib/global'
-import { cacheMSet, disconnect } from '../cache'
+import { cacheMSet } from '../cache'
 import { getRecentStrategyReports, getVaults } from './db'
 import { getReportLatestKey } from './redis'
 
 const BATCH_SIZE = parseInt(process.env.REFRESH_BATCH_SIZE || '10', 10)
 
-async function refreshLatest(): Promise<void> {
+export async function refreshLatest(): Promise<void> {
   console.time('refresh vault_reports latest')
 
   console.log('Fetching vaults...')
@@ -37,17 +37,4 @@ async function refreshLatest(): Promise<void> {
 
   console.log(`✓ Completed: ${processed} vaults processed`)
   console.timeEnd('refresh vault_reports latest')
-}
-
-if (require.main === module) {
-  refreshLatest()
-    .then(async () => {
-      await disconnect()
-      process.exit(0)
-    })
-    .catch(async (err) => {
-      console.error(err)
-      await disconnect()
-      process.exit(1)
-    })
 }

@@ -1,4 +1,4 @@
-import { cacheMSet, disconnect } from './cache'
+import { cacheMSet } from './cache'
 import { getVaultsWithSnapshots } from './list/db'
 import type { VaultListItem } from './list/db'
 import { getSnapshotKey } from './snapshot/redis'
@@ -20,7 +20,7 @@ import { getSnapshotKey } from './snapshot/redis'
  * `snapshot/refresh-snapshot.ts`), eliminating the N+1 per-vault snapshot
  * queries and the duplicate scan of `thing` + `snapshot`.
  */
-async function refresh(): Promise<void> {
+export async function refresh(): Promise<void> {
   console.time('refresh list+snapshot')
 
   let hadFailure = false
@@ -102,17 +102,4 @@ async function refresh(): Promise<void> {
   if (hadFailure) {
     throw new Error('one or more cache writes failed')
   }
-}
-
-if (require.main === module) {
-  refresh()
-    .then(async () => {
-      await disconnect()
-      process.exit(0)
-    })
-    .catch(async (err) => {
-      console.error(err)
-      await disconnect()
-      process.exit(1)
-    })
 }

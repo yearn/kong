@@ -1,16 +1,19 @@
-import { cacheMSet, disconnect } from '../cache'
+import { cacheMSet } from '../cache'
+import { Shard, selectShard } from '../shard'
 import { getFullTimeseries, getVaults, TimeseriesRow } from './db'
 import { labels } from './labels'
 import { getTimeseriesKey } from './redis'
 
 const BATCH_SIZE = 10
 
-async function refreshHistorical(): Promise<void> {
+export async function refreshHistorical(shard?: Shard): Promise<void> {
   console.time('refreshHistorical')
 
   console.log('Fetching vaults...')
-  const vaults = await getVaults()
-  console.log(`Found ${vaults.length} vaults (batch size: ${BATCH_SIZE})`)
+  const all = await getVaults()
+  const vaults = selectShard(all, (vault) => `${vault.chainId}:${vault.address.toLowerCase()}`, shard)
+  const scope = shard ? ` (shard ${shard.index + 1}/${shard.total} of ${all.length})` : ''
+  console.log(`Found ${vaults.length} vaults${scope} (batch size: ${BATCH_SIZE})`)
 
   let processed = 0
 
@@ -51,17 +54,4 @@ async function refreshHistorical(): Promise<void> {
 
   console.log(`✓ Completed: ${processed} vaults processed`)
   console.timeEnd('refreshHistorical')
-}
-
-if (require.main === module) {
-  refreshHistorical()
-    .then(async () => {
-      await disconnect()
-      process.exit(0)
-    })
-    .catch(async (err) => {
-      console.error(err)
-      await disconnect()
-      process.exit(1)
-    })
 }

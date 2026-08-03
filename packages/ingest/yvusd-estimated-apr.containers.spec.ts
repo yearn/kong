@@ -194,7 +194,7 @@ describe('e2e: yvusd-estimated-apr scoping (issue #409)', () => {
       [YVUSD_VAULT, STRATEGY_VAULT, USDC2_VAULT],
     )
 
-    await env.runScript('packages/web/app/api/rest/refresh-vaults.ts')
+    await env.runScript('packages/web/app/api/rest/refresh-vaults.cli.ts')
   })
 
   afterAll(async () => {

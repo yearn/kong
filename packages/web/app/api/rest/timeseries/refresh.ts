@@ -1,11 +1,11 @@
-import { cacheMSet, disconnect } from '../cache'
+import { cacheMSet } from '../cache'
 import { getRecentTimeseries, getVaults, TimeseriesRow } from './db'
 import { labels } from './labels'
 import { getTimeseriesLatestKey } from './redis'
 
 const BATCH_SIZE = 10
 
-async function refreshLatest(): Promise<void> {
+export async function refreshLatest(): Promise<void> {
   console.time('refreshLatest')
 
   console.log('Fetching vaults...')
@@ -51,17 +51,4 @@ async function refreshLatest(): Promise<void> {
 
   console.log(`✓ Completed: ${processed} vaults processed`)
   console.timeEnd('refreshLatest')
-}
-
-if (require.main === module) {
-  refreshLatest()
-    .then(async () => {
-      await disconnect()
-      process.exit(0)
-    })
-    .catch(async (err) => {
-      console.error(err)
-      await disconnect()
-      process.exit(1)
-    })
 }
