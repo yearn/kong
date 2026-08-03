@@ -53,10 +53,8 @@ Uptime Kuma URL named in its route file.
 | `/api/cron/reports-refresh` | manual only | 300 |
 | `/api/cron/reports-refresh-historical` | manual only | 800 |
 
-The historical timeseries rebuild is too large for one invocation, so it runs hourly
-and processes 1/24 of the vaults per tick (`SHARD_TOTAL` in its route file); each vault
-still gets a full rebuild once a day. Shard assignment is by content hash, so a vault
-keeps its slot as the vault list grows.
+The historical timeseries rebuild fits within a single invocation's 800s limit, so it
+runs once a day as a full pass over every vault.
 
 Trigger any job by hand with:
 
@@ -78,6 +76,8 @@ bun packages/web/app/api/rest/reports/refresh-historical.cli.ts
 
 These jobs previously ran as GitHub Actions and read their secrets from the repo. They
 must all exist in the Vercel project before the crons can work — there is no fallback.
+Scope them to the Production environment only; previews must not read production
+Postgres or write production Redis.
 
 - `POSTGRES_HOST`, `POSTGRES_DATABASE`, `POSTGRES_USER`, `POSTGRES_PASSWORD`,
   `POSTGRES_PORT`, `POSTGRES_SSL`, `POSTGRES_POOL_MAX`

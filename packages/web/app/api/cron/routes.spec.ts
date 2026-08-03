@@ -73,29 +73,12 @@ describe('cron routes', () => {
     )
   })
 
-  it('runs the historical timeseries rebuild one 24th at a time, hourly', async () => {
+  it('runs the historical timeseries rebuild once a day', async () => {
     const vercelConfig = await import('../../../vercel.json')
     const cron = (vercelConfig.default.crons as Array<{ path: string, schedule: string }>)
       .find((entry) => entry.path === '/api/cron/timeseries-refresh-historical')
-    const { SHARD_TOTAL } = await import('./timeseries-refresh-historical/route')
 
-    assert.equal(SHARD_TOTAL, 24)
-    assert.match(cron!.schedule, /^\d+ \* \* \* \*$/)
-  })
-
-  it('passes the current hour as the historical shard index', async () => {
-    vi.stubEnv('CRON_SECRET', 'secret')
-    const { GET } = await import('./timeseries-refresh-historical/route')
-
-    await GET(new Request('http://localhost/api/cron/timeseries-refresh-historical', {
-      headers: { authorization: 'Bearer secret' },
-    }))
-
-    assert.equal(refreshHistorical.mock.calls.length, 1)
-    assert.deepEqual(refreshHistorical.mock.calls[0][0], {
-      index: new Date().getUTCHours(),
-      total: 24,
-    })
+    assert.match(cron!.schedule, /^\d+ \d+ \* \* \*$/)
   })
 
   for (const route of ROUTES) {

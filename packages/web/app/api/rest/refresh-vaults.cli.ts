@@ -1,13 +1,4 @@
-import { disconnect } from './cache'
 import { refresh } from './refresh-vaults'
+import { runCli } from './run-cli'
 
-refresh()
-  .then(async () => {
-    await disconnect()
-    process.exit(0)
-  })
-  .catch(async (err) => {
-    console.error(err)
-    await disconnect()
-    process.exit(1)
-  })
+runCli(refresh)

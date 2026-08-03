@@ -64,5 +64,5 @@ bun packages/scripts/src/historical-apy-backfill/upsert.ts --dry-run
 bun packages/scripts/src/historical-apy-backfill/upsert.ts
 
 # 5. Refresh cache
-bun packages/web/app/api/rest/refresh-vaults.ts
+bun packages/web/app/api/rest/refresh-vaults.cli.ts
 ```

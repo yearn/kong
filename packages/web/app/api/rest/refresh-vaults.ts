@@ -21,7 +21,7 @@ import { getSnapshotKey } from './snapshot/redis'
  * queries and the duplicate scan of `thing` + `snapshot`.
  */
 export async function refresh(): Promise<void> {
-  console.time('refresh list+snapshot')
+  const started = Date.now()
 
   let hadFailure = false
 
@@ -97,7 +97,7 @@ export async function refresh(): Promise<void> {
     `✓ Completed: ${listItems.length} vaults cached across ${chainCount} chains, ` +
     `${snapshotCount} snapshots cached`,
   )
-  console.timeEnd('refresh list+snapshot')
+  console.log(`refresh list+snapshot: ${Date.now() - started}ms`)
 
   if (hadFailure) {
     throw new Error('one or more cache writes failed')
