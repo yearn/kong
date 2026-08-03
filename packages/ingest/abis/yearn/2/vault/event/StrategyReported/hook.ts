@@ -9,6 +9,8 @@ import { first } from '../../../../../../db'
 import { math, multicall3 } from 'lib'
 import { extractDebtFromStrategy, extractDelegatedAssets, extractFees } from '../../../strategy/event/hook'
 
+// the 8 arg variant covers 0.2.x through 0.3.1 — identical types, so one selector.
+// on 0.2.x its last arg is debtLimit, an absolute token amount, not a bps debtRatio
 export const topics = [
   'event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 debtPaid, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtRatio)',
   'event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtRatio)'

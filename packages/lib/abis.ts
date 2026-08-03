@@ -5,6 +5,10 @@ import path from 'path'
 import { keccak256, toBytes } from 'viem'
 import { zhexstring } from './types'
 import { CronSchema } from './crons'
+// ABI configuration is evaluated at module load time and includes bigint
+// block values. Ensure JSON serialization is configured even when this module
+// is imported directly (for example by isolated tests or CLI tooling).
+import './global'
 
 export const SourceConfigSchema = z.object({
   chainId: z.number(),

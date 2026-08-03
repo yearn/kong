@@ -1,7 +1,8 @@
 import { expect } from 'chai'
-import { decodeEventLog, encodeAbiParameters, getAddress, pad, toEventSelector } from 'viem'
+import { decodeEventLog, decodeFunctionResult, encodeAbiParameters, getAddress, pad, parseAbi, toEventSelector } from 'viem'
 import { HarvestSchema, topics } from './hook'
 import vaultAbi from '../../abi'
+import { mapStrategyParams } from '../../snapshot/hook'
 import abiutil from '../../../../../../abiutil'
 
 const selectors = {
@@ -36,6 +37,26 @@ describe('abis/yearn/2/vault/event/StrategyReported/hook', () => {
     })
     expect(modern.eventName).to.equal('StrategyReported')
     expect(modern.args).to.deep.equal({ strategy, gain: 1n, loss: 0n, debtPaid: 5n, totalGain: 1n, totalLoss: 0n, totalDebt: 1n, debtAdded: 0n, debtRatio: 100n })
+  })
+
+  it('covers 0.2.x debtLimit reports with the same legacy selector', function() {
+    expect(toEventSelector('event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtLimit)'))
+      .to.equal(selectors.reportedLegacy)
+  })
+
+  it('reads totalDebt from the pre-0.3.2 strategies struct the flattened abi cannot decode', function() {
+    const legacyFields = [10n, 20n, 30n, 40n, 50n, 60n, 70n, 80n]
+    const legacyReturn = encodeAbiParameters(legacyFields.map(() => ({ type: 'uint256' })), legacyFields)
+
+    expect(() => decodeFunctionResult({
+      abi: vaultAbi, functionName: 'strategies', data: legacyReturn
+    })).to.throw()
+
+    const decoded = decodeFunctionResult({
+      abi: parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)']),
+      functionName: 'strategies', data: legacyReturn
+    })
+    expect(mapStrategyParams('0.3.0', decoded).totalDebt).to.equal(60n)
   })
 
   it('defaults debtPaid to 0n for legacy harvests', function() {
