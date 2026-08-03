@@ -116,6 +116,15 @@ async function fetchApiVersion(chainId: number, vault: `0x${string}`, blockNumbe
   const cached = apiVersions.get(key)
   if (cached) return cached
 
+  const fromThing = await firstRow(
+    `SELECT defaults->>'apiVersion' AS "apiVersion" FROM thing WHERE chain_id = $1 AND address = $2 AND label = 'vault'`,
+    [chainId, vault]
+  )
+  if (fromThing?.apiVersion) {
+    apiVersions.set(key, fromThing.apiVersion)
+    return fromThing.apiVersion as string
+  }
+
   const apiVersion = await rpcs.next(chainId, blockNumber).readContract({
     address: vault, abi: parseAbi(['function apiVersion() view returns (string)']),
     functionName: 'apiVersion',

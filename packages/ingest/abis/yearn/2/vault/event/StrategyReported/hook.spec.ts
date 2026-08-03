@@ -59,6 +59,20 @@ describe('abis/yearn/2/vault/event/StrategyReported/hook', () => {
     expect(mapStrategyParams('0.3.0', decoded).totalDebt).to.equal(60n)
   })
 
+  // extractFees__v2 weights strategist fee as performanceFee * debtRatio. With the 9-field
+  // strategies abi every pre-0.3.2 multicall entry fails and the sum collapses to 0.
+  it('weights strategist fees from 8-field StrategyParams so legacy harvests do not zero fees', function() {
+    const fields = [1000n, 0n, 5000n, 0n, 0n, 100n, 0n, 0n] as const
+    const params = mapStrategyParams('0.3.0', fields)
+    expect(params.performanceFee).to.equal(1000n)
+    expect(params.debtRatio).to.equal(5000n)
+    expect((params.performanceFee * params.debtRatio) || 0n).to.equal(5_000_000n)
+
+    // 0.2.x field 3 is debtLimit (absolute), not bps — zero debtRatio so fee product is not garbage
+    const ratioless = mapStrategyParams('0.2.2', fields)
+    expect((ratioless.performanceFee * ratioless.debtRatio) || 0n).to.equal(0n)
+  })
+
   it('defaults debtPaid to 0n for legacy harvests', function() {
     const strategy = getAddress('0x8000000000000000000000000000000000000002')
 
