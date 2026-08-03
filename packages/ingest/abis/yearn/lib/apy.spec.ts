@@ -35,7 +35,7 @@ describe('abis/yearn/lib/apy', () => {
 
   it('extracts v2 fees', async () => {
     const strategies: `0x${string}`[] = [addresses.v2.strategyLenderYieldOptimiser]
-    const fees = await extractFees__v2(mainnet.id, addresses.v2.yvusdt, strategies, 15871070n)
+    const fees = await extractFees__v2(mainnet.id, addresses.v2.yvusdt, '0.4.3', strategies, 15871070n)
     expect(fees.management).to.eq(0)
     expect(fees.performance).to.eq(.2)
   }, 20_000)

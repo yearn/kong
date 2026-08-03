@@ -212,6 +212,12 @@ export function resolveStrategies(
   return union(projected, withdrawalQueue, residuals)
 }
 
+export function strategiesAbi(apiVersion: string) {
+  return compare(apiVersion, '0.3.2', '<')
+    ? parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)'])
+    : parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)'])
+}
+
 export function mapStrategyParams(apiVersion: string, fields: readonly bigint[]) {
   if (compare(apiVersion, '0.3.2', '<')) {
     const [performanceFee, activation, debtRatioOrLimit, , lastReport, totalDebt, totalGain, totalLoss] = fields
@@ -249,9 +255,7 @@ async function extractDebts(chainId: number, vault: `0x${string}`, data: any, st
 
   if (token == null || decimals == null || strategies.length === 0) return []
 
-  const abi = compare(apiVersion, '0.3.2', '<')
-    ? parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)'])
-    : parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)'])
+  const abi = strategiesAbi(apiVersion)
 
   const multicall = await rpcs.next(chainId).multicall({ contracts: strategies.map(strategy => ({
     address: vault, functionName: 'strategies', args: [strategy], abi

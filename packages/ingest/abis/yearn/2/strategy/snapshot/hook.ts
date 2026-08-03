@@ -10,8 +10,7 @@ import { estimateCreationBlock } from 'lib/blocks'
 import { fetchOrExtractErc20, throwOnMulticallError } from '../../../lib'
 import db, { firstRow } from '../../../../../db'
 import { getStrategyMeta, getVaultMeta } from '../../../lib/meta'
-import { mapStrategyParams } from '../../vault/snapshot/hook'
-import { compare } from 'compare-versions'
+import { mapStrategyParams, strategiesAbi } from '../../vault/snapshot/hook'
 import { getLatestEstimatedApr } from '../../../../../helpers/apy-apr'
 
 const borkedVaults = [
@@ -99,23 +98,32 @@ export async function extractTotalDebt(chainId: number, vault: `0x${string}`, st
 // pre-0.3.2 vaults return an 8 field StrategyParams (rateLimit instead of
 // min/maxDebtPerHarvest), so decoding them with the flattened 9 field abi throws
 export async function extractStrategyParams(chainId: number, vault: `0x${string}`, strategy: `0x${string}`, blockNumber?: bigint) {
+  const apiVersion = await fetchApiVersion(chainId, vault, blockNumber)
+
+  const fields = await rpcs.next(chainId, blockNumber).readContract({
+    address: vault, abi: strategiesAbi(apiVersion), functionName: 'strategies',
+    args: [strategy],
+    blockNumber
+  })
+
+  return mapStrategyParams(apiVersion, fields)
+}
+
+const apiVersions = new Map<string, string>()
+
+async function fetchApiVersion(chainId: number, vault: `0x${string}`, blockNumber?: bigint) {
+  const key = `${chainId}:${vault.toLowerCase()}`
+  const cached = apiVersions.get(key)
+  if (cached) return cached
+
   const apiVersion = await rpcs.next(chainId, blockNumber).readContract({
     address: vault, abi: parseAbi(['function apiVersion() view returns (string)']),
     functionName: 'apiVersion',
     blockNumber
   })
 
-  const abi = compare(apiVersion, '0.3.2', '<')
-    ? parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)'])
-    : parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)'])
-
-  const fields = await rpcs.next(chainId, blockNumber).readContract({
-    address: vault, abi, functionName: 'strategies',
-    args: [strategy],
-    blockNumber
-  })
-
-  return mapStrategyParams(apiVersion, fields)
+  apiVersions.set(key, apiVersion)
+  return apiVersion
 }
 
 export async function extractLenderStatuses(chainId: number, address: `0x${string}`, blockNumber?: bigint) {
