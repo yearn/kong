@@ -19,6 +19,12 @@ describe('abiutil', function() {
     expect(fields.length).to.eq(8)
   })
 
+  it('includes pricePerShare in the Yearn v3 vault fields', async function() {
+    const abi = await abiutil.load('yearn/3/vault')
+    const fields = abiutil.fields(abi)
+    expect(fields.some(field => field.name === 'pricePerShare')).to.equal(true)
+  })
+
   it('excludes events', async function() {
     const abi = await abiutil.load('yearn/3/strategy')
     const events = abiutil.events(abi)
