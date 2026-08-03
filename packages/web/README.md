@@ -38,6 +38,61 @@ MQ_REDIS_TLS=true
 
 Only available when `NODE_ENV=development`.
 
+## Cache refresh jobs
+
+The Redis REST caches are refreshed by routes under `app/api/cron/`, scheduled by
+`crons` in `vercel.json`. Every route requires `Authorization: Bearer $CRON_SECRET`
+(Vercel Cron sends this header automatically) and pushes an up/down heartbeat to the
+Uptime Kuma URL named in its route file.
+
+| Route | Schedule | maxDuration |
+|---|---|---|
+| `/api/cron/refresh-cache` | `*/30 * * * *` | 300 |
+| `/api/cron/timeseries-refresh` | `0 * * * *` | 300 |
+| `/api/cron/timeseries-refresh-historical` | `15 * * * *` | 800 |
+| `/api/cron/reports-refresh` | manual only | 300 |
+| `/api/cron/reports-refresh-historical` | manual only | 800 |
+
+The historical timeseries rebuild is too large for one invocation, so it runs hourly
+and processes 1/24 of the vaults per tick (`SHARD_TOTAL` in its route file); each vault
+still gets a full rebuild once a day. Shard assignment is by content hash, so a vault
+keeps its slot as the vault list grows.
+
+Trigger any job by hand with:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://<deployment>/api/cron/<route>
+```
+
+Or run it locally against your `.env.local`:
+
+```bash
+bun packages/web/app/api/rest/refresh-vaults.cli.ts
+bun packages/web/app/api/rest/timeseries/refresh.cli.ts
+bun packages/web/app/api/rest/timeseries/refresh-historical.cli.ts
+bun packages/web/app/api/rest/reports/refresh.cli.ts
+bun packages/web/app/api/rest/reports/refresh-historical.cli.ts
+```
+
+### Required Vercel environment variables
+
+These jobs previously ran as GitHub Actions and read their secrets from the repo. They
+must all exist in the Vercel project before the crons can work — there is no fallback.
+
+- `POSTGRES_HOST`, `POSTGRES_DATABASE`, `POSTGRES_USER`, `POSTGRES_PASSWORD`,
+  `POSTGRES_PORT`, `POSTGRES_SSL`, `POSTGRES_POOL_MAX`
+- `REST_CACHE_REDIS_URL`
+- `CRON_SECRET` — new; a missing value makes every cron return 401
+- `UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS`, `UPTIME_KUMA_PUSH_URL_TIMESERIES_REFRESH`,
+  `UPTIME_KUMA_PUSH_URL_TIMESERIES_HISTORICAL`, `UPTIME_KUMA_PUSH_URL_REPORTS_REFRESH`,
+  `UPTIME_KUMA_PUSH_URL_REPORTS_HISTORICAL`
+
+`POSTGRES_POOL_MAX` was sized for a single serial CI runner; on Vercel the pool is shared
+with normal web traffic and concurrent cron invocations, so review it as part of the
+cutover. Each Uptime Kuma monitor should also have a heartbeat interval tight enough to
+alert on a run that never reports — a platform timeout kills the invocation before the
+down-push can be sent.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
