@@ -1,4 +1,5 @@
 import db from '@/app/api/db'
+import { mergeSnapshot } from '@/lib/mergeSnapshot'
 
 const accountStrategies = async (_: object, args: { chainId?: number, account: `0x${string}` }) => {
   const { chainId, account } = args
@@ -39,9 +40,7 @@ const accountStrategies = async (_: object, args: { chainId?: number, account: `
     return result.rows.map(row => ({
       chainId: row.chain_id,
       address: row.address,
-      ...row.defaults,
-      ...row.snapshot,
-      ...row.hook
+      ...mergeSnapshot(row.defaults, row.snapshot, row.hook)
     }))
 
   } catch (error) {

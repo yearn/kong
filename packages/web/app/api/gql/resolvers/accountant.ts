@@ -1,5 +1,6 @@
 import db from '@/app/api/db'
 import { EvmAddress } from 'lib/types'
+import { mergeSnapshot } from '@/lib/mergeSnapshot'
 
 const accountant = async (_: object, args: { chainId: number, address: EvmAddress }) => {
   const { chainId, address } = args
@@ -24,9 +25,7 @@ const accountant = async (_: object, args: { chainId: number, address: EvmAddres
     const [first] = result.rows.map(row => ({
       chainId: row.chain_id,
       address: row.address,
-      ...row.defaults,
-      ...row.snapshot,
-      ...row.hook
+      ...mergeSnapshot(row.defaults, row.snapshot, row.hook)
     }))
 
     return first

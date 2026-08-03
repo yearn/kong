@@ -1,5 +1,1 @@
-export type VaultSnapshot = {
-  chainId: number
-  address: string
-  [key: string]: unknown
-}
+export type { SnapshotRow as VaultSnapshot } from '@/lib/mergeSnapshot'
