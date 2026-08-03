@@ -10,7 +10,8 @@ import { math, multicall3 } from 'lib'
 import { extractDebtFromStrategy, extractDelegatedAssets, extractFees } from '../../../strategy/event/hook'
 
 export const topics = [
-  'event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 debtPaid, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtRatio)'
+  'event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 debtPaid, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtRatio)',
+  'event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtRatio)'
 ].map(e => toEventSelector(e))
 
 export const HarvestSchema = z.object({
@@ -22,7 +23,7 @@ export const HarvestSchema = z.object({
     strategy: EvmAddressSchema,
     gain: z.bigint({ coerce: true }),
     loss: z.bigint({ coerce: true }),
-    debtPaid: z.bigint({ coerce: true }),
+    debtPaid: z.bigint({ coerce: true }).default(0n),
     totalGain: z.bigint({ coerce: true }),
     totalLoss: z.bigint({ coerce: true }),
     totalDebt: z.bigint({ coerce: true }),
@@ -65,12 +66,12 @@ async function fetchPreviousHarvest(harvest: Harvest) {
   WHERE
     chain_id = $1
     AND address = $2
-    AND signature = $3
+    AND signature = ANY($3)
     AND block_number < $4
     AND args->>'strategy' = $5
   ORDER BY block_number DESC, log_index DESC
   LIMIT 1`,
-  [harvest.chainId, harvest.address, topics[0], harvest.blockNumber, harvest.args.strategy])
+  [harvest.chainId, harvest.address, topics, harvest.blockNumber, harvest.args.strategy])
   if (!previousLog) return undefined
   return HarvestSchema.parse(previousLog)
 }
