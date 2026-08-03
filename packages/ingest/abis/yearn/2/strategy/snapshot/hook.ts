@@ -111,13 +111,13 @@ export async function extractStrategyParams(chainId: number, vault: `0x${string}
 
 const apiVersions = new Map<string, string>()
 
-async function fetchApiVersion(chainId: number, vault: `0x${string}`, blockNumber?: bigint) {
+export async function fetchApiVersion(chainId: number, vault: `0x${string}`, blockNumber?: bigint) {
   const key = `${chainId}:${vault.toLowerCase()}`
   const cached = apiVersions.get(key)
   if (cached) return cached
 
   const fromThing = await firstRow(
-    `SELECT defaults->>'apiVersion' AS "apiVersion" FROM thing WHERE chain_id = $1 AND address = $2 AND label = 'vault'`,
+    'SELECT defaults->>\'apiVersion\' AS "apiVersion" FROM thing WHERE chain_id = $1 AND address = $2 AND label = \'vault\'',
     [chainId, vault]
   )
   if (fromThing?.apiVersion) {

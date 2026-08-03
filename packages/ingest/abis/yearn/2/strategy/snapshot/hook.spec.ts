@@ -1,8 +1,10 @@
 import { expect } from 'chai'
 import { mainnet } from 'viem/chains'
 import db, { toUpsertSql } from '../../../../../db'
+import * as dbModule from '../../../../../db'
+import { rpcs } from '../../../../../rpcs'
 import { getLatestApy, getLatestEstimatedApr, getLatestEstimatedAprV3 } from '../../../../../helpers/apy-apr'
-import { extractLenderStatuses } from './hook'
+import { extractLenderStatuses, fetchApiVersion } from './hook'
 
 describe('abis/yearn/2/strategy/snapshot/hook', function() {
   it('extracts lender statuses', async function() {
@@ -105,5 +107,58 @@ describe('abis/yearn/2/strategy/snapshot/hook', function() {
     const result = await getLatestApy(chainId, address)
     expect(result).to.not.be.undefined
     expect(result?.net).to.equal(0.2)
+  })
+
+  describe('fetchApiVersion', function() {
+    it('prefers the thing row over rpc', async function() {
+      const chainId = mainnet.id
+      const vault = '0x5000000000000000000000000000000000000005'
+      const firstRow = vi.spyOn(dbModule, 'firstRow').mockResolvedValue({ apiVersion: '0.4.3' })
+      const readContract = vi.spyOn(rpcs.next(chainId), 'readContract')
+
+      try {
+        const apiVersion = await fetchApiVersion(chainId, vault)
+        expect(apiVersion).to.equal('0.4.3')
+        expect(readContract.mock.calls.length).to.equal(0)
+      } finally {
+        firstRow.mockRestore()
+        readContract.mockRestore()
+      }
+    })
+
+    it('falls back to rpc when there is no thing row', async function() {
+      const chainId = mainnet.id
+      const vault = '0x6000000000000000000000000000000000000006'
+      const firstRow = vi.spyOn(dbModule, 'firstRow').mockResolvedValue(undefined)
+      const readContract = vi.spyOn(rpcs.next(chainId), 'readContract').mockResolvedValue('0.3.5')
+
+      try {
+        const apiVersion = await fetchApiVersion(chainId, vault)
+        expect(apiVersion).to.equal('0.3.5')
+        expect(readContract.mock.calls.length).to.equal(1)
+      } finally {
+        firstRow.mockRestore()
+        readContract.mockRestore()
+      }
+    })
+
+    it('memoizes by chainId:vault', async function() {
+      const chainId = mainnet.id
+      const vault = '0x7000000000000000000000000000000000000007'
+      const firstRow = vi.spyOn(dbModule, 'firstRow').mockResolvedValue({ apiVersion: '0.4.6' })
+      const readContract = vi.spyOn(rpcs.next(chainId), 'readContract')
+
+      try {
+        const first = await fetchApiVersion(chainId, vault)
+        const second = await fetchApiVersion(chainId, vault)
+        expect(first).to.equal('0.4.6')
+        expect(second).to.equal('0.4.6')
+        expect(firstRow.mock.calls.length).to.equal(1)
+        expect(readContract.mock.calls.length).to.equal(0)
+      } finally {
+        firstRow.mockRestore()
+        readContract.mockRestore()
+      }
+    })
   })
 })

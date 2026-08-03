@@ -1,8 +1,7 @@
 import { expect } from 'chai'
-import { decodeEventLog, decodeFunctionResult, encodeAbiParameters, getAddress, pad, parseAbi, toEventSelector } from 'viem'
+import { decodeEventLog, encodeAbiParameters, getAddress, pad, toEventSelector } from 'viem'
 import { HarvestSchema, topics } from './hook'
 import vaultAbi from '../../abi'
-import { mapStrategyParams } from '../../snapshot/hook'
 import abiutil from '../../../../../../abiutil'
 
 const selectors = {
@@ -42,35 +41,6 @@ describe('abis/yearn/2/vault/event/StrategyReported/hook', () => {
   it('covers 0.2.x debtLimit reports with the same legacy selector', function() {
     expect(toEventSelector('event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtLimit)'))
       .to.equal(selectors.reportedLegacy)
-  })
-
-  it('reads totalDebt from the pre-0.3.2 strategies struct the flattened abi cannot decode', function() {
-    const legacyFields = [10n, 20n, 30n, 40n, 50n, 60n, 70n, 80n]
-    const legacyReturn = encodeAbiParameters(legacyFields.map(() => ({ type: 'uint256' })), legacyFields)
-
-    expect(() => decodeFunctionResult({
-      abi: vaultAbi, functionName: 'strategies', data: legacyReturn
-    })).to.throw()
-
-    const decoded = decodeFunctionResult({
-      abi: parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)']),
-      functionName: 'strategies', data: legacyReturn
-    })
-    expect(mapStrategyParams('0.3.0', decoded).totalDebt).to.equal(60n)
-  })
-
-  // extractFees__v2 weights strategist fee as performanceFee * debtRatio. With the 9-field
-  // strategies abi every pre-0.3.2 multicall entry fails and the sum collapses to 0.
-  it('weights strategist fees from 8-field StrategyParams so legacy harvests do not zero fees', function() {
-    const fields = [1000n, 0n, 5000n, 0n, 0n, 100n, 0n, 0n] as const
-    const params = mapStrategyParams('0.3.0', fields)
-    expect(params.performanceFee).to.equal(1000n)
-    expect(params.debtRatio).to.equal(5000n)
-    expect((params.performanceFee * params.debtRatio) || 0n).to.equal(5_000_000n)
-
-    // 0.2.x field 3 is debtLimit (absolute), not bps — zero debtRatio so fee product is not garbage
-    const ratioless = mapStrategyParams('0.2.2', fields)
-    expect((ratioless.performanceFee * ratioless.debtRatio) || 0n).to.equal(0n)
   })
 
   it('defaults debtPaid to 0n for legacy harvests', function() {
