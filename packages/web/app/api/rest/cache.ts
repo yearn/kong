@@ -3,6 +3,8 @@ import { createClient } from '@redis/client'
 
 const writeClient = createClient({ url: process.env.REST_CACHE_REDIS_URL || 'redis://localhost:6379' })
 
+writeClient.on('error', (error) => console.error('rest cache write client', error))
+
 const keyv = createKeyv(process.env.REST_CACHE_REDIS_URL || 'redis://localhost:6379')
 
 const DEFAULT_REDIS_MSET_TARGET_BYTES = 8 * 1024 * 1024
