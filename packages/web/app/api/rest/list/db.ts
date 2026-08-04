@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { mergeSnapshot } from '../../../../lib/mergeSnapshot'
 import db from '../../db'
 import type { VaultSnapshot } from '../snapshot/db'
 
@@ -234,14 +235,11 @@ export async function getVaultsWithSnapshots(): Promise<VaultWithSnapshot[]> {
     const { _defaults, _snapshot, _hook, _hasSnapshot, ...listColumns } = row
     const parsedListItem = VaultListItemSchema.safeParse(listColumns)
 
-    // Mirror the snapshot endpoint's merge: defaults < snapshot < hook.
     const snapshot: VaultSnapshot | null = _hasSnapshot
       ? {
         chainId: row.chainId,
         address: row.address,
-        ...(_defaults ?? {}),
-        ...(_snapshot ?? {}),
-        ...(_hook ?? {}),
+        ...mergeSnapshot(_defaults, _snapshot, _hook),
       }
       : null
 

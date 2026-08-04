@@ -1,6 +1,10 @@
 import { expect } from 'chai'
+import { polygon } from 'viem/chains'
+import { chains } from 'lib'
 import { HarvestSchema, computeApr, totalAssets } from './hook'
 import { addresses } from '../../../../../test-addresses'
+
+const hasPolygon = chains.some(chain => chain.id === polygon.id)
 
 function mock() {
   return HarvestSchema.parse({
@@ -18,7 +22,7 @@ function mock() {
 }
 
 describe('abis/yearn/3/strategy/event/hook', function() {
-  it('extracts totalDebt', async function() {
+  it.skipIf(!hasPolygon)('extracts totalDebt', async function() {
     const debt = await totalAssets(mock())
     expect(debt).to.equal(10489089449n)
   })
@@ -35,7 +39,7 @@ describe('abis/yearn/3/strategy/event/hook', function() {
     expect(apr.net).to.equal(0)
   })
 
-  it('computes gross and net apr on profit', async function() {
+  it.skipIf(!hasPolygon)('computes gross and net apr on profit', async function() {
     const latest = {
       ...mock(),
       blockNumber: 51916666n,
@@ -53,7 +57,7 @@ describe('abis/yearn/3/strategy/event/hook', function() {
     expect(apr.net).to.equal(0.04795259723804295)
   })
 
-  it('computes gross and net apr on loss', async function() {
+  it.skipIf(!hasPolygon)('computes gross and net apr on loss', async function() {
     const latest = {
       ...mock(),
       blockNumber: 51916666n,

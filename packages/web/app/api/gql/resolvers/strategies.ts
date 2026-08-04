@@ -1,5 +1,6 @@
 import db from '@/app/api/db'
 import { compare } from '@/lib/compare'
+import { mergeSnapshot, SnapshotRow } from '@/lib/mergeSnapshot'
 
 const strategies = async (_: object, args: { chainId?: number, apiVersion?: string, erc4626?: boolean }) => {
   const { chainId, apiVersion, erc4626 } = args
@@ -20,17 +21,16 @@ const strategies = async (_: object, args: { chainId?: number, apiVersion?: stri
     ORDER BY snapshot.hook->>'totalDebtUsd' DESC`,
     ['strategy', chainId])
 
-    let rows = result.rows.map(row => ({
+    let rows: SnapshotRow[] = result.rows.map(row => ({
       chainId: row.chain_id,
       address: row.address,
-      ...row.defaults,
-      ...row.snapshot,
-      ...row.hook
+      ...mergeSnapshot(row.defaults, row.snapshot, row.hook)
     }))
 
     if (apiVersion) {
       rows = rows.filter(row => {
-        return !row.apiVersion || compare(row.apiVersion, apiVersion, '>=')
+        const rowApiVersion = row.apiVersion
+        return typeof rowApiVersion !== 'string' || !rowApiVersion || compare(rowApiVersion, apiVersion, '>=')
       })
     }
 

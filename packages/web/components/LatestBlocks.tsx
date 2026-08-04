@@ -13,7 +13,7 @@ export default function LatestBlocks() {
   }, [data])
   return <div className={'w-full flex flex-col items-start'}>
     <div id="latest-blocks" className="font-bold text-xl">Latest Blocks</div>
-    {chains.map((chain, index) => <div key={chain.id} className="w-full flex items-center justify-between">
+    {chains.map(chain => <div key={chain.id} className="w-full flex items-center justify-between">
       <div className="text-yellow-700 whitespace-nowrap">{chain.name.toLowerCase()}</div>
       <Frosty _key={latestBlock(chain.id) as string}>{formatLineItemValue(Number(latestBlock(chain.id)))}</Frosty>
     </div>)}
