@@ -5,6 +5,7 @@ import { _compute, computeApy, computeNetApr, extractFees__v2, extractFees__v3, 
 import { EvmLogSchema, ThingSchema } from 'lib/types'
 import { upsertBatch } from '../../../load'
 import db from '../../../db'
+import { rpcs } from '../../../rpcs'
 
 describe('abis/yearn/lib/apy', () => {
   beforeAll(async () => {
@@ -57,6 +58,33 @@ describe('abis/yearn/lib/apy', () => {
     expect(fees.management).to.eq(0)
     expect(fees.performance).to.be.closeTo(0.198, 1e-9)
   }, 20_000)
+
+  it('picks the strategies abi arity from the vault api version', async () => {
+    // performanceFee and debtRatio sit at the same offsets in both layouts, so a fee
+    // assertion cannot catch a revert to the hardcoded 9-field abi. Pin the request itself.
+    const arities: number[] = []
+    const next = vi.spyOn(rpcs, 'next').mockReturnValue({
+      multicall: async ({ contracts }: any) => {
+        contracts.forEach((contract: any) => {
+          if (contract.functionName === 'strategies') arities.push(contract.abi[0].outputs.length)
+        })
+        return contracts.map(() => ({ status: 'failure' }))
+      }
+    } as any)
+
+    try {
+      await extractFees__v2(mainnet.id, addresses.v2.yvwbtc030, '0.3.0',
+        [addresses.v2.yvwbtc030MakerStrategy], 18000000n)
+      expect(arities).to.deep.equal([8])
+
+      arities.length = 0
+      await extractFees__v2(mainnet.id, addresses.v2.yvusdt, '0.4.3',
+        [addresses.v2.strategyLenderYieldOptimiser], 15871070n)
+      expect(arities).to.deep.equal([9])
+    } finally {
+      next.mockRestore()
+    }
+  })
 
   it('extracts v2 locked profit', async () => {
     const lotsOfLockedProfit = await extractLockedProfit__v2(mainnet.id, addresses.v2.yvusdt, 18344466n)
