@@ -95,7 +95,8 @@ export const getStrategyReports = async (chainId?: number, address?: string) => 
       args->>'totalLoss' AS "totalLoss",
       args->>'totalDebt' AS "totalDebt",
       args->>'debtAdded' AS "debtAdded",
-      CASE WHEN thing.defaults->>'apiVersion' LIKE '0.2.%' THEN NULL
+      CASE WHEN thing.defaults->>'apiVersion' LIKE '0.2.%'
+        OR (thing.defaults->>'apiVersion' IS NULL AND NOT (args ? 'debtPaid')) THEN NULL
         ELSE args->>'debtRatio' END AS "debtRatio",
       args->>'current_debt' AS "currentDebt",
       args->>'protocol_fees' AS "protocolFees",
@@ -153,7 +154,8 @@ export const getRecentStrategyReports = async (chainId?: number, address?: strin
       args->>'totalLoss' AS "totalLoss",
       args->>'totalDebt' AS "totalDebt",
       args->>'debtAdded' AS "debtAdded",
-      CASE WHEN thing.defaults->>'apiVersion' LIKE '0.2.%' THEN NULL
+      CASE WHEN thing.defaults->>'apiVersion' LIKE '0.2.%'
+        OR (thing.defaults->>'apiVersion' IS NULL AND NOT (args ? 'debtPaid')) THEN NULL
         ELSE args->>'debtRatio' END AS "debtRatio",
       args->>'current_debt' AS "currentDebt",
       args->>'protocol_fees' AS "protocolFees",
