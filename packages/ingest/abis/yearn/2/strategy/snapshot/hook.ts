@@ -96,7 +96,8 @@ export async function extractTotalDebt(chainId: number, vault: `0x${string}`, st
 }
 
 // pre-0.3.2 vaults return an 8 field StrategyParams (rateLimit instead of
-// min/maxDebtPerHarvest), so decoding them with the flattened 9 field abi throws
+// min/maxDebtPerHarvest). their zero-padded return data still decodes under the
+// flattened 9 field abi, silently misaligning every field after debtRatio
 export async function extractStrategyParams(chainId: number, vault: `0x${string}`, strategy: `0x${string}`, blockNumber?: bigint) {
   const apiVersion = await fetchApiVersion(chainId, vault, blockNumber)
 
