@@ -6,8 +6,8 @@ const vaultReports = async (_: object, args: { chainId?: number, address?: strin
   try {
     const result = await db.query(`
     SELECT
-      chain_id AS "chainId",
-      address,
+      evmlog.chain_id AS "chainId",
+      evmlog.address,
       event_name AS "eventName",
 
       args->>'strategy' AS strategy,
@@ -18,7 +18,8 @@ const vaultReports = async (_: object, args: { chainId?: number, address?: strin
       args->>'totalLoss' AS "totalLoss",
       args->>'totalDebt' AS "totalDebt",
       args->>'debtAdded' AS "debtAdded",
-      args->>'debtRatio' AS "debtRatio",
+      CASE WHEN thing.defaults->>'apiVersion' LIKE '0.2.%' THEN NULL
+        ELSE args->>'debtRatio' END AS "debtRatio",
       args->>'current_debt' AS "currentDebt",
       args->>'protocol_fees' AS "protocolFees",
       args->>'total_fees' AS "totalFees",
@@ -42,8 +43,10 @@ const vaultReports = async (_: object, args: { chainId?: number, address?: strin
       log_index AS "logIndex",
       transaction_hash AS "transactionHash"
     FROM evmlog
+    LEFT JOIN thing
+      ON thing.chain_id = evmlog.chain_id AND thing.address = evmlog.address AND thing.label = 'vault'
     WHERE
-      (chain_id = $1 OR $1 IS NULL) AND (address = $2 OR $2 IS NULL)
+      (evmlog.chain_id = $1 OR $1 IS NULL) AND (evmlog.address = $2 OR $2 IS NULL)
       AND event_name = 'StrategyReported'
     ORDER BY
       block_time DESC, log_index DESC

@@ -11,8 +11,8 @@ import { extractDebtFromStrategy, extractDelegatedAssets, extractFees } from '..
 
 // the 8 arg variant covers 0.2.x through 0.3.1 — identical types, so one selector.
 // on 0.2.x its last arg is debtLimit (absolute tokens), not bps debtRatio. the abi names
-// it debtRatio either way; vault-report readers of args.debtRatio on 0.2.x must treat it
-// as debtLimit. fee math goes through mapStrategyParams, which zeros pre-0.3.0 debtRatio.
+// it debtRatio either way; the reports api nulls it for 0.2.x vaults, and fee math goes
+// through mapStrategyParams, which zeros pre-0.3.0 debtRatio.
 export const topics = [
   'event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 debtPaid, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtRatio)',
   'event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtRatio)'
