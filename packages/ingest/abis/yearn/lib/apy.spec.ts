@@ -40,6 +40,24 @@ describe('abis/yearn/lib/apy', () => {
     expect(fees.performance).to.eq(.2)
   }, 20_000)
 
+  it('extracts modern 0.4.3 v2 fees with a non-zero strategist fee in plain bps', async () => {
+    // vault performanceFee 1000 bps + strategy performanceFee 1000 bps * debtRatio 4126,
+    // scaled from bps² back to bps: 0.1 + 0.04126
+    const strategies: `0x${string}`[] = [addresses.v2.yvdai043LeveragedCompStrategy]
+    const fees = await extractFees__v2(mainnet.id, addresses.v2.yvdai043, '0.4.3', strategies, 14400000n)
+    expect(fees.management).to.eq(0.02)
+    expect(fees.performance).to.be.closeTo(0.14126, 1e-9)
+  }, 20_000)
+
+  it('extracts legacy 0.3.0 v2 fees in plain bps', async () => {
+    // vault performanceFee 1000 bps + strategy performanceFee 1000 bps * debtRatio 9800,
+    // scaled from bps² back to bps: 0.1 + 0.098
+    const strategies: `0x${string}`[] = [addresses.v2.yvwbtc030MakerStrategy]
+    const fees = await extractFees__v2(mainnet.id, addresses.v2.yvwbtc030, '0.3.0', strategies, 18000000n)
+    expect(fees.management).to.eq(0)
+    expect(fees.performance).to.be.closeTo(0.198, 1e-9)
+  }, 20_000)
+
   it('extracts v2 locked profit', async () => {
     const lotsOfLockedProfit = await extractLockedProfit__v2(mainnet.id, addresses.v2.yvusdt, 18344466n)
     expect(lotsOfLockedProfit).to.eq(1912999444631n)

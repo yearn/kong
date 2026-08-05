@@ -284,8 +284,9 @@ export async function extractFees__v2(chainId: number, vault: `0x${string}`, api
 
   const vaultFeesBps = await extractFeesBps(chainId, vault, blockNumber)
 
+  // strategistFeesBps is a sum of performanceFee * debtRatio products, bps²
   return {
-    performance: math.div(strategistFeesBps + vaultFeesBps.performance, 10_000n),
+    performance: math.div(strategistFeesBps, 100_000_000n) + math.div(vaultFeesBps.performance, 10_000n),
     management: math.div(vaultFeesBps.management, 10_000n)
   }
 }
