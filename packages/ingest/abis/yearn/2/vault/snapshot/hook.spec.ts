@@ -1,6 +1,6 @@
 import { expect } from 'chai'
-import { decodeEventLog, encodeAbiParameters, getAddress, pad, toEventSelector } from 'viem'
-import { extractComposition, mapStrategyParams, projectStrategies, projectStrategyEvents, resolveStrategies, union } from './hook'
+import { decodeEventLog, decodeFunctionResult, encodeAbiParameters, getAddress, pad, toEventSelector } from 'viem'
+import { extractComposition, mapStrategyParams, projectStrategies, projectStrategyEvents, resolveStrategies, strategiesAbi, union } from './hook'
 import db, { toUpsertSql } from '../../../../../db'
 import vaultAbi from '../abi'
 import abiutil from '../../../../../abiutil'
@@ -208,6 +208,24 @@ describe('abis/yearn/2/vault/snapshot/hook', () => {
 
     const strategies = await projectStrategies(1337, vault)
     expect(strategies).to.deep.equal([strategy])
+  })
+
+  it('reads totalDebt from the pre-0.3.2 strategies struct the flattened abi silently misaligns', function() {
+    // real pre-0.3.2 vaults zero-pad their return data, so the 9-field abi decodes the
+    // 8-field struct without throwing and reads totalGain where totalDebt should be
+    const legacyFields = [10n, 20n, 30n, 40n, 50n, 60n, 70n, 80n]
+    const paddedReturn = encodeAbiParameters(
+      [...legacyFields, 0n].map(() => ({ type: 'uint256' })), [...legacyFields, 0n])
+
+    const misaligned = decodeFunctionResult({
+      abi: vaultAbi, functionName: 'strategies', data: paddedReturn
+    })
+    expect(misaligned.totalDebt).to.equal(70n) // legacy totalGain lands in the totalDebt slot
+
+    const decoded = decodeFunctionResult({
+      abi: strategiesAbi('0.3.0'), functionName: 'strategies', data: paddedReturn
+    })
+    expect(mapStrategyParams('0.3.0', decoded).totalDebt).to.equal(60n)
   })
 
   it('maps 8-field StrategyParams for 0.3.0-0.3.1', function() {

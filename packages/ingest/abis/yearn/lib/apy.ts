@@ -230,7 +230,7 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
     : 52
   const fees = isV3
     ? await extractFees__v3(chainId, address, strategies, blockNumber)
-    : await extractFees__v2(chainId, address, strategies, blockNumber)
+    : await extractFees__v2(chainId, address, vault.defaults.apiVersion, strategies, blockNumber)
 
   const netApr = result.net > 0
     ? annualCompoundingPeriods * Math.pow(result.net + 1, 1 / annualCompoundingPeriods) - annualCompoundingPeriods
@@ -270,23 +270,23 @@ async function getInceptionBlockNumber(vault: Thing, blockNumber: bigint) {
   return first
 }
 
-export async function extractFees__v2(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[], blockNumber: bigint) {
+export async function extractFees__v2(chainId: number, vault: `0x${string}`, apiVersion: string, strategies: `0x${string}`[], blockNumber: bigint) {
   const strategiesMulticall = await rpcs.next(chainId, blockNumber).multicall({ contracts: strategies.map(s => ({
     args: [s as string], address: vault, functionName: 'strategies',
-    abi: parseAbi(['function strategies(address) returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)'])
+    abi: snapshot__v2.strategiesAbi(apiVersion)
   })), blockNumber})
 
   const strategistFeesBps = strategiesMulticall.map(strategy => {
     if(strategy.status === 'failure') return 0n
-    const fees = (strategy.result as bigint [])[0]
-    const debtRatio = (strategy.result as bigint [])[2]
-    return (fees * debtRatio) || 0n
+    const { performanceFee, debtRatio } = snapshot__v2.mapStrategyParams(apiVersion, strategy.result)
+    return (performanceFee * debtRatio) || 0n
   }).reduce((a, b) => a + b, 0n)
 
   const vaultFeesBps = await extractFeesBps(chainId, vault, blockNumber)
 
+  // strategistFeesBps is a sum of performanceFee * debtRatio products, bps²
   return {
-    performance: math.div(strategistFeesBps + vaultFeesBps.performance, 10_000n),
+    performance: math.div(strategistFeesBps, 100_000_000n) + math.div(vaultFeesBps.performance, 10_000n),
     management: math.div(vaultFeesBps.management, 10_000n)
   }
 }
