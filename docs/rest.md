@@ -189,6 +189,53 @@ curl -s https://kong.yearn.fi/api/rest/timeseries/pps/1/0x6faf8b7ffee3306efcfc2b
 
 ---
 
+#### `POST /api/rest/timeseries/pps/v2`
+
+Bounded PPS history for vaults on one or more chains. Timestamps are inclusive,
+UTC-day-aligned Unix seconds. If no point exists at `start`, the nearest earlier
+point is included as an anchor.
+
+```bash
+curl -s https://kong.yearn.fi/api/rest/timeseries/pps/v2 \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "start": 1785628800,
+    "finish": 1785715200,
+    "addresses": [
+      "1:0x0000000000000000000000000000000000000000",
+      "137:0x0123000000000000000000000000000000000123"
+    ]
+  }' | jq
+```
+
+**Illustrative response**
+
+```json
+{
+  "1:0x0000000000000000000000000000000000000000": [
+    {
+      "time": 1785628800,
+      "value": "2.5705114630967140"
+    }
+  ],
+  "137:0x0123000000000000000000000000000000000123": [
+    {
+      "time": 1785715200,
+      "value": "2.5714560633226657"
+    }
+  ]
+}
+```
+
+Response keys are normalized to `<chainId>:<lowercase-address>`. Results contain
+only humanized PPS points, ordered by time. Recent cached points override
+historical points at the same timestamp. Missing series return an empty array.
+Requests accept 1–50 addresses and a range of at most 10 calendar years.
+
+**Errors**: `400` invalid request, `413` request or response too large, `500` cache read failure.
+
+---
+
 ### Vault Reports
 
 #### `GET /api/rest/reports/:chainId/:address`
