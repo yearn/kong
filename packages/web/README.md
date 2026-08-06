@@ -49,7 +49,7 @@ Uptime Kuma URL named in its route file.
 |---|---|---|
 | `/api/cron/refresh-cache` | `*/30 * * * *` | 300 |
 | `/api/cron/timeseries-refresh` | `0 * * * *` | 300 |
-| `/api/cron/timeseries-refresh-historical` | `15 * * * *` | 800 |
+| `/api/cron/timeseries-refresh-historical` | `15 2 * * *` | 800 |
 | `/api/cron/reports-refresh` | manual only | 300 |
 | `/api/cron/reports-refresh-historical` | manual only | 800 |
 
