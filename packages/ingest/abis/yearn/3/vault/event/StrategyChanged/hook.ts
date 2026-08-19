@@ -5,6 +5,7 @@ import { estimateCreationBlock } from 'lib/blocks'
 import { mq } from 'lib'
 import { rpcs } from '../../../../../../rpcs'
 import strategyAbi from '../../../strategy/abi'
+import { classifyVault } from '../../../../../../helpers/classify-vault'
 
 export const topics = [
   'event StrategyChanged(address indexed strategy, uint256 change_type)'
@@ -45,7 +46,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const apiVersion = strategyCheck[5].status === 'success' ? strategyCheck[5].result as string : undefined
 
   if (isTokenizedStrategy) {
-    mq.add(mq.job.load.thing, ThingSchema.parse({
+    await mq.add(mq.job.load.thing, ThingSchema.parse({
       chainId,
       address: strategy,
       label: 'strategy',
@@ -59,11 +60,12 @@ export default async function process(chainId: number, address: `0x${string}`, d
       }
     }))
 
-    mq.add(mq.job.load.thing, ThingSchema.parse({
+    await mq.add(mq.job.load.thing, ThingSchema.parse({
       chainId,
       address: strategy,
       label: 'vault',
       defaults: {
+        yearn: true,
         v3: true,
         erc4626: true,
         apiVersion,
@@ -73,11 +75,12 @@ export default async function process(chainId: number, address: `0x${string}`, d
       }
     }))
   } else {
-    mq.add(mq.job.load.thing, ThingSchema.parse({
+    await mq.add(mq.job.load.thing, ThingSchema.parse({
       chainId,
       address: strategy,
       label: 'vault',
       defaults: {
+        ...(apiVersion ? classifyVault(apiVersion) ?? {} : {}),
         erc4626: true,
         asset, decimals,
         inceptBlock,
