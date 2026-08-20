@@ -11,12 +11,12 @@ const shared = {
 
 export default defineConfig({
   test: {
-    globalSetup: ['./vitest.global.ts'],
     teardownTimeout: 30_000,
     projects: [
       {
         test: {
           ...shared,
+          globalSetup: ['./vitest.global.ts'],
           name: 'ingest',
           include: ['**/*.spec.ts'],
           exclude: ['**/node_modules/**', '**/*containers.spec.ts', '**/*.mock.spec.ts'],
