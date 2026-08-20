@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mqAdd = vi.fn()
+const { mqAdd } = vi.hoisted(() => ({ mqAdd: vi.fn() }))
 
 vi.mock('lib', () => ({
   mq: { add: mqAdd, job: { load: { price: { name: 'price' } } } }
@@ -12,14 +12,14 @@ vi.mock('lib/blocks', () => ({
 }))
 
 vi.mock('lib/cache', () => ({
-  cache: { wrap: (_key: string, fn: () => Promise<unknown>) => fn() }
+  cache: {
+    get: vi.fn(async () => undefined),
+    set: vi.fn(async () => undefined),
+    wrap: (_key: string, fn: () => Promise<unknown>) => fn()
+  }
 }))
 
-// `lib`'s barrel re-exports `../ingest/prices` (circular), and vitest.setup.ts
-// imports `lib` before this file's vi.mock calls run. Reset + re-import
-// dynamically so ./prices re-resolves against the mocks declared above.
-vi.resetModules()
-const { fetchErc20PriceUsd } = await import('./prices')
+import { fetchErc20PriceUsd } from './prices'
 
 const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' as const
 const CHAIN_ID = 137 // polygon — not in the on-chain `lens` map
