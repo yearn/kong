@@ -9,5 +9,3 @@ gql-cache*
 __pycache__
 output/
 .mcp.json
-
-price-service-rest-compare.md
