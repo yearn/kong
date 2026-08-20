@@ -44,6 +44,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
   const isTokenizedStrategy = strategyCheck.slice(0, 5).every(r => r.status === 'success')
   const apiVersion = strategyCheck[5].status === 'success' ? strategyCheck[5].result as string : undefined
+  const classified = classifyVault(apiVersion)
 
   if (isTokenizedStrategy) {
     await mq.add(mq.job.load.thing, ThingSchema.parse({
@@ -80,7 +81,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
       address: strategy,
       label: 'vault',
       defaults: {
-        ...(apiVersion ? classifyVault(apiVersion) ?? {} : {}),
+        ...(classified?.v3 ? classified : {}),
         erc4626: true,
         asset, decimals,
         inceptBlock,

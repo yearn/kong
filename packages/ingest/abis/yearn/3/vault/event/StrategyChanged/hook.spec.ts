@@ -110,4 +110,25 @@ describe('StrategyChanged hook', function() {
       apiVersion: '3.0.2'
     })
   })
+
+  it('keeps erc4626 defaults with no yearn/v3/apiVersion when apiVersion is below 3.0.0', async function() {
+    mockChain({ tokenized: false, apiVersion: '0.4.6' })
+    const add = vi.spyOn(mq, 'add').mockResolvedValue({} as never)
+
+    await process(1, STRATEGY, {
+      blockNumber: 123n,
+      args: { strategy: STRATEGY }
+    })
+
+    expect(add.mock.calls).to.have.length(1)
+    const [, payload] = add.mock.calls[0] as [unknown, { defaults: Record<string, unknown> }]
+    expect(payload.defaults).to.not.have.any.keys('yearn', 'v3', 'apiVersion')
+    expect(payload.defaults).to.deep.equal({
+      erc4626: true,
+      asset: '0xasset000000000000000000000000000000001',
+      decimals: 18,
+      inceptBlock: 1n,
+      inceptTime: 2n
+    })
+  })
 })
