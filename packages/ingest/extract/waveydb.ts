@@ -5,6 +5,7 @@ import { Processor } from 'lib/processor'
 import { Price, PriceSchema } from 'lib/types'
 import batchx from 'lib/batchx'
 import { getAddress } from 'viem'
+import { usePriceService } from '../prices'
 
 const db = new Pool({
   host: process.env.WAVEYDB_HOST,
@@ -32,6 +33,9 @@ export class WaveyDbExtractor implements Processor {
   }
 
   async extractPrices() {
+    // Service mode decommissions the price table; skip these writes entirely.
+    if (usePriceService()) return
+
     const result = await db.query(`
       SELECT 
         chain_id as "chainId",

@@ -15,6 +15,32 @@ export const lens = {
   [arbitrum.id]: '0x043518AB266485dC085a1DB095B8d9C2Fc78E9b9' as `0x${string}`
 }
 
+const DAY_SECONDS = 86_400
+const PAST_DAY_CACHE_TTL_MS = 24 * 60 * 60 * 1000
+const PAST_DAY_NEGATIVE_CACHE_TTL_MS = 120_000
+const BLOCK_CACHE_TTL_MS = 30_000
+
+/** When true, indexer reads prices from yearn-prices and skips the Postgres price table. */
+export function usePriceService(): boolean {
+  return (process.env.USE_PRICE_SERVICE || '').trim().toLowerCase() === 'true'
+}
+
+/** Fail closed when service mode lacks a key. Call from ingest startup. */
+export function assertPriceSourceConfig(): void {
+  if (usePriceService() && !process.env.PRICE_SERVICE_API_KEY) {
+    throw new Error('USE_PRICE_SERVICE=true requires PRICE_SERVICE_API_KEY')
+  }
+}
+
+/** UTC day start (unix seconds): floor(ts/86400)*86400 — cache key, not service day-end. */
+export function utcDayStart(blockTime: bigint | number): number {
+  return Math.floor(Number(blockTime) / DAY_SECONDS) * DAY_SECONDS
+}
+
+export function isCurrentUtcDay(blockTime: bigint | number, nowSec = Math.floor(Date.now() / 1000)): boolean {
+  return utcDayStart(blockTime) === utcDayStart(nowSec)
+}
+
 export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber?: bigint, latest = false): Promise<{ priceUsd: number, priceSource: string }>{
   token = getAddress(token)
 
@@ -22,92 +48,188 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
     blockNumber = await getBlockNumber(chainId)
     latest = true
   }
+  const blockCacheKey = `fetchErc20PriceUsd:${chainId}:${token}:${blockNumber}`
 
-  return cache.wrap(`fetchErc20PriceUsd:${chainId}:${token}:${blockNumber}`, async () => {
-    return await __fetchErc20PriceUsd(chainId, token, blockNumber!, latest)
-  }, 30_000)
+  if (usePriceService() && !latest) {
+    const blockTime = await getBlockTime(chainId, blockNumber)
+    if (!isCurrentUtcDay(blockTime)) {
+      const day = utcDayStart(blockTime)
+      // v2: don't reuse entries a prior trial wrote under the old key.
+      const key = `fetchErc20PriceUsd:service:v2:${chainId}:${token}:${day}`
+      const cached = await cache.get(key)
+      if (isPriceServiceNegativeCacheMarker(cached)) return { priceUsd: 0, priceSource: cached.priceSource }
+      const parsed = PriceSchema.safeParse(cached)
+      if (parsed.success) return parsed.data
+      const result = await cache.wrap(
+        blockCacheKey,
+        async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, latest, blockTime),
+        BLOCK_CACHE_TTL_MS
+      )
+      // Only a day-granular service result is safe under a day key: a transient miss must
+      // not stick tvl=0 for the whole day.
+      if (result.priceSource === 'priceservice') await cache.set(key, result, PAST_DAY_CACHE_TTL_MS)
+      else await cache.set(key, { type: 'price-service-negative', priceSource: result.priceSource }, PAST_DAY_NEGATIVE_CACHE_TTL_MS)
+      return result
+    }
+  }
+
+  return cache.wrap(
+    blockCacheKey,
+    async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, latest),
+    BLOCK_CACHE_TTL_MS
+  )
 }
 
-async function __fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint, latest = false) {
+async function __fetchErc20PriceUsd(
+  chainId: number,
+  token: `0x${string}`,
+  blockNumber: bigint,
+  latest = false,
+  knownBlockTime?: bigint
+) {
+  // USE_PRICE_SERVICE=true: price service is the only source — no table read/write,
+  // no fallbacks. Unknown price when the service has nothing.
+  if (usePriceService()) {
+    const result = await fetchPriceServiceUsdResult(chainId, token, blockNumber, knownBlockTime)
+    if (result.type === 'price') return result.price
+    if (result.type === 'missing') return unknownPrice(chainId, token, blockNumber)
+    return unavailablePrice(chainId, token, blockNumber, knownBlockTime)
+  }
+  return __fetchErc20PriceUsdFromTable(chainId, token, blockNumber, latest)
+}
+
+/** Legacy path: read/write the Postgres price table (USE_PRICE_SERVICE=false, default). */
+async function __fetchErc20PriceUsdFromTable(chainId: number, token: `0x${string}`, blockNumber: bigint, latest = false) {
   let result: Price | undefined
 
-  if(latest) {
+  if (latest) {
     result = await fetchYDaemonPriceUsd(chainId, token, blockNumber)
-    await mq.add(mq.job.load.price, result)
-    if(result) return result
+    if (result) {
+      await mq.add(mq.job.load.price, result)
+      return result
+    }
   }
 
   result = await fetchDbPriceUsd(chainId, token, blockNumber)
-  if(result) return result
+  if (result) return result
 
   result = await fetchLensPriceUsd(chainId, token, blockNumber)
-  if(result) {
+  if (result) {
     await mq.add(mq.job.load.price, result)
     return result
   }
 
-  if(JSON.parse(process.env.YPRICE_ENABLED || 'false')) {
+  if (JSON.parse(process.env.YPRICE_ENABLED || 'false')) {
     result = await fetchYPriceUsd(chainId, token, blockNumber)
-    if(result) {
+    if (result) {
       await mq.add(mq.job.load.price, result)
       return result
     }
   }
 
-  if(!result) {
-    result = await fetchPriceServiceUsd(chainId, token, blockNumber)
-    if(result) {
-      await mq.add(mq.job.load.price, result)
-      return result
-    }
+  result = await fetchPriceServiceUsd(chainId, token, blockNumber)
+  if (result) {
+    await mq.add(mq.job.load.price, result)
+    return result
   }
 
   console.warn('🚨', 'no price', chainId, token, blockNumber)
-  const empty = { chainId, address: token, priceUsd: 0, priceSource: 'na', blockNumber, blockTime: await getBlockTime(chainId, blockNumber) }
+  const empty = await unknownPrice(chainId, token, blockNumber)
   await mq.add(mq.job.load.price, empty)
   return empty
 }
 
-const PRICE_SERVICE_CHAIN_NAMES: Record<number, string> = {
-  1: 'ethereum', 10: 'optimism', 100: 'xdai', 137: 'polygon',
+async function unknownPrice(chainId: number, token: `0x${string}`, blockNumber: bigint): Promise<Price> {
+  return {
+    chainId,
+    address: token,
+    priceUsd: 0,
+    priceSource: 'na',
+    blockNumber,
+    blockTime: await getBlockTime(chainId, blockNumber)
+  }
+}
+
+async function unavailablePrice(chainId: number, token: `0x${string}`, blockNumber: bigint, knownBlockTime?: bigint): Promise<Price> {
+  return {
+    chainId,
+    address: token,
+    priceUsd: 0,
+    priceSource: 'unavailable',
+    blockNumber,
+    blockTime: knownBlockTime ?? await getBlockTime(chainId, blockNumber)
+  }
+}
+
+/** Must match price-service CHAIN_ID_TO_NAME (gnosis, not xdai). */
+export const PRICE_SERVICE_CHAIN_NAMES: Record<number, string> = {
+  1: 'ethereum', 10: 'optimism', 100: 'gnosis', 137: 'polygon',
   146: 'sonic', 250: 'fantom', 8453: 'base', 42161: 'arbitrum',
   80094: 'berachain', 747474: 'katana',
 }
 
 const PRICE_SERVICE_DEFAULT_URL = 'https://prices.yearn.dev'
 
-async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
-  if(!process.env.PRICE_SERVICE_API_KEY) return undefined
+type PriceServiceResult =
+  | { type: 'price', price: Price }
+  | { type: 'missing' }
+  | { type: 'unavailable' }
+
+type PriceServiceNegativeCacheMarker = {
+  type: 'price-service-negative'
+  priceSource: string
+}
+
+function isPriceServiceNegativeCacheMarker(value: unknown): value is PriceServiceNegativeCacheMarker {
+  return typeof value === 'object' && value !== null
+    && (value as PriceServiceNegativeCacheMarker).type === 'price-service-negative'
+    && ['na', 'unavailable'].includes((value as PriceServiceNegativeCacheMarker).priceSource)
+}
+
+async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint, knownBlockTime?: bigint): Promise<Price | undefined> {
+  const result = await fetchPriceServiceUsdResult(chainId, token, blockNumber, knownBlockTime)
+  return result.type === 'price' ? result.price : undefined
+}
+
+async function fetchPriceServiceUsdResult(chainId: number, token: `0x${string}`, blockNumber: bigint, knownBlockTime?: bigint): Promise<PriceServiceResult> {
+  // Warn only in service mode: in the legacy path a missing key or unmapped chain is normal.
+  const warn = (reason: string, detail?: unknown) => {
+    if (usePriceService()) console.warn('🚨', 'price service miss', reason, chainId, token, blockNumber, detail ?? '')
+  }
+
+  if (!process.env.PRICE_SERVICE_API_KEY) { warn('no api key'); return { type: 'unavailable' } }
   const chainName = PRICE_SERVICE_CHAIN_NAMES[chainId]
-  if(!chainName) return undefined
+  if (!chainName) { warn('unmapped chain'); return { type: 'unavailable' } }
 
   const baseUrl = process.env.PRICE_SERVICE_URL || PRICE_SERVICE_DEFAULT_URL
 
   try {
-    const blockTime = await getBlockTime(chainId, blockNumber)
+    const blockTime = knownBlockTime ?? await getBlockTime(chainId, blockNumber)
     const coinId = `${chainName}:${token.toLowerCase()}`
-    const coins = encodeURIComponent(JSON.stringify({ [coinId]: [Number(blockTime)] }))
-    const url = `${baseUrl}/api/prices/batchHistorical?source=defillama&coins=${coins}`
+    const url = `${baseUrl}/api/prices/historical/${Number(blockTime)}/${coinId}`
 
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` }
     })
-    if(!response.ok) return undefined
+    if (!response.ok) {
+      warn('http', response.status)
+      return response.status === 404 ? { type: 'missing' } : { type: 'unavailable' }
+    }
 
-    const data = await response.json() as { coins: Record<string, { symbol: string; prices: { timestamp: number; price: number; confidence: number; source: string }[] }> }
+    const data = await response.json() as { coins: Record<string, { price: number }> }
     const coinData = data.coins[coinId]
-    const priceUsd = coinData?.prices?.[0]?.price
-    if(!priceUsd) return undefined
+    const priceUsd = coinData?.price
+    if (!priceUsd || !Number.isFinite(priceUsd)) { warn('empty coins'); return { type: 'missing' } }
 
-    return PriceSchema.parse({ chainId, address: token, priceUsd, priceSource: 'priceservice', blockNumber, blockTime })
-  } catch(error) {
-    console.warn('🚨', 'price service failed', chainId, token, blockNumber)
-    return undefined
+    return { type: 'price', price: PriceSchema.parse({ chainId, address: token, priceUsd, priceSource: 'priceservice', blockNumber, blockTime }) }
+  } catch (error) {
+    console.warn('🚨', 'price service failed', chainId, token, blockNumber, error)
+    return { type: 'unavailable' }
   }
 }
 
 async function fetchYPriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
-  if(!process.env.YPRICE_API) return undefined
+  if (!process.env.YPRICE_API) return undefined
 
   try {
     const url = `${process.env.YPRICE_API}/get_price/${chainId}/${token}?block=${blockNumber}`
@@ -119,7 +241,7 @@ async function fetchYPriceUsd(chainId: number, token: `0x${string}`, blockNumber
     })
 
     const priceUsd = Number(await result.json())
-    if(priceUsd === 0) return undefined
+    if (priceUsd === 0) return undefined
 
     return PriceSchema.parse({
       chainId,
@@ -130,7 +252,7 @@ async function fetchYPriceUsd(chainId: number, token: `0x${string}`, blockNumber
       blockTime: await getBlockTime(chainId, blockNumber)
     })
 
-  } catch(error) {
+  } catch {
     console.warn('🚨', 'yprice failed', chainId, token, blockNumber)
     return undefined
   }
@@ -148,23 +270,23 @@ async function fetchDbPriceUsd(chainId: number, token: `0x${string}`, blockNumbe
     FROM price WHERE chain_id = $1 AND address = $2 AND block_number = $3`,
     [chainId, getAddress(token), blockNumber]
   )
-  if(result.rows.length === 0) return undefined
+  if (result.rows.length === 0) return undefined
   return PriceSchema.parse(result.rows[0])
 }
 
 async function fetchLensPriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
-  if(!(chainId in lens)) return undefined
+  if (!(chainId in lens)) return undefined
 
   try {
     const priceUSDC = await rpcs.next(chainId, blockNumber).readContract({
       address: lens[chainId as keyof typeof lens],
       functionName: 'getPriceUsdcRecommended',
-      args: [ token ],
+      args: [token],
       abi: parseAbi(['function getPriceUsdcRecommended(address tokenAddress) view returns (uint256)']),
       blockNumber
     }) as bigint
 
-    if(priceUSDC === 0n) return undefined
+    if (priceUSDC === 0n) return undefined
 
     return PriceSchema.parse({
       chainId,
@@ -175,14 +297,14 @@ async function fetchLensPriceUsd(chainId: number, token: `0x${string}`, blockNum
       blockTime: await getBlockTime(chainId, blockNumber)
     })
 
-  } catch(error) {
+  } catch (error) {
     console.warn('🚨', 'lens price failed', error)
     return undefined
   }
 }
 
 async function fetchAllYDaemonPrices() {
-  if(!process.env.YDAEMON_API) throw new Error('!YDAEMON_API')
+  if (!process.env.YDAEMON_API) throw new Error('!YDAEMON_API')
   return cache.wrap('fetchAllYDaemonPrices', async () => {
     const url = `${process.env.YDAEMON_API}/prices/all?humanized=true`
     const result = await fetch(url)
@@ -212,7 +334,7 @@ async function fetchYDaemonPriceUsd(chainId: number, token: `0x${string}`, block
   try {
     const prices = await fetchAllYDaemonPrices()
     const price = prices[chainId.toString()]?.[token.toLowerCase()] || 0
-    if(isNaN(price)) return undefined
+    if (isNaN(price)) return undefined
     return PriceSchema.parse({
       chainId,
       address: token,
@@ -221,7 +343,7 @@ async function fetchYDaemonPriceUsd(chainId: number, token: `0x${string}`, block
       blockNumber,
       blockTime: await getBlockTime(chainId, blockNumber)
     })
-  } catch(error) {
+  } catch (error) {
     console.warn('🚨', 'ydaemon price failed', error)
     return undefined
   }

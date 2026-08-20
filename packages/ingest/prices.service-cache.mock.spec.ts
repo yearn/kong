@@ -1,0 +1,235 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { cacheGet, cacheSet, blockTime, wrapStore } = vi.hoisted(() => ({
+  cacheGet: vi.fn(), cacheSet: vi.fn(), blockTime: vi.fn(), wrapStore: new Map<string, unknown>()
+}))
+
+vi.mock('lib/blocks', () => ({
+  getBlockTime: blockTime,
+  getBlockNumber: vi.fn(async () => 1n)
+}))
+
+vi.mock('lib/cache', () => ({
+  cache: {
+    get: cacheGet,
+    set: cacheSet,
+    wrap: async (key: string, fn: () => Promise<unknown>) => {
+      if (!wrapStore.has(key)) wrapStore.set(key, await fn())
+      return wrapStore.get(key)
+    }
+  }
+}))
+
+import { fetchErc20PriceUsd } from './prices'
+
+const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' as const
+const CHAIN_ID = 137 // polygon — not in the on-chain `lens` map
+
+describe('fetchErc20PriceUsd (USE_PRICE_SERVICE, past-day path)', () => {
+  const originalUsePriceService = process.env.USE_PRICE_SERVICE
+  const originalApiKey = process.env.PRICE_SERVICE_API_KEY
+  const originalYpriceEnabled = process.env.YPRICE_ENABLED
+
+  beforeEach(() => {
+    process.env.USE_PRICE_SERVICE = 'true'
+    process.env.PRICE_SERVICE_API_KEY = 'test-key'
+    delete process.env.YPRICE_ENABLED
+
+    cacheGet.mockReset().mockResolvedValue(undefined)
+    cacheSet.mockReset()
+    blockTime.mockReset().mockResolvedValue(1700000000n)
+    wrapStore.clear()
+  })
+
+  afterEach(() => {
+    if (originalUsePriceService === undefined) delete process.env.USE_PRICE_SERVICE
+    else process.env.USE_PRICE_SERVICE = originalUsePriceService
+    if (originalApiKey === undefined) delete process.env.PRICE_SERVICE_API_KEY
+    else process.env.PRICE_SERVICE_API_KEY = originalApiKey
+    if (originalYpriceEnabled === undefined) delete process.env.YPRICE_ENABLED
+    else process.env.YPRICE_ENABLED = originalYpriceEnabled
+
+    vi.unstubAllGlobals()
+  })
+
+  it('caches a service hit under the day key', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        coins: {
+          ['polygon:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2']: {
+            symbol: 'WETH',
+            price: 2
+          }
+        }
+      })
+    })))
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('priceservice')
+    expect(priceUsd).to.equal(2)
+    expect(cacheSet).toHaveBeenCalledTimes(1)
+    const [key] = cacheSet.mock.calls[0]
+    expect(key).toContain(':service:')
+    expect(key).toContain(':137:')
+  })
+
+  it('caches an unknown result under a short-lived negative marker', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404 })))
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('na')
+    expect(priceUsd).to.equal(0)
+    expect(cacheSet).toHaveBeenCalledTimes(1)
+    const [key, marker, ttl] = cacheSet.mock.calls[0]
+    expect(key).toContain(':service:')
+    expect(marker).to.deep.equal({ type: 'price-service-negative', priceSource: 'na' })
+    expect(ttl).to.equal(120_000)
+    expect(ttl).not.to.equal(24 * 60 * 60 * 1000)
+  })
+
+  it('does not promote a literal zero price into the day cache', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        coins: {
+          ['polygon:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2']: { symbol: 'WETH', price: 0 }
+        }
+      })
+    })))
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('na')
+    expect(priceUsd).to.equal(0)
+    expect(cacheSet).toHaveBeenCalledTimes(1)
+    const [, marker, ttl] = cacheSet.mock.calls[0]
+    expect(marker).to.deep.equal({ type: 'price-service-negative', priceSource: 'na' })
+    expect(ttl).to.equal(120_000)
+  })
+
+  it('issues one fetch for repeat misses of the same block', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 404 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const first = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+    const second = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(first.priceSource).to.equal('na')
+    expect(second.priceSource).to.equal('na')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(cacheSet).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns a cached value without refetching', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    cacheGet.mockResolvedValue({
+      chainId: CHAIN_ID,
+      address: WETH,
+      priceUsd: 5,
+      priceSource: 'priceservice',
+      blockNumber: 1n,
+      blockTime: 1700000000n
+    })
+
+    const { priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceUsd).to.equal(5)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('fetches once for many blocks in the same utc day', async () => {
+    const store = new Map<string, unknown>()
+    cacheGet.mockImplementation(async (key: string) => store.get(key))
+    cacheSet.mockImplementation(async (key: string, value: unknown) => { store.set(key, value) })
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        coins: {
+          ['polygon:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2']: {
+            symbol: 'WETH',
+            price: 2
+          }
+        }
+      })
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    for (const blockNumber of [1n, 2n, 3n, 4n]) {
+      const { priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, blockNumber)
+      expect(priceUsd).to.equal(2)
+    }
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('issues one fetch for distinct past-day blocks after an unavailable response', async () => {
+    const store = new Map<string, unknown>()
+    cacheGet.mockImplementation(async (key: string) => store.get(key))
+    cacheSet.mockImplementation(async (key: string, value: unknown) => { store.set(key, value) })
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 503 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    for (const blockNumber of [1n, 2n, 3n, 4n]) {
+      const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, blockNumber)
+      expect(priceSource).to.equal('unavailable')
+      expect(priceUsd).to.equal(0)
+    }
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips the day key for a current-day block (routes through the 30s cache)', async () => {
+    const nowSec = Math.floor(Date.now() / 1000)
+    blockTime.mockResolvedValue(BigInt(nowSec))
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        coins: {
+          ['polygon:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2']: {
+            symbol: 'WETH',
+            price: 2
+          }
+        }
+      })
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('priceservice')
+    expect(priceUsd).to.equal(2)
+    expect(cacheGet).not.toHaveBeenCalled()
+    expect(cacheSet).not.toHaveBeenCalled()
+  })
+
+  it('skips the day cache entirely with no blockNumber (latest path)', async () => {
+    blockTime.mockResolvedValue(1700000000n) // past day — would hit the day-cache branch if latest weren't set
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        coins: {
+          ['polygon:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2']: {
+            symbol: 'WETH',
+            price: 2
+          }
+        }
+      })
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH)
+
+    expect(priceSource).to.equal('priceservice')
+    expect(priceUsd).to.equal(2)
+    expect(cacheGet).not.toHaveBeenCalled()
+    expect(cacheSet).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})

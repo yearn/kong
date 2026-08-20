@@ -30,10 +30,11 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 
   if (!vault) return []
 
-  const { tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd, decimals } = await _compute(vault, blockNumber, latest)
+  const { tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd, priceSource, decimals } = await _compute(vault, blockNumber, latest)
 
   // extractTotalAssets returns undefined on multicall failure; skip emitting a false zero (a genuine empty vault is 0n)
   if (totalAssets === undefined) return []
+  if (priceSource === 'unavailable') return []
 
   if (components) {
     // componentized outputs
@@ -72,12 +73,12 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
     decimals: z.number({ coerce: true })
   }).parse(defaults)
 
-  const { priceUsd } = await fetchErc20PriceUsd(chainId, asset, blockNumber, latest)
+  const { priceUsd, priceSource } = await fetchErc20PriceUsd(chainId, asset, blockNumber, latest)
 
   const totalAssets = await extractTotalAssets(chainId, address, blockNumber)
 
   // no assets means no real tvl; keep the real priceUsd for the price component
-  if (!totalAssets) return { priceUsd, tvl: 0, delegatedTvl: 0, totalAssets, delegatedAssets: 0n, decimals }
+  if (!totalAssets) return { priceUsd, priceSource, tvl: 0, delegatedTvl: 0, totalAssets, delegatedAssets: 0n, decimals }
 
   // pre-3.0.0 vaults delegate assets to strategies; v3 and bare erc4626 (no apiVersion) do not
   const delegatedAssets = apiVersion && compare(apiVersion, '3.0.0', '<')
@@ -88,7 +89,7 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
   const tvl = priceUsd ? priced(totalAssets, decimals, priceUsd) : 0
   const delegatedTvl = priceUsd ? priced(delegatedAssets, decimals, priceUsd) : 0
 
-  return { priceUsd, tvl, delegatedTvl, totalAssets, delegatedAssets, decimals }
+  return { priceUsd, priceSource, tvl, delegatedTvl, totalAssets, delegatedAssets, decimals }
 }
 
 export async function extractTotalDelegatedAssets(chainId: number, vault: `0x${string}`, blockNumber: bigint) {
