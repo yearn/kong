@@ -15,10 +15,7 @@ describe('prices resolver', () => {
     )
   })
 
-  it('does not import or query the database', async () => {
-    // Resolver module has no db dependency after the price-table nulling.
-    // If a future change reintroduces a query, this module-level guarantee is gone;
-    // the empty return is the contract under test here.
+  it('default export is a function that returns [] after the price-table nulling', async () => {
     const mod = await import('./prices')
     assert.equal(typeof mod.default, 'function')
     assert.deepEqual(await mod.default({}, { address: '0x0000000000000000000000000000000000000001' }), [])

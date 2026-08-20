@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { cacheGet, cacheSet } = vi.hoisted(() => ({ cacheGet: vi.fn(), cacheSet: vi.fn() }))
+const { cacheGet, cacheSet, blockTime } = vi.hoisted(() => ({ cacheGet: vi.fn(), cacheSet: vi.fn(), blockTime: vi.fn() }))
 
 vi.mock('lib/blocks', () => ({
-  getBlockTime: vi.fn(async () => 1700000000n),
+  getBlockTime: blockTime,
   getBlockNumber: vi.fn(async () => 1n)
 }))
 
@@ -32,6 +32,7 @@ describe('fetchErc20PriceUsd (USE_PRICE_SERVICE, past-day path)', () => {
 
     cacheGet.mockReset().mockResolvedValue(undefined)
     cacheSet.mockReset()
+    blockTime.mockReset().mockResolvedValue(1700000000n)
   })
 
   afterEach(() => {
@@ -120,5 +121,30 @@ describe('fetchErc20PriceUsd (USE_PRICE_SERVICE, past-day path)', () => {
     }
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips the day key for a current-day block (routes through the 30s cache)', async () => {
+    const nowSec = Math.floor(Date.now() / 1000)
+    blockTime.mockResolvedValue(BigInt(nowSec))
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        coins: {
+          ['polygon:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2']: {
+            symbol: 'WETH',
+            prices: [{ timestamp: nowSec, price: 2, confidence: 1, source: 'defillama' }]
+          }
+        }
+      })
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('priceservice')
+    expect(priceUsd).to.equal(2)
+    expect(cacheGet).not.toHaveBeenCalled()
+    expect(cacheSet).not.toHaveBeenCalled()
   })
 })
