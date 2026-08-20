@@ -34,7 +34,7 @@ describe('fetchErc20PriceUsd (service mode, cache never upped)', () => {
         coins: {
           ['polygon:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2']: {
             symbol: 'WETH',
-            prices: [{ timestamp: 1700000000, price: 2, confidence: 1, source: 'defillama' }]
+            price: 2
           }
         }
       })
