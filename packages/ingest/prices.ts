@@ -56,7 +56,11 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
       const key = `fetchErc20PriceUsd:service:v2:${chainId}:${token}:${day}`
       const cached = await cache.get(key) as Price | undefined
       if (cached) return cached
-      const result = await __fetchErc20PriceUsd(chainId, token, blockNumber, latest, blockTime)
+      const result = await cache.wrap(
+        `fetchErc20PriceUsd:${chainId}:${token}:${blockNumber}`,
+        async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, latest, blockTime),
+        LATEST_CACHE_TTL_MS
+      )
       // Only a day-granular service result is safe under a day key: a transient miss must
       // not stick tvl=0 for the whole day.
       if (result.priceSource === 'priceservice') await cache.set(key, result, PAST_DAY_CACHE_TTL_MS)

@@ -12,7 +12,9 @@ class __Cache {
   }
 
   get get() {
-    return (this.__cache as Cache).get.bind(this.__cache)
+    return this.__cache
+      ? (this.__cache as Cache).get.bind(this.__cache)
+      : async (_key: string) => undefined
   }
 
   get reset() {
@@ -20,7 +22,9 @@ class __Cache {
   }
 
   get set() {
-    return (this.__cache as Cache).set.bind(this.__cache)
+    return this.__cache
+      ? (this.__cache as Cache).set.bind(this.__cache)
+      : async (_key: string, _value: any, _ttl?: number) => undefined
   }
 
   get wrap() {

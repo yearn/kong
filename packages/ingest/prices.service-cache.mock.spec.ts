@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { cacheGet, cacheSet, blockTime } = vi.hoisted(() => ({ cacheGet: vi.fn(), cacheSet: vi.fn(), blockTime: vi.fn() }))
+const { cacheGet, cacheSet, blockTime, wrapStore } = vi.hoisted(() => ({
+  cacheGet: vi.fn(), cacheSet: vi.fn(), blockTime: vi.fn(), wrapStore: new Map<string, unknown>()
+}))
 
 vi.mock('lib/blocks', () => ({
   getBlockTime: blockTime,
@@ -11,7 +13,10 @@ vi.mock('lib/cache', () => ({
   cache: {
     get: cacheGet,
     set: cacheSet,
-    wrap: (_key: string, fn: () => Promise<unknown>) => fn()
+    wrap: async (key: string, fn: () => Promise<unknown>) => {
+      if (!wrapStore.has(key)) wrapStore.set(key, await fn())
+      return wrapStore.get(key)
+    }
   }
 }))
 
@@ -33,6 +38,7 @@ describe('fetchErc20PriceUsd (USE_PRICE_SERVICE, past-day path)', () => {
     cacheGet.mockReset().mockResolvedValue(undefined)
     cacheSet.mockReset()
     blockTime.mockReset().mockResolvedValue(1700000000n)
+    wrapStore.clear()
   })
 
   afterEach(() => {
@@ -76,6 +82,19 @@ describe('fetchErc20PriceUsd (USE_PRICE_SERVICE, past-day path)', () => {
 
     expect(priceSource).to.equal('na')
     expect(priceUsd).to.equal(0)
+    expect(cacheSet).not.toHaveBeenCalled()
+  })
+
+  it('issues one fetch for repeat misses of the same block', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: false }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const first = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+    const second = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(first.priceSource).to.equal('na')
+    expect(second.priceSource).to.equal('na')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(cacheSet).not.toHaveBeenCalled()
   })
 
