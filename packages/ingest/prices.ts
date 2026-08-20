@@ -15,11 +15,29 @@ export const lens = {
   [arbitrum.id]: '0x043518AB266485dC085a1DB095B8d9C2Fc78E9b9' as `0x${string}`
 }
 
+const DAY_SECONDS = 86_400
+const PAST_DAY_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const LATEST_CACHE_TTL_MS = 30_000
 
 /** When true, indexer reads prices from yearn-prices and skips the Postgres price table. */
 export function usePriceService(): boolean {
   return (process.env.USE_PRICE_SERVICE || '').trim().toLowerCase() === 'true'
+}
+
+/** Fail closed when service mode lacks a key. Call from ingest startup. */
+export function assertPriceSourceConfig(): void {
+  if (usePriceService() && !process.env.PRICE_SERVICE_API_KEY) {
+    throw new Error('USE_PRICE_SERVICE=true requires PRICE_SERVICE_API_KEY')
+  }
+}
+
+/** UTC day start (unix seconds): floor(ts/86400)*86400 — cache key, not service day-end. */
+export function utcDayStart(blockTime: bigint | number): number {
+  return Math.floor(Number(blockTime) / DAY_SECONDS) * DAY_SECONDS
+}
+
+export function isCurrentUtcDay(blockTime: bigint | number, nowSec = Math.floor(Date.now() / 1000)): boolean {
+  return utcDayStart(blockTime) === utcDayStart(nowSec)
 }
 
 export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber?: bigint, latest = false): Promise<{ priceUsd: number, priceSource: string }>{
@@ -30,6 +48,22 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
     latest = true
   }
 
+  if (usePriceService() && !latest) {
+    const blockTime = await getBlockTime(chainId, blockNumber)
+    if (!isCurrentUtcDay(blockTime)) {
+      const day = utcDayStart(blockTime)
+      // v2: don't reuse entries a prior trial wrote under the old key.
+      const key = `fetchErc20PriceUsd:service:v2:${chainId}:${token}:${day}`
+      const cached = await cache.get(key) as Price | undefined
+      if (cached) return cached
+      const result = await __fetchErc20PriceUsd(chainId, token, blockNumber, latest, blockTime)
+      // Only a day-granular service result is safe under a day key: a transient miss must
+      // not stick tvl=0 for the whole day.
+      if (result.priceSource === 'priceservice') await cache.set(key, result, PAST_DAY_CACHE_TTL_MS)
+      return result
+    }
+  }
+
   return cache.wrap(
     `fetchErc20PriceUsd:${chainId}:${token}:${blockNumber}`,
     async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, latest),
@@ -37,11 +71,18 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
   )
 }
 
-async function __fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint, latest = false) {
+async function __fetchErc20PriceUsd(
+  chainId: number,
+  token: `0x${string}`,
+  blockNumber: bigint,
+  latest = false,
+  knownBlockTime?: bigint
+) {
   // USE_PRICE_SERVICE=true: price service is the only source — no table read/write,
   // no fallbacks. Unknown price when the service has nothing.
   if (usePriceService()) {
-    return (await fetchPriceServiceUsd(chainId, token, blockNumber)) ?? unknownPrice(chainId, token, blockNumber)
+    return (await fetchPriceServiceUsd(chainId, token, blockNumber, knownBlockTime))
+      ?? unknownPrice(chainId, token, blockNumber)
   }
   return __fetchErc20PriceUsdFromTable(chainId, token, blockNumber, latest)
 }
@@ -107,15 +148,20 @@ export const PRICE_SERVICE_CHAIN_NAMES: Record<number, string> = {
 
 const PRICE_SERVICE_DEFAULT_URL = 'https://prices.yearn.dev'
 
-async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
-  if (!process.env.PRICE_SERVICE_API_KEY) return undefined
+async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint, knownBlockTime?: bigint) {
+  // Warn only in service mode: in the legacy path a missing key or unmapped chain is normal.
+  const warn = (reason: string, detail?: unknown) => {
+    if (usePriceService()) console.warn('🚨', 'price service miss', reason, chainId, token, blockNumber, detail ?? '')
+  }
+
+  if (!process.env.PRICE_SERVICE_API_KEY) { warn('no api key'); return undefined }
   const chainName = PRICE_SERVICE_CHAIN_NAMES[chainId]
-  if (!chainName) return undefined
+  if (!chainName) { warn('unmapped chain'); return undefined }
 
   const baseUrl = process.env.PRICE_SERVICE_URL || PRICE_SERVICE_DEFAULT_URL
 
   try {
-    const blockTime = await getBlockTime(chainId, blockNumber)
+    const blockTime = knownBlockTime ?? await getBlockTime(chainId, blockNumber)
     const coinId = `${chainName}:${token.toLowerCase()}`
     const coins = encodeURIComponent(JSON.stringify({ [coinId]: [Number(blockTime)] }))
     // No source= filter: service uses its default priority (defillama → … → enso).
@@ -124,16 +170,16 @@ async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, block
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` }
     })
-    if (!response.ok) return undefined
+    if (!response.ok) { warn('http', response.status); return undefined }
 
     const data = await response.json() as { coins: Record<string, { symbol: string; prices: { timestamp: number; price: number; confidence: number; source: string }[] }> }
     const coinData = data.coins[coinId]
     const priceUsd = coinData?.prices?.[0]?.price
-    if (!priceUsd) return undefined
+    if (!priceUsd) { warn('empty coins'); return undefined }
 
     return PriceSchema.parse({ chainId, address: token, priceUsd, priceSource: 'priceservice', blockNumber, blockTime })
-  } catch {
-    console.warn('🚨', 'price service failed', chainId, token, blockNumber)
+  } catch (error) {
+    console.warn('🚨', 'price service failed', chainId, token, blockNumber, error)
     return undefined
   }
 }
