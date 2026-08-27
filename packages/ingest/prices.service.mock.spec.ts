@@ -197,20 +197,29 @@ describe('fetchErc20PriceUsd (USE_PRICE_SERVICE=true)', () => {
     expect(mqAdd).not.toHaveBeenCalled()
   })
 
-  it('does not emit tvl rows when the service is unavailable', async () => {
+  it('emits a null tvl row when the service is unavailable', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401 })))
 
+    const price = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
     const outputs = await processTvl(CHAIN_ID, VAULT, { outputLabel: 'tvl', blockTime: 1700000000n } as never)
 
-    expect(outputs).to.deep.equal([])
+    expect(price.priceSource).to.equal('unavailable')
+    expect(outputs).to.have.length(1)
+    expect(outputs[0].component).to.equal('tvl')
+    expect(outputs[0].value).to.equal(null)
   })
 
-  it('does not emit componentized priceUsd rows when the service is unavailable', async () => {
+  it('emits null usd components when the service is unavailable', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401 })))
 
     const outputs = await processTvl(CHAIN_ID, VAULT, { outputLabel: 'tvl', blockTime: 1700000000n } as never, true)
+    const byComponent = Object.fromEntries(outputs.map(output => [output.component, output.value]))
 
-    expect(outputs).to.deep.equal([])
+    expect(byComponent['tvl']).to.equal(null)
+    expect(byComponent['delegated']).to.equal(null)
+    expect(byComponent['priceUsd']).to.equal(null)
+    expect(byComponent['totalAssets']).to.equal(1)
+    expect(byComponent['delegatedAssets']).to.equal(0)
   })
 
   it('emits rows when the service says the price is missing', async () => {
