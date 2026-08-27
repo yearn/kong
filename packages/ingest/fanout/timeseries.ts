@@ -4,7 +4,7 @@ import { getBlockNumber, getBlockTime, getDefaultStartBlockNumber } from 'lib/bl
 import db from '../db'
 import { requireHooks } from '../abis'
 import { ResolveHooks } from '../abis/types'
-import { endOfDay, findMissingTimestamps } from 'lib/dates'
+import { endOfDay, makeTimeline } from 'lib/dates'
 
 export default class TimeseriesFanout {
   resolveHooks: ResolveHooks | undefined
@@ -27,20 +27,7 @@ export default class TimeseriesFanout {
       const start = endOfDay(await getBlockTime(chainId, from))
       const end = endOfDay(await getBlockTime(chainId, to))
 
-      // series_time is endOfDay(block_time) at write time
-      // (packages/ingest/load/index.ts). Filtering on series_time within
-      // [start, end] lets Timescale prune chunks; pairs with index
-      // idx_output_chain_address_label_series_time for an index-only scan.
-      const computed = (await db.query(`
-      SELECT DISTINCT FLOOR(EXTRACT(EPOCH FROM series_time))::bigint AS series_time
-      FROM output
-      WHERE chain_id = $1 AND address = $2 AND label = $3
-        AND series_time BETWEEN to_timestamp($4::double precision) AND to_timestamp($5::double precision)
-      ORDER BY series_time ASC`,
-      [chainId, address, outputLabel, Number(start), Number(end)]))
-        .rows.map(row => BigInt(row.series_time))
-
-      const missing = findMissingTimestamps(start, end, computed)
+      const missing = await findMissingDays(chainId, address, outputLabel, start, end)
       if (missing.length === 0 || missing[missing.length - 1] !== end) {
         missing.push(end)
       }
@@ -53,4 +40,25 @@ export default class TimeseriesFanout {
       }
     }
   }
+}
+
+// series_time is endOfDay(block_time) at write time (packages/ingest/load/index.ts).
+// The anti-join returns only the missing days, not every computed day — the full
+// computed list was ~50M calls x O(history) rows of egress per fanout cycle. The
+// BETWEEN range keeps the single prunable index-only scan on
+// idx_output_chain_address_label_series_time; NOT IN is safe because series_time
+// is NOT NULL.
+export async function findMissingDays(chainId: number, address: `0x${string}`, label: string, start: bigint, end: bigint): Promise<bigint[]> {
+  const timeline = makeTimeline(start, end)
+  return (await db.query(`
+  SELECT t.day FROM unnest($4::bigint[]) AS t(day)
+  WHERE t.day NOT IN (
+    SELECT FLOOR(EXTRACT(EPOCH FROM series_time))::bigint
+    FROM output
+    WHERE chain_id = $1 AND address = $2 AND label = $3
+      AND series_time BETWEEN to_timestamp($5::double precision) AND to_timestamp($6::double precision)
+  )
+  ORDER BY t.day ASC`,
+  [chainId, address, label, timeline.map(String), Number(start), Number(end)]))
+    .rows.map(row => BigInt(row.day))
 }

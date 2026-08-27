@@ -34,16 +34,24 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 
   // extractTotalAssets returns undefined on multicall failure; skip emitting a false zero (a genuine empty vault is 0n)
   if (totalAssets === undefined) return []
-  if (priceSource === 'unavailable') return []
+
+  // 'unavailable' (transient price service failure) still writes rows for past days:
+  // null for the usd components, real values for the on-chain ones. Returning []
+  // left the day permanently missing, so every fanout cycle re-enqueued it forever
+  // (fanout/timeseries.ts). Null days heal only by replay. The current day is the
+  // exception: fanout re-extracts it every cycle anyway, and a null row at today's
+  // series_time would shadow yesterday's real value in latest-row queries.
+  const unavailable = priceSource === 'unavailable'
+  if (unavailable && latest) return []
 
   if (components) {
     // componentized outputs
     return OutputSchema.array().parse([{
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'tvl', value: tvl
+      component: 'tvl', value: unavailable ? null : tvl
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'delegated', value: delegatedTvl
+      component: 'delegated', value: unavailable ? null : delegatedTvl
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
       component: 'totalAssets', value: normalize(totalAssets, decimals) || 0
@@ -52,14 +60,14 @@ export default async function _process(chainId: number, address: `0x${string}`, 
       component: 'delegatedAssets', value: normalize(delegatedAssets, decimals) || 0
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'priceUsd', value: priceUsd
+      component: 'priceUsd', value: unavailable ? null : priceUsd
     }])
 
   } else {
     // legacy tvl output
     return OutputSchema.array().parse([{
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'tvl', value: tvl
+      component: 'tvl', value: unavailable ? null : tvl
     }])
 
   }
