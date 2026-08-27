@@ -19,6 +19,9 @@ const DAY_SECONDS = 86_400
 const PAST_DAY_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const PAST_DAY_NEGATIVE_CACHE_TTL_MS = 120_000
 const BLOCK_CACHE_TTL_MS = 30_000
+// lib/blocks pins the head block for 15m and the service refreshes today's row hourly, so a 30s
+// ttl re-fetched an unchanged value ~120x/h per token.
+const SERVICE_BLOCK_CACHE_TTL_MS = 15 * 60 * 1000
 
 /** When true, indexer reads prices from yearn-prices and skips the Postgres price table. */
 export function usePriceService(): boolean {
@@ -63,7 +66,7 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
       const result = await cache.wrap(
         blockCacheKey,
         async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, latest, blockTime),
-        BLOCK_CACHE_TTL_MS
+        blockCacheTtl()
       )
       // Only a day-granular service result is safe under a day key: a transient miss must
       // not stick tvl=0 for the whole day.
@@ -76,8 +79,16 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
   return cache.wrap(
     blockCacheKey,
     async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, latest),
-    BLOCK_CACHE_TTL_MS
+    blockCacheTtl()
   )
+}
+
+// Misses keep the short negative ttl so a transient outage can't stick tvl=0 for 15 minutes.
+function blockCacheTtl() {
+  if (!usePriceService()) return BLOCK_CACHE_TTL_MS
+  return (result: { priceSource: string }) => result.priceSource === 'priceservice'
+    ? SERVICE_BLOCK_CACHE_TTL_MS
+    : PAST_DAY_NEGATIVE_CACHE_TTL_MS
 }
 
 async function __fetchErc20PriceUsd(
@@ -206,25 +217,116 @@ async function fetchPriceServiceUsdResult(chainId: number, token: `0x${string}`,
   try {
     const blockTime = knownBlockTime ?? await getBlockTime(chainId, blockNumber)
     const coinId = `${chainName}:${token.toLowerCase()}`
-    const url = `${baseUrl}/api/prices/historical/${Number(blockTime)}/${coinId}`
+
+    const batched = await enqueuePriceServiceBatch(coinId, Number(blockTime))
+    if (batched.found) {
+      const priceUsd = batched.priceUsd
+      // A stored zero is an answer, not a gap: the exact endpoint would read the same row.
+      if (!priceUsd || !Number.isFinite(priceUsd)) { warn('empty coins'); return { type: 'missing' } }
+      return { type: 'price', price: PriceSchema.parse({ chainId, address: token, priceUsd, priceSource: 'priceservice', blockNumber, blockTime }) }
+    }
+
+    // batchHistorical reads the table only; the exact route also resolves upstream on a table miss.
+    return await fetchPriceServiceExactResult({ chainId, token, blockNumber, blockTime, coinId, baseUrl, warn })
+  } catch (error) {
+    console.warn('🚨', 'price service failed', chainId, token, blockNumber, error)
+    return { type: 'unavailable' }
+  }
+}
+
+async function fetchPriceServiceExactResult(request: {
+  chainId: number
+  token: `0x${string}`
+  blockNumber: bigint
+  blockTime: bigint
+  coinId: string
+  baseUrl: string
+  warn: (reason: string, detail?: unknown) => void
+}): Promise<PriceServiceResult> {
+  const { chainId, token, blockNumber, blockTime, coinId, baseUrl, warn } = request
+  const url = `${baseUrl}/api/prices/historical/${Number(blockTime)}/${coinId}`
+
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` }
+  })
+  if (!response.ok) {
+    warn('http', response.status)
+    return response.status === 404 ? { type: 'missing' } : { type: 'unavailable' }
+  }
+
+  const data = await response.json() as { coins: Record<string, { price: number }> }
+  const coinData = data.coins[coinId]
+  const priceUsd = coinData?.price
+  if (!priceUsd || !Number.isFinite(priceUsd)) { warn('empty coins'); return { type: 'missing' } }
+
+  return { type: 'price', price: PriceSchema.parse({ chainId, address: token, priceUsd, priceSource: 'priceservice', blockNumber, blockTime }) }
+}
+
+type PriceServiceBatchOutcome = { found: true, priceUsd: number } | { found: false }
+
+type PriceServiceBatchEntry = {
+  coinId: string
+  timestamp: number
+  promise: Promise<PriceServiceBatchOutcome>
+  resolve: (outcome: PriceServiceBatchOutcome) => void
+}
+
+const BATCH_FLUSH_MS = 25
+// Capping queued entries also caps distinct coins and per-coin timestamps, the service's two limits.
+const BATCH_MAX_ENTRIES = 50
+
+const pendingBatch = new Map<string, PriceServiceBatchEntry>()
+let batchTimer: ReturnType<typeof setTimeout> | undefined
+
+function enqueuePriceServiceBatch(coinId: string, timestamp: number): Promise<PriceServiceBatchOutcome> {
+  const key = `${coinId}:${utcDayStart(timestamp)}`
+  const queued = pendingBatch.get(key)
+  if (queued) return queued.promise
+
+  let resolve!: (outcome: PriceServiceBatchOutcome) => void
+  const promise = new Promise<PriceServiceBatchOutcome>(_resolve => { resolve = _resolve })
+  pendingBatch.set(key, { coinId, timestamp, promise, resolve })
+
+  if (pendingBatch.size >= BATCH_MAX_ENTRIES) flushPriceServiceBatch()
+  else if (!batchTimer) batchTimer = setTimeout(flushPriceServiceBatch, BATCH_FLUSH_MS)
+
+  return promise
+}
+
+function flushPriceServiceBatch() {
+  if (batchTimer) { clearTimeout(batchTimer); batchTimer = undefined }
+  const entries = [...pendingBatch.values()]
+  pendingBatch.clear()
+  for (let i = 0; i < entries.length; i += BATCH_MAX_ENTRIES) {
+    void sendPriceServiceBatch(entries.slice(i, i + BATCH_MAX_ENTRIES))
+  }
+}
+
+// Never throws: an unresolved entry falls through to the exact endpoint, same as a table miss.
+async function sendPriceServiceBatch(entries: PriceServiceBatchEntry[]) {
+  try {
+    const coins: Record<string, number[]> = {}
+    for (const entry of entries) (coins[entry.coinId] ??= []).push(entry.timestamp)
+
+    const baseUrl = process.env.PRICE_SERVICE_URL || PRICE_SERVICE_DEFAULT_URL
+    const url = `${baseUrl}/api/prices/batchHistorical?coins=${encodeURIComponent(JSON.stringify(coins))}`
 
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` }
     })
-    if (!response.ok) {
-      warn('http', response.status)
-      return response.status === 404 ? { type: 'missing' } : { type: 'unavailable' }
+    if (!response.ok) throw new Error(`batchHistorical ${response.status}`)
+
+    const data = await response.json() as { coins?: Record<string, { prices?: { timestamp: number, price: number }[] }> }
+    // The service echoes the key it parsed, which checksums the address.
+    const byCoin = new Map(Object.entries(data.coins ?? {}).map(([key, value]) => [key.toLowerCase(), value]))
+
+    for (const entry of entries) {
+      const day = utcDayStart(entry.timestamp)
+      const hit = byCoin.get(entry.coinId)?.prices?.find(price => utcDayStart(price.timestamp) === day)
+      entry.resolve(hit ? { found: true, priceUsd: hit.price } : { found: false })
     }
-
-    const data = await response.json() as { coins: Record<string, { price: number }> }
-    const coinData = data.coins[coinId]
-    const priceUsd = coinData?.price
-    if (!priceUsd || !Number.isFinite(priceUsd)) { warn('empty coins'); return { type: 'missing' } }
-
-    return { type: 'price', price: PriceSchema.parse({ chainId, address: token, priceUsd, priceSource: 'priceservice', blockNumber, blockTime }) }
-  } catch (error) {
-    console.warn('🚨', 'price service failed', chainId, token, blockNumber, error)
-    return { type: 'unavailable' }
+  } catch {
+    for (const entry of entries) entry.resolve({ found: false })
   }
 }
 
