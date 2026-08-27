@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { blockTime, first, mqAdd, multicall } = vi.hoisted(() => ({
-  blockTime: vi.fn(), first: vi.fn(), mqAdd: vi.fn(), multicall: vi.fn()
+const { blockTime, first, mqAdd, multicall, query } = vi.hoisted(() => ({
+  blockTime: vi.fn(), first: vi.fn(), mqAdd: vi.fn(), multicall: vi.fn(), query: vi.fn()
 }))
 
 vi.mock('lib', () => ({
@@ -24,7 +24,7 @@ vi.mock('lib/cache', () => ({
 }))
 
 vi.mock('./db', () => ({
-  default: { query: vi.fn() },
+  default: { query },
   first
 }))
 
@@ -221,5 +221,42 @@ describe('fetchErc20PriceUsd (USE_PRICE_SERVICE=true)', () => {
 
     expect(price.priceSource).to.equal('na')
     expect(outputs).not.to.deep.equal([])
+  })
+})
+
+describe('fetchErc20PriceUsd (USE_PRICE_SERVICE=false)', () => {
+  const originalUsePriceService = process.env.USE_PRICE_SERVICE
+  const originalApiKey = process.env.PRICE_SERVICE_API_KEY
+
+  beforeEach(() => {
+    process.env.USE_PRICE_SERVICE = 'false'
+    process.env.PRICE_SERVICE_API_KEY = 'test-key'
+    mqAdd.mockReset()
+    query.mockReset().mockResolvedValue({ rows: [] })
+    blockTime.mockReset().mockResolvedValue(1700000000n)
+  })
+
+  afterEach(() => {
+    if (originalUsePriceService === undefined) delete process.env.USE_PRICE_SERVICE
+    else process.env.USE_PRICE_SERVICE = originalUsePriceService
+    if (originalApiKey === undefined) delete process.env.PRICE_SERVICE_API_KEY
+    else process.env.PRICE_SERVICE_API_KEY = originalApiKey
+    vi.unstubAllGlobals()
+  })
+
+  it('reaches the price service through the exact endpoint, never the batch route', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ coins: { [WETH_COIN]: { symbol: 'WETH', price: 3 } } })
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('priceservice')
+    expect(priceUsd).to.equal(3)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/prices/historical/1700000000/')
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('batchHistorical'))).to.equal(false)
   })
 })

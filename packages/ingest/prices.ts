@@ -218,7 +218,11 @@ async function fetchPriceServiceUsdResult(chainId: number, token: `0x${string}`,
     const blockTime = knownBlockTime ?? await getBlockTime(chainId, blockNumber)
     const coinId = `${chainName}:${token.toLowerCase()}`
 
-    const batched = await enqueuePriceServiceBatch(coinId, Number(blockTime))
+    // Batching is service-mode only: the legacy path hits this as a rare last resort, where a
+    // flush window buys nothing and the kill switch should take the whole layer with it.
+    const batched = usePriceService()
+      ? await enqueuePriceServiceBatch(coinId, Number(blockTime))
+      : { found: false } as const
     if (batched.found) {
       const priceUsd = batched.priceUsd
       // A stored zero is an answer, not a gap: the exact endpoint would read the same row.
@@ -314,7 +318,7 @@ async function sendPriceServiceBatch(entries: PriceServiceBatchEntry[]) {
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` }
     })
-    if (!response.ok) throw new Error(`batchHistorical ${response.status}`)
+    if (!response.ok) throw new Error(`batchHistorical ${response.status} ${url}`)
 
     const data = await response.json() as { coins?: Record<string, { prices?: { timestamp: number, price: number }[] }> }
     // The service echoes the key it parsed, which checksums the address.
@@ -325,7 +329,9 @@ async function sendPriceServiceBatch(entries: PriceServiceBatchEntry[]) {
       const hit = byCoin.get(entry.coinId)?.prices?.find(price => utcDayStart(price.timestamp) === day)
       entry.resolve(hit ? { found: true, priceUsd: hit.price } : { found: false })
     }
-  } catch {
+  } catch (error) {
+    // Distinguish a broken batch route from a legitimate table miss, which resolves the same way.
+    console.warn('🚨', 'price service batch failed', entries.length, error)
     for (const entry of entries) entry.resolve({ found: false })
   }
 }
