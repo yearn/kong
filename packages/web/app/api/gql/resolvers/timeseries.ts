@@ -54,6 +54,7 @@ async function alltimeseries(args: {
       AND (component = $4 OR $4 IS NULL)
       AND (block_time > to_timestamp($7) OR $7 IS NULL)
     GROUP BY chain_id, address, component, time
+    HAVING COUNT(value) > 0
     ORDER BY time ASC
     LIMIT $6`,
   [chainId, address ? getAddress(address) : null, label, component, period, limit, timestamp])
@@ -89,6 +90,7 @@ async function yearntimeseries(args: {
       AND (output.component = $4 OR $4 IS NULL)
       AND (output.block_time > to_timestamp($7) OR $7 IS NULL)
     GROUP BY output.chain_id, output.address, output.component, time
+    HAVING COUNT(output.value) > 0
     ORDER BY time ASC
     LIMIT $6`,
   [chainId, address, label, component, period, limit, timestamp])

@@ -9,7 +9,7 @@ import { endOfDay, makeTimeline } from 'lib/dates'
 export default class TimeseriesFanout {
   resolveHooks: ResolveHooks | undefined
 
-  async fanout(data: { abi: AbiConfig, source: SourceConfig, replay?: boolean }) {
+  async fanout(data: { abi: AbiConfig, source: SourceConfig, replay?: { enabled: boolean, since?: bigint } }) {
     if (!this.resolveHooks) this.resolveHooks = await requireHooks()
     const { chainId, address, inceptBlock, startBlock, endBlock } = SourceConfigSchema.parse(data.source)
     const { abiPath } = AbiConfigSchema.parse(data.abi)
@@ -27,7 +27,12 @@ export default class TimeseriesFanout {
       const start = endOfDay(await getBlockTime(chainId, from))
       const end = endOfDay(await getBlockTime(chainId, to))
 
-      const missing = await findMissingDays(chainId, address, outputLabel, start, end)
+      // Replay is the only path back for days the anti-join counts as computed but
+      // hold a null value (abis/yearn/lib/tvl.ts).
+      const missing = data.replay?.enabled
+        ? makeTimeline(data.replay.since ?? start, end)
+        : await findMissingDays(chainId, address, outputLabel, start, end)
+
       if (missing.length === 0 || missing[missing.length - 1] !== end) {
         missing.push(end)
       }

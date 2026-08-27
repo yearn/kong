@@ -38,6 +38,7 @@ const tvls = async (_: object, args: {
       AND o.component = 'tvl'
       AND (o.block_time > to_timestamp($4) OR $4 IS NULL)
     GROUP BY o.chain_id, o.address, time
+    HAVING COUNT(o.value) > 0
     ORDER BY time ASC
     LIMIT $5`,
     [chainId, address ? getAddress(address) : null, period, timestamp, limit])

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { blockTime, first, mqAdd, multicall, query } = vi.hoisted(() => ({
-  blockTime: vi.fn(), first: vi.fn(), mqAdd: vi.fn(), multicall: vi.fn(), query: vi.fn()
+const { blockTime, first, mqAdd, multicall, query, some } = vi.hoisted(() => ({
+  blockTime: vi.fn(), first: vi.fn(), mqAdd: vi.fn(), multicall: vi.fn(), query: vi.fn(), some: vi.fn(async () => false)
 }))
 
 vi.mock('lib', () => ({
@@ -25,7 +25,8 @@ vi.mock('lib/cache', () => ({
 
 vi.mock('./db', () => ({
   default: { query },
-  first
+  first,
+  some
 }))
 
 vi.mock('./rpcs', () => ({
@@ -78,6 +79,7 @@ describe('fetchErc20PriceUsd (USE_PRICE_SERVICE=true)', () => {
       { status: 'success', result: 1_000_000_000_000_000_000n },
       { status: 'failure' }
     ])
+    some.mockReset().mockResolvedValue(false)
   })
 
   afterEach(() => {
@@ -243,6 +245,7 @@ describe('fetchErc20PriceUsd (USE_PRICE_SERVICE=false)', () => {
     mqAdd.mockReset()
     query.mockReset().mockResolvedValue({ rows: [] })
     blockTime.mockReset().mockResolvedValue(1700000000n)
+    some.mockReset().mockResolvedValue(false)
   })
 
   afterEach(() => {
