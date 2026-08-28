@@ -62,6 +62,8 @@ describe('tvls resolver', () => {
     const params = query.mock.calls[0][1] as unknown[]
     assert.equal(sql.includes('t.label = \'vault\''), true)
     assert.equal(sql.includes('ORDER BY time ASC'), true)
+    // all-null 1-day bucket (price service outage) must be excluded, not read as 0
+    assert.equal(sql.includes('HAVING COUNT(o.value) > 0'), true)
     assert.equal(params[0], 1)
     assert.equal(params[2], '1 week')
     assert.equal(params[4], 10)
