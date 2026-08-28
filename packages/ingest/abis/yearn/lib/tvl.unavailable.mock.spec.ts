@@ -106,14 +106,19 @@ describe('tvl hook on price service unavailable', () => {
     expect(byComponent['tvl']).to.equal(null)
   })
 
-  it('writes zero tvl for an empty vault when the price is unavailable', async () => {
+  it('writes zero tvl for an empty vault when the price is unavailable and the day is uncomputed', async () => {
     totalAssets.value = 0n
     const outputs = await _process(1, VAULT, data, true)
     const byComponent = Object.fromEntries(outputs.map(o => [o.component, o.value]))
     expect(byComponent['tvl']).to.equal(0)
     expect(byComponent['delegated']).to.equal(0)
     expect(byComponent['priceUsd']).to.equal(null)
-    expect(someMock).not.toHaveBeenCalled()
+  })
+
+  it('skips an already-computed day for an empty vault, preserving its stored priceUsd', async () => {
+    totalAssets.value = 0n
+    someMock.mockResolvedValue(true)
+    expect(await _process(1, VAULT, data, true)).to.deep.equal([])
   })
 
   it('does not query for an already-computed day when the price resolves', async () => {

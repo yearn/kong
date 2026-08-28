@@ -94,6 +94,7 @@ export async function getSparkline(chainId: number, address: string, label: stri
     WHERE chain_id = $1 AND address = $2 AND label = $3 AND (component = $4 OR $4 IS NULL)
       ${floor}
     GROUP BY "blockTime"
+    HAVING COUNT(value) > 0
     ORDER BY "blockTime" DESC
     LIMIT 3;
   `

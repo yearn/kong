@@ -51,7 +51,7 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 
   // findMissingDays counts a null row as computed, so overwriting a real value here
   // would lose it for good.
-  if (usdUnknown && await hasComputedTvl(chainId, address, data.outputLabel, data.blockTime)) return []
+  if (priceUnavailable && await hasComputedTvl(chainId, address, data.outputLabel, data.blockTime)) return []
 
   if (components) {
     // componentized outputs
