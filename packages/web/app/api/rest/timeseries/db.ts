@@ -29,6 +29,37 @@ export async function getVaults(): Promise<VaultRow[]> {
   return result.rows as VaultRow[]
 }
 
+export async function getTranches(): Promise<VaultRow[]> {
+  const result = await db.query(`
+    SELECT DISTINCT
+      chain_id AS "chainId",
+      address
+    FROM thing
+    WHERE label = 'tranche'
+    ORDER BY chain_id, address
+  `)
+
+  return result.rows as VaultRow[]
+}
+
+/**
+ * Addresses that carry controller-scoped series (`tranche-system`). A controller
+ * is not a vault, so it never shows up in getVaults() — it has a thing of its own
+ * under the `trancheController` label.
+ */
+export async function getTrancheControllers(): Promise<VaultRow[]> {
+  const result = await db.query(`
+    SELECT
+      chain_id AS "chainId",
+      address
+    FROM thing
+    WHERE label = 'trancheController'
+    ORDER BY chain_id, address
+  `)
+
+  return result.rows as VaultRow[]
+}
+
 export async function getFullTimeseries(
   chainId: number,
   address: string,
