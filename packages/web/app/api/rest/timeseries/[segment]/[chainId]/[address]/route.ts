@@ -44,7 +44,7 @@ export async function GET(
     ? requestedComponents
     : [entry.defaultComponent]
 
-  type TimeseriesEntry = { time: number; component: string; value: number }
+  type TimeseriesEntry = { time: number; component: string; value: number | null }
 
   const addressLower = address.toLowerCase()
   const chainIdNum = Number(chainId)
@@ -72,7 +72,11 @@ export async function GET(
     ...latest,
   ].sort((a, b) => a.time - b.time)
 
-  const filtered = merged.filter((row) => components.includes(row.component))
+  // a null value is an ingest gap (price service outage), not a real zero: omit the
+  // point so consumers see a hole instead of a crash to $0
+  const filtered = merged.filter(
+    (row) => components.includes(row.component) && row.value !== null,
+  )
 
   return NextResponse.json(filtered, {
     status: 200,
