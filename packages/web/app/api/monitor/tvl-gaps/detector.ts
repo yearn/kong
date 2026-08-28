@@ -60,11 +60,13 @@ async function filterByMinTvl(pool: Pool, vaults: Vault[], minTvl: number): Prom
   const addresses = vaults.map((v) => getAddress(v.address as `0x${string}`))
   const chainIds = Array.from(new Set(vaults.map((v) => v.chain_id)))
 
+  // size prefilter must be answered by the last real tvl, otherwise a nulled day hides the vault from gap detection
   const tvlResult = await pool.query<{ chain_id: number; address: string; value: string }>(
     `SELECT DISTINCT ON (chain_id, address) chain_id, address, value
     FROM output
     WHERE label = 'tvl-c' AND component = 'tvl'
       AND chain_id = ANY($1) AND address = ANY($2)
+      AND value IS NOT NULL
     ORDER BY chain_id, address, series_time DESC`,
     [chainIds, addresses]
   )

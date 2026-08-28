@@ -8,7 +8,8 @@ import { normalize, priced } from 'lib/math'
 import { extractWithdrawalQueue } from '../2/vault/snapshot/hook'
 import { Data } from '../../../extract/timeseries'
 import { estimateHeight, getBlock } from 'lib/blocks'
-import { first } from '../../../db'
+import { first, some } from '../../../db'
+import { endOfDay } from 'lib/dates'
 
 export default async function _process(chainId: number, address: `0x${string}`, data: Data, components?: boolean): Promise<Output[]> {
   console.info('🧮', data.outputLabel, chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())
@@ -34,16 +35,32 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 
   // extractTotalAssets returns undefined on multicall failure; skip emitting a false zero (a genuine empty vault is 0n)
   if (totalAssets === undefined) return []
-  if (priceSource === 'unavailable') return []
+
+  // 'unavailable' (price service failure) still writes rows for past days: null for
+  // the usd components, real values for the on-chain ones. Returning [] left the day
+  // permanently missing, so every fanout cycle re-enqueued it forever. Null days heal
+  // by replay (fanout/timeseries.ts).
+  const priceUnavailable = priceSource === 'unavailable'
+
+  // The current day is skipped outright: fanout re-extracts it every cycle anyway, and
+  // a null row at today's series_time would shadow yesterday's real value in
+  // latest-row queries.
+  if (priceUnavailable && latest) return []
+
+  const usdUnknown = priceUnavailable && totalAssets !== 0n
+
+  // findMissingDays counts a null row as computed, so overwriting a real value here
+  // would lose it for good.
+  if (priceUnavailable && await hasComputedTvl(chainId, address, data.outputLabel, data.blockTime)) return []
 
   if (components) {
     // componentized outputs
     return OutputSchema.array().parse([{
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'tvl', value: tvl
+      component: 'tvl', value: usdUnknown ? null : tvl
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'delegated', value: delegatedTvl
+      component: 'delegated', value: usdUnknown ? null : delegatedTvl
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
       component: 'totalAssets', value: normalize(totalAssets, decimals) || 0
@@ -52,17 +69,26 @@ export default async function _process(chainId: number, address: `0x${string}`, 
       component: 'delegatedAssets', value: normalize(delegatedAssets, decimals) || 0
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'priceUsd', value: priceUsd
+      component: 'priceUsd', value: priceUnavailable ? null : priceUsd
     }])
 
   } else {
     // legacy tvl output
     return OutputSchema.array().parse([{
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'tvl', value: tvl
+      component: 'tvl', value: usdUnknown ? null : tvl
     }])
 
   }
+}
+
+async function hasComputedTvl(chainId: number, address: `0x${string}`, label: string, blockTime: bigint) {
+  return await some(
+    `SELECT 1 FROM output
+     WHERE chain_id = $1 AND address = $2 AND label = $3 AND component = 'tvl'
+       AND series_time = to_timestamp($4::double precision) AND value IS NOT NULL`,
+    [chainId, address, label, Number(endOfDay(blockTime))]
+  )
 }
 
 export async function _compute(vault: Thing, blockNumber: bigint, latest = false) {
