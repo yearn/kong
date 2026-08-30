@@ -18,6 +18,7 @@ export const lens = {
 const DAY_SECONDS = 86_400
 const PAST_DAY_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const PAST_DAY_NEGATIVE_CACHE_TTL_MS = 120_000
+const PAST_DAY_NEGATIVE_CACHE_MAX_TTL_MS = 6 * 60 * 60 * 1000
 const BLOCK_CACHE_TTL_MS = 30_000
 // lib/blocks pins the head block for 15m and the service refreshes today's row hourly, so a 30s
 // ttl re-fetched an unchanged value ~120x/h per token.
@@ -71,7 +72,7 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
       // Only a day-granular service result is safe under a day key: a transient miss must
       // not stick tvl=0 for the whole day.
       if (result.priceSource === 'priceservice') await cache.set(key, result, PAST_DAY_CACHE_TTL_MS)
-      else await cache.set(key, { type: 'price-service-negative', priceSource: result.priceSource }, PAST_DAY_NEGATIVE_CACHE_TTL_MS)
+      else await setNegativeDayCache(key, result.priceSource)
       return result
     }
   }
@@ -81,6 +82,17 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
     async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, latest),
     blockCacheTtl()
   )
+}
+
+// Backoff: first failure retries in 2m (transient outage), each repeat doubles the ttl up to 6h,
+// so a persistently failing key spins ~13 attempts/day instead of 720. The attempt counter lives
+// under its own key so it survives the negative marker's expiry.
+async function setNegativeDayCache(key: string, priceSource: string) {
+  const attemptsKey = `${key}:attempts`
+  const attempts = Number(await cache.get(attemptsKey)) || 0
+  const ttl = Math.min(PAST_DAY_NEGATIVE_CACHE_TTL_MS * 2 ** attempts, PAST_DAY_NEGATIVE_CACHE_MAX_TTL_MS)
+  await cache.set(key, { type: 'price-service-negative', priceSource }, ttl)
+  await cache.set(attemptsKey, attempts + 1, PAST_DAY_CACHE_TTL_MS)
 }
 
 // Misses keep the short negative ttl so a transient outage can't stick tvl=0 for 15 minutes.
