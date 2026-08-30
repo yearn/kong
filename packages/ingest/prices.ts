@@ -25,6 +25,7 @@ const BLOCK_CACHE_TTL_MS = 30_000
 // lib/blocks pins the head block for 15m and the service refreshes today's row hourly, so a 30s
 // ttl re-fetched an unchanged value ~120x/h per token.
 const SERVICE_BLOCK_CACHE_TTL_MS = 15 * 60 * 1000
+const CLEAR_BATCH_SIZE = 100
 
 /** When true, indexer reads prices from yearn-prices and skips the Postgres price table. */
 export function usePriceService(): boolean {
@@ -101,9 +102,13 @@ async function setNegativeDayCache(key: string, priceSource: string) {
 // keeps cached prices.
 export async function clearNegativePriceCache() {
   const keys = await cache.keys(`${SERVICE_DAY_KEY_PREFIX}*`)
-  for (const key of keys) {
-    if (key.endsWith(':attempts')) { await cache.del(key); continue }
-    if (isPriceServiceNegativeCacheMarker(await cache.get(key))) await cache.del(key)
+  for (let i = 0; i < keys.length; i += CLEAR_BATCH_SIZE) {
+    const batch = keys.slice(i, i + CLEAR_BATCH_SIZE)
+    const attempts = batch.filter(key => key.endsWith(':attempts'))
+    const markers = batch.filter(key => !key.endsWith(':attempts'))
+    const cached = await Promise.all(markers.map(key => cache.get(key)))
+    const stale = markers.filter((_, index) => isPriceServiceNegativeCacheMarker(cached[index]))
+    await Promise.all([...attempts, ...stale].map(key => cache.del(key)))
   }
 }
 

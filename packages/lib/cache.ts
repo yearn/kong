@@ -4,7 +4,12 @@ import { Cache, caching } from 'cache-manager'
 import { redisStore } from 'cache-manager-redis-yet'
 
 class __Cache {
-  private __store: { client: { quit: () => Promise<string> } } | undefined
+  private __store: {
+    client: {
+      quit: () => Promise<string>
+      scanIterator: (options: { MATCH: string, COUNT: number }) => AsyncIterable<string>
+    }
+  } | undefined
   private __cache: Cache | undefined
 
   get del() {
@@ -18,9 +23,13 @@ class __Cache {
   }
 
   get keys() {
-    return this.__cache
-      ? (this.__cache as Cache).store.keys.bind((this.__cache as Cache).store)
-      : async (_pattern?: string) => [] as string[]
+    const client = this.__store?.client
+    if (!client) return async (_pattern?: string) => [] as string[]
+    return async (pattern = '*') => {
+      const result: string[] = []
+      for await (const key of client.scanIterator({ MATCH: pattern, COUNT: 1000 })) result.push(key)
+      return result
+    }
   }
 
   get reset() {
