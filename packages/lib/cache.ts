@@ -17,6 +17,12 @@ class __Cache {
       : async (_key: string) => undefined
   }
 
+  get keys() {
+    return this.__cache
+      ? (this.__cache as Cache).store.keys.bind((this.__cache as Cache).store)
+      : async (_pattern?: string) => [] as string[]
+  }
+
   get reset() {
     return (this.__cache as Cache).reset.bind(this.__cache)
   }

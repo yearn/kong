@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { cacheGet, cacheSet, blockTime, wrapStore, wrapTtls } = vi.hoisted(() => ({
-  cacheGet: vi.fn(), cacheSet: vi.fn(), blockTime: vi.fn(),
+const { cacheGet, cacheSet, cacheDel, cacheKeys, blockTime, wrapStore, wrapTtls } = vi.hoisted(() => ({
+  cacheGet: vi.fn(), cacheSet: vi.fn(), cacheDel: vi.fn(), cacheKeys: vi.fn(), blockTime: vi.fn(),
   wrapStore: new Map<string, unknown>(), wrapTtls: [] as unknown[]
 }))
 
@@ -14,6 +14,8 @@ vi.mock('lib/cache', () => ({
   cache: {
     get: cacheGet,
     set: cacheSet,
+    del: cacheDel,
+    keys: cacheKeys,
     wrap: async (key: string, fn: () => Promise<unknown>, ttl?: unknown) => {
       wrapTtls.push(ttl)
       if (!wrapStore.has(key)) wrapStore.set(key, await fn())
@@ -22,7 +24,7 @@ vi.mock('lib/cache', () => ({
   }
 }))
 
-import { fetchErc20PriceUsd } from './prices'
+import { clearNegativePriceCache, fetchErc20PriceUsd } from './prices'
 
 const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' as const
 const WETH_COIN = 'polygon:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'
@@ -66,6 +68,8 @@ describe('fetchErc20PriceUsd (USE_PRICE_SERVICE, past-day path)', () => {
 
     cacheGet.mockReset().mockResolvedValue(undefined)
     cacheSet.mockReset()
+    cacheDel.mockReset()
+    cacheKeys.mockReset().mockResolvedValue([])
     blockTime.mockReset().mockResolvedValue(1700000000n)
     wrapStore.clear()
     wrapTtls.length = 0
@@ -173,6 +177,22 @@ describe('fetchErc20PriceUsd (USE_PRICE_SERVICE, past-day path)', () => {
 
     expect(markerTtls.slice(0, 3)).to.deep.equal([120_000, 240_000, 480_000])
     expect(markerTtls.at(-1)).to.equal(6 * 60 * 60 * 1000)
+  })
+
+  it('clears negative markers and attempt counters, keeps cached prices', async () => {
+    const prefix = 'fetchErc20PriceUsd:service:v2:137:'
+    const store = new Map<string, unknown>([
+      [`${prefix}${WETH}:1699920000`, { type: 'price-service-negative', priceSource: 'unavailable' }],
+      [`${prefix}${WETH}:1699920000:attempts`, 5],
+      [`${prefix}${WETH}:1699833600`, { chainId: CHAIN_ID, address: WETH, priceUsd: 2, priceSource: 'priceservice', blockNumber: 1n, blockTime: 1699833600n }]
+    ])
+    cacheKeys.mockResolvedValue([...store.keys()])
+    cacheGet.mockImplementation(async (key: string) => store.get(key))
+    cacheDel.mockImplementation(async (key: string) => { store.delete(key) })
+
+    await clearNegativePriceCache()
+
+    expect([...store.keys()]).to.deep.equal([`${prefix}${WETH}:1699833600`])
   })
 
   it('returns a cached value without refetching', async () => {

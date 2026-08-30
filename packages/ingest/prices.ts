@@ -16,6 +16,8 @@ export const lens = {
 }
 
 const DAY_SECONDS = 86_400
+// v2: don't reuse entries a prior trial wrote under the old key.
+const SERVICE_DAY_KEY_PREFIX = 'fetchErc20PriceUsd:service:v2:'
 const PAST_DAY_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const PAST_DAY_NEGATIVE_CACHE_TTL_MS = 120_000
 const PAST_DAY_NEGATIVE_CACHE_MAX_TTL_MS = 6 * 60 * 60 * 1000
@@ -58,8 +60,7 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
     const blockTime = await getBlockTime(chainId, blockNumber)
     if (!isCurrentUtcDay(blockTime)) {
       const day = utcDayStart(blockTime)
-      // v2: don't reuse entries a prior trial wrote under the old key.
-      const key = `fetchErc20PriceUsd:service:v2:${chainId}:${token}:${day}`
+      const key = `${SERVICE_DAY_KEY_PREFIX}${chainId}:${token}:${day}`
       const cached = await cache.get(key)
       if (isPriceServiceNegativeCacheMarker(cached)) return { priceUsd: 0, priceSource: cached.priceSource }
       const parsed = PriceSchema.safeParse(cached)
@@ -93,6 +94,17 @@ async function setNegativeDayCache(key: string, priceSource: string) {
   const ttl = Math.min(PAST_DAY_NEGATIVE_CACHE_TTL_MS * 2 ** attempts, PAST_DAY_NEGATIVE_CACHE_MAX_TTL_MS)
   await cache.set(key, { type: 'price-service-negative', priceSource }, ttl)
   await cache.set(attemptsKey, attempts + 1, PAST_DAY_CACHE_TTL_MS)
+}
+
+// A replay must heal NULL days on its first run: an escalated negative marker (up to 6h)
+// would otherwise turn the replay into a silent no-op. Drops markers and attempt counters,
+// keeps cached prices.
+export async function clearNegativePriceCache() {
+  const keys = await cache.keys(`${SERVICE_DAY_KEY_PREFIX}*`)
+  for (const key of keys) {
+    if (key.endsWith(':attempts')) { await cache.del(key); continue }
+    if (isPriceServiceNegativeCacheMarker(await cache.get(key))) await cache.del(key)
+  }
 }
 
 // Misses keep the short negative ttl so a transient outage can't stick tvl=0 for 15 minutes.
