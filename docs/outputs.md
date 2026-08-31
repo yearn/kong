@@ -125,6 +125,29 @@ Price per share tracking over time. This represents the value of one vault share
 
 ---
 
+### 5. `*-estimated-apr`
+
+**Status**: Active
+
+**Available for**: Yearn v3 (full contract), Yearn v2 (legacy read path only, see below)
+
+**Reserved components** (promoted out of `components`, see `docs/estimated-apr.md`):
+- `netAPR`: promoted to `apr`, net of all fees
+- `netAPY`: promoted to `apy`, net of all fees
+- `grossAPR`: promoted to `grossAPR`, before fees
+- `grossAPY`: promoted to `grossAPY`, before fees
+- `compoundingPeriodsPerYear`: stays in `components`, not an APR
+- `isStrategy`: stays in `components`, scope marker. A non-zero value marks the emission
+  strategy-scoped. If absent, Kong falls back to the legacy `debtRatio` heuristic.
+
+**Description**:
+An external publisher sends one row per component, under a label ending in
+`-estimated-apr`. Kong promotes the reserved components above; the rest stay in
+`components`. Full promotion rules, scope resolution, and the frozen legacy v2 read path
+are documented in `docs/estimated-apr.md`.
+
+---
+
 ## Protocol Coverage
 
 | Output Type | ERC4626 | Yearn v2 | Yearn v3 |
@@ -133,6 +156,7 @@ Price per share tracking over time. This represents the value of one vault share
 | `tvl-c` | ✓ | ✓ | ✓ |
 | `apy-bwd-delta-pps` | ✓ | ✓ | ✓ |
 | `pps` | ✓ | ✓ | ✓ |
+| `*-estimated-apr` | ✗ | legacy path only | ✓ |
 
 ## Querying Outputs
 

@@ -34,6 +34,20 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string, 
   return promoteEstimatedApr(rows[0].label, components)
 }
 
+export async function getLatestEstimatedAprLabel(chainId: number, address: string): Promise<string | undefined> {
+  const result = await firstRow(`
+  SELECT label FROM output
+  WHERE chain_id = $1
+    AND address = $2
+    AND label LIKE '%-estimated-apr'
+    AND series_time > NOW() - make_interval(days => $3::int)
+    AND block_time > NOW() - make_interval(days => $3::int)
+  ORDER BY block_time DESC
+  LIMIT 1
+  `, [chainId, address, CURRENT_PERFORMANCE_LOOKBACK_DAYS])
+  return result?.label
+}
+
 export async function getLatestEstimatedApr(chainId: number, address: string) {
   const result = await firstRow(`
   SELECT

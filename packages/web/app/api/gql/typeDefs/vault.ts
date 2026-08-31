@@ -124,6 +124,9 @@ type EstimatedAprComponents {
   lockerBonusAPR: Float
   lockerBonusAPY: Float
   compoundingPeriodsPerYear: Float
+  katRewardsAPR: Float
+  debtRatio: Float
+  isStrategy: Float
 }
 
 type EstimatedApr {

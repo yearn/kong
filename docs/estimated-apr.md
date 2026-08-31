@@ -33,11 +33,12 @@ other components stay in `components`.
 
 `promoteEstimatedApr` does the promotion (`packages/ingest/helpers/apy-apr.ts:9`). Both
 the vault path (`packages/ingest/helpers/apy-apr.ts:34`) and the strategy composition
-path (`packages/ingest/abis/yearn/3/vault/snapshot/hook.ts:465`) use it.
+path (`packages/ingest/abis/yearn/3/vault/snapshot/hook.ts:469`) use it.
 
 - `apr` and `apy` come from `netAPR` and `netAPY` only. Kong never puts a gross value
   into `apr` or `apy`.
-- If the publisher sends no `netAPR`, `apr` is absent. Kong does not write a zero.
+- If the publisher sends no `netAPR`, `apr` is absent. Kong does not write a zero, on the
+  v3 path. The legacy v2 path does not follow this rule (see "Legacy v2 read path" below).
 - A promoted component is removed from `components`
   (`packages/ingest/helpers/apy-apr.ts:10`).
 - A row with a null value is not promoted and does not go into `components`.
@@ -68,9 +69,16 @@ of the parent vault `performance.estimated` (issue #409, issue #410).
 
 The vault composition path does not use these lookups. It reads the estimate rows with
 its own query in `fetchStrategyPerformance`
-(`packages/ingest/abis/yearn/3/vault/snapshot/hook.ts:420`), which filters by label only
+(`packages/ingest/abis/yearn/3/vault/snapshot/hook.ts:424`), which filters by label only
 and applies no scope rule, so a strategy estimate stays available for the composition
 entry.
+
+The composition path gets its label from the vault-scoped lookup. When that lookup
+returns nothing, for example when the vault address has only a strategy-scoped emission
+(issue #409), the hook falls back to the label of the latest emission without a scope
+rule (`packages/ingest/abis/yearn/3/vault/snapshot/hook.ts:111`,
+`packages/ingest/helpers/apy-apr.ts:37`). Thus the composition does not lose the
+strategy estimates when a publisher starts to send the `isStrategy` marker.
 
 An emission that has neither marker is vault-scoped. Thus a net-only emission keeps its
 current scope (issue #443).
@@ -93,3 +101,26 @@ do not always agree with the meaning of the value.
 | any | `debtRatio` | not an APR; a debt allocation in basis points |
 
 Kong does not correct these values. Kong promotes what the publisher sends.
+
+## Legacy v2 read path
+
+`getLatestEstimatedApr` (`packages/ingest/helpers/apy-apr.ts:51`) is a second, older read
+path. `packages/ingest/abis/yearn/2/vault/snapshot/hook.ts:95` and
+`packages/ingest/abis/yearn/2/strategy/snapshot/hook.ts:58` call it.
+
+This path does not use `promoteEstimatedApr`. It has its own rules:
+
+- It reads only the labels `crv-estimated-apr`, `velo-estimated-apr`, `aero-estimated-apr`,
+  hard-coded (`packages/ingest/helpers/apy-apr.ts:78,84`).
+- It whitelists only Curve-era components: `boost`, `poolAPY`, `boostedAPR`, `baseAPR`,
+  `rewardsAPR`, `rewardsAPY`, `cvxAPR`, `keepCRV`, `keepVelo`
+  (`packages/ingest/helpers/apy-apr.ts:59-67,100-108`). It never reads or surfaces
+  `grossAPR`, `grossAPY`, or `compoundingPeriodsPerYear`.
+- If `netAPR` or `netAPY` is absent, it writes `apr: 0` or `apy: 0`
+  (`packages/ingest/helpers/apy-apr.ts:96-97`, `result.apr || 0`). This is the opposite of
+  the v3 rule above.
+
+Scope decision: the "no gross value, no zero write" contract in this document applies to
+the v3 path only. The v2 path is frozen legacy. Gross values emitted by the
+`crv`/`velo`/`aero` publishers will not surface on v2 things until this path is migrated
+to `promoteEstimatedApr`. That migration is out of scope here.

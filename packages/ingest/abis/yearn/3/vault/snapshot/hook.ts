@@ -6,7 +6,7 @@ import { EstimatedAprSchema, EvmAddressSchema, ThingSchema, TokenMetaSchema, Vau
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
 import db, { getSparkline } from '../../../../../db'
-import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr, promoteEstimatedApr } from '../../../../../helpers/apy-apr'
+import { getLatestApy, getLatestEstimatedAprLabel, getLatestEstimatedAprV3, getLatestOracleApr, promoteEstimatedApr } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
 import * as things from '../../../../../things'
@@ -105,7 +105,11 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
   const debts = await extractDebts(chainId, address, strategies, allocator)
   const estimatedApr = await getLatestEstimatedAprV3(chainId, address)
-  const composition = await extractComposition(chainId, address, strategies, debts, estimatedApr?.type)
+  // Composition needs the publisher label even when the vault's own emission is
+  // strategy-scoped (dual vault/strategy address, issue #409) and the scoped
+  // lookup returns nothing.
+  const estimatedAprLabel = estimatedApr?.type ?? await getLatestEstimatedAprLabel(chainId, address)
+  const composition = await extractComposition(chainId, address, strategies, debts, estimatedAprLabel)
   const fees = await extractFeesBps(chainId, address, snapshot)
   const locker = snapshot.accountant && snapshot.accountant !== zeroAddress
     && await things.exist(chainId, snapshot.accountant, 'vault')

@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import db from '../db'
-import { getLatestApy, getLatestEstimatedAprV3 } from './apy-apr'
+import { getLatestApy, getLatestEstimatedAprLabel, getLatestEstimatedAprV3 } from './apy-apr'
 
 const TEST_CHAIN = 99999
 const VAULT_ADDR = '0xtest_vault_apr_spec'
@@ -299,6 +299,33 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result).to.not.be.undefined
     expect(result!.apr).to.equal(0.05)
     expect(result!.components).to.deep.equal({ isStrategy: 1 })
+  })
+})
+
+describe('getLatestEstimatedAprLabel', function() {
+  afterEach(cleanup)
+
+  it('returns undefined when no -estimated-apr rows exist', async function() {
+    const result = await getLatestEstimatedAprLabel(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.be.undefined
+  })
+
+  it('returns the label of the latest emission even when strategy-scoped by isStrategy marker', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.08, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'isStrategy', 1, t)
+
+    const result = await getLatestEstimatedAprLabel(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.equal(LABEL)
+  })
+
+  it('returns the label of the latest emission even when strategy-scoped by debtRatio', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.08, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'debtRatio', 5000, t)
+
+    const result = await getLatestEstimatedAprLabel(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.equal(LABEL)
   })
 })
 
