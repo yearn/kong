@@ -66,9 +66,11 @@ Kong finds the scope from the emission itself
 The unlabeled lookup returns vault-scoped emissions only. This keeps a strategy APR out
 of the parent vault `performance.estimated` (issue #409, issue #410).
 
-The lookup with an explicit label does not apply the scope rule
-(`packages/lib/estimated-apr.ts:64`). The vault composition path uses that lookup, so a
-strategy estimate stays available for the composition entry.
+The vault composition path does not use these lookups. It reads the estimate rows with
+its own query in `fetchStrategyPerformance`
+(`packages/ingest/abis/yearn/3/vault/snapshot/hook.ts:420`), which filters by label only
+and applies no scope rule, so a strategy estimate stays available for the composition
+entry.
 
 An emission that has neither marker is vault-scoped. Thus a net-only emission keeps its
 current scope (issue #443).
