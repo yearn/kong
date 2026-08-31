@@ -1,5 +1,6 @@
 import { abisConfig, chains, mq, sentry } from 'lib'
 import * as things from '../things'
+import { clearNegativePriceCache } from '../prices'
 import WebhookCollector from './webhooks'
 import { findBusyMatch } from './isBusy'
 
@@ -15,6 +16,8 @@ export default class AbisFanout {
       })
       return
     }
+
+    if ((data as { replay?: { enabled?: boolean } }).replay?.enabled) await clearNegativePriceCache()
 
     const webhookCollector = new WebhookCollector()
 
