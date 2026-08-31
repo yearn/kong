@@ -6,6 +6,18 @@ import { parsePositiveIntDays } from './env'
 
 const CURRENT_PERFORMANCE_LOOKBACK_DAYS = parsePositiveIntDays('CURRENT_PERFORMANCE_LOOKBACK_DAYS', 7)
 
+export function promoteEstimatedApr(type: string, components: Record<string, number>) {
+  const { netAPR, netAPY, grossAPR, grossAPY, ...rest } = components
+  return {
+    type,
+    ...(netAPR != null ? { apr: netAPR } : {}),
+    ...(netAPY != null ? { apy: netAPY } : {}),
+    ...(grossAPR != null ? { grossAPR } : {}),
+    ...(grossAPY != null ? { grossAPY } : {}),
+    components: rest
+  }
+}
+
 export async function getLatestEstimatedAprV3(chainId: number, address: string, label?: string) {
   const rows = await getLatestEstimatedAprRows(db, chainId, address, {
     label,
@@ -19,14 +31,7 @@ export async function getLatestEstimatedAprV3(chainId: number, address: string, 
     if (row.value != null && row.component != null) components[row.component] = row.value
   }
 
-  const { netAPR, netAPY, ...rest } = components
-
-  return {
-    type: rows[0].label,
-    ...(netAPR != null ? { apr: netAPR } : {}),
-    ...(netAPY != null ? { apy: netAPY } : {}),
-    components: rest
-  }
+  return promoteEstimatedApr(rows[0].label, components)
 }
 
 export async function getLatestEstimatedApr(chainId: number, address: string) {

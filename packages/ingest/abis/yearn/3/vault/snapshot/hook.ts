@@ -6,7 +6,7 @@ import { EstimatedAprSchema, EvmAddressSchema, ThingSchema, TokenMetaSchema, Vau
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
 import db, { getSparkline } from '../../../../../db'
-import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../../../../../helpers/apy-apr'
+import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr, promoteEstimatedApr } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
 import * as things from '../../../../../things'
@@ -440,6 +440,7 @@ async function fetchStrategyPerformance(
   `, [chainId, strategies, labels])
 
   const map = new Map<string, any>()
+  const estimatedComponents = new Map<string, Record<string, number>>()
 
   for (const row of result.rows) {
     const addr = row.address.toLowerCase()
@@ -455,11 +456,13 @@ async function fetchStrategyPerformance(
       if (row.component === 'monthlyNet') perf.historical.monthlyNet = row.value ?? null
       if (row.component === 'inceptionNet') perf.historical.inceptionNet = row.value ?? null
     } else if (estimatedAprLabel && row.label === estimatedAprLabel) {
-      if (!perf.estimated) perf.estimated = { type: estimatedAprLabel, components: {} }
-      if (row.component === 'netAPR') perf.estimated.apr = row.value
-      else if (row.component === 'netAPY') perf.estimated.apy = row.value
-      else perf.estimated.components[row.component] = row.value
+      if (!estimatedComponents.has(addr)) estimatedComponents.set(addr, {})
+      if (row.value != null && row.component != null) estimatedComponents.get(addr)![row.component] = row.value
     }
+  }
+
+  for (const [addr, components] of estimatedComponents) {
+    map.get(addr).estimated = promoteEstimatedApr(estimatedAprLabel!, components)
   }
 
   return map

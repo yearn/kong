@@ -1074,10 +1074,14 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `apr` | `Float` | Estimated APR |
-| `apy` | `Float` | Estimated APY |
+| `apr` | `Float` | Estimated APR, net of fees |
+| `apy` | `Float` | Estimated APY, net of fees |
+| `grossAPR` | `Float` | Estimated APR before fees |
+| `grossAPY` | `Float` | Estimated APY before fees |
 | `type` | `String` | APR type |
 | `components` | [`EstimatedAprComponents`](#estimatedaprcomponents) | APR breakdown |
+
+See [Estimated APR](./estimated-apr.md) for the promotion rules.
 
 ### EstimatedAprComponents
 
@@ -1092,6 +1096,12 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 | `cvxAPR` | `Float` | Convex APR |
 | `keepCRV` | `Float` | Keep CRV |
 | `keepVelo` | `Float` | Keep VELO |
+| `grossAPR` | `Float` | Deprecated. Use `EstimatedApr.grossAPR` |
+| `baseNetAPR` | `Float` | Base net APR |
+| `baseNetAPY` | `Float` | Base net APY |
+| `lockerBonusAPR` | `Float` | Locker bonus APR |
+| `lockerBonusAPY` | `Float` | Locker bonus APY |
+| `compoundingPeriodsPerYear` | `Float` | Compounding periods per year |
 
 ### Historical
 

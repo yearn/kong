@@ -122,6 +122,71 @@ describe('abis/yearn/3/vault/snapshot/hook', function() {
     }
   })
 
+  it('promotes gross and net estimated apr components in composition', async function() {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () => ({
+      json: async () => []
+    })) as unknown as typeof fetch
+
+    const chainId = 1337
+    const vault = '0x7000000000000000000000000000000000000007'
+    const strategy = '0x8000000000000000000000000000000000000008' as `0x${string}`
+    const latest = Math.floor(Date.now() / 1000)
+
+    const outputs = [
+      { component: 'netAPR', value: 0.03 },
+      { component: 'netAPY', value: 0.031 },
+      { component: 'grossAPR', value: 0.05 },
+      { component: 'grossAPY', value: 0.051 },
+      { component: 'compoundingPeriodsPerYear', value: 365 }
+    ]
+
+    for (const output of outputs) {
+      const outputData = {
+        chain_id: chainId,
+        address: strategy,
+        label: 'katana-estimated-apr',
+        component: output.component,
+        value: output.value,
+        block_number: latest,
+        block_time: latest,
+        series_time: latest
+      }
+      await db.query(toUpsertSql('output', 'chain_id, address, label, component, series_time', outputData), Object.values(outputData))
+    }
+
+    const debts = [{
+      strategy,
+      activation: 0n,
+      lastReport: 0n,
+      currentDebt: 1n,
+      currentDebtUsd: 1,
+      maxDebt: 1n,
+      maxDebtUsd: 1,
+      performanceFee: 0n,
+      totalGain: 0n,
+      totalGainUsd: 0,
+      totalLoss: 0n,
+      totalLossUsd: 0,
+      targetDebtRatio: undefined,
+      maxDebtRatio: undefined
+    }]
+
+    try {
+      const composition = await extractComposition(chainId, vault, [strategy], debts, 'katana-estimated-apr')
+
+      expect(composition).to.have.length(1)
+      const estimated = composition[0].performance?.estimated
+      expect(estimated?.apr).to.equal(0.03)
+      expect(estimated?.apy).to.equal(0.031)
+      expect(estimated?.grossAPR).to.equal(0.05)
+      expect(estimated?.grossAPY).to.equal(0.051)
+      expect(estimated?.components).to.deep.equal({ compoundingPeriodsPerYear: 365 })
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   it('echoes snapshot pricePerShare to override stale hook keys', async function() {
     const originalFetch = globalThis.fetch
     globalThis.fetch = (async () => ({
