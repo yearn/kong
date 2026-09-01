@@ -27,8 +27,11 @@ export default class TimeseriesFanout {
       const start = endOfDay(await getBlockTime(chainId, from))
       const end = endOfDay(await getBlockTime(chainId, to))
 
-      // Replay is the only path back for days the anti-join counts as computed but
-      // hold a null value (abis/yearn/lib/tvl.ts).
+      // Null tvl/tvl-c USD rows (price-service 5xx → unavailable) are treated as missing
+      // so they heal when the service recovers. jobId dedupe prevents stacking in-flight
+      // copies; negative price cache (#463) stops a service stampede. Other labels still
+      // treat any row as computed so #462's apy/pps loop does not return. Replay still
+      // clears negative price-cache markers first.
       const missing = data.replay?.enabled
         ? makeTimeline(data.replay.since ?? start, end)
         : await findMissingDays(chainId, address, outputLabel, start, end)
@@ -48,11 +51,12 @@ export default class TimeseriesFanout {
 }
 
 // series_time is endOfDay(block_time) at write time (packages/ingest/load/index.ts).
-// The anti-join returns only the missing days, not every computed day — the full
-// computed list was ~50M calls x O(history) rows of egress per fanout cycle. The
-// BETWEEN range keeps the single prunable index-only scan on
-// idx_output_chain_address_label_series_time; NOT IN is safe because series_time
-// is NOT NULL.
+// For tvl / tvl-c, a day counts as computed only when component=tvl has a non-null
+// value: null USD from a price-service outage must re-enter the queue (abis/yearn/lib/tvl.ts).
+// Real 0 (na / empty vault) stays computed. Other labels keep #462's "any row closes
+// the day" rule so apy/pps cannot loop. The BETWEEN range keeps the prunable
+// index-only scan on idx_output_chain_address_label_series_time; NOT IN is safe
+// because series_time is NOT NULL.
 export async function findMissingDays(chainId: number, address: `0x${string}`, label: string, start: bigint, end: bigint): Promise<bigint[]> {
   const timeline = makeTimeline(start, end)
   return (await db.query(`
@@ -62,6 +66,10 @@ export async function findMissingDays(chainId: number, address: `0x${string}`, l
     FROM output
     WHERE chain_id = $1 AND address = $2 AND label = $3
       AND series_time BETWEEN to_timestamp($5::double precision) AND to_timestamp($6::double precision)
+      AND (
+        $3 NOT IN ('tvl', 'tvl-c')
+        OR (component = 'tvl' AND value IS NOT NULL)
+      )
   )
   ORDER BY t.day ASC`,
   [chainId, address, label, timeline.map(String), Number(start), Number(end)]))
