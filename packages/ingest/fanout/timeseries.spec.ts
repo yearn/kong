@@ -44,14 +44,34 @@ describe('fanout/timeseries', () => {
       expect(missing).to.deep.equal([])
     })
 
-    it('counts a null-value row as computed', async () => {
+    it('treats a null-value tvl row as missing so price outages can heal', async () => {
       await seed([day(1), day(3)])
       await db.query(`
         INSERT INTO output (chain_id, address, label, component, value, block_number, block_time, series_time)
         VALUES ($1, $2, $3, 'tvl', NULL, 1, to_timestamp($4), to_timestamp($4))`,
       [CHAIN_ID, ADDRESS, LABEL, Number(day(2))])
       const missing = await findMissingDays(CHAIN_ID, ADDRESS, LABEL, day(1), day(3))
+      expect(missing).to.deep.equal([day(2)])
+    })
+
+    it('counts a real-zero tvl row as computed', async () => {
+      await seed([day(1), day(3)])
+      await db.query(`
+        INSERT INTO output (chain_id, address, label, component, value, block_number, block_time, series_time)
+        VALUES ($1, $2, $3, 'tvl', 0, 1, to_timestamp($4), to_timestamp($4))`,
+      [CHAIN_ID, ADDRESS, LABEL, Number(day(2))])
+      const missing = await findMissingDays(CHAIN_ID, ADDRESS, LABEL, day(1), day(3))
       expect(missing).to.deep.equal([])
+    })
+
+    it('still counts any row as computed for non-tvl labels', async () => {
+      const apy = 'apy-bwd-delta-pps'
+      await db.query(`
+        INSERT INTO output (chain_id, address, label, component, value, block_number, block_time, series_time)
+        VALUES ($1, $2, $3, 'net', NULL, 1, to_timestamp($4), to_timestamp($4))`,
+      [CHAIN_ID, ADDRESS, apy, Number(day(2))])
+      const missing = await findMissingDays(CHAIN_ID, ADDRESS, apy, day(1), day(3))
+      expect(missing).to.deep.equal([day(1), day(3)])
     })
   })
 
