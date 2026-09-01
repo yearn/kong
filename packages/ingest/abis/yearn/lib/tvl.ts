@@ -38,8 +38,8 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 
   // 'unavailable' (price service failure) still writes rows for past days: null for
   // the usd components, real values for the on-chain ones. Returning [] left the day
-  // permanently missing, so every fanout cycle re-enqueued it forever. Null days heal
-  // by replay (fanout/timeseries.ts).
+  // with no row; fanout would re-enqueue every cycle during a long outage. Null USD
+  // days are treated as missing by findMissingDays and heal once the service recovers.
   const priceUnavailable = priceSource === 'unavailable'
 
   // The current day is skipped outright: fanout re-extracts it every cycle anyway, and
@@ -49,8 +49,8 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 
   const usdUnknown = priceUnavailable && totalAssets !== 0n
 
-  // findMissingDays counts a null row as computed, so overwriting a real value here
-  // would lose it for good.
+  // Do not clobber a real (non-null) tvl with null during an outage. Null USD days
+  // stay healable via findMissingDays.
   if (priceUnavailable && await hasComputedTvl(chainId, address, data.outputLabel, data.blockTime)) return []
 
   if (components) {
