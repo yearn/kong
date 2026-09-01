@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { BlockNotFoundError } from 'viem'
 import { cache } from './cache'
 import { rpcs } from './rpcs'
 import { dates } from '.'
@@ -79,8 +80,9 @@ async function estimateHeightManual(chainId: number, timestamp: bigint) {
   if (timestamp >= hiTime) return hi
 
   // Do not hard-require block 1: pruned archives and some chains throw
-  // BlockNotFoundError there (~800/h on ingest-v-2). Prefer genesis (0), then 1,
-  // then the earliest height the RPC can actually serve.
+  // BlockNotFoundError there (~800/h on ingest-v-2). Prefer block 1, then genesis
+  // (0, whose timestamp is 0 on mainnet and ruins the interpolation slope), then
+  // the earliest height the RPC can actually serve.
   const { number: lo, timestamp: loTime } = await earliestReachableBlock(chainId, hi)
   if (timestamp <= loTime) return lo
 
@@ -109,13 +111,13 @@ async function earliestReachableBlock(chainId: number, hi: bigint): Promise<Bloc
 
 async function findEarliestReachableBlock(chainId: number, hi: bigint): Promise<Block> {
   // Missing genesis / block 1 is expected on pruned archives (~800/h BlockNotFound
-  // when estimateHeight required lo=1). Swallow those two probes; cache the frontier
-  // so later estimates never hit 0/1 again.
-  for (const candidate of [0n, 1n]) {
+  // when estimateHeight required lo=1). Swallow only BlockNotFound; any other RPC
+  // failure must propagate or a transient error would be cached as the frontier.
+  for (const candidate of [1n, 0n]) {
     try {
       return await getBlock(chainId, candidate)
-    } catch {
-      // pruned or missing
+    } catch (error) {
+      if (!isBlockNotFound(error)) throw error
     }
   }
 
@@ -127,7 +129,8 @@ async function findEarliestReachableBlock(chainId: number, hi: bigint): Promise<
     try {
       await getBlock(chainId, probe)
       ok = probe
-    } catch {
+    } catch (error) {
+      if (!isBlockNotFound(error)) throw error
       miss = probe
       break
     }
@@ -138,12 +141,18 @@ async function findEarliestReachableBlock(chainId: number, hi: bigint): Promise<
     try {
       await getBlock(chainId, mid)
       ok = mid
-    } catch {
+    } catch (error) {
+      if (!isBlockNotFound(error)) throw error
       miss = mid
     }
   }
 
   return await getBlock(chainId, ok)
+}
+
+function isBlockNotFound(error: unknown) {
+  return error instanceof BlockNotFoundError
+    || (error instanceof Error && error.message.includes('could not be found'))
 }
 
 export async function estimateCreationBlock(chainId: number, contract: `0x${string}`): Promise<Block> {

@@ -54,8 +54,9 @@ export default class TimeseriesFanout {
 // For tvl / tvl-c, a day counts as computed only when component=tvl has a non-null
 // value: null USD from a price-service outage must re-enter the queue (abis/yearn/lib/tvl.ts).
 // Real 0 (na / empty vault) stays computed. Other labels keep #462's "any row closes
-// the day" rule so apy/pps cannot loop. The BETWEEN range keeps the prunable
-// index-only scan on idx_output_chain_address_label_series_time; NOT IN is safe
+// the day" rule so apy/pps cannot loop. The BETWEEN range keeps the prunable scan
+// on idx_output_chain_address_label_series_time (index-only for non-tvl labels; the
+// tvl path reads component/value off the heap, ~one row per day); NOT IN is safe
 // because series_time is NOT NULL.
 export async function findMissingDays(chainId: number, address: `0x${string}`, label: string, start: bigint, end: bigint): Promise<bigint[]> {
   const timeline = makeTimeline(start, end)

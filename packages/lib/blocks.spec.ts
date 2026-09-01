@@ -125,4 +125,36 @@ describe('blocks', function() {
       )
     }
   })
+
+  it('does not cache a transient RPC error as the earliest reachable block', async function() {
+    const originalNext = rpcs.next
+    const chainId = 31340
+    const tip = 200n
+    const keys = Array.from({ length: 201 }, (_, n) => `getBlock:${chainId}:${String(n)}`)
+      .concat([`getBlock:${chainId}:undefined`, `earliestReachableBlock:${chainId}`])
+
+    await Promise.all(keys.map(key => cache.del(key)))
+
+    rpcs.next = ((chain: number) => {
+      expect(chain).to.equal(chainId)
+      return {
+        getBlock: async ({ blockNumber }: { blockNumber?: bigint } = {}) => {
+          const number = blockNumber ?? tip
+          if (number <= 1n) throw new Error(`Block at number "${number}" could not be found.`)
+          if (number === tip - 1n) throw new Error('429 Too Many Requests')
+          return { number, timestamp: number * 10n }
+        }
+      }
+    }) as unknown as typeof rpcs.next
+
+    try {
+      let thrown: unknown
+      try { await __estimateHeight(chainId, 1_500n) } catch (error) { thrown = error }
+      expect(String(thrown)).to.include('429')
+      expect(await cache.get(`earliestReachableBlock:${chainId}`)).to.be.undefined
+    } finally {
+      rpcs.next = originalNext
+      await Promise.all(keys.map(key => cache.del(key)))
+    }
+  })
 })
