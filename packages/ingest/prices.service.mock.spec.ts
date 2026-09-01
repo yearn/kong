@@ -136,7 +136,7 @@ describe('fetchErc20PriceUsd (USE_PRICE_SERVICE=true)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('falls back to the exact endpoint when the batch call fails', async () => {
+  it('does not stampede the exact endpoint when the batch keeps returning 5xx', async () => {
     const fetchMock = vi.fn(async (url: string) => url.includes('batchHistorical')
       ? { ok: false, status: 500 }
       : { ok: true, json: async () => ({ coins: { [WETH_COIN]: { symbol: 'WETH', price: 4 } } }) })
@@ -144,9 +144,73 @@ describe('fetchErc20PriceUsd (USE_PRICE_SERVICE=true)', () => {
 
     const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
 
+    expect(priceSource).to.equal('unavailable')
+    expect(priceUsd).to.equal(0)
+    const batchCalls = fetchMock.mock.calls.filter(([url]) => url.includes('batchHistorical'))
+    const exactCalls = fetchMock.mock.calls.filter(([url]) => url.includes('/historical/'))
+    expect(batchCalls.length).to.equal(3)
+    expect(exactCalls.length).to.equal(0)
+  })
+
+  it('retries when fetch throws and returns the price once it recovers', async () => {
+    let exactAttempts = 0
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('batchHistorical')) return batchResponse({})
+      exactAttempts++
+      if (exactAttempts < 3) throw new Error('network down')
+      return { ok: true, json: async () => ({ coins: { [WETH_COIN]: { symbol: 'WETH', price: 8 } } }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
     expect(priceSource).to.equal('priceservice')
-    expect(priceUsd).to.equal(4)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(priceUsd).to.equal(8)
+    expect(exactAttempts).to.equal(3)
+  })
+
+  it('does not retry a 404 on the exact endpoint', async () => {
+    const fetchMock = vi.fn(async (url: string) => url.includes('batchHistorical')
+      ? batchResponse({})
+      : { ok: false, status: 404 })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { priceSource } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('na')
+    const exactCalls = fetchMock.mock.calls.filter(([url]) => url.includes('/historical/'))
+    expect(exactCalls.length).to.equal(1)
+  })
+
+  it('retries exact endpoint 5xx and returns the price once it recovers', async () => {
+    let exactAttempts = 0
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('batchHistorical')) return batchResponse({})
+      exactAttempts++
+      if (exactAttempts < 3) return { ok: false, status: 500 }
+      return { ok: true, json: async () => ({ coins: { [WETH_COIN]: { symbol: 'WETH', price: 9 } } }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('priceservice')
+    expect(priceUsd).to.equal(9)
+    expect(exactAttempts).to.equal(3)
+  })
+
+  it('returns unavailable after exact endpoint keeps returning 5xx', async () => {
+    const fetchMock = vi.fn(async (url: string) => url.includes('batchHistorical')
+      ? batchResponse({})
+      : { ok: false, status: 500 })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('unavailable')
+    expect(priceUsd).to.equal(0)
+    const exactCalls = fetchMock.mock.calls.filter(([url]) => url.includes('/historical/'))
+    expect(exactCalls.length).to.equal(3)
   })
 
   it('coalesces concurrent lookups into one batch call', async () => {
