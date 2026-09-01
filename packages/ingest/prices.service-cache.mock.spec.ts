@@ -242,7 +242,7 @@ describe('fetchErc20PriceUsd (USE_PRICE_SERVICE, past-day path)', () => {
       expect(priceUsd).to.equal(0)
     }
 
-    expect(fetchMock).toHaveBeenCalledTimes(2) // batch miss, then the exact endpoint
+    expect(fetchMock).toHaveBeenCalledTimes(4) // batch miss, then exact endpoint retried through 5xx
   })
 
   it('skips the day key for a current-day block (routes through the block cache)', async () => {
