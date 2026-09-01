@@ -49,6 +49,7 @@ describe('blocks', function() {
   it('returns first block at or after timestamp when adjacent timestamps repeat', async function() {
     const originalNext = rpcs.next
     const blocks = new Map<bigint, bigint>([
+      [0n, 0n],
       [1n, 0n],
       [2n, 90n],
       [3n, 90n],
@@ -58,7 +59,8 @@ describe('blocks', function() {
     const chainId = 31338
 
     await Promise.all(
-      ['undefined', '1', '2', '3', '4', '5'].map(blockNumber => cache.del(`getBlock:${chainId}:${blockNumber}`))
+      ['undefined', '0', '1', '2', '3', '4', '5'].map(blockNumber => cache.del(`getBlock:${chainId}:${blockNumber}`))
+        .concat([cache.del(`earliestReachableBlock:${chainId}`)])
     )
 
     rpcs.next = ((chain: number) => {
@@ -77,7 +79,49 @@ describe('blocks', function() {
     } finally {
       rpcs.next = originalNext
       await Promise.all(
-        ['undefined', '1', '2', '3', '4', '5'].map(blockNumber => cache.del(`getBlock:${chainId}:${blockNumber}`))
+        ['undefined', '0', '1', '2', '3', '4', '5'].map(blockNumber => cache.del(`getBlock:${chainId}:${blockNumber}`))
+          .concat([cache.del(`earliestReachableBlock:${chainId}`)])
+      )
+    }
+  })
+
+  it('estimates height when block 0 and 1 are missing from the RPC', async function() {
+    const originalNext = rpcs.next
+    const chainId = 31339
+    const earliest = 100n
+    const tip = 200n
+
+    await Promise.all(
+      Array.from({ length: 201 }, (_, n) => cache.del(`getBlock:${chainId}:${String(n)}`))
+        .concat([
+          cache.del(`getBlock:${chainId}:undefined`),
+          cache.del(`earliestReachableBlock:${chainId}`)
+        ])
+    )
+
+    rpcs.next = ((chain: number) => {
+      expect(chain).to.equal(chainId)
+      return {
+        getBlock: async ({ blockNumber }: { blockNumber?: bigint } = {}) => {
+          const number = blockNumber ?? tip
+          if (number < earliest) {
+            throw new Error(`Block at number "${number}" could not be found.`)
+          }
+          return { number, timestamp: number * 10n }
+        }
+      }
+    }) as unknown as typeof rpcs.next
+
+    try {
+      expect(await __estimateHeight(chainId, 1_500n)).to.equal(150n)
+    } finally {
+      rpcs.next = originalNext
+      await Promise.all(
+        Array.from({ length: 201 }, (_, n) => cache.del(`getBlock:${chainId}:${String(n)}`))
+          .concat([
+          cache.del(`getBlock:${chainId}:undefined`),
+          cache.del(`earliestReachableBlock:${chainId}`)
+        ])
       )
     }
   })
