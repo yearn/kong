@@ -258,6 +258,8 @@ async function fetchPriceServiceUsdResult(chainId: number, token: `0x${string}`,
       if (!priceUsd || !Number.isFinite(priceUsd)) { warn('empty coins'); return { type: 'missing' } }
       return { type: 'price', price: PriceSchema.parse({ chainId, address: token, priceUsd, priceSource: 'priceservice', blockNumber, blockTime }) }
     }
+    // A 5xx/timeout batch is not a table miss: falling through would stampede /historical once per token.
+    if ('unavailable' in batched && batched.unavailable) return { type: 'unavailable' }
 
     // batchHistorical reads the table only; the exact route also resolves upstream on a table miss.
     return await fetchPriceServiceExactResult({ chainId, token, blockNumber, blockTime, coinId, baseUrl, warn })
@@ -279,9 +281,13 @@ async function fetchPriceServiceExactResult(request: {
   const { chainId, token, blockNumber, blockTime, coinId, baseUrl, warn } = request
   const url = `${baseUrl}/api/prices/historical/${Number(blockTime)}/${coinId}`
 
-  const response = await fetch(url, {
+  const response = await fetchPriceServiceResponse(url, {
     headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` }
   })
+  if (!response) {
+    warn('http', 'fetch failed after retries')
+    return { type: 'unavailable' }
+  }
   if (!response.ok) {
     warn('http', response.status)
     return response.status === 404 ? { type: 'missing' } : { type: 'unavailable' }
@@ -295,7 +301,33 @@ async function fetchPriceServiceExactResult(request: {
   return { type: 'price', price: PriceSchema.parse({ chainId, address: token, priceUsd, priceSource: 'priceservice', blockNumber, blockTime }) }
 }
 
-type PriceServiceBatchOutcome = { found: true, priceUsd: number } | { found: false }
+const PRICE_SERVICE_FETCH_ATTEMPTS = 3
+const PRICE_SERVICE_FETCH_TIMEOUT_MS = 5_000
+
+/** Retry transient transport / 5xx failures. 404 and other 4xx are final. */
+async function fetchPriceServiceResponse(url: string, init: RequestInit): Promise<Response | undefined> {
+  let lastError: unknown
+  for (let attempt = 0; attempt < PRICE_SERVICE_FETCH_ATTEMPTS; attempt++) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), PRICE_SERVICE_FETCH_TIMEOUT_MS)
+    try {
+      const response = await fetch(url, { ...init, signal: controller.signal })
+      if (response.ok || response.status < 500) return response
+      lastError = new Error(`http ${response.status}`)
+    } catch (error) {
+      lastError = error
+    } finally {
+      clearTimeout(timer)
+    }
+    if (attempt < PRICE_SERVICE_FETCH_ATTEMPTS - 1) {
+      await new Promise(resolve => setTimeout(resolve, 50 * (2 ** attempt)))
+    }
+  }
+  if (lastError) console.warn('🚨', 'price service fetch retries exhausted', url, lastError)
+  return undefined
+}
+
+type PriceServiceBatchOutcome = { found: true, priceUsd: number } | { found: false } | { found: false, unavailable: true }
 
 type PriceServiceBatchEntry = {
   coinId: string
@@ -335,7 +367,7 @@ function flushPriceServiceBatch() {
   }
 }
 
-// Never throws: an unresolved entry falls through to the exact endpoint, same as a table miss.
+// Table miss -> found:false so exact can fill in. Transport/5xx after retries -> unavailable (no stampede).
 async function sendPriceServiceBatch(entries: PriceServiceBatchEntry[]) {
   try {
     const coins: Record<string, number[]> = {}
@@ -344,10 +376,18 @@ async function sendPriceServiceBatch(entries: PriceServiceBatchEntry[]) {
     const baseUrl = process.env.PRICE_SERVICE_URL || PRICE_SERVICE_DEFAULT_URL
     const url = `${baseUrl}/api/prices/batchHistorical?coins=${encodeURIComponent(JSON.stringify(coins))}`
 
-    const response = await fetch(url, {
+    const response = await fetchPriceServiceResponse(url, {
       headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` }
     })
-    if (!response.ok) throw new Error(`batchHistorical ${response.status} ${url}`)
+    if (!response) throw new Error(`batchHistorical fetch failed ${url}`)
+    if (!response.ok) {
+      // 404 is a table miss: let the exact route resolve. Other 4xx (auth) are unavailable.
+      if (response.status === 404) {
+        for (const entry of entries) entry.resolve({ found: false })
+        return
+      }
+      throw new Error(`batchHistorical ${response.status} ${url}`)
+    }
 
     const data = await response.json() as { coins?: Record<string, { prices?: { timestamp: number, price: number }[] }> }
     // The service echoes the key it parsed, which checksums the address.
@@ -359,9 +399,8 @@ async function sendPriceServiceBatch(entries: PriceServiceBatchEntry[]) {
       entry.resolve(hit ? { found: true, priceUsd: hit.price } : { found: false })
     }
   } catch (error) {
-    // Distinguish a broken batch route from a legitimate table miss, which resolves the same way.
     console.warn('🚨', 'price service batch failed', entries.length, error)
-    for (const entry of entries) entry.resolve({ found: false })
+    for (const entry of entries) entry.resolve({ found: false, unavailable: true })
   }
 }
 
