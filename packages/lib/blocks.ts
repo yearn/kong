@@ -78,21 +78,72 @@ async function estimateHeightManual(chainId: number, timestamp: bigint) {
   let hi = top.number, hiTime = top.timestamp
   if (timestamp >= hiTime) return hi
 
-  let lo = 1n, loTime = (await getBlock(chainId, lo)).timestamp
+  // Do not hard-require block 1: pruned archives and some chains throw
+  // BlockNotFoundError there (~800/h on ingest-v-2). Prefer genesis (0), then 1,
+  // then the earliest height the RPC can actually serve.
+  const { number: lo, timestamp: loTime } = await earliestReachableBlock(chainId, hi)
   if (timestamp <= loTime) return lo
 
-  while (hi - lo > 1n) {
-    let probe = hiTime > loTime
-      ? lo + ((hi - lo) * (timestamp - loTime)) / (hiTime - loTime)
-      : (lo + hi) / 2n
-    if (probe <= lo) probe = lo + 1n
+  let loBlock = lo, loBlockTime = loTime
+  while (hi - loBlock > 1n) {
+    let probe = hiTime > loBlockTime
+      ? loBlock + ((hi - loBlock) * (timestamp - loBlockTime)) / (hiTime - loBlockTime)
+      : (loBlock + hi) / 2n
+    if (probe <= loBlock) probe = loBlock + 1n
     else if (probe >= hi) probe = hi - 1n
     const block = await getBlock(chainId, probe)
-    if (block.timestamp < timestamp) { lo = probe; loTime = block.timestamp }
+    if (block.timestamp < timestamp) { loBlock = probe; loBlockTime = block.timestamp }
     else { hi = probe; hiTime = block.timestamp }
   }
 
   return hi
+}
+
+/** Lowest block number this RPC can serve, used as the estimateHeight low bound. */
+async function earliestReachableBlock(chainId: number, hi: bigint): Promise<Block> {
+  const result = cache.wrap(`earliestReachableBlock:${chainId}`, async () => {
+    return await findEarliestReachableBlock(chainId, hi)
+  }, HISTORICAL_BLOCK_TTL)
+  return BlockSchema.parse(await result)
+}
+
+async function findEarliestReachableBlock(chainId: number, hi: bigint): Promise<Block> {
+  // Missing genesis / block 1 is expected on pruned archives (~800/h BlockNotFound
+  // when estimateHeight required lo=1). Swallow those two probes; cache the frontier
+  // so later estimates never hit 0/1 again.
+  for (const candidate of [0n, 1n]) {
+    try {
+      return await getBlock(chainId, candidate)
+    } catch {
+      // pruned or missing
+    }
+  }
+
+  // Exponential walk back from tip until a miss, then binary-search the frontier.
+  let ok = hi
+  let miss = 0n
+  for (let delta = 1n; delta < hi; delta *= 2n) {
+    const probe = hi - delta
+    try {
+      await getBlock(chainId, probe)
+      ok = probe
+    } catch {
+      miss = probe
+      break
+    }
+  }
+
+  while (ok - miss > 1n) {
+    const mid = miss + (ok - miss) / 2n
+    try {
+      await getBlock(chainId, mid)
+      ok = mid
+    } catch {
+      miss = mid
+    }
+  }
+
+  return await getBlock(chainId, ok)
 }
 
 export async function estimateCreationBlock(chainId: number, contract: `0x${string}`): Promise<Block> {
