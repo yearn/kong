@@ -1,0 +1,63 @@
+import { EvmAddressSchema } from 'lib/types'
+
+export type VaultFilterArgs = {
+  chainId?: number,
+  apiVersion?: string,
+  erc4626?: boolean,
+  v3?: boolean,
+  yearn?: boolean,
+  origin?: string,
+  addresses?: string[],
+  vaultType?: number,
+  riskLevel?: number,
+  unratedOnly?: boolean
+}
+
+const field = (key: string) =>
+  `COALESCE(snapshot.snapshot->>'${key}', snapshot.hook->>'${key}', thing.defaults->>'${key}')`
+
+const bool = (key: string) => `COALESCE(${field(key)}::boolean, false)`
+
+const version = (expr: string) =>
+  `(string_to_array(COALESCE(substring(${expr} from '^[a-zA-Z]*?(\\d+(\\.\\d+){0,2})'), '0'), '.')::int[] || ARRAY[0,0,0])[1:3]`
+
+const isYearn = `(${bool('yearn')} OR ${field('origin')} = 'yearn')`
+
+export function buildVaultFilters(args: VaultFilterArgs): { where: string, params: unknown[] } {
+  const { chainId, apiVersion, erc4626, v3, yearn, origin, addresses, vaultType, riskLevel, unratedOnly } = args
+
+  const where = ['thing.label = $1']
+  const params: unknown[] = ['vault']
+  const add = (clause: (p: string) => string, value: unknown) => {
+    params.push(value)
+    where.push(clause(`$${params.length}`))
+  }
+
+  if (chainId !== undefined) add(p => `thing.chain_id = ${p}`, chainId)
+
+  if (addresses !== undefined) {
+    const valid = addresses
+      .map(a => EvmAddressSchema.safeParse(a))
+      .flatMap(r => r.success ? [r.data.toLowerCase()] : [])
+    add(p => `lower(thing.address) = ANY(${p})`, valid)
+  }
+
+  if (apiVersion !== undefined) add(p => `${version(field('apiVersion'))} >= ${version(p)}`, apiVersion)
+  if (erc4626 !== undefined) add(p => `${bool('erc4626')} = ${p}`, erc4626)
+  if (v3 !== undefined) add(p => `${bool('v3')} = ${p}`, v3)
+  if (yearn === true) where.push(isYearn)
+  if (yearn === false) where.push(`(NOT ${bool('yearn')} OR ${field('origin')} IS DISTINCT FROM 'yearn')`)
+
+  if (origin === 'yearn') where.push(isYearn)
+  else if (origin !== undefined) add(p => `${field('origin')} = ${p}`, origin)
+
+  if (vaultType !== undefined) add(p => `COALESCE(${field('vaultType')}, '0')::numeric = ${p}`, vaultType)
+
+  if (unratedOnly === true) {
+    where.push('COALESCE((snapshot.hook->\'risk\'->>\'riskLevel\')::numeric, 0) = 0')
+  } else if (riskLevel !== undefined) {
+    add(p => `(snapshot.hook->'risk'->>'riskLevel')::numeric BETWEEN 1 AND ${p}`, riskLevel)
+  }
+
+  return { where: where.join('\n      AND '), params }
+}

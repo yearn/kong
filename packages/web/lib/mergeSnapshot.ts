@@ -20,3 +20,13 @@ export function mergeSnapshot(defaults: Blob, snapshot: Blob, hook: Blob): Recor
     ...(hook?.asset != null ? { asset: hook.asset } : {}),
   }
 }
+
+export const VAULT_UNSERVED_KEYS = [
+  'composition', 'allocators', 'blockNumber', 'blockTime', 'factory', 'keeper',
+  'pendingManagement', 'performanceFeeRecipient', 'roleManager', 'vaults', 'MAX_FEE', 'MIN_FEE'
+]
+
+export const mergeSnapshotSql = (omit: string[] = []) =>
+  `(COALESCE(thing.defaults, '{}') || COALESCE(snapshot.hook, '{}') || COALESCE(snapshot.snapshot, '{}')
+    || COALESCE(jsonb_strip_nulls(jsonb_build_object('asset', snapshot.hook->'asset')), '{}'))
+    - ARRAY[${omit.map(k => `'${k}'`).join(', ')}]::text[]`
