@@ -27,11 +27,11 @@ curl -s -X POST https://kong.yearn.fi/api/gql \
 
 #### `vaults`
 
-List a chain's vaults, one page at a time, sorted by TVL descending then address ascending.
+List vaults one page at a time, sorted by TVL descending then address ascending. Omit `chainId` to list every chain.
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `chainId` | `Int!` | Chain to list (required) |
+| `chainId` | `Int` | Filter by chain |
 | `addresses` | `[String]` | Filter by addresses |
 | `apiVersion` | `String` | Minimum API version (e.g. `"3.0.0"`) |
 | `erc4626` | `Boolean` | ERC-4626 vaults only |
@@ -47,7 +47,7 @@ List a chain's vaults, one page at a time, sorted by TVL descending then address
 Paging is keyset, not offset. Pass the `address` of the last row you received as
 `after` to get the next page, repeating with the same filters until a page comes
 back empty. Vaults with no TVL sort last as `0`. An `after` that matches no vault
-on the chain returns an empty page, same as the end of the list.
+(on the given chain, if any) returns an empty page, same as the end of the list.
 
 Returns [`Vault`](#vault-1).
 

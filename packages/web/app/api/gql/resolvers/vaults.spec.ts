@@ -52,7 +52,14 @@ describe('vaults resolver', () => {
   it('resolves the cursor case-insensitively and binds chainId explicitly', async () => {
     const { sql, params } = await run({ chainId: 10, after: '0xABCDEF' })
     assert.equal(sql.includes('lower(thing.address) = lower($3)'), true)
-    assert.equal(sql.includes('thing.chain_id = $4::int'), true)
+    assert.equal(sql.includes('$4::int IS NULL OR thing.chain_id = $4::int'), true)
     assert.deepEqual(params, ['vault', 10, '0xABCDEF', 10, 100])
+  })
+
+  it('treats omitted chainId as all chains', async () => {
+    const { sql, params } = await run({ after: '0xABCDEF' })
+    assert.equal(sql.includes('thing.chain_id = $2'), false)
+    assert.equal(sql.includes('$3::int IS NULL OR thing.chain_id = $3::int'), true)
+    assert.deepEqual(params, ['vault', '0xABCDEF', null, 100])
   })
 })

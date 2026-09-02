@@ -41,8 +41,10 @@ const query = async (args: VaultsArgs) => {
         ON thing.chain_id = snapshot.chain_id
         AND thing.address = snapshot.address
       WHERE thing.label = $1
-        AND thing.chain_id = ${chain}::int
+        AND (${chain}::int IS NULL OR thing.chain_id = ${chain}::int)
         AND lower(thing.address) = lower(${after})
+      ORDER BY ${tvl} DESC, lower(thing.address) ASC
+      LIMIT 1
     )
     SELECT
       thing.chain_id,
