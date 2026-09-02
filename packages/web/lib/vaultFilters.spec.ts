@@ -23,6 +23,12 @@ describe('buildVaultFilters', () => {
     assert.deepEqual(params, ['vault', ['0xabcdefabcdefabcdefabcdefabcdefabcdefabcd']])
   })
 
+  it('drops 0x-prefixed non-addresses without throwing', () => {
+    const { where, params } = buildVaultFilters({ addresses: ['0xdead'] })
+    assert.match(where, /lower\(thing\.address\) = ANY\(\$2\)/)
+    assert.deepEqual(params, ['vault', []])
+  })
+
   it('yearn and origin=yearn share the isYearn clause', () => {
     const a = buildVaultFilters({ yearn: true })
     const b = buildVaultFilters({ origin: 'yearn' })

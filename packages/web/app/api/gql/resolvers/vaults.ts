@@ -22,17 +22,17 @@ const vaults = (_: object, args: VaultsArgs) => {
 }
 
 const query = async (args: VaultsArgs) => {
-  const { where, params } = buildVaultFilters(args)
-  params.push(
-    args.after ?? null,
-    args.chainId ?? null,
-    Math.min(Math.max(args.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT)
-  )
-  const after = `$${params.length - 2}`
-  const chain = `$${params.length - 1}`
-  const limit = `$${params.length}`
-
   try {
+    const { where, params } = buildVaultFilters(args)
+    params.push(
+      args.after ?? null,
+      args.chainId ?? null,
+      Math.min(Math.max(args.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT)
+    )
+    const after = `$${params.length - 2}`
+    const chain = `$${params.length - 1}`
+    const limit = `$${params.length}`
+
     const result = await db.query(`
     WITH cursor AS (
       SELECT ${tvl} AS tvl, lower(thing.address) AS address
