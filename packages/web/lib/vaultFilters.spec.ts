@@ -49,6 +49,13 @@ describe('buildVaultFilters', () => {
     assert.deepEqual(params, ['vault'])
   })
 
+  it('apiVersion captures the whole version, not just the major', () => {
+    const { where } = buildVaultFilters({ apiVersion: '0.4.6' })
+    // a non-greedy prefix makes the whole RE non-greedy in postgres: '3.0.4' captured as '3'
+    assert.doesNotMatch(where, /\*\?/)
+    assert.match(where, /\^\[a-zA-Z\]\*\(/)
+  })
+
   it('apiVersion compares padded int arrays on both sides', () => {
     const { where, params } = buildVaultFilters({ apiVersion: '3.0' })
     assert.match(where, /'apiVersion'\) from .*\[1:3\] >= \(string_to_array.*\$2.*\[1:3\]/)

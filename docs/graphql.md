@@ -27,11 +27,11 @@ curl -s -X POST https://kong.yearn.fi/api/gql \
 
 #### `vaults`
 
-List all vaults, sorted by TVL descending.
+List a chain's vaults, one page at a time, sorted by TVL descending then address ascending.
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `chainId` | `Int` | Filter by chain |
+| `chainId` | `Int!` | Chain to list (required) |
 | `addresses` | `[String]` | Filter by addresses |
 | `apiVersion` | `String` | Minimum API version (e.g. `"3.0.0"`) |
 | `erc4626` | `Boolean` | ERC-4626 vaults only |
@@ -41,12 +41,19 @@ List all vaults, sorted by TVL descending.
 | `vaultType` | `Int` | Filter by vault type |
 | `riskLevel` | `Int` | Filter by risk level |
 | `unratedOnly` | `Boolean` | Only unrated vaults |
+| `limit` | `Int` | Page size, default `100`, clamped to `1..1000` |
+| `after` | `String` | Address of the last vault of the previous page |
+
+Paging is keyset, not offset. Pass the `address` of the last row you received as
+`after` to get the next page, repeating with the same filters until a page comes
+back empty. Vaults with no TVL sort last as `0`. An `after` that matches no vault
+on the chain returns an empty page, same as the end of the list.
 
 Returns [`Vault`](#vault-1).
 
 ```graphql
 {
-  vaults(chainId: 1, v3: true) {
+  vaults(chainId: 1, v3: true, limit: 50, after: "0x1234...") {
     address
     name
     symbol

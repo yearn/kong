@@ -1,3 +1,4 @@
+import { mergedFieldSql } from '@/lib/mergeSnapshot'
 import { EvmAddressSchema } from 'lib/types'
 
 export type VaultFilterArgs = {
@@ -13,13 +14,12 @@ export type VaultFilterArgs = {
   unratedOnly?: boolean
 }
 
-const field = (key: string) =>
-  `COALESCE(snapshot.snapshot->>'${key}', snapshot.hook->>'${key}', thing.defaults->>'${key}')`
+const field = mergedFieldSql
 
 const bool = (key: string) => `COALESCE(${field(key)}::boolean, false)`
 
 const version = (expr: string) =>
-  `(string_to_array(COALESCE(substring(${expr} from '^[a-zA-Z]*?(\\d+(\\.\\d+){0,2})'), '0'), '.')::int[] || ARRAY[0,0,0])[1:3]`
+  `(string_to_array(COALESCE(substring(${expr} from '^[a-zA-Z]*(\\d+(\\.\\d+){0,2})'), '0'), '.')::int[] || ARRAY[0,0,0])[1:3]`
 
 const isYearn = `(${bool('yearn')} OR ${field('origin')} = 'yearn')`
 

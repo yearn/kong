@@ -26,7 +26,12 @@ export const VAULT_UNSERVED_KEYS = [
   'pendingManagement', 'performanceFeeRecipient', 'roleManager', 'vaults', 'MAX_FEE', 'MIN_FEE'
 ]
 
+const MERGED_BLOBS =
+  '(COALESCE(thing.defaults, \'{}\') || COALESCE(snapshot.hook, \'{}\') || COALESCE(snapshot.snapshot, \'{}\'))'
+
+export const mergedFieldSql = (key: string) => `(${MERGED_BLOBS}->>'${key}')`
+
 export const mergeSnapshotSql = (omit: string[] = []) =>
-  `(COALESCE(thing.defaults, '{}') || COALESCE(snapshot.hook, '{}') || COALESCE(snapshot.snapshot, '{}')
+  `(${MERGED_BLOBS}
     || COALESCE(jsonb_strip_nulls(jsonb_build_object('asset', snapshot.hook->'asset')), '{}'))
     - ARRAY[${omit.map(k => `'${k}'`).join(', ')}]::text[]`
