@@ -16,6 +16,22 @@ describe('buildVaultFilters', () => {
     assert.deepEqual(nullable.params, omitted.params)
   })
 
+  it('treats every explicit null filter like an omitted filter', () => {
+    const omitted = buildVaultFilters({})
+    const nullable = buildVaultFilters({
+      apiVersion: null, erc4626: null, v3: null, yearn: null, origin: null,
+      addresses: null, vaultType: null, riskLevel: null, unratedOnly: null
+    })
+    assert.equal(nullable.where, omitted.where)
+    assert.deepEqual(nullable.params, omitted.params)
+  })
+
+  it('filters risk on the same merged blob the resolver serves', () => {
+    const { where } = buildVaultFilters({ riskLevel: 3 })
+    assert.match(where, /COALESCE\(thing\.defaults.*->'risk'\)->>'riskLevel'\)::numeric BETWEEN 1 AND \$2/)
+    assert.doesNotMatch(where, /snapshot\.hook->'risk'/)
+  })
+
   it('numbers params in order', () => {
     const { where, params } = buildVaultFilters({ chainId: 1, vaultType: 2, riskLevel: 3 })
     assert.match(where, /thing\.chain_id = \$2/)

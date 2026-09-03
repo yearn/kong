@@ -31,6 +31,8 @@ const MERGED_BLOBS =
 
 export const mergedFieldSql = (key: string) => `(${MERGED_BLOBS}->>'${key}')`
 
+export const mergedJsonSql = (key: string) => `(${MERGED_BLOBS}->'${key}')`
+
 export const mergeSnapshotSql = (omit: string[] = []) =>
   `(${MERGED_BLOBS}
     || COALESCE(jsonb_strip_nulls(jsonb_build_object('asset', snapshot.hook->'asset')), '{}'))
