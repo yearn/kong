@@ -85,7 +85,7 @@ describe('buildVaultFilters', () => {
     assert.match(where, /\^\[a-zA-Z\]\*\(/)
   })
 
-  it('apiVersion compares padded int arrays on both sides', () => {
+  it('apiVersion compares padded numeric arrays on both sides', () => {
     const { where, params } = buildVaultFilters({ apiVersion: '3.0' })
     assert.match(where, /'apiVersion'\) from .*\[1:3\] >= \(string_to_array.*\$2.*\[1:3\]/)
     assert.deepEqual(params, ['vault', '3.0'])

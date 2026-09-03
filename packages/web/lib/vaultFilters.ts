@@ -19,7 +19,7 @@ const field = mergedFieldSql
 const bool = (key: string) => `COALESCE(${field(key)}::boolean, false)`
 
 const version = (expr: string) =>
-  `(string_to_array(COALESCE(substring(${expr} from '^[a-zA-Z]*(\\d+(\\.\\d+){0,2})'), '0'), '.')::int[] || ARRAY[0,0,0])[1:3]`
+  `(string_to_array(COALESCE(substring(${expr} from '^[a-zA-Z]*(\\d+(\\.\\d+){0,2})'), '0'), '.')::numeric[] || ARRAY[0,0,0])[1:3]`
 
 const riskLevelSql = `(${mergedJsonSql('risk')}->>'riskLevel')`
 
