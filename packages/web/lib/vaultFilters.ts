@@ -2,7 +2,7 @@ import { mergedFieldSql } from '@/lib/mergeSnapshot'
 import { EvmAddressSchema } from 'lib/types'
 
 export type VaultFilterArgs = {
-  chainId?: number,
+  chainId?: number | null,
   apiVersion?: string,
   erc4626?: boolean,
   v3?: boolean,
@@ -33,7 +33,9 @@ export function buildVaultFilters(args: VaultFilterArgs): { where: string, param
     where.push(clause(`$${params.length}`))
   }
 
-  if (chainId !== undefined) add(p => `thing.chain_id = ${p}`, chainId)
+  // GraphQL nullable variables arrive here as an explicit null. Treat that
+  // the same as an omitted filter rather than generating `chain_id = NULL`.
+  if (chainId != null) add(p => `thing.chain_id = ${p}`, chainId)
 
   if (addresses !== undefined) {
     const valid = addresses

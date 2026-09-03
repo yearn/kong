@@ -53,7 +53,9 @@ const query = gql`
       unratedOnly: Boolean
       limit: Int = 100
       """
-      Address of the last vault from the previous page. Repeat the same filters until a page comes back empty.
+      Address of the last vault from the previous page. When chainId is omitted,
+      include the chain as chainId:address so the cursor is unambiguous.
+      Repeat the same filters until a page comes back empty.
 
       Example: vaults(chainId: 1, limit: 100, after: "0x6FAF8b7c34C1...")
       """

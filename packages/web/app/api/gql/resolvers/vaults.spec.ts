@@ -62,4 +62,49 @@ describe('vaults resolver', () => {
     assert.equal(sql.includes('$3::int IS NULL OR thing.chain_id = $3::int'), true)
     assert.deepEqual(params, ['vault', '0xABCDEF', null, 100])
   })
+
+  it('treats a null chainId like an omitted chainId', async () => {
+    const omitted = await run({})
+    query.mockReset()
+    const nullable = await run({ chainId: null })
+    assert.equal(nullable.sql, omitted.sql)
+    assert.deepEqual(nullable.params, omitted.params)
+  })
+
+  it('uses the chain in an all-chain cursor to disambiguate same-address vaults', async () => {
+    const { sql, params } = await run({ after: '10:0xABCDEF' })
+    assert.match(sql, /lower\(thing\.address\) = lower\(\$2\)/)
+    assert.match(sql, /AND thing\.chain_id = 10/)
+    assert.match(sql, /thing\.chain_id > \(SELECT chain_id FROM cursor\)/)
+    assert.match(sql, /ORDER BY .*lower\(thing\.address\) ASC, thing\.chain_id ASC/)
+    assert.deepEqual(params, ['vault', '0xABCDEF', null, 100])
+  })
+
+  it('coalesces one concurrent query and evicts it after success', async () => {
+    let resolve: (value: { rows: unknown[] }) => void = () => undefined
+    query.mockImplementationOnce(() => new Promise<{ rows: unknown[] }>(r => { resolve = r }))
+    const { default: vaults } = await import('./vaults')
+
+    const first = vaults({}, { chainId: 1 })
+    const second = vaults({}, { chainId: 1 })
+    assert.equal(query.mock.calls.length, 1)
+    resolve({ rows: [] })
+    await Promise.all([first, second])
+
+    query.mockResolvedValueOnce({ rows: [] })
+    await vaults({}, { chainId: 1 })
+    assert.equal(query.mock.calls.length, 2)
+  })
+
+  it('evicts a rejected query so a retry can run', async () => {
+    const { default: vaults } = await import('./vaults')
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    query.mockRejectedValueOnce(new Error('temporary'))
+    await assert.rejects(vaults({}, { chainId: 1 }))
+
+    query.mockResolvedValueOnce({ rows: [] })
+    await vaults({}, { chainId: 1 })
+    errorSpy.mockRestore()
+    assert.equal(query.mock.calls.length, 2)
+  })
 })

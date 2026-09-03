@@ -27,7 +27,7 @@ curl -s -X POST https://kong.yearn.fi/api/gql \
 
 #### `vaults`
 
-List vaults one page at a time, sorted by TVL descending then address ascending. Omit `chainId` to list every chain.
+List vaults one page at a time, sorted by TVL descending, address ascending, then chain ID ascending. Omit `chainId` to list every chain.
 
 | Argument | Type | Description |
 |----------|------|-------------|
@@ -42,12 +42,15 @@ List vaults one page at a time, sorted by TVL descending then address ascending.
 | `riskLevel` | `Int` | Filter by risk level |
 | `unratedOnly` | `Boolean` | Only unrated vaults |
 | `limit` | `Int` | Page size, default `100`, clamped to `1..1000` |
-| `after` | `String` | Address of the last vault of the previous page |
+| `after` | `String` | Address of the last vault of the previous page; when paging all chains, use `chainId:address` |
 
-Paging is keyset, not offset. Pass the `address` of the last row you received as
-`after` to get the next page, repeating with the same filters until a page comes
-back empty. Vaults with no TVL sort last as `0`. An `after` that matches no vault
-(on the given chain, if any) returns an empty page, same as the end of the list.
+Paging is keyset, not offset. Pass the address of the last row you received as
+`after` to get the next page. When `chainId` is omitted, pass
+`chainId:address` (for example `10:0x1234...`) so same-address vaults on
+different chains are not skipped. Repeat with the same filters until a page
+comes back empty. Vaults with no TVL sort last as `0`. An `after` that matches
+no vault (on the given chain, if any) returns an empty page, same as the end of
+the list.
 
 Returns [`Vault`](#vault-1).
 

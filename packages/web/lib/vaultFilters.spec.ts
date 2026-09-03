@@ -9,6 +9,13 @@ describe('buildVaultFilters', () => {
     assert.deepEqual(params, ['vault'])
   })
 
+  it('treats an explicit null chainId like an omitted chainId', () => {
+    const omitted = buildVaultFilters({})
+    const nullable = buildVaultFilters({ chainId: null })
+    assert.equal(nullable.where, omitted.where)
+    assert.deepEqual(nullable.params, omitted.params)
+  })
+
   it('numbers params in order', () => {
     const { where, params } = buildVaultFilters({ chainId: 1, vaultType: 2, riskLevel: 3 })
     assert.match(where, /thing\.chain_id = \$2/)
