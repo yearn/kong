@@ -276,6 +276,23 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result).to.be.undefined
   })
 
+  it('skips newer block_time with isStrategy, returns older vault-level rows', async function() {
+    const older = new Date(Date.now() - 60_000)
+    const newer = new Date()
+
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.04, older, 1)
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPY', 0.041, older, 1)
+
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.08, newer, 2)
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPY', 0.082, newer, 2)
+    await insertOutput(VAULT_ADDR, LABEL, 'isStrategy', 1, newer, 2)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.not.be.undefined
+    expect(result!.apr).to.equal(0.04)
+    expect(result!.apy).to.equal(0.041)
+  })
+
   it('keeps an emission with isStrategy 0 even when debtRatio is present', async function() {
     const t = new Date()
     await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.05, t)

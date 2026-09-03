@@ -138,7 +138,7 @@ Price per share tracking over time. This represents the value of one vault share
 - `grossAPY`: promoted to `grossAPY`, before fees
 - `compoundingPeriodsPerYear`: stays in `components`, not an APR
 - `isStrategy`: stays in `components`, scope marker. A non-zero value marks the emission
-  strategy-scoped. If absent, Kong falls back to the legacy `debtRatio` heuristic.
+  strategy-scoped. If absent or null, Kong falls back to the legacy `debtRatio` heuristic.
 
 **Description**:
 An external publisher sends one row per component, under a label ending in
