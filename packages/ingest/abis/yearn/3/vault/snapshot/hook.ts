@@ -94,6 +94,15 @@ export const SnapshotSchema = z.object({
 
 type Snapshot = z.infer<typeof SnapshotSchema>
 
+// Composition needs the publisher label even when the vault's own emission is
+// strategy-scoped (dual vault/strategy address, issue #409) and the scoped
+// lookup returns nothing.
+export async function resolveEstimatedApr(chainId: number, address: `0x${string}`) {
+  const estimatedApr = await getLatestEstimatedAprV3(chainId, address)
+  const estimatedAprLabel = estimatedApr?.type ?? await getLatestEstimatedAprLabel(chainId, address)
+  return { estimatedApr, estimatedAprLabel }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const snapshot = SnapshotSchema.parse(data)
@@ -104,11 +113,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const allocator = await projectDebtAllocator(chainId, address)
 
   const debts = await extractDebts(chainId, address, strategies, allocator)
-  const estimatedApr = await getLatestEstimatedAprV3(chainId, address)
-  // Composition needs the publisher label even when the vault's own emission is
-  // strategy-scoped (dual vault/strategy address, issue #409) and the scoped
-  // lookup returns nothing.
-  const estimatedAprLabel = estimatedApr?.type ?? await getLatestEstimatedAprLabel(chainId, address)
+  const { estimatedApr, estimatedAprLabel } = await resolveEstimatedApr(chainId, address)
   const composition = await extractComposition(chainId, address, strategies, debts, estimatedAprLabel)
   const fees = await extractFeesBps(chainId, address, snapshot)
   const locker = snapshot.accountant && snapshot.accountant !== zeroAddress

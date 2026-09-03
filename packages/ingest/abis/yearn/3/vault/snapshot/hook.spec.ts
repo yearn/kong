@@ -1,6 +1,15 @@
 import { expect } from 'chai'
-import process, { extractComposition } from './hook'
+import process, { extractComposition, resolveEstimatedApr } from './hook'
 import db, { toUpsertSql } from '../../../../../db'
+import { EstimatedAprSchema } from 'lib/types'
+
+function debtFor(strategy: `0x${string}`) {
+  return {
+    strategy, activation: 0n, lastReport: 0n, currentDebt: 1n, currentDebtUsd: 1, maxDebt: 1n, maxDebtUsd: 1,
+    performanceFee: 0n, totalGain: 0n, totalGainUsd: 0, totalLoss: 0n, totalLossUsd: 0,
+    targetDebtRatio: undefined, maxDebtRatio: undefined
+  }
+}
 
 describe('abis/yearn/3/vault/snapshot/hook', function() {
   it('uses one latest series_time for strategy performance components', async function() {
@@ -214,5 +223,54 @@ describe('abis/yearn/3/vault/snapshot/hook', function() {
     } finally {
       globalThis.fetch = originalFetch
     }
+  })
+
+  it('falls back to the unscoped label when the vault only has a strategy-scoped emission', async function() {
+    const chainId = 1337
+    const vault = '0x7000000000000000000000000000000000000007' as `0x${string}`
+    const strategy = '0x8000000000000000000000000000000000000008' as `0x${string}`
+    const now = Math.floor(Date.now() / 1000)
+    const label = 'katana-estimated-apr'
+
+    const rows = [
+      { address: vault, component: 'netAPR', value: 0.04 },
+      { address: vault, component: 'isStrategy', value: 1 },
+      { address: strategy, component: 'netAPR', value: 0.03 }
+    ]
+    for (const row of rows) {
+      const outputData = {
+        chain_id: chainId, address: row.address, label, component: row.component, value: row.value,
+        block_number: now, block_time: now, series_time: now
+      }
+      await db.query(toUpsertSql('output', 'chain_id, address, label, component, series_time', outputData), Object.values(outputData))
+    }
+
+    const resolved = await resolveEstimatedApr(chainId, vault)
+    expect(resolved.estimatedApr).to.equal(undefined)
+    expect(resolved.estimatedAprLabel).to.equal(label)
+
+    const composition = await extractComposition(chainId, vault, [strategy], [debtFor(strategy)], resolved.estimatedAprLabel)
+    expect(composition[0].performance?.estimated?.apr).to.equal(0.03)
+  })
+
+  it('drops null-valued estimated components instead of writing apr: null', async function() {
+    const chainId = 1337
+    const vault = '0x9000000000000000000000000000000000000009' as `0x${string}`
+    const strategy = '0xa00000000000000000000000000000000000000a' as `0x${string}`
+    const now = Math.floor(Date.now() / 1000)
+    const label = 'katana-estimated-apr'
+
+    const outputData = {
+      chain_id: chainId, address: strategy, label, component: 'netAPR', value: null,
+      block_number: now, block_time: now, series_time: now
+    }
+    await db.query(toUpsertSql('output', 'chain_id, address, label, component, series_time', outputData), Object.values(outputData))
+
+    const composition = await extractComposition(chainId, vault, [strategy], [debtFor(strategy)], label)
+    const estimated = composition[0].performance?.estimated
+    expect(estimated).to.not.equal(undefined)
+    expect(estimated).to.not.have.property('apr')
+    expect(estimated?.components).to.deep.equal({})
+    expect(() => EstimatedAprSchema.parse(estimated)).to.not.throw()
   })
 })
