@@ -85,7 +85,8 @@ Postgres or write production Redis.
 - `CRON_SECRET` — new; a missing value makes every cron return 401
 - `UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS`, `UPTIME_KUMA_PUSH_URL_TIMESERIES_REFRESH`,
   `UPTIME_KUMA_PUSH_URL_TIMESERIES_HISTORICAL`, `UPTIME_KUMA_PUSH_URL_REPORTS_REFRESH`,
-  `UPTIME_KUMA_PUSH_URL_REPORTS_HISTORICAL`
+  `UPTIME_KUMA_PUSH_URL_REPORTS_HISTORICAL` — a missing URL silently disables that job's heartbeat;
+  the job still runs and returns 200, so the monitor never alerts
 
 Cron jobs query through their own pool (`POSTGRES_CRON_POOL_MAX`, default 10, 60s acquire
 timeout) so a running refresh does not starve the pool that serves GraphQL and REST

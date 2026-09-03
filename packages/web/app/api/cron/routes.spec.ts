@@ -64,21 +64,13 @@ describe('cron routes', () => {
     global.fetch = originalFetch
   })
 
-  it('schedules exactly the routes meant to run on a timer', async () => {
+  it('schedules exactly the routes meant to run on a timer, at the documented cadence', async () => {
     const vercelConfig = await import('../../../vercel.json')
-    const paths = (vercelConfig.default.crons as Array<{ path: string }>).map((cron) => cron.path)
-    assert.deepEqual(
-      paths.sort(),
-      ROUTES.filter((route) => route.scheduled).map((route) => route.path).sort(),
-    )
-  })
-
-  it('runs the historical timeseries rebuild once a day', async () => {
-    const vercelConfig = await import('../../../vercel.json')
-    const cron = (vercelConfig.default.crons as Array<{ path: string, schedule: string }>)
-      .find((entry) => entry.path === '/api/cron/timeseries-refresh-historical')
-
-    assert.match(cron!.schedule, /^\d+ \d+ \* \* \*$/)
+    assert.deepEqual(vercelConfig.default.crons, [
+      { path: '/api/cron/refresh-cache', schedule: '*/30 * * * *' },
+      { path: '/api/cron/timeseries-refresh', schedule: '0 * * * *' },
+      { path: '/api/cron/timeseries-refresh-historical', schedule: '15 2 * * *' },
+    ])
   })
 
   for (const route of ROUTES) {
