@@ -1,3 +1,4 @@
+import type { Pool } from 'pg'
 import db from '../../db'
 import { getAddress } from 'viem'
 
@@ -16,8 +17,8 @@ export type TimeseriesRow = {
   time: bigint
 }
 
-export async function getVaults(): Promise<VaultRow[]> {
-  const result = await db.query(`
+export async function getVaults(pool: Pool = db): Promise<VaultRow[]> {
+  const result = await pool.query(`
     SELECT DISTINCT
       chain_id AS "chainId",
       address
@@ -33,8 +34,9 @@ export async function getFullTimeseries(
   chainId: number,
   address: string,
   label: string,
+  pool: Pool = db,
 ): Promise<TimeseriesRow[]> {
-  const result = await db.query(
+  const result = await pool.query(
     `
     SELECT
       chain_id AS "chainId",
@@ -61,8 +63,9 @@ export async function getRecentTimeseries(
   chainId: number,
   address: string,
   label: string,
+  pool: Pool = db,
 ): Promise<TimeseriesRow[]> {
-  const result = await db.query(
+  const result = await pool.query(
     `
     SELECT
       chain_id AS "chainId",

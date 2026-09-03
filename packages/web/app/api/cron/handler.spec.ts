@@ -33,6 +33,19 @@ describe('createCronHandler', () => {
     assert.equal(job.mock.calls.length, 0)
   })
 
+  it('returns 401 when bearer has the same length but does not match', async () => {
+    vi.stubEnv('CRON_SECRET', 'secret')
+    const job = vi.fn().mockResolvedValue(undefined)
+    const handler = createCronHandler(job, 'UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS')
+
+    const response = await handler(new Request('http://localhost/api/cron/x', {
+      headers: { authorization: 'Bearer secreT' },
+    }))
+
+    assert.equal(response.status, 401)
+    assert.equal(job.mock.calls.length, 0)
+  })
+
   it('returns 401 when CRON_SECRET is unset even if header is Bearer undefined', async () => {
     vi.stubEnv('CRON_SECRET', undefined)
     const job = vi.fn().mockResolvedValue(undefined)
@@ -116,6 +129,23 @@ describe('createCronHandler', () => {
     }))
 
     assert.equal(fetchMock.mock.calls.length, 0)
+  })
+
+  it('logs and keeps the response status when uptime kuma returns non-2xx', async () => {
+    vi.stubEnv('CRON_SECRET', 'secret')
+    vi.stubEnv('UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS', 'https://kuma.example/push/abc')
+    global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 500 })) as unknown as typeof fetch
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const job = vi.fn().mockResolvedValue(undefined)
+    const handler = createCronHandler(job, 'UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS')
+
+    const response = await handler(new Request('http://localhost/api/cron/x', {
+      headers: { authorization: 'Bearer secret' },
+    }))
+
+    assert.equal(response.status, 200)
+    assert.match(String(errorSpy.mock.calls[0][0]), /HTTP 500/)
+    errorSpy.mockRestore()
   })
 
   it('does not change the response status when the uptime kuma push rejects', async () => {

@@ -1,3 +1,4 @@
+import { cronDb } from '../../db'
 import { cacheMSet } from '../cache'
 import { getFullTimeseries, getVaults, TimeseriesRow } from './db'
 import { labels } from './labels'
@@ -10,7 +11,7 @@ export async function refreshHistorical(): Promise<void> {
 
   try {
     console.log('Fetching vaults...')
-    const vaults = await getVaults()
+    const vaults = await getVaults(cronDb)
     console.log(`Found ${vaults.length} vaults (batch size: ${BATCH_SIZE})`)
 
     let processed = 0
@@ -27,6 +28,7 @@ export async function refreshHistorical(): Promise<void> {
             vault.chainId,
             vault.address,
             label,
+            cronDb,
           )
 
           const minimal = rows.map(row => ({

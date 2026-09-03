@@ -1,3 +1,4 @@
+import { cronDb } from '../db'
 import { cacheMSet } from './cache'
 import { getVaultsWithSnapshots } from './list/db'
 import type { VaultListItem } from './list/db'
@@ -39,7 +40,7 @@ export async function refresh(): Promise<void> {
 
     console.log('Fetching vaults with snapshots...')
 
-    const vaults = await getVaultsWithSnapshots()
+    const vaults = await getVaultsWithSnapshots(cronDb)
     const listItems: VaultListItem[] = []
     const snapshotPairs: Array<[string, string]> = []
     let snapshotCount = 0

@@ -37,7 +37,8 @@ async function pushUptimeKuma(envVar: string, status: 'up' | 'down', msg: string
   const url = process.env[envVar]
   if (!url) return
   try {
-    await fetch(`${url}?status=${status}&msg=${encodeURIComponent(msg)}`, { signal: AbortSignal.timeout(10_000) })
+    const response = await fetch(`${url}?status=${status}&msg=${encodeURIComponent(msg)}`, { signal: AbortSignal.timeout(10_000) })
+    if (!response.ok) console.error(`uptime kuma push failed (${envVar}): HTTP ${response.status}`)
   } catch (error) {
     console.error(`uptime kuma push failed (${envVar})`, error)
   }

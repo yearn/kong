@@ -1,4 +1,5 @@
 import 'lib/global'
+import { cronDb } from '../../db'
 import { cacheMSet } from '../cache'
 import { getRecentStrategyReports, getVaults } from './db'
 import { getReportLatestKey } from './redis'
@@ -10,7 +11,7 @@ export async function refreshLatest(): Promise<void> {
 
   try {
     console.log('Fetching vaults...')
-    const vaults = await getVaults()
+    const vaults = await getVaults(cronDb)
     console.log(`Found ${vaults.length} vaults (batch size: ${BATCH_SIZE})`)
 
     let processed = 0
@@ -20,7 +21,7 @@ export async function refreshLatest(): Promise<void> {
       const pairs: Array<[string, string]> = []
 
       await Promise.all(batch.map(async (vault) => {
-        const reports = await getRecentStrategyReports(vault.chainId, vault.address)
+        const reports = await getRecentStrategyReports(vault.chainId, vault.address, cronDb)
         if (!reports || reports.length === 0) return
         pairs.push([
           getReportLatestKey(vault.chainId, vault.address.toLowerCase()),

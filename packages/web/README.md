@@ -80,16 +80,17 @@ Scope them to the Production environment only; previews must not read production
 Postgres or write production Redis.
 
 - `POSTGRES_HOST`, `POSTGRES_DATABASE`, `POSTGRES_USER`, `POSTGRES_PASSWORD`,
-  `POSTGRES_PORT`, `POSTGRES_SSL`, `POSTGRES_POOL_MAX`
+  `POSTGRES_PORT`, `POSTGRES_SSL`, `POSTGRES_POOL_MAX`, `POSTGRES_CRON_POOL_MAX`
 - `REST_CACHE_REDIS_URL`
 - `CRON_SECRET` — new; a missing value makes every cron return 401
 - `UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS`, `UPTIME_KUMA_PUSH_URL_TIMESERIES_REFRESH`,
   `UPTIME_KUMA_PUSH_URL_TIMESERIES_HISTORICAL`, `UPTIME_KUMA_PUSH_URL_REPORTS_REFRESH`,
   `UPTIME_KUMA_PUSH_URL_REPORTS_HISTORICAL`
 
-`POSTGRES_POOL_MAX` was sized for a single serial CI runner; on Vercel the pool is shared
-with normal web traffic and concurrent cron invocations, so review it as part of the
-cutover. Each Uptime Kuma monitor should also have a heartbeat interval tight enough to
+Cron jobs query through their own pool (`POSTGRES_CRON_POOL_MAX`, default 10, 60s acquire
+timeout) so a running refresh does not starve the pool that serves GraphQL and REST
+requests (`POSTGRES_POOL_MAX`). Size `POSTGRES_CRON_POOL_MAX` against the Postgres
+connection limit as part of the cutover. Each Uptime Kuma monitor should also have a heartbeat interval tight enough to
 alert on a run that never reports — a platform timeout kills the invocation before the
 down-push can be sent.
 
