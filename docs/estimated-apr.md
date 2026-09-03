@@ -46,7 +46,7 @@ path (`packages/ingest/abis/yearn/3/vault/snapshot/hook.ts:469`) use it.
 The schema `EstimatedAprSchema` holds the promoted shape
 (`packages/lib/types.ts:444`). The REST list schema
 (`packages/web/app/api/rest/list/db.ts:48`) and the GraphQL type
-(`packages/web/app/api/gql/typeDefs/vault.ts:129`) hold the same fields.
+(`packages/web/app/api/gql/typeDefs/vault.ts:132`) hold the same fields.
 
 ## Scope resolution
 

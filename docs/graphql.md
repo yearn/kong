@@ -1102,6 +1102,9 @@ See [Estimated APR](./estimated-apr.md) for the promotion rules.
 | `lockerBonusAPR` | `Float` | Locker bonus APR |
 | `lockerBonusAPY` | `Float` | Locker bonus APY |
 | `compoundingPeriodsPerYear` | `Float` | Compounding periods per year |
+| `katRewardsAPR` | `Float` | Katana rewards APR |
+| `debtRatio` | `Float` | Legacy scope marker; debt allocation in basis points |
+| `isStrategy` | `Float` | Scope marker. Non-zero means strategy-scoped |
 
 ### Historical
 

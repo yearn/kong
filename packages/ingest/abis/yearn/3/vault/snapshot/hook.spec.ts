@@ -226,9 +226,14 @@ describe('abis/yearn/3/vault/snapshot/hook', function() {
   })
 
   it('falls back to the unscoped label when the vault only has a strategy-scoped emission', async function() {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () => ({
+      json: async () => []
+    })) as unknown as typeof fetch
+
     const chainId = 1337
-    const vault = '0x7000000000000000000000000000000000000007' as `0x${string}`
-    const strategy = '0x8000000000000000000000000000000000000008' as `0x${string}`
+    const vault = '0xb00000000000000000000000000000000000000b' as `0x${string}`
+    const strategy = '0xc00000000000000000000000000000000000000c' as `0x${string}`
     const now = Math.floor(Date.now() / 1000)
     const label = 'katana-estimated-apr'
 
@@ -245,15 +250,48 @@ describe('abis/yearn/3/vault/snapshot/hook', function() {
       await db.query(toUpsertSql('output', 'chain_id, address, label, component, series_time', outputData), Object.values(outputData))
     }
 
-    const resolved = await resolveEstimatedApr(chainId, vault)
-    expect(resolved.estimatedApr).to.equal(undefined)
-    expect(resolved.estimatedAprLabel).to.equal(label)
+    try {
+      const resolved = await resolveEstimatedApr(chainId, vault)
+      expect(resolved.estimatedApr).to.equal(undefined)
+      expect(resolved.estimatedAprLabel).to.equal(label)
 
-    const composition = await extractComposition(chainId, vault, [strategy], [debtFor(strategy)], resolved.estimatedAprLabel)
-    expect(composition[0].performance?.estimated?.apr).to.equal(0.03)
+      const composition = await extractComposition(chainId, vault, [strategy], [debtFor(strategy)], resolved.estimatedAprLabel)
+      expect(composition[0].performance?.estimated?.apr).to.equal(0.03)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it('keeps the vault-scoped label when a newer strategy-scoped emission exists', async function() {
+    const chainId = 1337
+    const vault = '0xd00000000000000000000000000000000000000d' as `0x${string}`
+    const now = Math.floor(Date.now() / 1000)
+    const older = now - 60
+
+    for (const row of [
+      { label: 'crv-estimated-apr', component: 'netAPR', value: 0.02, time: older },
+      { label: 'yvusd-estimated-apr', component: 'netAPR', value: 0.08, time: now },
+      { label: 'yvusd-estimated-apr', component: 'isStrategy', value: 1, time: now }
+    ]) {
+      const outputData = {
+        chain_id: chainId, address: vault, label: row.label, component: row.component, value: row.value,
+        block_number: row.time, block_time: row.time, series_time: row.time
+      }
+      await db.query(toUpsertSql('output', 'chain_id, address, label, component, series_time', outputData), Object.values(outputData))
+    }
+
+    const resolved = await resolveEstimatedApr(chainId, vault)
+    expect(resolved.estimatedApr?.type).to.equal('crv-estimated-apr')
+    expect(resolved.estimatedApr?.apr).to.equal(0.02)
+    expect(resolved.estimatedAprLabel).to.equal('crv-estimated-apr')
   })
 
   it('drops null-valued estimated components instead of writing apr: null', async function() {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () => ({
+      json: async () => []
+    })) as unknown as typeof fetch
+
     const chainId = 1337
     const vault = '0x9000000000000000000000000000000000000009' as `0x${string}`
     const strategy = '0xa00000000000000000000000000000000000000a' as `0x${string}`
@@ -266,11 +304,15 @@ describe('abis/yearn/3/vault/snapshot/hook', function() {
     }
     await db.query(toUpsertSql('output', 'chain_id, address, label, component, series_time', outputData), Object.values(outputData))
 
-    const composition = await extractComposition(chainId, vault, [strategy], [debtFor(strategy)], label)
-    const estimated = composition[0].performance?.estimated
-    expect(estimated).to.not.equal(undefined)
-    expect(estimated).to.not.have.property('apr')
-    expect(estimated?.components).to.deep.equal({})
-    expect(() => EstimatedAprSchema.parse(estimated)).to.not.throw()
+    try {
+      const composition = await extractComposition(chainId, vault, [strategy], [debtFor(strategy)], label)
+      const estimated = composition[0].performance?.estimated
+      expect(estimated).to.not.equal(undefined)
+      expect(estimated).to.not.have.property('apr')
+      expect(estimated?.components).to.deep.equal({})
+      expect(() => EstimatedAprSchema.parse(estimated)).to.not.throw()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
   })
 })

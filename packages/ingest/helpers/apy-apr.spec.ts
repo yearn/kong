@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import db from '../db'
-import { getLatestApy, getLatestEstimatedAprLabel, getLatestEstimatedAprV3 } from './apy-apr'
+import { getLatestApy, getLatestEstimatedAprLabel, getLatestEstimatedAprV3, promoteEstimatedApr } from './apy-apr'
 
 const TEST_CHAIN = 99999
 const VAULT_ADDR = '0xtest_vault_apr_spec'
@@ -299,6 +299,28 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result).to.be.undefined
   })
 
+  it('treats a null isStrategy marker as absent so a net-only emission stays vault-scoped', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.05, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'isStrategy', null, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.not.be.undefined
+    expect(result!.apr).to.equal(0.05)
+    expect(result!.components).to.deep.equal({})
+  })
+
+  it('omits null-valued components on the vault path', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', null, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'grossAPR', 0.07, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.not.be.undefined
+    expect(result).to.not.have.property('apr')
+    expect(result!.grossAPR).to.equal(0.07)
+  })
+
   it('explicit label path ignores the isStrategy marker and keeps it in components', async function() {
     const t = new Date()
     await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.05, t)
@@ -309,6 +331,26 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result).to.not.be.undefined
     expect(result!.apr).to.equal(0.05)
     expect(result!.components).to.deep.equal({ isStrategy: 1 })
+  })
+})
+
+describe('promoteEstimatedApr', function() {
+  it('keeps zero net and gross values instead of omitting them', function() {
+    expect(promoteEstimatedApr('x', { netAPR: 0, netAPY: 0, grossAPR: 0, grossAPY: 0 })).to.deep.equal({
+      type: 'x',
+      apr: 0,
+      apy: 0,
+      grossAPR: 0,
+      grossAPY: 0,
+      components: {}
+    })
+  })
+
+  it('omits absent promoted keys and leaves the rest in components', function() {
+    expect(promoteEstimatedApr('x', { katRewardsAPR: 0.01 })).to.deep.equal({
+      type: 'x',
+      components: { katRewardsAPR: 0.01 }
+    })
   })
 })
 
