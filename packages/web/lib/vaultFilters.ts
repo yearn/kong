@@ -16,12 +16,12 @@ export type VaultFilterArgs = {
 
 const field = mergedFieldSql
 
-const bool = (key: string) => `COALESCE(${field(key)}::boolean, false)`
+const bool = (key: string) => `(${mergedJsonSql(key)} = to_jsonb(true)) IS TRUE`
 
 const version = (expr: string) =>
   `(string_to_array(COALESCE(substring(${expr} from '^[a-zA-Z]*(\\d+(\\.\\d+){0,2})'), '0'), '.')::numeric[] || ARRAY[0,0,0])[1:3]`
 
-const riskLevelSql = `(${mergedJsonSql('risk')}->>'riskLevel')`
+const riskLevelSql = `${mergedJsonSql('risk')}->'riskLevel'`
 
 const isYearn = `(${bool('yearn')} OR ${field('origin')} = 'yearn')`
 
@@ -47,20 +47,20 @@ export function buildVaultFilters(args: VaultFilterArgs): { where: string, param
   }
 
   if (apiVersion != null) add(p => `${version(field('apiVersion'))} >= ${version(p)}`, apiVersion)
-  if (erc4626 != null) add(p => `${bool('erc4626')} = ${p}`, erc4626)
-  if (v3 != null) add(p => `${bool('v3')} = ${p}`, v3)
+  if (erc4626 != null) add(p => `${bool('erc4626')} = ${p}::boolean`, erc4626)
+  if (v3 != null) add(p => `${bool('v3')} = ${p}::boolean`, v3)
   if (yearn === true) where.push(isYearn)
   if (yearn === false) where.push(`(NOT ${bool('yearn')} OR ${field('origin')} IS DISTINCT FROM 'yearn')`)
 
   if (origin === 'yearn') where.push(isYearn)
   else if (origin != null) add(p => `${field('origin')} = ${p}`, origin)
 
-  if (vaultType != null) add(p => `COALESCE(${field('vaultType')}, '0')::numeric = ${p}`, vaultType)
+  if (vaultType != null) add(p => `COALESCE(${mergedJsonSql('vaultType')}, '0'::jsonb) = to_jsonb(${p}::numeric)`, vaultType)
 
   if (unratedOnly === true) {
-    where.push(`COALESCE(${riskLevelSql}::numeric, 0) = 0`)
+    where.push(`COALESCE(${riskLevelSql}, '0'::jsonb) = to_jsonb(0)`)
   } else if (riskLevel != null) {
-    add(p => `${riskLevelSql}::numeric BETWEEN 1 AND ${p}`, riskLevel)
+    add(p => `${riskLevelSql} BETWEEN to_jsonb(1) AND to_jsonb(${p}::numeric)`, riskLevel)
   }
 
   return { where: where.join('\n      AND '), params }

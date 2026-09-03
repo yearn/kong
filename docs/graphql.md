@@ -27,7 +27,7 @@ curl -s -X POST https://kong.yearn.fi/api/gql \
 
 #### `vaults`
 
-List vaults one page at a time, sorted by TVL descending, address ascending, then chain ID ascending. Omit `chainId` to list every chain.
+List vaults one page at a time, sorted by TVL descending, then chain ID ascending, then address ascending. Omit `chainId` to list every chain.
 
 | Argument | Type | Description |
 |----------|------|-------------|
@@ -42,21 +42,17 @@ List vaults one page at a time, sorted by TVL descending, address ascending, the
 | `riskLevel` | `Int` | Filter by risk level |
 | `unratedOnly` | `Boolean` | Only unrated vaults |
 | `limit` | `Int` | Page size, default `100`, clamped to `1..1000` |
-| `after` | `String` | Address of the last vault of the previous page; when paging all chains, use `chainId:address` |
+| `offset` | `Int` | Rows to skip, default `0` |
 
-Paging is keyset, not offset. Pass the address of the last row you received as
-`after` to get the next page. When `chainId` is omitted, pass
-`chainId:address` (for example `10:0x1234...`) so same-address vaults on
-different chains are not skipped. Repeat with the same filters until a page
-comes back empty. Vaults with no TVL sort last as `0`. An `after` that matches
-no vault (on the given chain, if any) returns an empty page, same as the end of
-the list.
+Paging is offset based: repeat the same filters and raise `offset` by `limit`
+for each page. Rows are ordered by TVL descending, then chain ID ascending,
+then address ascending; vaults with no TVL sort last as `0`.
 
 Returns [`Vault`](#vault-1).
 
 ```graphql
 {
-  vaults(chainId: 1, v3: true, limit: 50, after: "0x1234...") {
+  vaults(chainId: 1, v3: true, limit: 50, offset: 50) {
     address
     name
     symbol

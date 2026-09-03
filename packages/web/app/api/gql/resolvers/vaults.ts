@@ -8,70 +8,19 @@ const tvl = 'COALESCE((snapshot.hook->\'tvl\'->>\'close\')::numeric, 0)'
 const DEFAULT_LIMIT = 100
 const MAX_LIMIT = 1000
 
-type VaultsArgs = VaultFilterArgs & { limit?: number, after?: string | null }
+type VaultsArgs = VaultFilterArgs & { limit?: number | null, offset?: number | null }
 
-const inflight = new Map<string, Promise<unknown[]>>()
-
-type VaultCursor = { address: string, chainId?: number }
-
-/**
- * Cursors are chainId:address when paging across all chains. Keep accepting
- * the historical address-only form for callers that scope the query to one
- * chain (and for backwards compatibility).
- */
-export const parseVaultCursor = (after?: string | null): VaultCursor | undefined => {
-  if (after == null || after === '') return undefined
-  const separator = after.indexOf(':')
-  if (separator > 0 && /^\d+$/.test(after.slice(0, separator))) {
-    const chainId = Number(after.slice(0, separator))
-    if (Number.isSafeInteger(chainId)) {
-      return { chainId, address: after.slice(separator + 1) }
-    }
-  }
-  return { address: after }
-}
-
-export const formatVaultCursor = (chainId: number, address: string) => `${chainId}:${address}`
-
-const vaults = (_: object, args: VaultsArgs) => {
-  const key = JSON.stringify(args)
-  const hit = inflight.get(key)
-  if (hit) return hit
-  const p = query(args).finally(() => inflight.delete(key))
-  inflight.set(key, p)
-  return p
-}
-
-const query = async (args: VaultsArgs) => {
+export default async (_: object, args: VaultsArgs) => {
   try {
     const { where, params } = buildVaultFilters(args)
-    const cursor = parseVaultCursor(args.after)
     params.push(
-      cursor?.address ?? null,
-      args.chainId ?? null,
-      Math.min(Math.max(args.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT)
+      Math.min(Math.max(args.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT),
+      Math.max(args.offset ?? 0, 0)
     )
-    const after = `$${params.length - 2}`
-    const chain = `$${params.length - 1}`
-    const limit = `$${params.length}`
-    const cursorChainFilter = cursor?.chainId === undefined
-      ? ''
-      : `\n        AND thing.chain_id = ${cursor.chainId}`
+    const limit = `$${params.length - 1}`
+    const offset = `$${params.length}`
 
     const result = await db.query(`
-    WITH cursor AS (
-      SELECT ${tvl} AS tvl, lower(thing.address) AS address, thing.chain_id
-      FROM thing
-      JOIN snapshot
-        ON thing.chain_id = snapshot.chain_id
-        AND thing.address = snapshot.address
-      WHERE thing.label = $1
-        AND (${chain}::int IS NULL OR thing.chain_id = ${chain}::int)
-        AND lower(thing.address) = lower(${after})
-        ${cursorChainFilter}
-      ORDER BY ${tvl} DESC, lower(thing.address) ASC, thing.chain_id ASC
-      LIMIT 1
-    )
     SELECT
       thing.chain_id,
       thing.address,
@@ -81,14 +30,8 @@ const query = async (args: VaultsArgs) => {
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
     WHERE ${where}
-      AND (${after}::text IS NULL
-        OR ${tvl} < (SELECT tvl FROM cursor)
-        OR (${tvl} = (SELECT tvl FROM cursor)
-          AND (lower(thing.address) > (SELECT address FROM cursor)
-            OR (lower(thing.address) = (SELECT address FROM cursor)
-              AND thing.chain_id > (SELECT chain_id FROM cursor)))))
-    ORDER BY ${tvl} DESC, lower(thing.address) ASC, thing.chain_id ASC
-    LIMIT ${limit}`,
+    ORDER BY ${tvl} DESC, thing.chain_id ASC, lower(thing.address) ASC
+    LIMIT ${limit} OFFSET ${offset}`,
     params)
 
     return result.rows.map(row => ({
@@ -102,5 +45,3 @@ const query = async (args: VaultsArgs) => {
     throw new Error('!vaults')
   }
 }
-
-export default vaults

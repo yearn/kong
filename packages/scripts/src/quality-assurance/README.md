@@ -50,8 +50,7 @@ bun run tvl-detect-gaps.ts --start 2024-06-01 --end 2024-12-31
 
 Recomputes and backfills `tvl-c` timeseries data for specific vaults. Runs in two modes.
 
-Vault metadata is fetched independently per chain and paginated, so requested
-vaults are resolved even when they fall outside the first 100 TVL results.
+Vault metadata is fetched by address in one request via the `addresses` filter.
 
 ### Modes
 

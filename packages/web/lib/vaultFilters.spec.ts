@@ -28,15 +28,22 @@ describe('buildVaultFilters', () => {
 
   it('filters risk on the same merged blob the resolver serves', () => {
     const { where } = buildVaultFilters({ riskLevel: 3 })
-    assert.match(where, /COALESCE\(thing\.defaults.*->'risk'\)->>'riskLevel'\)::numeric BETWEEN 1 AND \$2/)
+    assert.match(where, /COALESCE\(thing\.defaults.*->'risk'\)->'riskLevel' BETWEEN to_jsonb\(1\) AND to_jsonb\(\$2::numeric\)/)
     assert.doesNotMatch(where, /snapshot\.hook->'risk'/)
+  })
+
+  it('compares jsonb without text casts', () => {
+    const { where } = buildVaultFilters({ erc4626: true, v3: true, yearn: true, vaultType: 1, riskLevel: 2 })
+    assert.doesNotMatch(where, /\)::boolean/)
+    assert.doesNotMatch(where, /->>'vaultType'/)
+    assert.doesNotMatch(where, /->>'riskLevel'/)
   })
 
   it('numbers params in order', () => {
     const { where, params } = buildVaultFilters({ chainId: 1, vaultType: 2, riskLevel: 3 })
     assert.match(where, /thing\.chain_id = \$2/)
-    assert.match(where, /'vaultType'.*= \$3/)
-    assert.match(where, /BETWEEN 1 AND \$4/)
+    assert.match(where, /'vaultType'\).*to_jsonb\(\$3::numeric\)/)
+    assert.match(where, /BETWEEN to_jsonb\(1\) AND to_jsonb\(\$4::numeric\)/)
     assert.deepEqual(params, ['vault', 1, 2, 3])
   })
 
@@ -56,13 +63,13 @@ describe('buildVaultFilters', () => {
     const a = buildVaultFilters({ yearn: true })
     const b = buildVaultFilters({ origin: 'yearn' })
     assert.equal(a.where, b.where)
-    assert.match(a.where, /'yearn'\)::boolean, false\) OR .*'origin'\) = 'yearn'\)/)
+    assert.match(a.where, /'yearn'\) = to_jsonb\(true\)\) IS TRUE OR .*'origin'\) = 'yearn'\)/)
     assert.deepEqual(a.params, ['vault'])
   })
 
   it('yearn=false negates', () => {
     const { where } = buildVaultFilters({ yearn: false })
-    assert.match(where, /NOT COALESCE.*IS DISTINCT FROM 'yearn'/)
+    assert.match(where, /NOT \(.*'yearn'\) = to_jsonb\(true\)\) IS TRUE OR .*IS DISTINCT FROM 'yearn'/)
   })
 
   it('non-yearn origin is parameterized', () => {
@@ -73,7 +80,7 @@ describe('buildVaultFilters', () => {
 
   it('unratedOnly wins over riskLevel', () => {
     const { where, params } = buildVaultFilters({ unratedOnly: true, riskLevel: 3 })
-    assert.match(where, /riskLevel'\)::numeric, 0\) = 0/)
+    assert.match(where, /'riskLevel', '0'::jsonb\) = to_jsonb\(0\)/)
     assert.doesNotMatch(where, /BETWEEN/)
     assert.deepEqual(params, ['vault'])
   })

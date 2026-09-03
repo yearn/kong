@@ -80,8 +80,8 @@ const VaultsResponseSchema = z.object({
 
 async function fetchVaultMetadata(vaultKeys: { chainId: number; address: string }[]) {
   const query = `
-    query Vaults($chainId: Int!, $limit: Int!, $after: String) {
-      vaults(chainId: $chainId, limit: $limit, after: $after) {
+    query Vaults($addresses: [String], $limit: Int) {
+      vaults(addresses: $addresses, limit: $limit) {
         chainId
         address
         name
@@ -96,51 +96,20 @@ async function fetchVaultMetadata(vaultKeys: { chainId: number; address: string 
     }
   `
 
-  const PAGE_SIZE = 1000
-  const byChain = new Map<number, { chainId: number; address: string }[]>()
-  for (const key of vaultKeys) {
-    const keys = byChain.get(key.chainId) ?? []
-    keys.push(key)
-    byChain.set(key.chainId, keys)
+  const response = await fetch('https://kong.yearn.fi/api/gql', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query,
+      variables: { addresses: vaultKeys.map(k => k.address), limit: 1000 },
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`GraphQL request failed: HTTP ${response.status}`)
   }
 
-  // A vaults query defaults to 100 rows. Fetch each chain independently and
-  // walk its keyset pages so a requested vault is never hidden below that cap.
-  const chainVaults = await Promise.all([...byChain.keys()].map(async chainId => {
-    const result: z.infer<typeof VaultSchema>[] = []
-    const requested = new Set((byChain.get(chainId) ?? []).map(v => v.address.toLowerCase()))
-    const found = new Set<string>()
-    let after: string | null = null
-
-    while (true) {
-      const response: Response = await fetch('https://kong.yearn.fi/api/gql', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query,
-          variables: { chainId, limit: PAGE_SIZE, after },
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`GraphQL request failed: HTTP ${response.status}`)
-      }
-
-      const data: z.infer<typeof VaultSchema>[] = VaultsResponseSchema.parse(await response.json()).data.vaults
-      result.push(...data)
-      for (const vault of data) {
-        if (requested.has(vault.address.toLowerCase())) found.add(vault.address.toLowerCase())
-      }
-      if (found.size === requested.size || data.length < PAGE_SIZE) break
-
-      const last: z.infer<typeof VaultSchema> = data[data.length - 1]
-      after = `${last.chainId}:${last.address}`
-    }
-
-    return result
-  }))
-
-  const allVaults = chainVaults.flat()
+  const allVaults = VaultsResponseSchema.parse(await response.json()).data.vaults
 
   const result: typeof allVaults = []
   for (const key of vaultKeys) {
