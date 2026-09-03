@@ -1,5 +1,5 @@
 import type { Pool } from 'pg'
-import db from '@/app/api/db'
+import db from '../../db'
 import { getAddress } from 'viem'
 
 export type VaultRow = {

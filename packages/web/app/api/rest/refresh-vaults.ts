@@ -1,4 +1,4 @@
-import { cronDb } from '../db'
+import { cronDb } from '../db/cron'
 import { cacheMSet } from './cache'
 import { getVaultsWithSnapshots } from './list/db'
 import type { VaultListItem } from './list/db'

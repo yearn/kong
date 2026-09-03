@@ -1,5 +1,5 @@
 import 'lib/global'
-import { cronDb } from '../../db'
+import { cronDb } from '../../db/cron'
 import { cacheMSet } from '../cache'
 import { getStrategyReports, getVaults } from './db'
 import { getReportKey } from './redis'

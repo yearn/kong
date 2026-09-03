@@ -1,4 +1,4 @@
-import { cronDb } from '../../db'
+import { cronDb } from '../../db/cron'
 import { cacheMSet } from '../cache'
 import { getRecentTimeseries, getVaults, TimeseriesRow } from './db'
 import { labels } from './labels'
