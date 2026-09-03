@@ -23,7 +23,7 @@ const db = new Pool({
 
 export const cronDb = new Pool({
   ...connection,
-  max: parseInt(process.env.POSTGRES_CRON_POOL_MAX ?? '10', 10),
+  max: parseInt(process.env.POSTGRES_CRON_POOL_MAX ?? '40', 10),
   connectionTimeoutMillis: 60_000,
 })
 
