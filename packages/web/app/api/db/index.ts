@@ -27,4 +27,6 @@ export const cronDb = new Pool({
   connectionTimeoutMillis: 60_000,
 })
 
+cronDb.on('error', console.error)
+
 export default db
