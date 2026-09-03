@@ -20,6 +20,33 @@ describe('createCronHandler', () => {
     assert.equal(job.mock.calls.length, 0)
   })
 
+  it('returns 401 when the scheme is not Bearer', async () => {
+    vi.stubEnv('CRON_SECRET', 'secret')
+    const job = vi.fn().mockResolvedValue(undefined)
+    const handler = createCronHandler(job, 'UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS')
+
+    const response = await handler(new Request('http://localhost/api/cron/x', {
+      headers: { authorization: 'Basic secret' },
+    }))
+
+    assert.equal(response.status, 401)
+    assert.equal(job.mock.calls.length, 0)
+  })
+
+  it('does not push uptime kuma when unauthorized', async () => {
+    vi.stubEnv('CRON_SECRET', 'secret')
+    vi.stubEnv('UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS', 'https://kuma.example/push/abc')
+    const fetchMock = vi.fn()
+    global.fetch = fetchMock as unknown as typeof fetch
+    const job = vi.fn().mockResolvedValue(undefined)
+    const handler = createCronHandler(job, 'UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS')
+
+    const response = await handler(new Request('http://localhost/api/cron/x'))
+
+    assert.equal(response.status, 401)
+    assert.equal(fetchMock.mock.calls.length, 0)
+  })
+
   it('returns 401 when wrong bearer', async () => {
     vi.stubEnv('CRON_SECRET', 'secret')
     const job = vi.fn().mockResolvedValue(undefined)
