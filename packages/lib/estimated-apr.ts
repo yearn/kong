@@ -76,12 +76,12 @@ const LATEST_ROWS_BY_ESTIMATED_APR_SQL = latestEstimatedAprRowsSql(`
         AND ($3::int IS NULL OR o.block_time > NOW() - ($3::int * INTERVAL '1 day'))
         AND ($3::int IS NULL OR o.series_time > NOW() - ($3::int * INTERVAL '1 day'))
         -- Scope resolution: an emission is strategy-scoped when the publisher
-        -- emits a non-zero isStrategy marker. When no marker is present the
+        -- emits a non-zero isStrategy marker. When no marker (or a null one) is present the
         -- legacy debtRatio heuristic decides, so emissions that predate the
         -- marker keep their current scope.
         AND NOT COALESCE((
           SELECT bool_or(o2.component = 'isStrategy' AND COALESCE(o2.value, 0) <> 0)
-              OR (NOT bool_or(o2.component = 'isStrategy') AND bool_or(o2.component = 'debtRatio'))
+              OR (NOT bool_or(o2.component = 'isStrategy' AND o2.value IS NOT NULL) AND bool_or(o2.component = 'debtRatio'))
           FROM output o2
           WHERE o2.chain_id = o.chain_id AND o2.address = o.address
             AND o2.label = o.label AND o2.block_time = o.block_time

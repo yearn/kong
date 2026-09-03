@@ -6,7 +6,7 @@ const TEST_CHAIN = 99999
 const VAULT_ADDR = '0xtest_vault_apr_spec'
 const LABEL = 'yvusd-estimated-apr'
 
-async function insertOutput(address: string, label: string, component: string, value: number, blockTime: Date, blockNumber = 1) {
+async function insertOutput(address: string, label: string, component: string, value: number | null, blockTime: Date, blockNumber = 1) {
   await db.query(
     `INSERT INTO output (chain_id, address, label, component, value, block_number, block_time, series_time)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
@@ -287,6 +287,16 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result).to.not.be.undefined
     expect(result!.apr).to.equal(0.05)
     expect(result!.components).to.deep.equal({ isStrategy: 0, debtRatio: 5000 })
+  })
+
+  it('treats a null isStrategy marker as absent so debtRatio still excludes the emission', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.05, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'isStrategy', null, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'debtRatio', 5000, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.be.undefined
   })
 
   it('explicit label path ignores the isStrategy marker and keeps it in components', async function() {

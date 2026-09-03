@@ -60,7 +60,7 @@ Kong finds the scope from the emission itself
 
 1. If the emission has a non-zero `isStrategy` component, the emission is
    strategy-scoped.
-2. If the emission has no `isStrategy` component, and it has a `debtRatio` component,
+2. If the emission has no `isStrategy` component (or its value is null), and it has a `debtRatio` component,
    the emission is strategy-scoped. This is the legacy rule.
 3. In all other conditions the emission is vault-scoped.
 
