@@ -1,6 +1,9 @@
 import db from '@/app/api/db'
 import { compare } from '@/lib/compare'
+import { mergeSnapshot, SnapshotRow } from '@/lib/mergeSnapshot'
 import { DefaultRiskScore, EvmAddressSchema } from 'lib/types'
+
+type VaultRow = SnapshotRow & { risk: typeof DefaultRiskScore }
 
 const vaults = async (_: object, args: {
   chainId?: number,
@@ -33,12 +36,10 @@ const vaults = async (_: object, args: {
     ORDER BY (snapshot.hook->'tvl'->>'close')::numeric DESC`,
     ['vault', chainId])
 
-    let rows = result.rows.map(row => ({
+    let rows: VaultRow[] = result.rows.map(row => ({
       chainId: row.chain_id,
       address: row.address,
-      ...row.defaults,
-      ...row.snapshot,
-      ...row.hook,
+      ...mergeSnapshot(row.defaults, row.snapshot, row.hook),
       risk: row.hook.risk ?? DefaultRiskScore
     }))
 
@@ -57,7 +58,8 @@ const vaults = async (_: object, args: {
 
     if (apiVersion !== undefined) {
       rows = rows.filter(row => {
-        return compare(row.apiVersion ?? '0', apiVersion, '>=')
+        const rowApiVersion = row.apiVersion
+        return compare(typeof rowApiVersion === 'string' ? rowApiVersion : '0', apiVersion, '>=')
       })
     }
 

@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { extractComposition } from './hook'
+import process, { extractComposition } from './hook'
 import db, { toUpsertSql } from '../../../../../db'
 
 describe('abis/yearn/3/vault/snapshot/hook', function() {
@@ -117,6 +117,35 @@ describe('abis/yearn/3/vault/snapshot/hook', function() {
       expect(composition[0].performance?.estimated?.apr).to.equal(0.03)
       expect(composition[0].performance?.estimated?.apy).to.equal(0.031)
       expect(composition[0].performance?.estimated?.components).to.deep.equal({})
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it('echoes snapshot pricePerShare to override stale hook keys', async function() {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () => ({
+      json: async () => []
+    })) as unknown as typeof fetch
+
+    const chainId = 1337
+    const vault = '0x5000000000000000000000000000000000000005'
+    const asset = '0x6000000000000000000000000000000000000006'
+    const pricePerShare = 1021955n
+    const assetData = {
+      chain_id: chainId,
+      address: asset,
+      label: 'erc20',
+      defaults: { name: 'USD Coin', symbol: 'USDC', decimals: 6 }
+    }
+    await db.query(toUpsertSql('thing', 'chain_id, address, label', assetData), Object.values(assetData))
+
+    try {
+      const composition = await extractComposition(chainId, vault, [], [])
+      const hook = await process(chainId, vault, { asset, pricePerShare })
+
+      expect(composition).to.have.length(0)
+      expect(hook.pricePerShare).to.equal(pricePerShare)
     } finally {
       globalThis.fetch = originalFetch
     }

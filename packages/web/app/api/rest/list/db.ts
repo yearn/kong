@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { Pool } from 'pg'
+import { mergeSnapshot } from '../../../../lib/mergeSnapshot'
 import db from '../../db'
 import type { VaultSnapshot } from '../snapshot/db'
 
@@ -126,11 +127,12 @@ export async function getVaultsWithSnapshots(pool: Pool = db): Promise<VaultWith
       thing.chain_id AS "chainId",
       thing.address,
 
-      -- Name with fallback
+      -- Name with fallback (address when snapshot has not populated name yet)
       COALESCE(
         thing.defaults->>'name',
         snapshot.snapshot->>'name',
-        snapshot.hook->'meta'->>'displayName'
+        snapshot.hook->'meta'->>'displayName',
+        thing.address
       ) AS name,
 
       -- Symbol
@@ -235,14 +237,11 @@ export async function getVaultsWithSnapshots(pool: Pool = db): Promise<VaultWith
     const { _defaults, _snapshot, _hook, _hasSnapshot, ...listColumns } = row
     const parsedListItem = VaultListItemSchema.safeParse(listColumns)
 
-    // Mirror the snapshot endpoint's merge: defaults < snapshot < hook.
     const snapshot: VaultSnapshot | null = _hasSnapshot
       ? {
         chainId: row.chainId,
         address: row.address,
-        ...(_defaults ?? {}),
-        ...(_snapshot ?? {}),
-        ...(_hook ?? {}),
+        ...mergeSnapshot(_defaults, _snapshot, _hook),
       }
       : null
 

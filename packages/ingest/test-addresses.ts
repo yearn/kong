@@ -8,6 +8,12 @@ export const addresses = {
     weth: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' as `0x${string}`,
     genericLevCompFarmWeth: '0x83B6211379c26E0bA8d01b9EcD4eE1aE915630aa' as `0x${string}`,
     strategystEthAccumulator_v2: '0x120FA5738751b275aed7F7b46B98beB38679e093' as `0x${string}`,
+
+    yvwbtc030: '0x0e8A7717A4FD7694682E7005957dD5d7598bF14A' as `0x${string}`,
+    yvwbtc030MakerStrategy: '0xA93cb639ae732559AB9315b3A1615e624c32Cc59' as `0x${string}`,
+
+    yvdai043: '0xdA816459F1AB5631232FE5e97a05BBBb94970c95' as `0x${string}`,
+    yvdai043LeveragedCompStrategy: '0x1676055fE954EE6fc388F9096210E5EbE0A9070c' as `0x${string}`,
   },
 
   v3: {

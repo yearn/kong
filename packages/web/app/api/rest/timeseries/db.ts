@@ -51,6 +51,8 @@ export async function getFullTimeseries(
       AND address = $2
       AND label = $3
     GROUP BY chain_id, address, component, time
+    -- all-null bucket = ingest gap (price service outage): must read as missing, not zero
+    HAVING COUNT(value) > 0
     ORDER BY time ASC
   `,
     [chainId, getAddress(address as `0x${string}`), label],
@@ -81,6 +83,7 @@ export async function getRecentTimeseries(
       AND label = $3
       AND series_time >= date_trunc('day', NOW()) - INTERVAL '2 days'
     GROUP BY chain_id, address, component, time
+    HAVING COUNT(value) > 0
     ORDER BY time ASC
   `,
     [chainId, getAddress(address as `0x${string}`), label],

@@ -87,11 +87,14 @@ export async function getSparkline(chainId: number, address: string, label: stri
       CAST($3 AS text) AS label,
       CAST($4 AS text) AS component,
       time_bucket(CAST('7 day' AS interval), block_time) AS "blockTime",
-      COALESCE(LAST(NULLIF(value, 0), block_number), 0) AS close
+      -- LAST does not skip nulls: without FILTER an outage row at the bucket's max
+      -- block collapses close to 0
+      COALESCE(LAST(NULLIF(value, 0), block_number) FILTER (WHERE value IS NOT NULL), 0) AS close
     FROM output
     WHERE chain_id = $1 AND address = $2 AND label = $3 AND (component = $4 OR $4 IS NULL)
       ${floor}
     GROUP BY "blockTime"
+    HAVING COUNT(value) > 0
     ORDER BY "blockTime" DESC
     LIMIT 3;
   `

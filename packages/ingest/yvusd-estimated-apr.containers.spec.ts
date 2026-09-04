@@ -1,6 +1,10 @@
 import { expect } from 'chai'
 import { TestEnvironment, createTestPool, pollForRow, triggerFanout } from 'lib/helpers/containers'
+import Redis from 'ioredis'
 import { Pool } from 'pg'
+import { getSnapshotKey } from '../web/app/api/rest/snapshot/redis'
+
+const CHAIN_ID = 1
 
 // Issue #409: yvusd-estimated-apr leaking into non-yvUSD vault context.
 //
@@ -21,7 +25,6 @@ import { Pool } from 'pg'
 // strategy's yvUSD-scoped estimate), plus REST/GraphQL read-time parity. The
 // pure debtRatio-filter logic is unit-tested in helpers/apy-apr.spec.ts.
 
-const CHAIN_ID = 1
 const LABEL = 'yvusd-estimated-apr'
 
 // vault-level rows only (no debtRatio) -> KEEPS the estimate, and scopes its
@@ -102,6 +105,30 @@ async function fetchGqlEstimated(webUrl: string, address: string): Promise<Estim
   expect(res.status).to.equal(200)
   const body = await res.json() as { data?: { vault?: { performance?: { estimated?: Estimated } } } }
   return body.data?.vault?.performance?.estimated
+}
+
+type GqlVaultState = {
+  pricePerShare?: unknown
+  asset?: { symbol?: string, decimals?: number }
+}
+
+async function fetchGqlVaultState(webUrl: string, address: string): Promise<GqlVaultState | undefined> {
+  const res = await fetch(`${webUrl}/api/gql`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      query: `query($chainId: Int!, $address: String!) {
+        vault(chainId: $chainId, address: $address) {
+          pricePerShare
+          asset { symbol decimals }
+        }
+      }`,
+      variables: { chainId: CHAIN_ID, address },
+    }),
+  })
+  expect(res.status).to.equal(200)
+  const body = await res.json() as { data?: { vault?: GqlVaultState } }
+  return body.data?.vault
 }
 
 // Gate: composition fully assembled. yvUSD ($2) must resolve the strategy ($4)
@@ -234,4 +261,140 @@ describe('e2e: yvusd-estimated-apr scoping (issue #409)', () => {
     expect(gql?.apr).to.equal(performance?.estimated?.apr)
     expect(gql?.apy).to.equal(performance?.estimated?.apy)
   })
+})
+
+// Stale hook.pricePerShare shadowing fresh contract state (yvUSD & friends, up to 2.6x off).
+//
+// Vaults discovered via the erc4626 abi path (before their registry endorsement
+// set yearn: true) got a pricePerShare written into snapshot.hook from the pps
+// sparkline. Once the yearn/3/vault snapshot hook took over it never emitted the
+// key, and upsertSnapshot's shallow hook merge kept the stale value forever. The
+// API merged defaults < snapshot < hook, so the dead hook key shadowed the fresh
+// multicalled snapshot.pricePerShare.
+//
+// The fix flips the REST read-layer merge (mergeSnapshot) so contract state wins
+// over hook keys, with `asset` kept hook-won (the enriched erc20 object must beat
+// the raw asset() address). Both REST and GraphQL resolvers now use the same merge.
+// This suite seeds the exact prod row shape (no ingest, no RPC) and
+// asserts REST serves the fresh state value while `asset` stays enriched.
+
+const ASSET = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
+
+const STALE_PPS = 1002336
+const FRESH_PPS = '1021955'
+
+const ASSET_ERC20 = { chainId: CHAIN_ID, address: ASSET, name: 'USD Coin', symbol: 'USDC', decimals: 6 }
+
+describe('e2e: contract state wins over stale hook keys', () => {
+  let env: TestEnvironment
+  let webUrl: string
+  let pool: Pool
+  let redis: Redis
+
+  beforeAll(async () => {
+    env = new TestEnvironment({
+      // POSTGRES_SSL is baked truthy in the image's .env; '' forces the web db
+      // pool to skip SSL against the test Postgres (which has none).
+      web: { env: { POSTGRES_SSL: '' } },
+    })
+
+    const result = await env.start()
+    webUrl = result.webUrl
+    pool = createTestPool()
+    redis = new Redis(process.env.REST_CACHE_REDIS_URL || 'redis://localhost:6379')
+
+    await pool.query(
+      `INSERT INTO thing (chain_id, address, label, defaults)
+       VALUES ($1, $2, 'vault', $3::jsonb)`,
+      [CHAIN_ID, YVUSD_VAULT, JSON.stringify({ yearn: true, origin: 'yearn', erc4626: true, apiVersion: '3.0.4', inceptBlock: YVUSD_INCEPT })],
+    )
+
+    // The prod row shape: fresh contract state (incl. pricePerShare from the
+    // multicall) + a hook blob carrying the erc4626-era stale pricePerShare
+    // alongside the hook's own enrichments.
+    await pool.query(
+      `INSERT INTO snapshot (chain_id, address, snapshot, hook, block_number, block_time)
+       VALUES ($1, $2, $3::jsonb, $4::jsonb, 25655096, now())`,
+      [
+        CHAIN_ID, YVUSD_VAULT,
+        JSON.stringify({
+          name: 'USD yVault', symbol: 'yvUSD', decimals: 6, apiVersion: '3.0.4',
+          asset: ASSET, pricePerShare: FRESH_PPS,
+          totalAssets: '9254763666617', totalSupply: '9055945416998',
+        }),
+        JSON.stringify({
+          pricePerShare: STALE_PPS,
+          asset: ASSET_ERC20,
+          tvl: { close: 9253324.98 },
+        }),
+      ],
+    )
+
+    await env.runScript('packages/web/app/api/rest/refresh-vaults.ts')
+  })
+
+  afterAll(async () => {
+    await pool?.end()
+    await redis?.quit()
+    await env?.stop()
+  })
+
+  it('REST snapshot serves state pricePerShare, not the stale hook key', async function() {
+    const res = await fetch(`${webUrl}/api/rest/snapshot/${CHAIN_ID}/${YVUSD_VAULT.toLowerCase()}`)
+    expect(res.status).to.equal(200)
+    const snapshot = await res.json() as { pricePerShare?: unknown, asset?: { symbol?: string, decimals?: number } }
+    expect(snapshot.pricePerShare).to.equal(FRESH_PPS)
+    // asset stays the hook-enriched erc20 object, not the raw asset() address
+    expect(snapshot.asset?.symbol).to.equal('USDC')
+    expect(snapshot.asset?.decimals).to.equal(6)
+  })
+
+  it('REST vault list serves state pricePerShare, not the stale hook key', async function() {
+    const res = await fetch(`${webUrl}/api/rest/list/vaults`)
+    expect(res.status).to.equal(200)
+    const vaults = await res.json() as Array<{ address?: string, pricePerShare?: unknown }>
+    const vault = vaults.find((item) => item.address?.toLowerCase() === YVUSD_VAULT.toLowerCase())
+
+    expect(vault).to.not.equal(undefined)
+    expect(String(vault?.pricePerShare)).to.equal(FRESH_PPS)
+  })
+
+  it('GraphQL vault query serves state pricePerShare, not the stale hook key', async function() {
+    const vault = await fetchGqlVaultState(webUrl, YVUSD_VAULT)
+
+    expect(vault?.pricePerShare).to.equal('1021955')
+    expect(vault?.asset?.symbol).to.equal('USDC')
+    expect(vault?.asset?.decimals).to.equal(6)
+  })
+
+  it('cached snapshot payload for yvUSD contains state price & enriched asset', async function() {
+    const raw = await redis.get(getSnapshotKey(CHAIN_ID, YVUSD_VAULT))
+    expect(raw).to.not.equal(null)
+    const snapshot = JSON.parse(raw!).value
+
+    expect(snapshot.chainId).to.equal(1)
+    expect(snapshot.address).to.equal(YVUSD_VAULT)
+    expect(snapshot.pricePerShare).to.equal(FRESH_PPS)
+    expect(snapshot.asset?.symbol).to.equal('USDC')
+    expect(snapshot.asset?.decimals).to.equal(6)
+    expect(snapshot.tvl?.close).to.equal(9253324.98)
+  })
+
+  it('cached list payloads for rest:list:vaults contain state price & enriched asset', async function() {
+    const chainRaw = await redis.get('rest:list:vaults:1')
+    const allRaw = await redis.get('rest:list:vaults:all')
+    expect(chainRaw).to.not.equal(null)
+    expect(allRaw).to.not.equal(null)
+
+    const chainVaults = JSON.parse(chainRaw!).value as Array<{ address: string, pricePerShare: number, asset?: { symbol?: string } }>
+    const allVaults = JSON.parse(allRaw!).value as Array<{ address: string, pricePerShare: number, asset?: { symbol?: string } }>
+
+    for (const vaults of [chainVaults, allVaults]) {
+      const vault = vaults.find(item => item.address.toLowerCase() === YVUSD_VAULT.toLowerCase())
+      expect(vault).to.not.equal(undefined)
+      expect(vault?.pricePerShare).to.equal(1021955)
+      expect(vault?.asset?.symbol).to.equal('USDC')
+    }
+  })
+
 })

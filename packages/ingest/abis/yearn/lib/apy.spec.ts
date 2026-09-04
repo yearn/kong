@@ -1,10 +1,14 @@
 import { expect } from 'chai'
 import { addresses } from '../../../test-addresses'
 import { mainnet, polygon } from 'viem/chains'
+import { chains } from 'lib'
 import { _compute, computeApy, computeNetApr, extractFees__v2, extractFees__v3, extractLockedProfit__v2, extractLockedProfit__v3 } from './apy'
 import { EvmLogSchema, ThingSchema } from 'lib/types'
 import { upsertBatch } from '../../../load'
 import db from '../../../db'
+import { rpcs } from '../../../rpcs'
+
+const hasPolygon = chains.some(chain => chain.id === polygon.id)
 
 describe('abis/yearn/lib/apy', () => {
   beforeAll(async () => {
@@ -35,10 +39,55 @@ describe('abis/yearn/lib/apy', () => {
 
   it('extracts v2 fees', async () => {
     const strategies: `0x${string}`[] = [addresses.v2.strategyLenderYieldOptimiser]
-    const fees = await extractFees__v2(mainnet.id, addresses.v2.yvusdt, strategies, 15871070n)
+    const fees = await extractFees__v2(mainnet.id, addresses.v2.yvusdt, '0.4.3', strategies, 15871070n)
     expect(fees.management).to.eq(0)
     expect(fees.performance).to.eq(.2)
   }, 20_000)
+
+  it('extracts modern 0.4.3 v2 fees with a non-zero strategist fee in plain bps', async () => {
+    // vault performanceFee 1000 bps + strategy performanceFee 1000 bps * debtRatio 4126,
+    // scaled from bps² back to bps: 0.1 + 0.04126
+    const strategies: `0x${string}`[] = [addresses.v2.yvdai043LeveragedCompStrategy]
+    const fees = await extractFees__v2(mainnet.id, addresses.v2.yvdai043, '0.4.3', strategies, 14400000n)
+    expect(fees.management).to.eq(0.02)
+    expect(fees.performance).to.be.closeTo(0.14126, 1e-9)
+  }, 20_000)
+
+  it('extracts legacy 0.3.0 v2 fees in plain bps', async () => {
+    // vault performanceFee 1000 bps + strategy performanceFee 1000 bps * debtRatio 9800,
+    // scaled from bps² back to bps: 0.1 + 0.098
+    const strategies: `0x${string}`[] = [addresses.v2.yvwbtc030MakerStrategy]
+    const fees = await extractFees__v2(mainnet.id, addresses.v2.yvwbtc030, '0.3.0', strategies, 18000000n)
+    expect(fees.management).to.eq(0)
+    expect(fees.performance).to.be.closeTo(0.198, 1e-9)
+  }, 20_000)
+
+  it('picks the strategies abi arity from the vault api version', async () => {
+    // performanceFee and debtRatio sit at the same offsets in both layouts, so a fee
+    // assertion cannot catch a revert to the hardcoded 9-field abi. Pin the request itself.
+    const arities: number[] = []
+    const next = vi.spyOn(rpcs, 'next').mockReturnValue({
+      multicall: async ({ contracts }: any) => {
+        contracts.forEach((contract: any) => {
+          if (contract.functionName === 'strategies') arities.push(contract.abi[0].outputs.length)
+        })
+        return contracts.map(() => ({ status: 'failure' }))
+      }
+    } as any)
+
+    try {
+      await extractFees__v2(mainnet.id, addresses.v2.yvwbtc030, '0.3.0',
+        [addresses.v2.yvwbtc030MakerStrategy], 18000000n)
+      expect(arities).to.deep.equal([8])
+
+      arities.length = 0
+      await extractFees__v2(mainnet.id, addresses.v2.yvusdt, '0.4.3',
+        [addresses.v2.strategyLenderYieldOptimiser], 15871070n)
+      expect(arities).to.deep.equal([9])
+    } finally {
+      next.mockRestore()
+    }
+  })
 
   it('extracts v2 locked profit', async () => {
     const lotsOfLockedProfit = await extractLockedProfit__v2(mainnet.id, addresses.v2.yvusdt, 18344466n)
@@ -128,20 +177,20 @@ describe('abis/yearn/lib/apy', () => {
     expect(Number(apy.inceptionBlockNumber)).to.be.closeTo(15243268, 4)
   }, 20_000)
 
-  it('extracts v3 vault fees', async () => {
+  it.skipIf(!hasPolygon)('extracts v3 vault fees', async () => {
     const strategies: `0x${string}`[] = [addresses.v3.aaveV3UsdcLender, addresses.v3.compoundV3UsdcLender, addresses.v3.stargateUsdcStaker]
     const fees = await extractFees__v3(polygon.id, addresses.v3.yvusdca, strategies, 52031869n)
     expect(fees.management).to.eq(0)
     expect(fees.performance).to.eq(.1)
   }, 20_000)
 
-  it('extracts v3 tokenized strat fees', async () => {
+  it.skipIf(!hasPolygon)('extracts v3 tokenized strat fees', async () => {
     const fees = await extractFees__v3(polygon.id, addresses.v3.aaveV3UsdcLender, [], 52031869n)
     expect(fees.management).to.eq(0)
     expect(fees.performance).to.eq(.05)
   }, 20_000)
 
-  it('extracts v3 locked profit', async () => {
+  it.skipIf(!hasPolygon)('extracts v3 locked profit', async () => {
     const lotsOfLockedProfit = await extractLockedProfit__v3(polygon.id, addresses.v3.yvusdca, 52031869n)
     expect(lotsOfLockedProfit).to.eq(1340884331n)
 
@@ -149,7 +198,7 @@ describe('abis/yearn/lib/apy', () => {
     expect(noLockedProfit).to.eq(0n)
   }, 20_000)
 
-  it('yvUSDCA 3.0.1 @ block 52031869n', async () => {
+  it.skipIf(!hasPolygon)('yvUSDCA 3.0.1 @ block 52031869n', async () => {
     const blockNumber = 52031869n
     const strategies: `0x${string}`[] = [addresses.v3.aaveV3UsdcLender, addresses.v3.compoundV3UsdcLender, addresses.v3.stargateUsdcStaker]
     const yvusdca = ThingSchema.parse({

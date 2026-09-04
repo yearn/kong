@@ -8,7 +8,8 @@ import { normalize, priced } from 'lib/math'
 import { extractWithdrawalQueue } from '../2/vault/snapshot/hook'
 import { Data } from '../../../extract/timeseries'
 import { estimateHeight, getBlock } from 'lib/blocks'
-import { first } from '../../../db'
+import { first, some } from '../../../db'
+import { endOfDay } from 'lib/dates'
 
 export default async function _process(chainId: number, address: `0x${string}`, data: Data, components?: boolean): Promise<Output[]> {
   console.info('🧮', data.outputLabel, chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())
@@ -30,19 +31,36 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 
   if (!vault) return []
 
-  const { tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd, decimals } = await _compute(vault, blockNumber, latest)
+  const { tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd, priceSource, decimals } = await _compute(vault, blockNumber, latest)
 
   // extractTotalAssets returns undefined on multicall failure; skip emitting a false zero (a genuine empty vault is 0n)
   if (totalAssets === undefined) return []
+
+  // 'unavailable' (price service failure) still writes rows for past days: null for
+  // the usd components, real values for the on-chain ones. Returning [] left the day
+  // permanently missing, so every fanout cycle re-enqueued it forever. Null days heal
+  // by replay (fanout/timeseries.ts).
+  const priceUnavailable = priceSource === 'unavailable'
+
+  // The current day is skipped outright: fanout re-extracts it every cycle anyway, and
+  // a null row at today's series_time would shadow yesterday's real value in
+  // latest-row queries.
+  if (priceUnavailable && latest) return []
+
+  const usdUnknown = priceUnavailable && totalAssets !== 0n
+
+  // findMissingDays counts a null row as computed, so overwriting a real value here
+  // would lose it for good.
+  if (priceUnavailable && await hasComputedTvl(chainId, address, data.outputLabel, data.blockTime)) return []
 
   if (components) {
     // componentized outputs
     return OutputSchema.array().parse([{
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'tvl', value: tvl
+      component: 'tvl', value: usdUnknown ? null : tvl
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'delegated', value: delegatedTvl
+      component: 'delegated', value: usdUnknown ? null : delegatedTvl
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
       component: 'totalAssets', value: normalize(totalAssets, decimals) || 0
@@ -51,17 +69,26 @@ export default async function _process(chainId: number, address: `0x${string}`, 
       component: 'delegatedAssets', value: normalize(delegatedAssets, decimals) || 0
     }, {
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'priceUsd', value: priceUsd
+      component: 'priceUsd', value: priceUnavailable ? null : priceUsd
     }])
 
   } else {
     // legacy tvl output
     return OutputSchema.array().parse([{
       chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
-      component: 'tvl', value: tvl
+      component: 'tvl', value: usdUnknown ? null : tvl
     }])
 
   }
+}
+
+async function hasComputedTvl(chainId: number, address: `0x${string}`, label: string, blockTime: bigint) {
+  return await some(
+    `SELECT 1 FROM output
+     WHERE chain_id = $1 AND address = $2 AND label = $3 AND component = 'tvl'
+       AND series_time = to_timestamp($4::double precision) AND value IS NOT NULL`,
+    [chainId, address, label, Number(endOfDay(blockTime))]
+  )
 }
 
 export async function _compute(vault: Thing, blockNumber: bigint, latest = false) {
@@ -72,12 +99,12 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
     decimals: z.number({ coerce: true })
   }).parse(defaults)
 
-  const { priceUsd } = await fetchErc20PriceUsd(chainId, asset, blockNumber, latest)
+  const { priceUsd, priceSource } = await fetchErc20PriceUsd(chainId, asset, blockNumber, latest)
 
   const totalAssets = await extractTotalAssets(chainId, address, blockNumber)
 
   // no assets means no real tvl; keep the real priceUsd for the price component
-  if (!totalAssets) return { priceUsd, tvl: 0, delegatedTvl: 0, totalAssets, delegatedAssets: 0n, decimals }
+  if (!totalAssets) return { priceUsd, priceSource, tvl: 0, delegatedTvl: 0, totalAssets, delegatedAssets: 0n, decimals }
 
   // pre-3.0.0 vaults delegate assets to strategies; v3 and bare erc4626 (no apiVersion) do not
   const delegatedAssets = apiVersion && compare(apiVersion, '3.0.0', '<')
@@ -88,7 +115,7 @@ export async function _compute(vault: Thing, blockNumber: bigint, latest = false
   const tvl = priceUsd ? priced(totalAssets, decimals, priceUsd) : 0
   const delegatedTvl = priceUsd ? priced(delegatedAssets, decimals, priceUsd) : 0
 
-  return { priceUsd, tvl, delegatedTvl, totalAssets, delegatedAssets, decimals }
+  return { priceUsd, priceSource, tvl, delegatedTvl, totalAssets, delegatedAssets, decimals }
 }
 
 export async function extractTotalDelegatedAssets(chainId: number, vault: `0x${string}`, blockNumber: bigint) {
