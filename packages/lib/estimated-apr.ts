@@ -69,22 +69,43 @@ const LATEST_ROWS_BY_LABEL_SQL = latestEstimatedAprRowsSql(`
         AND ($4::int IS NULL OR o.series_time > NOW() - ($4::int * INTERVAL '1 day'))
 `, '$5', '$4')
 
-const LATEST_ROWS_BY_ESTIMATED_APR_SQL = latestEstimatedAprRowsSql(`
-        o.chain_id = $1
+// Scope is decided per emission (same chain/address/label/block_time), then the
+// latest vault-scoped emission is kept. A correlated bool_or SubPlan cannot be
+// an anti-join: on prod (Timescale 2.13, 141 chunks) it BitmapAnds
+// output_series_time_idx (~360k rows/chunk) while still excluding 139/141
+// chunks. Uncorrelated GROUP BY keeps the series_time index seek.
+const LATEST_ROWS_BY_ESTIMATED_APR_SQL = `
+    WITH candidates AS (
+      SELECT o.block_time, o.label, o.component, o.value
+      FROM output o
+      WHERE o.chain_id = $1
         AND o.address = $2
         AND o.label LIKE '%-estimated-apr'
         AND ($3::int IS NULL OR o.block_time > NOW() - ($3::int * INTERVAL '1 day'))
         AND ($3::int IS NULL OR o.series_time > NOW() - ($3::int * INTERVAL '1 day'))
-        -- Scope resolution: an emission is strategy-scoped when the publisher
-        -- emits a non-zero isStrategy marker. When no marker (or a null one) is present the
-        -- legacy debtRatio heuristic decides, so emissions that predate the
-        -- marker keep their current scope.
-        AND NOT COALESCE((
-          SELECT bool_or(o2.component = 'isStrategy' AND COALESCE(o2.value, 0) <> 0)
-              OR (NOT bool_or(o2.component = 'isStrategy' AND o2.value IS NOT NULL) AND bool_or(o2.component = 'debtRatio'))
-          FROM output o2
-          WHERE o2.chain_id = o.chain_id AND o2.address = o.address
-            AND o2.label = o.label AND o2.block_time = o.block_time
-            AND ($3::int IS NULL OR o2.series_time > NOW() - ($3::int * INTERVAL '1 day'))
-        ), false)
-`, '$4', '$3')
+    ),
+    latest AS (
+      SELECT block_time, label
+      FROM candidates
+      GROUP BY block_time, label
+      HAVING NOT (
+        bool_or(component = 'isStrategy' AND COALESCE(value, 0) <> 0)
+        OR (
+          NOT bool_or(component = 'isStrategy' AND value IS NOT NULL)
+          AND bool_or(component = 'debtRatio')
+        )
+      )
+      ORDER BY block_time DESC
+      LIMIT 1
+    )
+    SELECT
+      label,
+      address,
+      component,
+      value::float8 AS value
+    FROM output
+    WHERE chain_id = $1
+      AND (block_time, label) = (SELECT block_time, label FROM latest)
+      AND ($3::int IS NULL OR series_time > NOW() - ($3::int * INTERVAL '1 day'))
+      AND (address = $2 OR address = ANY($4::text[]))
+`

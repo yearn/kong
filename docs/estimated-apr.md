@@ -9,7 +9,7 @@ row for each component. Each row has a `chain_id`, an `address`, a `label`, a
 `component` name and a numeric `value`. Kong writes the rows into the `output` table.
 
 The label tells which publisher sent the row. Kong finds vault-level estimates with a
-label that ends in `-estimated-apr` (`packages/lib/estimated-apr.ts:74`).
+label that ends in `-estimated-apr` (`packages/lib/estimated-apr.ts:83`).
 
 One group of rows with the same chain, address, label and `block_time` is one emission.
 Kong reads the most recent emission and makes one `estimated` object from it.
@@ -56,7 +56,7 @@ vault at the same time (issue #409). Only the publisher knows the scope of each
 emission.
 
 Kong finds the scope from the emission itself
-(`packages/lib/estimated-apr.ts:78`):
+(`packages/lib/estimated-apr.ts:91`):
 
 1. If the emission has a non-zero `isStrategy` component, the emission is
    strategy-scoped.
