@@ -1,6 +1,12 @@
 {
+  "fluid": true,
   "regions": [
     "cle1"
   ],
-  "installCommand": "bun install --frozen-lockfile"
+  "installCommand": "bun install --frozen-lockfile",
+  "crons": [
+    { "path": "/api/cron/refresh-cache", "schedule": "*/30 * * * *" },
+    { "path": "/api/cron/timeseries-refresh", "schedule": "0 * * * *" },
+    { "path": "/api/cron/timeseries-refresh-historical", "schedule": "15 2 * * *" }
+  ]
 }

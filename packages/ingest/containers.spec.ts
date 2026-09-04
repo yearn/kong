@@ -41,7 +41,7 @@ describe('e2e: ingest → web snapshot', () => {
       WHERE t.chain_id = $1 AND lower(t.address) = lower($2) AND t.label = 'vault'
     `, [CHAIN_ID, VAULT_ADDRESS])
 
-    await env.runScript('packages/web/app/api/rest/refresh-vaults.ts')
+    await env.runScript('packages/web/app/api/rest/refresh-vaults.cli.ts')
   })
 
   afterAll(async () => {

@@ -32,7 +32,7 @@ the correct value and the first hop without it — the bottleneck is between the
 | 1 | Source service (per `config/subscriptions.yaml`) | `probes.sh source <url>` | live — computes at call time |
 | 2 | `output` table | `probes.sh output <chainId> <address> <label>` | ingest fanout runs the webhook |
 | 3 | `snapshot` table (`hook->'performance'`) | `probes.sh snapshot <chainId> <address>` | fanout runs the snapshot hook |
-| 4 | Redis REST cache (`rest:snapshot:{chainId}:{address}`) | `probes.sh redis <chainId> <address>` | `refresh-cache.yml` workflow runs |
+| 4 | Redis REST cache (`rest:snapshot:{chainId}:{address}`) | `probes.sh redis <chainId> <address>` | `/api/cron/refresh-cache` Vercel cron runs |
 | 5 | Public REST API / CDN edge | `probes.sh rest <chainId> <address>` | CDN TTL expires (`s-maxage=900`) |
 
 Start by resolving the label to its subscription in `config/subscriptions.yaml`
@@ -62,9 +62,10 @@ come back ascending, so without it you get the oldest points).
   `output` rows — day-bucket upserts keep only each day's last batch, which makes it look
   daily; read `snapshot.block_time` advancing instead). The `config/abis.yaml` cron
   `start:` flag only controls BullMQ job registration at ingest boot — prod is driven
-  elsewhere. `refresh-cache.yml` is scheduled `*/30 * * * *` but GitHub Actions delivers
-  it every 1–3 h in practice — check `gh run list --workflow refresh-cache.yml` before
-  concluding anything is broken. The CDN adds up to 15 min on top of Redis.
+  elsewhere. `/api/cron/refresh-cache` is scheduled `*/30 * * * *` in
+  `packages/web/vercel.json`; Vercel Cron fires close to schedule — check the project's
+  cron/function logs in Vercel before concluding anything is broken. The CDN adds up to
+  15 min on top of Redis.
 - **Neon sleeps**: the replica suspends when idle; the first connection fails with
   "Control plane request failed". `probes.sh` retries automatically.
 
@@ -77,8 +78,8 @@ prefix (or after 30 min).
 ## Guardrails
 
 - Every probe is **read-only**. Keep it that way.
-- The one known unstick action — `gh workflow run refresh-cache.yml --repo yearn/kong` —
-  is a mutation. Present it as an option; **never trigger it without the user's explicit
+- The one known unstick action — `curl -H "Authorization: Bearer $CRON_SECRET"
+  https://<deployment>/api/cron/refresh-cache` — is a mutation. Present it as an option; **never trigger it without the user's explicit
   go in this conversation**.
 - Never print credential values (connection strings contain passwords). Refer to env vars
   by name; `probes.sh` handles redaction.

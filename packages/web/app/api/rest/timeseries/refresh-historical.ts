@@ -1,67 +1,59 @@
-import { cacheMSet, disconnect } from '../cache'
+import { cronDb } from '../../db/cron'
+import { cacheMSet } from '../cache'
 import { getFullTimeseries, getVaults, TimeseriesRow } from './db'
 import { labels } from './labels'
 import { getTimeseriesKey } from './redis'
 
 const BATCH_SIZE = 10
 
-async function refreshHistorical(): Promise<void> {
-  console.time('refreshHistorical')
+export async function refreshHistorical(): Promise<void> {
+  const started = Date.now()
 
-  console.log('Fetching vaults...')
-  const vaults = await getVaults()
-  console.log(`Found ${vaults.length} vaults (batch size: ${BATCH_SIZE})`)
+  try {
+    console.log('Fetching vaults...')
+    const vaults = await getVaults(cronDb)
+    console.log(`Found ${vaults.length} vaults (batch size: ${BATCH_SIZE})`)
 
-  let processed = 0
+    let processed = 0
 
-  for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
-    const batch = vaults.slice(i, i + BATCH_SIZE)
-    const pairs: Array<[string, string]> = []
+    for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
+      const batch = vaults.slice(i, i + BATCH_SIZE)
+      const pairs: Array<[string, string]> = []
 
-    await Promise.all(batch.map(async (vault) => {
-      const addressLower = vault.address.toLowerCase()
+      await Promise.all(batch.map(async (vault) => {
+        const addressLower = vault.address.toLowerCase()
 
-      await Promise.all(labels.map(async ({ label }) => {
-        const rows: TimeseriesRow[] = await getFullTimeseries(
-          vault.chainId,
-          vault.address,
-          label,
-        )
+        await Promise.all(labels.map(async ({ label }) => {
+          const rows: TimeseriesRow[] = await getFullTimeseries(
+            vault.chainId,
+            vault.address,
+            label,
+            cronDb,
+          )
 
-        const minimal = rows.map(row => ({
-          time: Number(row.time),
-          component: row.component,
-          value: row.value,
+          const minimal = rows.map(row => ({
+            time: Number(row.time),
+            component: row.component,
+            value: row.value,
+          }))
+
+          pairs.push([
+            getTimeseriesKey(label, vault.chainId, addressLower),
+            JSON.stringify({ value: minimal }),
+          ])
         }))
-
-        pairs.push([
-          getTimeseriesKey(label, vault.chainId, addressLower),
-          JSON.stringify({ value: minimal }),
-        ])
       }))
-    }))
 
-    await cacheMSet(pairs)
+      await cacheMSet(pairs)
 
-    processed += batch.length
-    if (processed % 10 === 0) {
-      console.log(`Processed ${processed}/${vaults.length} vaults`)
+      processed += batch.length
+      if (processed % 10 === 0) {
+        console.log(`Processed ${processed}/${vaults.length} vaults`)
+      }
     }
+
+    console.log(`✓ Completed: ${processed} vaults processed`)
+  } finally {
+    console.log(`refreshHistorical: ${Date.now() - started}ms`)
   }
-
-  console.log(`✓ Completed: ${processed} vaults processed`)
-  console.timeEnd('refreshHistorical')
-}
-
-if (require.main === module) {
-  refreshHistorical()
-    .then(async () => {
-      await disconnect()
-      process.exit(0)
-    })
-    .catch(async (err) => {
-      console.error(err)
-      await disconnect()
-      process.exit(1)
-    })
 }

@@ -170,7 +170,7 @@ describe('e2e: katana strategy rewards APR surfaces in parent composition (PR #4
       [STRATEGY_VAULT, PARENT_VAULT],
     )
 
-    await env.runScript('packages/web/app/api/rest/refresh-vaults.ts')
+    await env.runScript('packages/web/app/api/rest/refresh-vaults.cli.ts')
   })
 
   afterAll(async () => {
