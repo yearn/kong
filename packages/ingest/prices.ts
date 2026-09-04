@@ -205,7 +205,7 @@ async function unavailablePrice(chainId: number, token: `0x${string}`, blockNumb
 export const PRICE_SERVICE_CHAIN_NAMES: Record<number, string> = {
   1: 'ethereum', 10: 'optimism', 100: 'gnosis', 137: 'polygon',
   146: 'sonic', 250: 'fantom', 8453: 'base', 42161: 'arbitrum',
-  80094: 'berachain', 747474: 'katana',
+  80094: 'berachain', 747474: 'katana', 4663: 'robinhood',
 }
 
 const PRICE_SERVICE_DEFAULT_URL = 'https://prices.yearn.dev'
