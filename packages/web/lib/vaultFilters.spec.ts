@@ -39,6 +39,13 @@ describe('buildVaultFilters', () => {
     assert.doesNotMatch(where, /->>'riskLevel'/)
   })
 
+  it('matches vaultType as jsonb number or jsonb string', () => {
+    const { where, params } = buildVaultFilters({ vaultType: 1 })
+    assert.match(where, /COALESCE\(.*, '0'::jsonb\) IN \(to_jsonb\(\$2::numeric\), to_jsonb\(\$2::text\)\)/)
+    assert.doesNotMatch(where, /->'vaultType'\)::numeric/)
+    assert.deepEqual(params, ['vault', 1])
+  })
+
   it('numbers params in order', () => {
     const { where, params } = buildVaultFilters({ chainId: 1, vaultType: 2, riskLevel: 3 })
     assert.match(where, /thing\.chain_id = \$2/)

@@ -55,7 +55,7 @@ export function buildVaultFilters(args: VaultFilterArgs): { where: string, param
   if (origin === 'yearn') where.push(isYearn)
   else if (origin != null) add(p => `${field('origin')} = ${p}`, origin)
 
-  if (vaultType != null) add(p => `COALESCE(${mergedJsonSql('vaultType')}, '0'::jsonb) = to_jsonb(${p}::numeric)`, vaultType)
+  if (vaultType != null) add(p => `COALESCE(${mergedJsonSql('vaultType')}, '0'::jsonb) IN (to_jsonb(${p}::numeric), to_jsonb(${p}::text))`, vaultType)
 
   if (unratedOnly === true) {
     where.push(`COALESCE(${riskLevelSql}, '0'::jsonb) = to_jsonb(0)`)
