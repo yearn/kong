@@ -79,6 +79,15 @@ describe('buildVaultFilters', () => {
     assert.match(where, /NOT \(.*'yearn'\) = to_jsonb\(true\)\) IS TRUE OR .*IS DISTINCT FROM 'yearn'/)
   })
 
+  it('erc4626=false and v3=false treat missing jsonb as false', () => {
+    for (const key of ['erc4626', 'v3'] as const) {
+      const { where, params } = buildVaultFilters({ [key]: false })
+      assert.match(where, new RegExp(`->'${key}'\\) = to_jsonb\\(true\\)\\) IS TRUE = \\$2::boolean`))
+      assert.doesNotMatch(where, /to_jsonb\(\$/)
+      assert.deepEqual(params, ['vault', false])
+    }
+  })
+
   it('non-yearn origin is parameterized', () => {
     const { where, params } = buildVaultFilters({ origin: 'morpho' })
     assert.match(where, /'origin'\) = \$2/)
