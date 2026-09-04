@@ -80,8 +80,8 @@ const VaultsResponseSchema = z.object({
 
 async function fetchVaultMetadata(vaultKeys: { chainId: number; address: string }[]) {
   const query = `
-    query Vaults {
-      vaults {
+    query Vaults($addresses: [String], $limit: Int) {
+      vaults(addresses: $addresses, limit: $limit) {
         chainId
         address
         name
@@ -99,15 +99,17 @@ async function fetchVaultMetadata(vaultKeys: { chainId: number; address: string 
   const response = await fetch('https://kong.yearn.fi/api/gql', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({
+      query,
+      variables: { addresses: vaultKeys.map(k => k.address), limit: 1000 },
+    }),
   })
 
   if (!response.ok) {
     throw new Error(`GraphQL request failed: HTTP ${response.status}`)
   }
 
-  const data = await response.json()
-  const allVaults = VaultsResponseSchema.parse(data).data.vaults
+  const allVaults = VaultsResponseSchema.parse(await response.json()).data.vaults
 
   const result: typeof allVaults = []
   for (const key of vaultKeys) {

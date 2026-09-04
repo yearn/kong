@@ -1,8 +1,20 @@
 import { strict as assert } from 'node:assert'
 import { describe, it } from 'vitest'
-import { mergeSnapshot } from './mergeSnapshot'
+import { mergeSnapshot, mergeSnapshotSql } from './mergeSnapshot'
 
 describe('mergeSnapshot', () => {
+  it('keeps SQL blob precedence and hook asset override aligned with mergeSnapshot', () => {
+    const sql = mergeSnapshotSql(['composition'])
+    const defaults = 'COALESCE(thing.defaults, \'{}\')'
+    const hook = 'COALESCE(snapshot.hook, \'{}\')'
+    const snapshot = 'COALESCE(snapshot.snapshot, \'{}\')'
+
+    assert.ok(sql.indexOf(defaults) < sql.indexOf(hook))
+    assert.ok(sql.indexOf(hook) < sql.indexOf(snapshot))
+    assert.match(sql, /jsonb_strip_nulls\(jsonb_build_object\('asset', snapshot\.hook->'asset'\)\)/)
+    assert.match(sql, /- ARRAY\['composition'\]::text\[\]/)
+  })
+
   it('lets contract state override stale hook keys while retaining hook-only data', () => {
     const result = mergeSnapshot(
       { origin: 'yearn', defaultOnly: true },

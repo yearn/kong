@@ -27,7 +27,7 @@ curl -s -X POST https://kong.yearn.fi/api/gql \
 
 #### `vaults`
 
-List all vaults, sorted by TVL descending.
+List vaults one page at a time, sorted by TVL descending, then chain ID ascending, then address ascending. Omit `chainId` to list every chain.
 
 | Argument | Type | Description |
 |----------|------|-------------|
@@ -41,12 +41,18 @@ List all vaults, sorted by TVL descending.
 | `vaultType` | `Int` | Filter by vault type |
 | `riskLevel` | `Int` | Filter by risk level |
 | `unratedOnly` | `Boolean` | Only unrated vaults |
+| `limit` | `Int` | Page size, default `100`, clamped to `1..1000` |
+| `offset` | `Int` | Rows to skip, default `0` |
+
+Paging is offset based: repeat the same filters and raise `offset` by `limit`
+for each page. Rows are ordered by TVL descending, then chain ID ascending,
+then address ascending; vaults with no TVL sort last as `0`.
 
 Returns [`Vault`](#vault-1).
 
 ```graphql
 {
-  vaults(chainId: 1, v3: true) {
+  vaults(chainId: 1, v3: true, limit: 50, offset: 50) {
     address
     name
     symbol
