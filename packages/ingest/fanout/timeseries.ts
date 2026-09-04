@@ -19,6 +19,7 @@ export default class TimeseriesFanout {
     const hooks = this.resolveHooks(abiPath, 'timeseries')
     for (const hook of hooks) {
       const outputLabel = hook.module.outputLabel
+      if (!outputLabel) throw new Error(`!outputLabel, ${abiPath} timeseries hook`)
 
       const from = startBlock !== undefined
         ? startBlock
