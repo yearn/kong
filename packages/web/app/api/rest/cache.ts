@@ -1,7 +1,7 @@
 import { createKeyv } from '@keyv/redis'
 import { createClient } from '@redis/client'
 
-const writeClient = createClient({ url: process.env.REST_CACHE_REDIS_URL || 'redis://localhost:6379' })
+export const writeClient = createClient({ url: process.env.REST_CACHE_REDIS_URL || 'redis://localhost:6379' })
 
 writeClient.on('error', (error) => console.error('rest cache write client', error))
 

@@ -56,6 +56,9 @@ Uptime Kuma URL named in its route file.
 The historical timeseries rebuild is one full pass over every vault, scheduled daily
 and capped at 800s (`maxDuration`). Prod duration was not measured here.
 
+The 800s routes need Fluid compute; without it the Pro ceiling is 300s and they are
+killed mid-run. `"fluid": true` in `vercel.json` keeps that in code, not in the dashboard.
+
 Trigger any job by hand with:
 
 ```bash
