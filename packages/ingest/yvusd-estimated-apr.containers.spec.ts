@@ -330,7 +330,7 @@ describe('e2e: contract state wins over stale hook keys', () => {
       ],
     )
 
-    await env.runScript('packages/web/app/api/rest/refresh-vaults.ts')
+    await env.runScript('packages/web/app/api/rest/refresh-vaults.cli.ts')
   })
 
   afterAll(async () => {
