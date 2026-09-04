@@ -1,6 +1,8 @@
 import { strict as assert } from 'node:assert'
 
-const disconnect = vi.fn().mockResolvedValue(undefined)
+const { disconnect } = vi.hoisted(() => ({
+  disconnect: vi.fn().mockResolvedValue(undefined),
+}))
 vi.mock('./cache', () => ({ disconnect }))
 
 import { runCli } from './run-cli'
