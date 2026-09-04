@@ -6,7 +6,7 @@ import { EstimatedAprSchema, EvmAddressSchema, ThingSchema, TokenMetaSchema, Vau
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
 import db, { getSparkline } from '../../../../../db'
-import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../../../../../helpers/apy-apr'
+import { getLatestApy, getLatestEstimatedAprLabel, getLatestEstimatedAprV3, getLatestOracleApr, promoteEstimatedApr } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
 import * as things from '../../../../../things'
@@ -94,6 +94,15 @@ export const SnapshotSchema = z.object({
 
 type Snapshot = z.infer<typeof SnapshotSchema>
 
+// Composition needs the publisher label even when the vault's own emission is
+// strategy-scoped (dual vault/strategy address, issue #409) and the scoped
+// lookup returns nothing.
+export async function resolveEstimatedApr(chainId: number, address: `0x${string}`) {
+  const estimatedApr = await getLatestEstimatedAprV3(chainId, address)
+  const estimatedAprLabel = estimatedApr?.type ?? await getLatestEstimatedAprLabel(chainId, address)
+  return { estimatedApr, estimatedAprLabel }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const snapshot = SnapshotSchema.parse(data)
@@ -104,8 +113,8 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const allocator = await projectDebtAllocator(chainId, address)
 
   const debts = await extractDebts(chainId, address, strategies, allocator)
-  const estimatedApr = await getLatestEstimatedAprV3(chainId, address)
-  const composition = await extractComposition(chainId, address, strategies, debts, estimatedApr?.type)
+  const { estimatedApr, estimatedAprLabel } = await resolveEstimatedApr(chainId, address)
+  const composition = await extractComposition(chainId, address, strategies, debts, estimatedAprLabel)
   const fees = await extractFeesBps(chainId, address, snapshot)
   const locker = snapshot.accountant && snapshot.accountant !== zeroAddress
     && await things.exist(chainId, snapshot.accountant, 'vault')
@@ -440,6 +449,7 @@ async function fetchStrategyPerformance(
   `, [chainId, strategies, labels])
 
   const map = new Map<string, any>()
+  const estimatedComponents = new Map<string, Record<string, number>>()
 
   for (const row of result.rows) {
     const addr = row.address.toLowerCase()
@@ -455,11 +465,13 @@ async function fetchStrategyPerformance(
       if (row.component === 'monthlyNet') perf.historical.monthlyNet = row.value ?? null
       if (row.component === 'inceptionNet') perf.historical.inceptionNet = row.value ?? null
     } else if (estimatedAprLabel && row.label === estimatedAprLabel) {
-      if (!perf.estimated) perf.estimated = { type: estimatedAprLabel, components: {} }
-      if (row.component === 'netAPR') perf.estimated.apr = row.value
-      else if (row.component === 'netAPY') perf.estimated.apy = row.value
-      else perf.estimated.components[row.component] = row.value
+      if (!estimatedComponents.has(addr)) estimatedComponents.set(addr, {})
+      if (row.value != null && row.component != null) estimatedComponents.get(addr)![row.component] = row.value
     }
+  }
+
+  for (const [addr, components] of estimatedComponents) {
+    map.get(addr).estimated = promoteEstimatedApr(estimatedAprLabel!, components)
   }
 
   return map

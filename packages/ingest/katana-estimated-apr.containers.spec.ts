@@ -79,7 +79,7 @@ async function seedOutput(pool: Pool, address: string, components: Record<string
   }
 }
 
-type Estimated = { type?: string, apr?: number, apy?: number, components?: Record<string, number> }
+type Estimated = { type?: string, apr?: number, apy?: number, grossAPR?: number, grossAPY?: number, components?: Record<string, number> }
 
 async function fetchRestSnapshot(webUrl: string, address: string) {
   const res = await fetch(`${webUrl}/api/rest/snapshot/${CHAIN_ID}/${address.toLowerCase()}`)
@@ -143,6 +143,8 @@ describe('e2e: katana strategy rewards APR surfaces in parent composition (PR #4
     await seedOutput(pool, STRATEGY_VAULT, {
       netAPR: 0.05,
       netAPY: 0.051,
+      grossAPR: 0.07,
+      grossAPY: 0.072,
       katRewardsAPR: 0.012,
     })
     await seedOutput(pool, PARENT_VAULT, { netAPR: 0.04, netAPY: 0.041 })
@@ -184,6 +186,17 @@ describe('e2e: katana strategy rewards APR surfaces in parent composition (PR #4
     expect(entry, 'strategy missing from parent composition').to.not.be.undefined
     expect(entry!.performance?.estimated?.type).to.equal(LABEL)
     expect(entry!.performance?.estimated?.components?.katRewardsAPR).to.be.a('number')
+  })
+
+  it('parent composition promotes the strategy gross APR and APY', async function() {
+    const snapshot = await fetchRestSnapshot(webUrl, PARENT_VAULT)
+    const strategy = snapshot.composition?.find(c => c.address.toLowerCase() === STRATEGY_VAULT.toLowerCase())
+    expect(strategy!.performance?.estimated?.grossAPR).to.equal(0.07)
+    expect(strategy!.performance?.estimated?.grossAPY).to.equal(0.072)
+
+    const sibling = snapshot.composition?.find(c => c.address.toLowerCase() === SIBLING_STRATEGY.toLowerCase())
+    expect(sibling!.performance?.estimated?.grossAPR).to.be.undefined
+    expect(sibling!.performance?.estimated?.grossAPY).to.be.undefined
   })
 
   it('parent keeps its own top-level katana estimate', async function() {

@@ -45,6 +45,8 @@ export const VaultListItemSchema = z.object({
     estimated: z.object({
       apr: z.number().optional(),
       apy: z.number().optional(),
+      grossAPR: z.number().optional(),
+      grossAPY: z.number().optional(),
       type: z.string(),
       components: z.record(z.string(), z.union([z.number(), z.string()]).nullable()).optional(),
     }).nullish(),
