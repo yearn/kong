@@ -71,7 +71,7 @@ async function seedOutput(pool: Pool, address: string, components: Record<string
   }
 }
 
-type Estimated = { type?: string, apr?: number, apy?: number, components?: Record<string, number> }
+type Estimated = { type?: string, apr?: number, apy?: number, grossAPR?: number, grossAPY?: number, components?: Record<string, number> }
 
 async function fetchRestSnapshot(webUrl: string, address: string) {
   const res = await fetch(`${webUrl}/api/rest/snapshot/${CHAIN_ID}/${address.toLowerCase()}`)
@@ -96,7 +96,7 @@ async function fetchGqlEstimated(webUrl: string, address: string): Promise<Estim
     body: JSON.stringify({
       query: `query($chainId: Int!, $address: String!) {
         vault(chainId: $chainId, address: $address) {
-          performance { estimated { type apr apy } }
+          performance { estimated { type apr apy grossAPR grossAPY } }
         }
       }`,
       variables: { chainId: CHAIN_ID, address },
@@ -198,7 +198,7 @@ describe('e2e: yvusd-estimated-apr scoping (issue #409)', () => {
 
     // Seed the yvUSD APR service emissions BEFORE the snapshot hooks run, so the
     // first snapshot computation reads them. USDC-2 gets nothing — it must stay clean.
-    await seedOutput(pool, YVUSD_VAULT, { netAPR: 0.05, netAPY: 0.051 })
+    await seedOutput(pool, YVUSD_VAULT, { netAPR: 0.05, netAPY: 0.051, grossAPR: 0.06, grossAPY: 0.062 })
     await seedOutput(pool, STRATEGY_VAULT, { netAPR: 0.08, netAPY: 0.082, debtRatio: 5000 })
 
     // Drive fanout until composition is fully assembled (see compositionAssembledSql).
@@ -257,9 +257,15 @@ describe('e2e: yvusd-estimated-apr scoping (issue #409)', () => {
     expect(performance?.estimated?.type).to.equal(LABEL)
     expect(performance?.estimated?.apr).to.equal(0.05)
     expect(performance?.estimated?.apy).to.equal(0.051)
+    expect(performance?.estimated?.grossAPR).to.equal(0.06)
+    expect(performance?.estimated?.grossAPY).to.equal(0.062)
+    expect(performance?.estimated?.components?.grossAPR).to.equal(undefined)
+    expect(performance?.estimated?.components?.grossAPY).to.equal(undefined)
     expect(gql?.type).to.equal(performance?.estimated?.type)
     expect(gql?.apr).to.equal(performance?.estimated?.apr)
     expect(gql?.apy).to.equal(performance?.estimated?.apy)
+    expect(gql?.grossAPR).to.equal(performance?.estimated?.grossAPR)
+    expect(gql?.grossAPY).to.equal(performance?.estimated?.grossAPY)
   })
 })
 

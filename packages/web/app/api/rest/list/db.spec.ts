@@ -71,4 +71,111 @@ describe('getVaultsWithSnapshots', () => {
     assert.equal(result.listError, null)
     assert.equal(result.listItem?.name, address)
   })
+
+  it('keeps promoted gross APR and APY on the estimated performance block', async () => {
+    query.mockResolvedValueOnce({
+      rows: [{
+        chainId: 1,
+        address: '0x2222222222222222222222222222222222222222',
+        name: 'test vault',
+        symbol: null,
+        apiVersion: null,
+        decimals: null,
+        asset: null,
+        tvl: null,
+        performance: {
+          estimated: {
+            apr: 0.05,
+            apy: 0.051,
+            grossAPR: 0.07,
+            grossAPY: 0.072,
+            type: 'katana-estimated-apr',
+            components: { katRewardsAPR: 0.012 }
+          }
+        },
+        fees: null,
+        category: null,
+        type: null,
+        kind: null,
+        v3: false,
+        isRetired: false,
+        isHidden: false,
+        isBoosted: false,
+        isHighlighted: false,
+        inclusion: {},
+        strategiesCount: 0,
+        riskLevel: null,
+        migration: false,
+        origin: null,
+        inceptBlock: null,
+        inceptTime: null,
+        staking: null,
+        pricePerShare: null,
+        _defaults: null,
+        _snapshot: null,
+        _hook: null,
+        _hasSnapshot: false
+      }]
+    })
+
+    const { getVaultsWithSnapshots } = await import('./db')
+    const [result] = await getVaultsWithSnapshots()
+
+    assert.equal(result.listError, null)
+    assert.equal(result.listItem?.performance?.estimated?.grossAPR, 0.07)
+    assert.equal(result.listItem?.performance?.estimated?.grossAPY, 0.072)
+  })
+
+  it('parses estimated performance when gross APR and APY are absent', async () => {
+    query.mockResolvedValueOnce({
+      rows: [{
+        chainId: 1,
+        address: '0x3333333333333333333333333333333333333333',
+        name: 'test vault',
+        symbol: null,
+        apiVersion: null,
+        decimals: null,
+        asset: null,
+        tvl: null,
+        performance: {
+          estimated: {
+            apr: 0.05,
+            apy: 0.051,
+            type: 'katana-estimated-apr',
+            components: { katRewardsAPR: 0.012 }
+          }
+        },
+        fees: null,
+        category: null,
+        type: null,
+        kind: null,
+        v3: false,
+        isRetired: false,
+        isHidden: false,
+        isBoosted: false,
+        isHighlighted: false,
+        inclusion: {},
+        strategiesCount: 0,
+        riskLevel: null,
+        migration: false,
+        origin: null,
+        inceptBlock: null,
+        inceptTime: null,
+        staking: null,
+        pricePerShare: null,
+        _defaults: null,
+        _snapshot: null,
+        _hook: null,
+        _hasSnapshot: false
+      }]
+    })
+
+    const { getVaultsWithSnapshots } = await import('./db')
+    const [result] = await getVaultsWithSnapshots()
+
+    assert.equal(result.listError, null)
+    assert.equal(result.listItem?.performance?.estimated?.apr, 0.05)
+    assert.equal(result.listItem?.performance?.estimated?.grossAPR, undefined)
+    assert.equal(result.listItem?.performance?.estimated?.grossAPY, undefined)
+  })
 })
