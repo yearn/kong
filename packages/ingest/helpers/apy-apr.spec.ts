@@ -223,6 +223,28 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result!.apy).to.equal(0.031)
     expect(result!.components).to.deep.equal({})
   })
+
+  it('returns debt-coverage components unchanged for katana-estimated-apr rows', async function() {
+    const t = new Date()
+    const KATANA_LABEL = 'katana-estimated-apr'
+
+    await insertOutput(VAULT_ADDR, KATANA_LABEL, 'netAPR', 0.062, t)
+    await insertOutput(VAULT_ADDR, KATANA_LABEL, 'netAPY', 0.064, t)
+    await insertOutput(VAULT_ADDR, KATANA_LABEL, 'estimatedDebtCoverage', 0.75, t)
+    await insertOutput(VAULT_ADDR, KATANA_LABEL, 'morphoBaseAPY', 0.041, t)
+    await insertOutput(VAULT_ADDR, KATANA_LABEL, 'morphoRewardsAPR', 0.019, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.not.be.undefined
+    expect(result!.type).to.equal(KATANA_LABEL)
+    expect(result!.apr).to.equal(0.062)
+    expect(result!.apy).to.equal(0.064)
+    expect(result!.components).to.deep.equal({
+      estimatedDebtCoverage: 0.75,
+      morphoBaseAPY: 0.041,
+      morphoRewardsAPR: 0.019
+    })
+  })
 })
 
 describe('getLatestApy', function() {
