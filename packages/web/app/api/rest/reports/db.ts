@@ -1,4 +1,5 @@
-import db from '@/app/api/db'
+import type { Pool } from 'pg'
+import db from '../../db'
 import { getAddress } from 'viem'
 
 export type VaultRow = {
@@ -58,8 +59,8 @@ export interface VaultReport {
  *
  * @returns All vaults with chainId and address
  */
-export async function getVaults(): Promise<VaultRow[]> {
-  const result = await db.query(`
+export async function getVaults(pool: Pool = db): Promise<VaultRow[]> {
+  const result = await pool.query(`
     SELECT DISTINCT
       chain_id AS "chainId",
       address
@@ -79,9 +80,9 @@ export async function getVaults(): Promise<VaultRow[]> {
  * @param address - Vault address (optional for refresh, required for API)
  * @returns Array of vault reports
  */
-export const getStrategyReports = async (chainId?: number, address?: string) => {
+export const getStrategyReports = async (chainId?: number, address?: string, pool: Pool = db) => {
   try {
-    const result = await db.query(`
+    const result = await pool.query(`
    SELECT
       evmlog.chain_id AS "chainId",
       evmlog.address,
@@ -138,9 +139,9 @@ export const getStrategyReports = async (chainId?: number, address?: string) => 
   }
 }
 
-export const getRecentStrategyReports = async (chainId?: number, address?: string) => {
+export const getRecentStrategyReports = async (chainId?: number, address?: string, pool: Pool = db) => {
   try {
-    const result = await db.query(`
+    const result = await pool.query(`
    SELECT
       evmlog.chain_id AS "chainId",
       evmlog.address,

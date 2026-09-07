@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert'
-import { estimateMSetRequestSize, splitPairsForMSet } from './cache'
+import { estimateMSetRequestSize, splitPairsForMSet, writeClient } from './cache'
 
 describe('splitPairsForMSet', () => {
   it('keeps all pairs in one chunk when below the target', () => {
@@ -37,5 +37,11 @@ describe('splitPairsForMSet', () => {
     ]
 
     assert.throws(() => splitPairsForMSet(tooLarge), /exceeds hard limit/)
+  })
+})
+
+describe('rest cache write client', () => {
+  it('logs redis errors instead of crashing the process', () => {
+    assert.equal(writeClient.listenerCount('error'), 1)
   })
 })
