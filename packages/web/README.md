@@ -38,6 +38,77 @@ MQ_REDIS_TLS=true
 
 Only available when `NODE_ENV=development`.
 
+## Cache refresh jobs
+
+The Redis REST caches are refreshed by routes under `app/api/cron/`, scheduled by
+`crons` in `vercel.json`. Every route requires `Authorization: Bearer $CRON_SECRET`
+(Vercel Cron sends this header automatically) and pushes an up/down heartbeat to the
+Uptime Kuma URL named in its route file.
+
+| Route | Schedule | maxDuration |
+|---|---|---|
+| `/api/cron/refresh-cache` | `*/30 * * * *` | 300 |
+| `/api/cron/timeseries-refresh` | `0 * * * *` | 300 |
+| `/api/cron/timeseries-refresh-historical` | `15 2 * * *` | 800 |
+| `/api/cron/reports-refresh` | manual only | 300 |
+| `/api/cron/reports-refresh-historical` | manual only | 800 |
+
+The historical timeseries rebuild is one full pass over every vault, scheduled daily
+and capped at 800s (`maxDuration`). Prod duration was not measured here.
+
+The 800s routes need Fluid compute; without it the Pro ceiling is 300s and they are
+killed mid-run. `"fluid": true` in `vercel.json` keeps that in code, not in the dashboard.
+
+Trigger any job by hand with:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://<deployment>/api/cron/<route>
+```
+
+Or run it locally against your `.env.local`:
+
+```bash
+bun packages/web/app/api/rest/refresh-vaults.cli.ts
+bun packages/web/app/api/rest/timeseries/refresh.cli.ts
+bun packages/web/app/api/rest/timeseries/refresh-historical.cli.ts
+bun packages/web/app/api/rest/reports/refresh.cli.ts
+bun packages/web/app/api/rest/reports/refresh-historical.cli.ts
+```
+
+### Required Vercel environment variables
+
+These jobs previously ran as GitHub Actions and read their secrets from the repo.
+Scope them to the Production environment only; previews must not read production
+Postgres or write production Redis.
+
+Required (job 401s or fails without them):
+
+- `CRON_SECRET` — missing value makes every cron return 401
+- `POSTGRES_HOST`, `POSTGRES_DATABASE`, `POSTGRES_USER`, `POSTGRES_PASSWORD`,
+  `POSTGRES_PORT`, `POSTGRES_SSL`
+- `REST_CACHE_REDIS_URL`
+
+Defaulted:
+
+- `POSTGRES_POOL_MAX` — request pool, default 4
+- `POSTGRES_CRON_POOL_MAX` — cron pool, default 40
+
+Optional (job still runs and returns 200):
+
+- `UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS`, `UPTIME_KUMA_PUSH_URL_TIMESERIES_REFRESH`,
+  `UPTIME_KUMA_PUSH_URL_TIMESERIES_HISTORICAL`, `UPTIME_KUMA_PUSH_URL_REPORTS_REFRESH`,
+  `UPTIME_KUMA_PUSH_URL_REPORTS_HISTORICAL` — a missing URL silently disables that job's heartbeat,
+  so the monitor never alerts
+
+Cron jobs query through their own pool in `app/api/db/cron.ts` (`POSTGRES_CRON_POOL_MAX`,
+default 40 to match the 10 vaults × 4 labels a timeseries batch runs concurrently, 60s
+acquire timeout) so a running refresh does not starve the pool that serves GraphQL and
+REST requests (`app/api/db/index.ts`, `POSTGRES_POOL_MAX`). GraphQL/REST modules do not
+construct the cron pool. Size `POSTGRES_CRON_POOL_MAX` against the Postgres connection
+limit as part of the cutover. Each Uptime Kuma monitor should also have a heartbeat
+interval tight enough to alert on a run that never reports — a platform timeout kills
+the invocation before the down-push can be sent.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
