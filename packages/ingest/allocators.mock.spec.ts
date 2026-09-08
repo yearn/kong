@@ -97,6 +97,43 @@ describe('current Envio allocator projection', () => {
 })
 
 describe('allocator snapshot activation', () => {
+  it.each([20, 21])('rejects older recovery after outages and accepts validated recovery at block %i', recoveryBlock => {
+    // Start with a previously stored projection that predates the persistent block guard.
+    const current = { allocatorState: { schemaVersion: 1, address: shared, revision: 'accepted', asOfBlock: 20,
+      observedAt: '2026-09-08T00:00:00Z', ratios: { [strategy]: { targetDebtRatio: 0, maxDebtRatio: 100 } } },
+    debts: [{ strategy, currentDebt: '50' }], composition: [{ address: strategy, currentDebt: '50' }] }
+    const failedState = { schemaVersion: 1, address: null, revision: null, asOfBlock: 0,
+      observedAt: '2026-09-08T00:01:00Z', status: 'unavailable', ratios: {} }
+    const unavailable = mergeAllocatorHook(current, { allocatorState: failedState })
+    expect(unavailable).toMatchObject({ allocator: null,
+      debts: [{ currentDebt: '50', targetDebtRatio: null, maxDebtRatio: null }],
+      composition: [{ currentDebt: '50', targetDebtRatio: null, maxDebtRatio: null }] })
+
+    const olderRecovery = { ...current.allocatorState, address: old, revision: 'older', asOfBlock: 10,
+      observedAt: '2026-09-08T00:02:00Z' }
+    const rejected = mergeAllocatorHook(unavailable, { allocatorState: olderRecovery })
+    expect(rejected).toMatchObject({ allocator: null, allocatorState: { revision: null },
+      debts: [{ targetDebtRatio: null, maxDebtRatio: null }],
+      composition: [{ targetDebtRatio: null, maxDebtRatio: null }] })
+
+    // A failed read after selecting a higher block must not advance the accepted block.
+    const failedAgain = mergeAllocatorHook(rejected, {
+      allocatorState: { ...failedState, asOfBlock: 30, observedAt: '2026-09-08T00:03:00Z' }
+    })
+    const recovered = mergeAllocatorHook(failedAgain, { allocatorState: {
+      ...current.allocatorState, asOfBlock: recoveryBlock, revision: 'recovered', observedAt: '2026-09-08T00:04:00Z'
+    } })
+    expect(recovered).toMatchObject({ allocator: shared, allocatorState: { revision: 'recovered' },
+      debts: [{ currentDebt: '50', targetDebtRatio: 0, maxDebtRatio: 100 }],
+      composition: [{ currentDebt: '50', targetDebtRatio: 0, maxDebtRatio: 100 }] })
+
+    const cleared = mergeAllocatorHook(recovered, { allocatorState: { ...failedState,
+      status: 'cleared', revision: 'cleared', asOfBlock: recoveryBlock + 1, observedAt: '2026-09-08T00:05:00Z' } })
+    expect(mergeAllocatorHook(cleared, { allocatorState: { ...current.allocatorState,
+      asOfBlock: recoveryBlock, observedAt: '2026-09-08T00:06:00Z' } })).toMatchObject({
+      allocator: null, allocatorState: { status: 'cleared', revision: 'cleared' }
+    })
+  })
   it('clears old targets on replacement and keeps delayed jobs from rolling back the revision', () => {
     const current = { allocator: old, allocatorState: { schemaVersion: 1, address: old, revision: 'old', asOfBlock: 1,
       observedAt: '2026-01-01', ratios: { [strategy]: { targetDebtRatio: 5000, maxDebtRatio: 6000 } } },

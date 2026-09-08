@@ -4,6 +4,11 @@ function record(value: unknown): Blob {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Blob : {}
 }
 
+function validatedAllocatorBlock(state: Blob): number {
+  return state.schemaVersion === 1 && state.revision != null && typeof state.asOfBlock === 'number'
+    ? state.asOfBlock : 0
+}
+
 export function allocatorSnapshotFields(hook: Blob): Blob {
   const state = record(hook.allocatorState)
   const materialized = state.schemaVersion === 1
@@ -30,13 +35,23 @@ export function allocatorSnapshotFields(hook: Blob): Blob {
 export function mergeAllocatorHook(current: Blob, incoming: Blob): Blob {
   const previous = record(current.allocatorState)
   const next = record(incoming.allocatorState)
+  // Keep the accepted block outside the replaceable projection. Older stored
+  // hooks initialize it from their validated state on the first merge.
+  const lastAcceptedBlock = Math.max(
+    typeof current.allocatorLastAcceptedBlock === 'number' ? current.allocatorLastAcceptedBlock : 0,
+    validatedAllocatorBlock(previous)
+  )
   const older = previous.schemaVersion === 1 && next.schemaVersion === 1 && (
     (typeof previous.observedAt === 'string' && typeof next.observedAt === 'string' && previous.observedAt > next.observedAt) ||
-    (typeof previous.asOfBlock === 'number' && typeof next.asOfBlock === 'number' && previous.asOfBlock > next.asOfBlock && next.revision != null)
+    (typeof next.asOfBlock === 'number' && lastAcceptedBlock > next.asOfBlock && next.revision != null)
   )
   const merged = { ...current, ...incoming, ...(older ? { allocatorState: previous } : {}) }
   if (!('allocatorState' in merged)) return merged
-  return { ...merged, ...allocatorSnapshotFields(merged) }
+  return {
+    ...merged,
+    allocatorLastAcceptedBlock: Math.max(lastAcceptedBlock, validatedAllocatorBlock(record(merged.allocatorState))),
+    ...allocatorSnapshotFields(merged)
+  }
 }
 
 // The same precedence rule used by the GraphQL SQL projection and REST JS merge.
