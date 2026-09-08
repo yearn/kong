@@ -34,9 +34,11 @@ async function run() {
         process.exitCode = 1
         continue
       }
-      if (write) await updateSnapshotAllocator(chainId, getAddress(row.address), projection)
-      console.log(JSON.stringify({ chainId, vault: row.address, address: projection.address, support: projection.support,
-        revision: projection.revision, asOfBlock: projection.asOfBlock, written: write }))
+      const update = write ? await updateSnapshotAllocator(chainId, getAddress(row.address), projection) : null
+      const reported = update?.projection ?? projection
+      const outcome = update ? (update.applied ? 'applied' : 'skipped') : 'dry_run'
+      console.log(JSON.stringify({ chainId, vault: row.address, address: reported.address, support: reported.support,
+        revision: reported.revision, asOfBlock: reported.asOfBlock, outcome, written: update?.applied ?? false }))
     }
     if (result.rows.length === 0) throw new Error('No matching V3 vault snapshots')
   } finally {

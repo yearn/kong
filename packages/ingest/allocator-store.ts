@@ -14,6 +14,9 @@ export async function updateSnapshotAllocator(chainId: number, vault: Address, p
     const hook = mergeAllocatorHook(result.rows[0].hook ?? {}, { allocatorState: projection })
     await client.query('UPDATE snapshot SET hook = $3 WHERE chain_id = $1 AND address = $2', [chainId, vault, hook])
     await client.query('COMMIT')
+    // The merge preserves the selected state's object identity, including when
+    // observation time rejects a candidate with the same revision and block.
+    return { applied: hook.allocatorState === projection, projection: hook.allocatorState as CurrentAllocatorProjection }
   } catch (error) {
     await client.query('ROLLBACK')
     throw error

@@ -29,7 +29,7 @@ describe('allocator snapshot persistence', () => {
         ratios: {}, asOfBlock: 0, observedAt: '2026-09-08T00:01:00Z' }
       await upsertSnapshot({ chainId: 1337, address: vault, snapshot: {}, hook: { allocatorState: unavailable },
         blockNumber: 50n, blockTime: 500n })
-      await updateSnapshotAllocator(1337, vault, { ...projection, address: vault, revision: 'older',
+      const skipped = await updateSnapshotAllocator(1337, vault, { ...projection, address: vault, revision: 'older',
         asOfBlock: 10, observedAt: '2026-09-08T00:02:00Z' })
       const stored = (await db.query(`SELECT snapshot,hook,${allocatorSnapshotSql} AS presented
         FROM snapshot WHERE chain_id=$1 AND address=$2`, [1337, vault])).rows[0]
@@ -38,14 +38,16 @@ describe('allocator snapshot persistence', () => {
         debts: [{ currentDebt: '123', targetDebtRatio: null, maxDebtRatio: null }],
         composition: [{ currentDebt: '123', targetDebtRatio: null, maxDebtRatio: null }] })
       expect(stored.presented).toEqual(allocatorSnapshotFields(stored.hook))
+      expect(skipped).toEqual({ applied: false, projection: stored.hook.allocatorState })
 
-      await updateSnapshotAllocator(1337, vault, { ...projection, observedAt: '2026-09-08T00:03:00Z' })
+      const applied = await updateSnapshotAllocator(1337, vault, { ...projection, observedAt: '2026-09-08T00:03:00Z' })
       const recovered = (await db.query(`SELECT hook,${allocatorSnapshotSql} AS presented
         FROM snapshot WHERE chain_id=$1 AND address=$2`, [1337, vault])).rows[0]
       expect(recovered.hook).toMatchObject({ allocator: assigned,
         debts: [{ currentDebt: '123', targetDebtRatio: 0, maxDebtRatio: 100 }],
         composition: [{ currentDebt: '123', targetDebtRatio: 0, maxDebtRatio: 100 }] })
       expect(recovered.presented).toEqual(allocatorSnapshotFields(recovered.hook))
+      expect(applied).toEqual({ applied: true, projection: recovered.hook.allocatorState })
     } finally {
       await db.query('DELETE FROM snapshot WHERE chain_id=$1 AND address=$2', [1337, vault])
     }
@@ -58,14 +60,17 @@ describe('allocator snapshot persistence', () => {
       snapshot=EXCLUDED.snapshot,hook=EXCLUDED.hook,block_number=50,block_time=EXCLUDED.block_time`,
     [1337, vault, { allocator: 'stale-contract-key' }, hook])
     try {
-      await updateSnapshotAllocator(1337, vault, projection)
+      const applied = await updateSnapshotAllocator(1337, vault, projection)
       const stored = (await db.query(`SELECT block_number,hook,${allocatorSnapshotSql} AS presented
         FROM snapshot WHERE chain_id=$1 AND address=$2`, [1337, vault])).rows[0]
       expect(Number(stored.block_number)).toBe(50)
       expect(stored.hook).toMatchObject({ allocator: assigned, debts: [{ currentDebt: '123', targetDebtRatio: 0, maxDebtRatio: 100 }] })
       expect(stored.presented).toEqual(allocatorSnapshotFields(stored.hook))
-      await updateSnapshotAllocator(1337, vault, { ...projection, revision: 'old', address: vault, asOfBlock: 10, observedAt: '2026-09-07T00:00:00Z' })
-      expect((await db.query('SELECT hook FROM snapshot WHERE chain_id=$1 AND address=$2', [1337, vault])).rows[0].hook.allocatorState.revision).toBe('new')
+      expect(applied).toEqual({ applied: true, projection: stored.hook.allocatorState })
+      const skipped = await updateSnapshotAllocator(1337, vault, { ...projection, observedAt: '2026-09-07T00:00:00Z' })
+      const retained = (await db.query('SELECT hook FROM snapshot WHERE chain_id=$1 AND address=$2', [1337, vault])).rows[0].hook.allocatorState
+      expect(retained).toEqual(projection)
+      expect(skipped).toEqual({ applied: false, projection: retained })
     } finally {
       await db.query('DELETE FROM snapshot WHERE chain_id=$1 AND address=$2', [1337, vault])
     }
