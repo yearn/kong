@@ -5,6 +5,7 @@ import { snakeToCamelCols } from 'lib/strings'
 import { EstimatedAprSchema, EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
+import { projectCurrentAllocator, type CurrentAllocatorProjection } from '../../../../../allocators'
 import db, { getSparkline } from '../../../../../db'
 import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
@@ -48,13 +49,14 @@ export const CompositionSchema = z.object({
   totalGainUsd: z.number(),
   totalLoss: z.bigint(),
   totalLossUsd: z.number(),
-  targetDebtRatio: z.number().optional(),
-  maxDebtRatio: z.number().optional()
+  targetDebtRatio: z.number().nullish(),
+  maxDebtRatio: z.number().nullish()
 })
 
 export const ResultSchema = z.object({
   strategies: z.array(zhexstring),
-  allocator: zhexstring.optional(),
+  allocator: zhexstring.nullish(),
+  allocatorState: z.record(z.unknown()).optional(),
   debts: z.array(z.object({
     strategy: zhexstring,
     activation: z.bigint(),
@@ -68,8 +70,8 @@ export const ResultSchema = z.object({
     totalGainUsd: z.number(),
     totalLoss: z.bigint(),
     totalLossUsd: z.number(),
-    targetDebtRatio: z.number().optional(),
-    maxDebtRatio: z.number().optional()
+    targetDebtRatio: z.number().nullish(),
+    maxDebtRatio: z.number().nullish()
   })),
   composition: CompositionSchema.array(),
   fees: z.object({
@@ -101,9 +103,10 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const roles = await projectRoles(chainId, address)
   if (snapshot.role_manager) appendRoleManagerPseudoRole(roles, snapshot.role_manager)
 
-  const allocator = await projectDebtAllocator(chainId, address)
+  const allocatorState = await projectCurrentAllocator(chainId, address, strategies, rpcs.next(chainId, 0n))
+  const allocator = allocatorState.address
 
-  const debts = await extractDebts(chainId, address, strategies, allocator)
+  const debts = await extractDebts(chainId, address, strategies, allocatorState)
   const estimatedApr = await getLatestEstimatedAprV3(chainId, address)
   const composition = await extractComposition(chainId, address, strategies, debts, estimatedApr?.type)
   const fees = await extractFeesBps(chainId, address, snapshot)
@@ -155,7 +158,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     : undefined
 
   return {
-    asset, strategies, allocator, roles, debts, composition, fees, locker,
+    asset, strategies, allocator, allocatorState, roles, debts, composition, fees, locker,
     risk, meta: { ...meta, token },
     sparklines,
     tvl: sparklines.tvl[0],
@@ -209,19 +212,6 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   return result
 }
 
-export async function projectDebtAllocator(chainId: number, vault: `0x${string}`) {
-  const topic = toEventSelector('event NewDebtAllocator(address indexed allocator, address indexed vault)')
-  const events = await db.query(`
-  SELECT args->>'allocator' AS allocator
-  FROM evmlog
-  WHERE chain_id = $1 AND signature = $2 AND args ? 'vault' AND args->>'vault' = $3
-  ORDER BY block_number DESC, log_index DESC
-  LIMIT 1`,
-  [chainId, topic, vault])
-  if(events.rows.length === 0) return undefined
-  return zhexstring.parse(events.rows[0].allocator)
-}
-
 export async function projectRoles(chainId: number, vault: `0x${string}`) {
   const topic = toEventSelector('event RoleSet(address indexed account, uint256 indexed role)')
   const roles = await db.query(`
@@ -259,7 +249,7 @@ function appendRoleManagerPseudoRole(
   }
 }
 
-export async function extractDebts(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[], allocator: `0x${string}` | undefined) {
+export async function extractDebts(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[], allocator: CurrentAllocatorProjection) {
   const results: {
     strategy: `0x${string}`,
     activation: bigint,
@@ -273,8 +263,8 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
     totalGainUsd: number,
     totalLoss: bigint,
     totalLossUsd: number,
-    targetDebtRatio: number | undefined,
-    maxDebtRatio: number | undefined
+    targetDebtRatio: number | null | undefined,
+    maxDebtRatio: number | null | undefined
   }[] = []
 
   const snapshot = await db.query(
@@ -304,19 +294,6 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
         }
       ]
 
-      if (allocator) {
-        contracts.push(
-          {
-            address: allocator, functionName: 'getStrategyTargetRatio', args: [strategy],
-            abi: parseAbi(['function getStrategyTargetRatio(address) view returns (uint256)'])
-          },
-          {
-            address: allocator, functionName: 'getStrategyMaxRatio', args: [strategy],
-            abi: parseAbi(['function getStrategyMaxRatio(address) view returns (uint256)'])
-          }
-        )
-      }
-
       const multicall = await rpcs.next(chainId).multicall({ contracts })
 
       const [activation, lastReport, currentDebt, maxDebt] = multicall[0].result
@@ -327,13 +304,9 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
         ? BigInt(multicall[1].result as number)
         : 0n
 
-      const targetDebtRatio = multicall[2]?.result
-        ? Number(multicall[2].result)
-        : undefined
-
-      const maxDebtRatio = multicall[3]?.result
-        ? Number(multicall[3].result)
-        : undefined
+      const ratio = allocator.ratios[strategy.toLowerCase()]
+      const targetDebtRatio = ratio?.targetDebtRatio ?? null
+      const maxDebtRatio = ratio?.maxDebtRatio ?? null
 
       const price = await fetchErc20PriceUsd(chainId, asset)
 
