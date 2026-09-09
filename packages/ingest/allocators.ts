@@ -1,24 +1,22 @@
 import { createHash } from 'node:crypto'
-import { getAddress, parseAbi, zeroAddress, type Address, type PublicClient } from 'viem'
+import { getAddress, parseAbi, toEventSelector, zeroAddress, type Address, type PublicClient } from 'viem'
 import { z } from 'zod'
+import { abis } from 'lib/abis'
+import db from './db'
 import { blockEndPosition, resolveAllocatorAssignment } from 'lib/allocators'
 import type { AllocationSourceEvent, AllocatorDeploymentEvidence, AllocatorResolution } from 'lib/allocator-types'
 
-const CHAINS = [1, 8453, 747474]
-const PAGE_SIZE = 1000
-const MAX_EVENTS = 50_000
 const AddressSchema = z.string().regex(/^0x[\da-fA-F]{40}$/).transform(value => value.toLowerCase() as Address)
-const PositionSchema = z.object({
-  id: z.string().min(1), blockNumber: z.coerce.number().int().nonnegative(),
-  transactionIndex: z.number().int().nonnegative(), logIndex: z.number().int().nonnegative()
+const assignmentSignatures = [
+  'AddedNewVault(address,address,uint256)', 'UpdateDebtAllocator(address,address)',
+  'RemovedVault(address)', 'UpdateRoleManager(address)'
+].map(toEventSelector)
+const EventSchema = z.object({
+  id: z.string(), sourceAddress: AddressSchema, vaultAddress: AddressSchema,
+  blockNumber: z.coerce.number().int().nonnegative(), transactionIndex: z.number().int().nonnegative(),
+  logIndex: z.number().int().nonnegative(), eventName: z.enum(['AddedNewVault', 'UpdateDebtAllocator', 'RemovedVault', 'UpdateRoleManager']),
+  args: z.record(z.unknown())
 })
-const EventSchema = PositionSchema.extend({
-  chainId: z.number().int(), vaultAddress: AddressSchema, sourceAddress: AddressSchema,
-  blockHash: z.string().regex(/^0x[\da-fA-F]{64}$/), normalizationVersion: z.number().int().min(3),
-  eventName: z.enum(['AddedNewVault', 'UpdateDebtAllocator', 'RemovedVault', 'UpdateRoleManager']), argsJson: z.string()
-})
-const SHARED_FACTORY = '0x03d43df6ff894c848fc6f1a0a7e8a539ef9a4c18'
-const BOUND_FACTORY = '0xfcf8c7c43dedd567083b422d6770f23b78d15bde'
 
 export interface AllocatorRatio {
   targetDebtRatio: number | null
@@ -39,75 +37,47 @@ export interface CurrentAllocatorProjection extends AllocatorResolution {
 
 type Rpc = Pick<PublicClient, 'getBlock' | 'readContract' | 'getBytecode' | 'multicall'>
 
-async function query<T>(document: string, variables: Record<string, unknown>): Promise<T> {
-  const url = process.env.ENVIO_ALLOCATION_GRAPHQL_URL?.trim()
-  if (!url) throw new Error('envio_not_configured')
-  const token = process.env.ENVIO_ALLOCATION_GRAPHQL_TOKEN?.trim()
-  const response = await fetch(url, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: JSON.stringify({ query: document, variables }), signal: AbortSignal.timeout(30_000)
+// Kong's extractor stores every decoded ABI event, independently of event hooks.
+// Factory logs describe deployment; only the manager's logs describe assignment.
+export async function loadAllocatorAssignments(chainId: number, vault: Address, toBlock: number, manager: Address) {
+  const { rows } = await db.query(`
+    SELECT transaction_hash || ':' || log_index AS id, address AS "sourceAddress",
+      $2::text AS "vaultAddress", event_name AS "eventName", args,
+      block_number AS "blockNumber", transaction_index AS "transactionIndex", log_index AS "logIndex"
+    FROM evmlog WHERE chain_id = $1 AND address = ANY($4::text[])
+      AND signature = ANY($6::text[]) AND block_number <= $3 AND (
+      (event_name IN ('AddedNewVault', 'UpdateDebtAllocator', 'RemovedVault') AND lower(args->>'vault') = $2)
+      OR (event_name = 'UpdateRoleManager' AND address = $5)
+    ) ORDER BY block_number, transaction_index, log_index, transaction_hash`,
+  [chainId, vault.toLowerCase(), toBlock, [getAddress(vault), getAddress(manager)], getAddress(vault), assignmentSignatures])
+  return EventSchema.array().parse(rows)
+}
+
+export async function loadAllocatorDeployments(chainId: number, allocator: Address, toBlock: number): Promise<AllocatorDeploymentEvidence[]> {
+  const factories = abis.flatMap(abi => {
+    const family = abi.abiPath === 'yearn/3/debtManagerFactory' ? 'vault_bound'
+      : abi.abiPath === 'yearn/3/sharedDebtAllocatorFactory' ? 'shared' : null
+    return family ? abi.sources.filter(source => source.chainId === chainId)
+      .map(source => ({ address: getAddress(source.address), family })) : []
   })
-  if (!response.ok) throw new Error('envio_request_failed')
-  const body = await response.json() as { data?: T; errors?: unknown[] }
-  if (!body.data || body.errors?.length) throw new Error('envio_evidence_unavailable')
-  return body.data
-}
-
-async function assignments(chainId: number, vault: Address, toBlock: number): Promise<z.infer<typeof EventSchema>[]> {
-  const collected: z.infer<typeof EventSchema>[] = []
-  let cursor: z.infer<typeof PositionSchema> | undefined
-  while (true) {
-    const data = await query<{ items: unknown[] }>(`query AllocatorAssignments(
-      $chainId: Int! $vault: String! $toBlock: Int! $limit: Int!
-      ${cursor ? '$block: Int! $transaction: Int! $log: Int! $id: String!' : ''}
-    ) { items: AllocationSourceEvent(where: {
-      chainId: {_eq: $chainId} vaultAddress: {_eq: $vault} scope: {_eq: "vault"}
-      blockNumber: {_lte: $toBlock}
-      eventName: {_in: ["AddedNewVault", "UpdateDebtAllocator", "RemovedVault", "UpdateRoleManager"]}
-      ${cursor ? `_or: [
-        {blockNumber: {_gt: $block}}
-        {blockNumber: {_eq: $block}, transactionIndex: {_gt: $transaction}}
-        {blockNumber: {_eq: $block}, transactionIndex: {_eq: $transaction}, logIndex: {_gt: $log}}
-        {blockNumber: {_eq: $block}, transactionIndex: {_eq: $transaction}, logIndex: {_eq: $log}, id: {_gt: $id}}
-      ]` : ''}
-    } order_by: [{blockNumber: asc}, {transactionIndex: asc}, {logIndex: asc}, {id: asc}] limit: $limit) {
-      id chainId vaultAddress sourceAddress eventName argsJson normalizationVersion
-      blockHash blockNumber transactionIndex logIndex
-    } }`, { chainId, vault, toBlock, limit: PAGE_SIZE, ...(cursor ? {
-      block: cursor.blockNumber, transaction: cursor.transactionIndex, log: cursor.logIndex, id: cursor.id
-    } : {}) })
-    const page = EventSchema.array().parse(data.items)
-    if (page.some(row => row.chainId !== chainId || row.vaultAddress !== vault || row.blockNumber > toBlock)) throw new Error('envio_scope_mismatch')
-    collected.push(...page)
-    if (collected.length > MAX_EVENTS) throw new Error('allocator_event_limit')
-    if (page.length < PAGE_SIZE) return collected
-    const next = PositionSchema.parse(page[page.length - 1])
-    if (cursor && JSON.stringify(cursor) === JSON.stringify(next)) throw new Error('allocator_cursor_stalled')
-    cursor = next
-  }
-}
-
-async function deployments(chainId: number, allocator: Address, toBlock: number): Promise<AllocatorDeploymentEvidence[]> {
-  const data = await query<{ bound: unknown[]; shared: unknown[] }>(`query AllocatorDeployment($chainId: Int! $allocator: String! $toBlock: Int!) {
-    bound: DebtAllocatorDeployment(where: {chainId: {_eq: $chainId}, allocatorAddress: {_eq: $allocator}, createdBlock: {_lte: $toBlock}}) {
-      allocatorAddress vaultAddress factoryAddress abiVariant createdBlock createdEventId
-    }
-    shared: SharedDebtAllocatorDeployment(where: {chainId: {_eq: $chainId}, allocatorAddress: {_eq: $allocator}, createdBlock: {_lte: $toBlock}}) {
-      allocatorAddress governanceAddress factoryAddress abiVariant createdBlock createdEventId
-    }
-  }`, { chainId, allocator, toBlock })
-  const schema = z.object({ allocatorAddress: AddressSchema, factoryAddress: AddressSchema, abiVariant: z.string(),
-    createdBlock: z.number().int().nonnegative(), createdEventId: z.string(), vaultAddress: AddressSchema.optional(), governanceAddress: AddressSchema.optional() })
-  const result: AllocatorDeploymentEvidence[] = []
-  for (const family of ['vault_bound', 'shared'] as const) {
-    for (const row of schema.array().parse(family === 'shared' ? data.shared : data.bound)) {
-      if (row.allocatorAddress !== allocator || row.createdBlock > toBlock ||
-        row.factoryAddress !== (family === 'shared' ? SHARED_FACTORY : BOUND_FACTORY) ||
-        (family === 'vault_bound' && chainId === 747474)) throw new Error('allocator_deployment_mismatch')
-      result.push({ ...row, family, boundVaultAddress: row.vaultAddress ?? null,
-        governanceAddress: row.governanceAddress ?? null, sourceEventId: row.createdEventId })
-    }
-  }
+  if (!factories.length) return []
+  const { rows } = await db.query(`
+    SELECT address, args, block_number AS "createdBlock", transaction_hash || ':' || log_index AS id
+    FROM evmlog WHERE chain_id = $1 AND event_name = 'NewDebtAllocator'
+      AND address = ANY($2::text[]) AND lower(args->>'allocator') = $3 AND block_number <= $4
+    ORDER BY block_number, transaction_index, log_index`,
+  [chainId, factories.map(factory => factory.address), allocator.toLowerCase(), toBlock])
+  const schema = z.object({ address: AddressSchema, args: z.object({ allocator: AddressSchema,
+    vault: AddressSchema.optional(), governance: AddressSchema.optional() }), createdBlock: z.coerce.number().int().nonnegative(), id: z.string() })
+  const result = schema.array().parse(rows).map(row => {
+    const factory = factories.find(factory => factory.address.toLowerCase() === row.address)
+    if (!factory || row.args.allocator !== allocator.toLowerCase()) throw new Error('allocator_deployment_mismatch')
+    return { allocatorAddress: row.args.allocator, factoryAddress: row.address,
+      family: factory.family as AllocatorDeploymentEvidence['family'],
+      boundVaultAddress: row.args.vault ?? null, governanceAddress: row.args.governance ?? null,
+      createdBlock: row.createdBlock, sourceEventId: row.id,
+      abiVariant: factory.family === 'shared' ? 'shared-v1' : 'generic-v1' }
+  })
   if (result.length > 1) throw new Error('allocator_deployment_ambiguous')
   return result
 }
@@ -133,31 +103,20 @@ export async function projectCurrentAllocator(chainId: number, vaultAddress: Add
     schemaVersion: 1, chainId, vault, address: null, assignmentId: null, roleManagerAddress: null,
     status: 'unavailable', reason: 'assignment_evidence_unavailable', family: 'unknown', support: 'unavailable',
     asOfBlock: 0, deploymentSourceEventId: null, revision: null,
-    sourceRevision: process.env.ENVIO_ALLOCATOR_SOURCE_REVISION?.trim() || null,
+    sourceRevision: 'kong-evmlog-v1',
     blockHash: null, observedAt: new Date().toISOString(), ratios: {}, evidence: { events: [], deployments: [] }
   }
-  if (!CHAINS.includes(chainId)) return { ...projection, reason: 'chain_not_configured' }
-  if (!projection.sourceRevision) return { ...projection, reason: 'envio_source_revision_not_configured' }
   try {
-    const [metadata, finalized] = await Promise.all([
-      query<{ chain_metadata: unknown[] }>('query AllocatorHead { chain_metadata { chain_id start_block latest_processed_block } }', {}),
-      rpc.getBlock({ blockTag: 'finalized' })
-    ])
-    const chain = z.object({ chain_id: z.number(), start_block: z.coerce.number().int(), latest_processed_block: z.coerce.number().int().nonnegative() })
-      .array().parse(metadata.chain_metadata).find(row => row.chain_id === chainId)
-    if (!chain || chain.start_block !== 0 || finalized.number === null) throw new Error('allocator_discovery_range_unavailable')
-    const blockNumber = BigInt(Math.min(chain.latest_processed_block, Number(finalized.number)))
-    const block = await rpc.getBlock({ blockNumber })
-    if (!block.hash) throw new Error('allocator_block_unavailable')
+    const block = await rpc.getBlock({ blockTag: 'finalized' })
+    if (block.number === null || !block.hash) throw new Error('allocator_block_unavailable')
+    const blockNumber = block.number
     projection.asOfBlock = Number(blockNumber)
     projection.blockHash = block.hash
-    const [rows, roleManager] = await Promise.all([
-      assignments(chainId, vault, Number(blockNumber)),
-      rpc.readContract({ address: vault, abi: parseAbi(['function role_manager() view returns (address)']), functionName: 'role_manager', blockNumber })
-    ])
+    const roleManager = await rpc.readContract({ address: vault, abi: parseAbi(['function role_manager() view returns (address)']), functionName: 'role_manager', blockNumber })
     const manager = AddressSchema.parse(roleManager)
+    const rows = await loadAllocatorAssignments(chainId, vault, Number(blockNumber), manager)
     projection.roleManagerAddress = manager
-    projection.evidence.events = rows.map(row => ({ ...row, args: z.record(z.unknown()).parse(JSON.parse(row.argsJson)) }))
+    projection.evidence.events = rows
     const resolved = resolveAllocatorAssignment({ vaultAddress: vault, events: projection.evidence.events,
       at: blockEndPosition(Number(blockNumber)), roleManagerAddress: manager })
     if (resolved.roleManagerAddress !== manager) throw new Error('role_manager_evidence_mismatch')
@@ -165,8 +124,6 @@ export async function projectCurrentAllocator(chainId: number, vaultAddress: Add
     const observed = AddressSchema.parse(await rpc.readContract({ address: manager,
       abi: parseAbi(['function getDebtAllocator(address) view returns (address)']), functionName: 'getDebtAllocator', args: [vault], blockNumber }))
     if (observed !== (resolved.address ?? zeroAddress)) throw new Error('allocator_assignment_mismatch')
-    const assignedRow = rows.find(row => row.id === resolved.assignmentId)
-    if (!assignedRow || (await rpc.getBlock({ blockNumber: BigInt(assignedRow.blockNumber) })).hash?.toLowerCase() !== assignedRow.blockHash.toLowerCase()) throw new Error('allocator_assignment_block_mismatch')
     Object.assign(projection, resolved)
   } catch {
     // Required assignment evidence failed. Do not substitute a factory address or an old assignment.
@@ -174,7 +131,7 @@ export async function projectCurrentAllocator(chainId: number, vaultAddress: Add
   }
   if (projection.address) {
     try {
-      projection.evidence.deployments = await deployments(chainId, projection.address, projection.asOfBlock)
+      projection.evidence.deployments = await loadAllocatorDeployments(chainId, projection.address, projection.asOfBlock)
       Object.assign(projection, resolveAllocatorAssignment({ vaultAddress: vault, events: projection.evidence.events,
         at: blockEndPosition(projection.asOfBlock), roleManagerAddress: projection.roleManagerAddress,
         deployments: projection.evidence.deployments }))

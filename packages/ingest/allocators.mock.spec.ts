@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAddress, zeroAddress, type Address } from 'viem'
 import { blockEndPosition, resolveAllocatorAssignment } from 'lib/allocators'
 import { mergeAllocatorHook, allocatorSnapshotFields } from 'lib/allocator-snapshot'
+const database = vi.hoisted(() => ({ query: vi.fn() }))
+vi.mock('./db', () => ({ default: database }))
 import { allocatorRatioCalls, projectCurrentAllocator, ratioValue } from './allocators'
 
 const vault = '0xbe53a109b494e5c9f97b9cd39fe969be68bf6204' as Address
@@ -17,35 +19,38 @@ const sharedFactory = '0x03d43df6ff894c848fc6f1a0a7e8a539ef9a4c18'
 
 function assignment(address: Address, eventName = 'UpdateDebtAllocator', logIndex = 422, blockNumber = block) {
   return { id: `assignment:${blockNumber}:${logIndex}`, chainId: 1, vaultAddress: vault, sourceAddress: manager,
-    eventName, argsJson: JSON.stringify({ vault, debtAllocator: address }), normalizationVersion: 3,
-    blockHash, blockNumber, transactionIndex: 163, logIndex }
+    eventName, argsJson: JSON.stringify({ vault, debtAllocator: address }),
+    blockNumber, transactionIndex: 163, logIndex }
 }
 
-function setup({ chainId = 1, address = shared, family = 'shared', rows = [assignment(old, 'AddedNewVault', 1, block - 1), assignment(address)] } = {}) {
+function setup({ chainId = 1, vaultAddress = vault, address = shared, family = 'shared', rows = [assignment(old, 'AddedNewVault', 1, block - 1), assignment(address)] } = {}) {
   const rpc = {
     getBlock: vi.fn(async () => ({ number: BigInt(block), hash: blockHash })),
     readContract: vi.fn(async ({ functionName }: { functionName: string }) => functionName === 'role_manager' ? manager : address),
     getBytecode: vi.fn(async () => '0x1234'),
     multicall: vi.fn(async ({ contracts }: { contracts: unknown[] }) => contracts.map(() => ({ status: 'success', result: 0n })))
   }
-  vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
-    const { query } = JSON.parse(init.body)
-    const data = query.includes('AllocatorHead') ? { chain_metadata: [{ chain_id: chainId, start_block: 0, latest_processed_block: block }] }
-      : query.includes('AllocatorAssignments') ? { items: rows.map(row => ({ ...row, chainId })) }
-        : { bound: family === 'vault_bound' ? [{ allocatorAddress: address, vaultAddress: vault, factoryAddress: boundFactory, abiVariant: 'generic-v1', createdBlock: 1, createdEventId: 'created' }] : [],
-          shared: family === 'shared' ? [{ allocatorAddress: address, governanceAddress: custom, factoryAddress: sharedFactory, abiVariant: 'shared-v1', createdBlock: 1, createdEventId: 'created' }] : [] }
-    return { ok: true, json: async () => ({ data }) }
-  }))
-  return { rpc, run: () => projectCurrentAllocator(chainId, vault, [strategy], rpc as unknown as Parameters<typeof projectCurrentAllocator>[3]) }
+  database.query.mockImplementation(async (sql: string, params: unknown[]) => {
+    expect(params[0]).toBe(chainId)
+    if (sql.includes('AS "sourceAddress"')) {
+      expect(params[1]).toBe(vaultAddress)
+      return { rows: rows.map(row => ({ ...row, args: JSON.parse(row.argsJson) })) }
+    }
+    return { rows: family === 'unknown' ? [] : [{ address: family === 'shared' ? sharedFactory
+      : chainId === 137 ? '0x0d1f62247035bbff16742b0f31e8e2af3acd6e67' : boundFactory,
+    args: { allocator: address, ...(family === 'shared' ? { governance: custom } : { vault: vaultAddress }) },
+    createdBlock: 1, id: 'created' }] }
+  })
+  return { rpc, run: () => projectCurrentAllocator(chainId, vaultAddress, [strategy], rpc as unknown as Parameters<typeof projectCurrentAllocator>[3]) }
 }
 
 beforeEach(() => {
-  vi.stubEnv('ENVIO_ALLOCATION_GRAPHQL_URL', 'https://envio.example.invalid/graphql')
-  vi.stubEnv('ENVIO_ALLOCATOR_SOURCE_REVISION', 'fixture-normalization-v3')
+  database.query.mockReset()
+  vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Unexpected external indexer request') }))
 })
-afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
+afterEach(() => { expect(fetch).not.toHaveBeenCalled(); vi.unstubAllGlobals() })
 
-describe('current Envio allocator projection', () => {
+describe('current Kong allocator projection', () => {
   it.each([1, 8453, 747474])('projects a shared replacement on chain %i with zero ratios', async chainId => {
     const { rpc, run } = setup({ chainId })
     const result = await run()
@@ -56,6 +61,21 @@ describe('current Envio allocator projection', () => {
       { args: [vault, strategy], functionName: 'getStrategyTargetRatio' },
       { args: [vault, strategy], functionName: 'getStrategyMaxRatio' }
     ] })
+  })
+  it.each([100, 137])('uses Kong factory configuration on chain %i', async chainId => {
+    expect(await setup({ chainId, family: 'vault_bound', address: old }).run()).toMatchObject({
+      address: getAddress(old), family: 'vault_bound', support: 'supported', sourceRevision: 'kong-evmlog-v1'
+    })
+  })
+  it('scopes two vaults sharing one allocator to their own ratio calls', async () => {
+    for (const selectedVault of [vault, custom]) {
+      const row = { ...assignment(shared), vaultAddress: selectedVault, argsJson: JSON.stringify({ vault: selectedVault, debtAllocator: shared }) }
+      const { rpc, run } = setup({ vaultAddress: selectedVault, rows: [row] })
+      expect(await run()).toMatchObject({ vault: selectedVault, address: getAddress(shared), support: 'supported' })
+      expect(rpc.multicall.mock.calls[0][0]).toMatchObject({ contracts: [
+        { args: [selectedVault, strategy] }, { args: [selectedVault, strategy] }
+      ] })
+    }
   })
   it('uses one-address getters for a vault-bound allocator', async () => {
     const { rpc, run } = setup({ family: 'vault_bound', address: old })

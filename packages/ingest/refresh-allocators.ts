@@ -11,7 +11,7 @@ function option(name: string) {
 }
 
 const chainId = Number(option('chain'))
-if (![1, 8453, 747474].includes(chainId)) throw new Error('--chain must be 1, 8453, or 747474')
+if (!Number.isSafeInteger(chainId) || chainId <= 0) throw new Error('--chain must be a positive chain ID configured in Kong')
 const vault = option('vault')
 const write = process.argv.includes('--write')
 
