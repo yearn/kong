@@ -3,8 +3,8 @@ import { getAddress, zeroAddress, type Address } from 'viem'
 import { blockEndPosition, resolveAllocatorAssignment } from 'lib/allocators'
 import { mergeAllocatorHook, allocatorSnapshotFields } from 'lib/allocator-snapshot'
 const database = vi.hoisted(() => ({ query: vi.fn() }))
-vi.mock('./db', () => ({ default: database }))
-import { allocatorRatioCalls, projectCurrentAllocator, ratioValue } from './allocators'
+vi.mock('../../../../db', () => ({ default: database }))
+import { allocatorRatioCalls, projectCurrentAllocator, ratioValue } from './projection'
 
 const vault = '0xbe53a109b494e5c9f97b9cd39fe969be68bf6204' as Address
 const manager = '0xb3bd6b2e61753c311efbcf0111f75d29706d9a41' as Address
@@ -51,7 +51,7 @@ beforeEach(() => {
 afterEach(() => { expect(fetch).not.toHaveBeenCalled(); vi.unstubAllGlobals() })
 
 describe('current Kong allocator projection', () => {
-  it.each([1, 8453, 747474])('projects a shared replacement on chain %i with zero ratios', async chainId => {
+  it.each([1, 137, 8453, 747474])('projects a shared replacement on chain %i with zero ratios', async chainId => {
     const { rpc, run } = setup({ chainId })
     const result = await run()
     expect(result).toMatchObject({ address: getAddress(shared), family: 'shared', support: 'supported', asOfBlock: block,
@@ -101,6 +101,13 @@ describe('current Kong allocator projection', () => {
     rpc.readContract.mockImplementation(async ({ functionName }) => functionName === 'role_manager' ? manager : custom)
     expect(await run()).toMatchObject({ status: 'unavailable', address: null, revision: null })
   })
+  it('leaves legacy Gnosis controllers without assignment logs unavailable', async () => {
+    const { rpc, run } = setup({ chainId: 100, family: 'vault_bound', address: old, rows: [] })
+    expect(await run()).toMatchObject({ address: null, status: 'unavailable', revision: null })
+    expect(rpc.multicall).not.toHaveBeenCalled()
+    // A stored factory deployment cannot supply a missing manager assignment.
+    expect(database.query).toHaveBeenCalledTimes(1)
+  })
   it('resolves the Kong #471 replacement at its full event position', () => {
     const rows = [assignment(old, 'AddedNewVault', 1, block - 1), assignment(shared)].map(row => ({ ...row, args: JSON.parse(row.argsJson) }))
     const before = { ...blockEndPosition(block), transactionIndex: 163, logIndex: 421 }
@@ -125,16 +132,16 @@ describe('allocator snapshot activation', () => {
     const failedState = { schemaVersion: 1, address: null, revision: null, asOfBlock: 0,
       observedAt: '2026-09-08T00:01:00Z', status: 'unavailable', ratios: {} }
     const unavailable = mergeAllocatorHook(current, { allocatorState: failedState })
-    expect(unavailable).toMatchObject({ allocator: null,
-      debts: [{ currentDebt: '50', targetDebtRatio: null, maxDebtRatio: null }],
-      composition: [{ currentDebt: '50', targetDebtRatio: null, maxDebtRatio: null }] })
+    expect(unavailable).toMatchObject({ allocator: shared, allocatorState: { stale: true, revision: 'accepted' },
+      debts: [{ currentDebt: '50', targetDebtRatio: 0, maxDebtRatio: 100 }],
+      composition: [{ currentDebt: '50', targetDebtRatio: 0, maxDebtRatio: 100 }] })
 
     const olderRecovery = { ...current.allocatorState, address: old, revision: 'older', asOfBlock: 10,
       observedAt: '2026-09-08T00:02:00Z' }
     const rejected = mergeAllocatorHook(unavailable, { allocatorState: olderRecovery })
-    expect(rejected).toMatchObject({ allocator: null, allocatorState: { revision: null },
-      debts: [{ targetDebtRatio: null, maxDebtRatio: null }],
-      composition: [{ targetDebtRatio: null, maxDebtRatio: null }] })
+    expect(rejected).toMatchObject({ allocator: shared, allocatorState: { stale: true, revision: 'accepted' },
+      debts: [{ targetDebtRatio: 0, maxDebtRatio: 100 }],
+      composition: [{ targetDebtRatio: 0, maxDebtRatio: 100 }] })
 
     // A failed read after selecting a higher block must not advance the accepted block.
     const failedAgain = mergeAllocatorHook(rejected, {
@@ -147,12 +154,31 @@ describe('allocator snapshot activation', () => {
       debts: [{ currentDebt: '50', targetDebtRatio: 0, maxDebtRatio: 100 }],
       composition: [{ currentDebt: '50', targetDebtRatio: 0, maxDebtRatio: 100 }] })
 
+    expect(recovered.allocatorState).not.toHaveProperty('stale')
     const cleared = mergeAllocatorHook(recovered, { allocatorState: { ...failedState,
       status: 'cleared', revision: 'cleared', asOfBlock: recoveryBlock + 1, observedAt: '2026-09-08T00:05:00Z' } })
     expect(mergeAllocatorHook(cleared, { allocatorState: { ...current.allocatorState,
       asOfBlock: recoveryBlock, observedAt: '2026-09-08T00:06:00Z' } })).toMatchObject({
       allocator: null, allocatorState: { status: 'cleared', revision: 'cleared' }
     })
+  })
+  it('retains ratios on a configuration outage only for the same assignment and rejects late successes', () => {
+    const accepted = { schemaVersion: 1, address: shared, assignmentId: 'assigned', roleManagerAddress: manager,
+      revision: 'accepted', asOfBlock: 20, observedAt: '2026-01-01T00:00:00Z', support: 'supported',
+      ratios: { [strategy]: { targetDebtRatio: 0, maxDebtRatio: 100 } } }
+    const failed = { ...accepted, revision: 'failed-config', support: 'unavailable', reason: 'allocator_configuration_unavailable',
+      observedAt: '2026-01-01T00:02:00Z', ratios: {} }
+    const stale = mergeAllocatorHook({ allocatorState: accepted }, { allocatorState: failed })
+    expect(stale.allocatorState).toMatchObject({ revision: 'accepted', stale: true,
+      lastAttemptAt: failed.observedAt, lastError: failed.reason, ratios: accepted.ratios })
+    expect(mergeAllocatorHook(stale, { allocatorState: { ...accepted, observedAt: '2026-01-01T00:01:00Z' } }).allocatorState)
+      .toEqual(stale.allocatorState)
+    for (const replacement of [{ address: custom }, { assignmentId: 'reassigned' }]) {
+      expect(mergeAllocatorHook(stale, { allocatorState: { ...failed, ...replacement } }).allocatorState)
+        .toMatchObject({ revision: 'failed-config', ratios: {} })
+    }
+    expect(mergeAllocatorHook({}, { allocatorState: { ...failed, revision: null, address: null } }))
+      .toMatchObject({ allocator: null })
   })
   it('clears old targets on replacement and keeps delayed jobs from rolling back the revision', () => {
     const current = { allocator: old, allocatorState: { schemaVersion: 1, address: old, revision: 'old', asOfBlock: 1,

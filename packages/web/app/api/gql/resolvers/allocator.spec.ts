@@ -13,15 +13,16 @@ beforeEach(() => { query.mockReset() })
 describe('existing allocator GraphQL queries', () => {
   it.each([assigned, null])('uses the saved address and revision for both paths: %s', async selected => {
     const hook = { allocator: 'wrong-factory', allocatorState: { schemaVersion: 1, address: selected,
-      status: selected ? 'assigned' : 'cleared', revision: 'same-revision', asOfBlock: 20987762 } }
+      status: selected ? 'assigned' : 'cleared', revision: 'same-revision', asOfBlock: 20987762,
+      stale: true, lastAttemptAt: '2026-09-09T00:00:00Z', lastError: 'assignment_evidence_unavailable' } }
     query.mockImplementation(async (sql: string, params: unknown[]) => {
       expect(params).toEqual(expect.arrayContaining([1, getAddress(address)]))
       expect(sql).not.toContain('evmlog')
       return { rows: sql.includes(' AS merged') ? [{ chain_id: 1, address: getAddress(address), merged: mergeSnapshot({}, {}, hook) }] : [{ hook }] }
     })
     const [a, v] = await Promise.all([allocator({}, { chainId: 1, vault: address }), vault({}, { chainId: 1, address })])
-    expect(a).toMatchObject({ chainId: 1, vault: getAddress(address), address: selected, state: { revision: 'same-revision' } })
-    expect(v).toMatchObject({ allocator: selected, allocatorState: { revision: 'same-revision' } })
+    expect(a).toMatchObject({ chainId: 1, vault: getAddress(address), address: selected, state: { revision: 'same-revision', stale: true, lastError: 'assignment_evidence_unavailable' } })
+    expect(v).toMatchObject({ allocator: selected, allocatorState: { revision: 'same-revision', stale: true, lastError: 'assignment_evidence_unavailable' } })
   })
   it('returns explicit unavailable metadata before migration instead of a factory', async () => {
     query.mockResolvedValue({ rows: [{ hook: { allocator: 'wrong-factory' } }] })

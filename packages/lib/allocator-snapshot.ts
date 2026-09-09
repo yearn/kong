@@ -41,11 +41,22 @@ export function mergeAllocatorHook(current: Blob, incoming: Blob): Blob {
     typeof current.allocatorLastAcceptedBlock === 'number' ? current.allocatorLastAcceptedBlock : 0,
     validatedAllocatorBlock(previous)
   )
+  const lastAttemptAt = previous.lastAttemptAt ?? previous.observedAt
   const older = previous.schemaVersion === 1 && next.schemaVersion === 1 && (
-    (typeof previous.observedAt === 'string' && typeof next.observedAt === 'string' && previous.observedAt > next.observedAt) ||
+    (typeof lastAttemptAt === 'string' && typeof next.observedAt === 'string' && lastAttemptAt > next.observedAt) ||
     (typeof next.asOfBlock === 'number' && lastAcceptedBlock > next.asOfBlock && next.revision != null)
   )
-  const merged = { ...current, ...incoming, ...(older ? { allocatorState: previous } : {}) }
+  // Retain a validated observation when evidence cannot be refreshed. A confirmed
+  // replacement or clear still wins; ratios never cross assignment boundaries.
+  const failedRefresh = next.schemaVersion === 1 && (
+    next.revision == null || (next.reason === 'allocator_configuration_unavailable' &&
+      previous.support === 'supported' && previous.address === next.address &&
+      previous.assignmentId === next.assignmentId && previous.roleManagerAddress === next.roleManagerAddress)
+  )
+  const retained = !older && previous.schemaVersion === 1 && previous.revision != null && failedRefresh
+    ? { ...previous, stale: true, lastAttemptAt: next.observedAt, lastError: next.reason ?? 'allocator_refresh_unavailable' }
+    : previous
+  const merged = { ...current, ...incoming, ...(older || retained !== previous ? { allocatorState: retained } : {}) }
   if (!('allocatorState' in merged)) return merged
   return {
     ...merged,

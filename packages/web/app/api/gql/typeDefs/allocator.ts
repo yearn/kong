@@ -16,6 +16,9 @@ type AllocatorState {
   asOfBlock: Int
   blockHash: String
   observedAt: String
+  stale: Boolean
+  lastAttemptAt: String
+  lastError: String
 }
 
 type Allocator {

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { getAddress, parseAbi, toEventSelector, zeroAddress, type Address, type PublicClient } from 'viem'
 import { z } from 'zod'
 import { abis } from 'lib/abis'
-import db from './db'
+import db from '../../../../db'
 import { blockEndPosition, resolveAllocatorAssignment } from 'lib/allocators'
 import type { AllocationSourceEvent, AllocatorDeploymentEvidence, AllocatorResolution } from 'lib/allocator-types'
 
@@ -31,6 +31,9 @@ export interface CurrentAllocatorProjection extends AllocatorResolution {
   sourceRevision: string | null
   blockHash: string | null
   observedAt: string
+  stale?: boolean
+  lastAttemptAt?: string
+  lastError?: string | null
   ratios: Record<string, AllocatorRatio>
   evidence: { events: AllocationSourceEvent[]; deployments: AllocatorDeploymentEvidence[] }
 }

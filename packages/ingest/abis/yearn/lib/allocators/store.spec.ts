@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { allocatorSnapshotFields, allocatorSnapshotSql } from 'lib/allocator-snapshot'
-import { updateSnapshotAllocator } from './allocator-store'
-import type { CurrentAllocatorProjection } from './allocators'
-import db from './db'
-import { upsertSnapshot } from './load'
+import { updateSnapshotAllocator } from './store'
+import type { CurrentAllocatorProjection } from './projection'
+import db from '../../../../db'
+import { upsertSnapshot } from '../../../../load'
 
 const vault = '0x1111111111111111111111111111111111111111'
 const assigned = '0x2222222222222222222222222222222222222222'
@@ -34,9 +34,9 @@ describe('allocator snapshot persistence', () => {
       const stored = (await db.query(`SELECT snapshot,hook,${allocatorSnapshotSql} AS presented
         FROM snapshot WHERE chain_id=$1 AND address=$2`, [1337, vault])).rows[0]
       expect(stored.snapshot).toEqual({ totalAssets: '456' })
-      expect(stored.hook).toMatchObject({ allocator: null, allocatorState: { revision: null },
-        debts: [{ currentDebt: '123', targetDebtRatio: null, maxDebtRatio: null }],
-        composition: [{ currentDebt: '123', targetDebtRatio: null, maxDebtRatio: null }] })
+      expect(stored.hook).toMatchObject({ allocator: assigned, allocatorState: { revision: 'new', stale: true, lastError: 'assignment_evidence_unavailable' },
+        debts: [{ currentDebt: '123', targetDebtRatio: 0, maxDebtRatio: 100 }],
+        composition: [{ currentDebt: '123', targetDebtRatio: 0, maxDebtRatio: 100 }] })
       expect(stored.presented).toEqual(allocatorSnapshotFields(stored.hook))
       expect(skipped).toEqual({ applied: false, projection: stored.hook.allocatorState })
 

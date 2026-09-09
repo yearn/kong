@@ -152,6 +152,7 @@ abis:
   - abiPath: 'yearn/3/sharedDebtAllocatorFactory'
     sources: [
       { chainId: 1, address: '0x03D43dF6FF894C848fC6F1A0a7E8a539Ef9A4C18', inceptBlock: 20966833 },
+      { chainId: 137, address: '0x03D43dF6FF894C848fC6F1A0a7E8a539Ef9A4C18', inceptBlock: 63167288 },
       { chainId: 8453, address: '0x03D43dF6FF894C848fC6F1A0a7E8a539Ef9A4C18', inceptBlock: 21262021 },
       { chainId: 747474, address: '0x03D43dF6FF894C848fC6F1A0a7E8a539Ef9A4C18', inceptBlock: 2237097 }
     ]

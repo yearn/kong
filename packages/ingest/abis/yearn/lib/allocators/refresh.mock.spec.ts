@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import db from './db'
-import { rpcs } from './rpcs'
-import { projectCurrentAllocator, type CurrentAllocatorProjection } from './allocators'
-import { updateSnapshotAllocator } from './allocator-store'
+import db from '../../../../db'
+import { rpcs } from '../../../../rpcs'
+import { projectCurrentAllocator, type CurrentAllocatorProjection } from './projection'
+import { updateSnapshotAllocator } from './store'
 
 const database = vi.hoisted(() => ({ query: vi.fn(), end: vi.fn() }))
-vi.mock('./db', () => ({ default: database }))
-vi.mock('./rpcs', () => ({ rpcs: { up: vi.fn(), down: vi.fn(), next: vi.fn() } }))
-vi.mock('./allocators', () => ({ projectCurrentAllocator: vi.fn() }))
-vi.mock('./allocator-store', () => ({ updateSnapshotAllocator: vi.fn() }))
+vi.mock('../../../../db', () => ({ default: database }))
+vi.mock('../../../../rpcs', () => ({ rpcs: { up: vi.fn(), down: vi.fn(), next: vi.fn() } }))
+vi.mock('./projection', () => ({ projectCurrentAllocator: vi.fn() }))
+vi.mock('./store', () => ({ updateSnapshotAllocator: vi.fn() }))
 
 const vault = '0x1111111111111111111111111111111111111111'
 const candidate: CurrentAllocatorProjection = {
@@ -35,7 +35,7 @@ afterEach(() => {
 })
 
 async function run() {
-  await import('./refresh-allocators')
+  await import('./refresh')
   await vi.waitFor(() => expect(db.end).toHaveBeenCalledOnce())
   expect(rpcs.down).toHaveBeenCalledOnce()
   expect(console.error).not.toHaveBeenCalled()
@@ -59,6 +59,21 @@ describe('allocator refresh reporting', () => {
     expect(await run()).toEqual({ chainId: 1, vault, address: candidate.address, support: candidate.support,
       revision: candidate.revision, asOfBlock: candidate.asOfBlock, outcome: 'applied', written: true })
     expect(updateSnapshotAllocator).toHaveBeenCalledWith(1, vault, candidate)
+  })
+
+  it('reports retained data and a stale write while failing an unavailable refresh', async () => {
+    const unavailable = { ...candidate, address: null, revision: null, status: 'unavailable' as const,
+      reason: 'assignment_evidence_unavailable' }
+    const retained = { ...candidate, stale: true, lastError: unavailable.reason }
+    vi.mocked(projectCurrentAllocator).mockResolvedValue(unavailable)
+    vi.mocked(updateSnapshotAllocator).mockResolvedValue({ applied: false, staleUpdated: true, projection: retained })
+    await import('./refresh')
+    await vi.waitFor(() => expect(db.end).toHaveBeenCalledOnce())
+    expect(rpcs.down).toHaveBeenCalledOnce()
+    expect(process.exitCode).toBe(1)
+    expect(console.error).toHaveBeenCalledOnce()
+    expect(JSON.parse(vi.mocked(console.log).mock.calls[0][0])).toMatchObject({ address: candidate.address,
+      revision: candidate.revision, stale: true, lastError: unavailable.reason, outcome: 'stale', written: true })
   })
 
   it('labels the candidate as a dry run without calling the writer', async () => {
