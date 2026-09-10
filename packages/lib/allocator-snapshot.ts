@@ -42,9 +42,15 @@ export function mergeAllocatorHook(current: Blob, incoming: Blob): Blob {
     validatedAllocatorBlock(previous)
   )
   const lastAttemptAt = previous.lastAttemptAt ?? previous.observedAt
+  // Projection records the manager only after a successful read at this block.
+  // Missing assignment logs do not undo that positive evidence of a change.
+  const confirmedManagerChange = previous.schemaVersion === 1 && next.schemaVersion === 1 &&
+    typeof next.roleManagerAddress === 'string' && typeof next.blockHash === 'string' &&
+    typeof next.asOfBlock === 'number' &&
+    next.roleManagerAddress.toLowerCase() !== String(previous.roleManagerAddress ?? '').toLowerCase()
   const older = previous.schemaVersion === 1 && next.schemaVersion === 1 && (
     (typeof lastAttemptAt === 'string' && typeof next.observedAt === 'string' && lastAttemptAt > next.observedAt) ||
-    (typeof next.asOfBlock === 'number' && lastAcceptedBlock > next.asOfBlock && next.revision != null)
+    (typeof next.asOfBlock === 'number' && lastAcceptedBlock > next.asOfBlock && (next.revision != null || confirmedManagerChange))
   )
   // Retain a validated observation when evidence cannot be refreshed. A confirmed
   // replacement or clear still wins; ratios never cross assignment boundaries.
@@ -53,14 +59,15 @@ export function mergeAllocatorHook(current: Blob, incoming: Blob): Blob {
       previous.support === 'supported' && previous.address === next.address &&
       previous.assignmentId === next.assignmentId && previous.roleManagerAddress === next.roleManagerAddress)
   )
-  const retained = !older && previous.schemaVersion === 1 && previous.revision != null && failedRefresh
+  const retained = !older && !confirmedManagerChange && previous.schemaVersion === 1 && previous.revision != null && failedRefresh
     ? { ...previous, stale: true, lastAttemptAt: next.observedAt, lastError: next.reason ?? 'allocator_refresh_unavailable' }
     : previous
   const merged = { ...current, ...incoming, ...(older || retained !== previous ? { allocatorState: retained } : {}) }
   if (!('allocatorState' in merged)) return merged
   return {
     ...merged,
-    allocatorLastAcceptedBlock: Math.max(lastAcceptedBlock, validatedAllocatorBlock(record(merged.allocatorState))),
+    allocatorLastAcceptedBlock: Math.max(lastAcceptedBlock, validatedAllocatorBlock(record(merged.allocatorState)),
+      !older && confirmedManagerChange ? next.asOfBlock as number : 0),
     ...allocatorSnapshotFields(merged)
   }
 }

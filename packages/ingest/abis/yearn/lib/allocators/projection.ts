@@ -117,8 +117,10 @@ export async function projectCurrentAllocator(chainId: number, vaultAddress: Add
     projection.blockHash = block.hash
     const roleManager = await rpc.readContract({ address: vault, abi: parseAbi(['function role_manager() view returns (address)']), functionName: 'role_manager', blockNumber })
     const manager = AddressSchema.parse(roleManager)
-    const rows = await loadAllocatorAssignments(chainId, vault, Number(blockNumber), manager)
+    // Keep this confirmed observation even if subsequent log/configuration reads
+    // fail: a new manager invalidates the previous manager's assignment.
     projection.roleManagerAddress = manager
+    const rows = await loadAllocatorAssignments(chainId, vault, Number(blockNumber), manager)
     projection.evidence.events = rows
     const resolved = resolveAllocatorAssignment({ vaultAddress: vault, events: projection.evidence.events,
       at: blockEndPosition(Number(blockNumber)), roleManagerAddress: manager })

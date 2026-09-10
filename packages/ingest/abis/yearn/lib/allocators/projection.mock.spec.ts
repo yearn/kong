@@ -108,6 +108,39 @@ describe('current Kong allocator projection', () => {
     // A stored factory deployment cannot supply a missing manager assignment.
     expect(database.query).toHaveBeenCalledTimes(1)
   })
+  it.each([custom, zeroAddress])('invalidates the saved assignment after a confirmed manager change to %s', async newManager => {
+    const accepted = await setup().run()
+    accepted.observedAt = '2026-01-01T00:00:00Z'
+    const { rpc, run } = setup({ rows: [] })
+    rpc.getBlock.mockResolvedValue({ number: BigInt(block + 1), hash: blockHash })
+    rpc.readContract.mockResolvedValue(newManager)
+    const current = { allocatorState: accepted, debts: [{ strategy, currentDebt: '50' }],
+      composition: [{ address: strategy, currentDebt: '50' }] }
+    const candidate = await run()
+    expect(candidate).toMatchObject({ revision: null, roleManagerAddress: newManager })
+    const active = mergeAllocatorHook(current, { allocatorState: candidate })
+    expect(active).toMatchObject({ allocator: null, allocatorLastAcceptedBlock: block + 1,
+      allocatorState: { roleManagerAddress: newManager, status: 'unavailable' },
+      debts: [{ currentDebt: '50', targetDebtRatio: null, maxDebtRatio: null }],
+      composition: [{ currentDebt: '50', targetDebtRatio: null, maxDebtRatio: null }] })
+    // Even a later-starting job cannot reactivate the old manager at an older block.
+    expect(mergeAllocatorHook(active, { allocatorState: { ...accepted, observedAt: '2099-01-01' } }).allocator).toBeNull()
+    expect(mergeAllocatorHook(current, { allocatorState: { ...candidate, asOfBlock: block - 1 } }).allocator)
+      .toBe(accepted.address)
+    // Failure after the manager RPC read must not erase the confirmed change.
+    database.query.mockRejectedValue(new Error('DB unavailable'))
+    expect(mergeAllocatorHook(current, { allocatorState: await run() }).allocator).toBeNull()
+  })
+  it.each(['manager_rpc', 'database'])('retains a validated assignment for a transient %s failure without a manager change', async failure => {
+    const accepted = await setup().run()
+    accepted.observedAt = '2026-01-01T00:00:00Z'
+    const { rpc, run } = setup()
+    if (failure === 'manager_rpc') rpc.readContract.mockRejectedValue(new Error('RPC unavailable'))
+    else database.query.mockRejectedValue(new Error('DB unavailable'))
+    const active = mergeAllocatorHook({ allocatorState: accepted }, { allocatorState: await run() })
+    expect(active).toMatchObject({ allocator: accepted.address, allocatorState: {
+      revision: accepted.revision, stale: true, ratios: accepted.ratios, roleManagerAddress: manager } })
+  })
   it('resolves the Kong #471 replacement at its full event position', () => {
     const rows = [assignment(old, 'AddedNewVault', 1, block - 1), assignment(shared)].map(row => ({ ...row, args: JSON.parse(row.argsJson) }))
     const before = { ...blockEndPosition(block), transactionIndex: 163, logIndex: 421 }

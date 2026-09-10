@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { allocatorSnapshotFields, allocatorSnapshotSql } from 'lib/allocator-snapshot'
 import { updateSnapshotAllocator } from './store'
-import type { CurrentAllocatorProjection } from './projection'
+import { projectCurrentAllocator, type CurrentAllocatorProjection } from './projection'
 import db from '../../../../db'
 import { upsertSnapshot } from '../../../../load'
 
@@ -52,6 +52,31 @@ describe('allocator snapshot persistence', () => {
       await db.query('DELETE FROM snapshot WHERE chain_id=$1 AND address=$2', [1337, vault])
     }
   })
+  it.each([assigned, '0x0000000000000000000000000000000000000000'] as const)(
+    'persists a manager change to %s without restoring old ratios on delayed recovery', async manager => {
+      await db.query(`INSERT INTO snapshot(chain_id,address,snapshot,hook,block_number,block_time)
+        VALUES($1,$2,$3,$4,50,to_timestamp(500))`, [1337, vault, {}, {
+        allocatorState: projection, debts: [{ strategy, currentDebt: '123' }], composition: [{ address: strategy }] }])
+      try {
+        const candidate = await projectCurrentAllocator(1337, vault, [strategy], {
+          getBlock: async () => ({ number: 21n, hash: `0x${'2'.repeat(64)}` }),
+          readContract: async () => manager
+        } as unknown as Parameters<typeof projectCurrentAllocator>[3])
+        await upsertSnapshot({ chainId: 1337, address: vault, snapshot: {}, hook: { allocatorState: candidate },
+          blockNumber: 51n, blockTime: 501n })
+        const skipped = await updateSnapshotAllocator(1337, vault, { ...projection, observedAt: '2099-01-01' })
+        const stored = (await db.query(`SELECT hook,${allocatorSnapshotSql} AS presented
+          FROM snapshot WHERE chain_id=$1 AND address=$2`, [1337, vault])).rows[0]
+        expect(skipped.applied).toBe(false)
+        expect(stored.presented).toEqual(allocatorSnapshotFields(stored.hook))
+        expect(stored.hook).toMatchObject({ allocator: null, allocatorLastAcceptedBlock: 21,
+          allocatorState: { roleManagerAddress: manager, status: 'unavailable' },
+          debts: [{ currentDebt: '123', targetDebtRatio: null, maxDebtRatio: null }],
+          composition: [{ targetDebtRatio: null, maxDebtRatio: null }] })
+      } finally {
+        await db.query('DELETE FROM snapshot WHERE chain_id=$1 AND address=$2', [1337, vault])
+      }
+    })
   it('activates address and ratios atomically, preserves accounting, and matches the SQL serving projection', async () => {
     const hook = { allocator: vault, debts: [{ strategy, currentDebt: '123', targetDebtRatio: 5000 }],
       composition: [{ address: strategy, targetDebtRatio: 5000 }] }
