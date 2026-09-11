@@ -1,3 +1,4 @@
+import { mergeAllocatorHook } from 'lib/allocator-snapshot'
 import { z } from 'zod'
 import { mq, strider, types } from 'lib'
 import db, { firstRow, getTravelledStrides, toUpsertSql, upsertThingDefaults } from '../db'
@@ -102,8 +103,7 @@ export async function upsertSnapshot(data: object) {
     snapshot.snapshot = { ...currentSnapshot, ...snapshot.snapshot }
 
     snapshot.hook = {
-      ...currentHook,
-      ...snapshot.hook,
+      ...mergeAllocatorHook(currentHook, snapshot.hook),
       meta: snapshot.hook.meta ? { ...currentHook.meta, ...JSON.parse(JSON.stringify(snapshot.hook.meta)) } : currentHook.meta
     }
     await upsert(snapshot, 'snapshot', 'chain_id, address', undefined, client)

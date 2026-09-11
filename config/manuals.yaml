@@ -1,4 +1,23 @@
 manuals:
+  # Original Yearn role manager, deployed before RoleManagerFactory.
+  - chainId: 1
+    address: '0xb3bd6B2E61753C311EFbCF0111f75D29706D9a41'
+    label: 'roleManager'
+    defaults: {
+      project: { id: '0xb3bd6B2E61753C311EFbCF0111f75D29706D9a41', name: 'Yearn' },
+      inceptBlock: 19388998,
+      inceptTime: 1709883383
+    }
+
+  - chainId: 137
+    address: '0x2C4b68B2e3f03B3BD8804EB02fA22CD387E78B83'
+    label: 'roleManager'
+    defaults: {
+      project: { id: '0x2C4b68B2e3f03B3BD8804EB02fA22CD387E78B83', name: 'Yearn' },
+      inceptBlock: 81695984,
+      inceptTime: 1768511940
+    }
+
   - chainId: 100
     address: '0x1b66B4a3a80eBCFA3eCaBf5580cD9929ABa57bb1'
     label: 'vault'

@@ -14,3 +14,4 @@ jobs:
       - run: bun --filter lib lint
       - run: bun --filter terminal lint
       - run: bun --filter web lint
+      - run: bun x --no-install eslint 'packages/scripts/src/allocators/*.ts'

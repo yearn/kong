@@ -226,6 +226,7 @@ type Vault {
   withdrawalQueue: [String]
   strategies: [String]
   allocator: String
+  allocatorState: AllocatorState
   debts: [Debt]
   fees: Fees
   locker: Locker
