@@ -1,10 +1,10 @@
 import 'lib/global'
 import { getAddress } from 'viem'
 import { z } from 'zod'
-import db from '../../../../db'
-import { rpcs } from '../../../../rpcs'
+import db from 'ingest/db'
+import { rpcs } from 'ingest/rpcs'
 import { updateSnapshotAllocator } from './store'
-import { projectCurrentAllocator } from './projection'
+import { projectCurrentAllocator } from 'ingest/abis/yearn/lib/allocators/projection'
 
 function option(name: string) {
   return process.argv.find(value => value.startsWith(`--${name}=`))?.split('=').slice(1).join('=')

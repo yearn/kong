@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import db from '../../../../db'
-import { rpcs } from '../../../../rpcs'
-import { projectCurrentAllocator, type CurrentAllocatorProjection } from './projection'
+import db from 'ingest/db'
+import { rpcs } from 'ingest/rpcs'
+import { projectCurrentAllocator, type CurrentAllocatorProjection } from 'ingest/abis/yearn/lib/allocators/projection'
 import { updateSnapshotAllocator } from './store'
 
 const database = vi.hoisted(() => ({ query: vi.fn(), end: vi.fn() }))
-vi.mock('../../../../db', () => ({ default: database }))
-vi.mock('../../../../rpcs', () => ({ rpcs: { up: vi.fn(), down: vi.fn(), next: vi.fn() } }))
-vi.mock('./projection', () => ({ projectCurrentAllocator: vi.fn() }))
+vi.mock('ingest/db', () => ({ default: database }))
+vi.mock('ingest/rpcs', () => ({ rpcs: { up: vi.fn(), down: vi.fn(), next: vi.fn() } }))
+vi.mock('ingest/abis/yearn/lib/allocators/projection', () => ({ projectCurrentAllocator: vi.fn() }))
 vi.mock('./store', () => ({ updateSnapshotAllocator: vi.fn() }))
 
 const vault = '0x1111111111111111111111111111111111111111'

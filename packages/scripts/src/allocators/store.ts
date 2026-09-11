@@ -1,7 +1,7 @@
 import type { Address } from 'viem'
 import { mergeAllocatorHook } from 'lib/allocator-snapshot'
-import db from '../../../../db'
-import type { CurrentAllocatorProjection } from './projection'
+import db from 'ingest/db'
+import type { CurrentAllocatorProjection } from 'ingest/abis/yearn/lib/allocators/projection'
 
 // Refresh only the allocator fields. Concurrent accounting snapshots keep their
 // own block/time, and the common merge prevents a delayed projection rollback.

@@ -33,3 +33,18 @@ What it pulls from **both** sides for BTC / ETH / Curve / YVUSD / YBOLD:
 - `GET /api/rest/timeseries/tvl/...` — recent `tvl`, `priceUsd`, `totalAssets`
 
 Slight intraday drift is expected; exit `1` if price-influenced fields (or missing vaults) exceed thresholds. Full options and defaults are in the [QA README](./src/quality-assurance/README.md#compare-rest-prod-forkts).
+
+## Allocator refresh
+
+The allocator maintenance CLI and its store helper live in `src/allocators/`.
+See [the allocator deployment runbook](../../docs/allocator-assignments.md#adoption)
+for discovery, backfill, refresh, and web promotion order. Commands there run
+from the repository root.
+
+These specs use ingest's existing test configuration and disposable database
+setup. From `packages/ingest`, run:
+
+```bash
+bun run test --project mocks refresh.mock.spec.ts
+bun run test --project ingest store.spec.ts
+```

@@ -31,17 +31,145 @@ These vaults expose unavailable assignment state and null allocator/ratios unles
 
 ## Adoption
 
-1. Run Kong's normal config/manual discovery and event fanout for the newly configured role managers and shared factories, then their discovered allocators. Let those sources finish indexing before materializing vault projections.
-2. Replay stored Role Manager events through Kong's existing event hooks when discovering historical assignments on managers already indexed. For an allocator already covered by old ABI strides, schedule a fresh RPC extraction over the missing shared-event range: Kong's `replay` mode reads stored logs and cannot recover events absent from `evmlog`. Preserve unrelated sources and strides.
-3. Check the relevant `UpdateDebtAllocator`, factory deployment, and shared ratio rows in `evmlog`. For yvUSDC-1, the replacement is at block `20,987,762`, transaction index `163`, log index `422`, assigning `0x1e9eB053228B1156831759401dE0E115356b8671` to `0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204`.
-4. From the Kong root, run `bun --env-file=.env packages/ingest/abis/yearn/lib/allocators/refresh.ts --chain=1 --vault=0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204`. Omit `--vault` to check all stored V3 vaults on the selected chain. The dry run reads local logs and RPC without updating snapshots. Repeat with `--write` after checking the result.
-5. Refresh the existing REST cache using `packages/web/app/api/rest/refresh-vaults.cli.ts`, then compare both GraphQL fields and REST's saved revision. Normal cache freshness still applies.
+This is an operator-run, post-merge rollout. Deploy ingest first and promote the
+new web/API build only after the backfill and materialization checks below.
+Merging this PR does not run these steps. Use the target deployment's existing
+Postgres, Redis and archive RPC settings; all commands below run from the Kong
+repository root with that environment in `.env`.
 
-Refresh output reports `outcome: "dry_run"` and `written: false` for a read-only candidate. With `--write`, reported fields describe the committed projection: accepted candidates are `applied` with `written: true`; rejected candidates are `skipped` with `written: false` and report the retained state. Saving stale metadata reports `stale` with `written: true`, while retaining the accepted address and revision.
+**Accepted interim risk:** before backfill and materialization complete, a
+routine snapshot hook can save unavailable state and clear a legacy allocator.
+Clients may therefore see null allocator/ratios even while the old web build is
+still running. Deploying ingest alone does not end this window. It ends for each
+supported vault after its evidence is indexed, its new state is successfully
+written, and the serving caches are refreshed. Legacy Gnosis controllers listed
+above remain intentionally unavailable; they are not a temporary backfill gap.
+There is no legacy factory fallback or activation flag in this PR.
 
-No database migration is required. The refresh command exits nonzero on required evidence failures, including when `--write` saves stale metadata on the retained observation.
+1. **Deploy the new ingest code and configuration; hold web promotion.** Use the
+   normal service deployment procedure. Confirm the running version includes
+   both manual managers and all shared factory sources. Check whether local
+   `config/manuals.local.yaml` or `config/abis.local.yaml` overrides shadow the
+   checked-in configuration. The direct managers are Ethereum `0xb3bd…9a41`
+   from block `19,388,998` and Polygon `0x2C4b…8B83` from `81,695,984`.
+   The shared factory starts at `20,966,833` / `63,167,288` / `21,262,021` /
+   `2,237,097` on chains `1` / `137` / `8453` / `747474`, respectively.
 
-Production discovery/backfill and snapshot/cache activation are operational steps; local fixture tests do not certify their completion. Full allocation-history APIs remain outside this PR.
+2. **Run discovery and fanout, allowing each pass to drain.** Launch:
+
+   ```bash
+   bun --env-file=.env packages/terminal/index.ts
+   ```
+
+   Select **Ingest → extract manauls** (the existing menu spelling) and wait for
+   the resulting `load.thing` jobs. Then select **Ingest → fanout abis**. Repeat
+   normal fanout after each pass finishes so newly discovered managers and
+   allocator things are picked up. One pass is not sufficient for all discovery
+   stages. A busy fanout is skipped; check for `ABI_FANOUT_SKIPPED_BUSY` and
+   retry after the active/queued ingestion work drains. Resolve failed jobs.
+
+3. **Complete and verify native event backfill.** Let manager, factory, vault
+   and discovered allocator sources catch up to a chosen finalized block on
+   each chain. Check the covered ranges in `evmlog_strides`, including gaps;
+   the existence of a thing or one log is not proof of complete coverage.
+
+   For managers already indexed, **Ingest → fanout replays** reruns hooks over
+   stored logs to discover historical assigned contracts. Follow it with normal
+   ABI fanout for those contracts. Stored-log replay cannot fetch missing events.
+   For allocators whose old ABI strides omit shared ratio events, enqueue fresh
+   `extract.evmlog` jobs over the affected ranges with `abiPath:
+   "yearn/3/debtAllocator"`, the selected `chainId` and allocator `address`,
+   inclusive `from`/`to` blocks, and `replay: false`. Split ranges into the normal
+   provider-sized chunks (Polygon: 3,000 blocks; Gnosis: 5,000; otherwise the
+   configured `LOG_STRIDE`, default 10,000). Use fresh job IDs so retained
+   completed jobs do not suppress extraction. Preserve unrelated strides and logs.
+
+   To enqueue a fresh extraction directly, this example re-fetches **one block**
+   for the Ethereum reference allocator. Change the address/chain/range for each
+   affected chunk; this example alone is not the full backfill. Omitting `jobId`
+   lets BullMQ assign a fresh ID.
+
+   ```bash
+   bun --env-file=.env -e '
+   import "lib/global"
+   import { mq } from "lib"
+   try {
+     await mq.add(mq.job.extract.evmlog, {
+       abiPath: "yearn/3/debtAllocator", chainId: 1,
+       address: "0x1e9eB053228B1156831759401dE0E115356b8671",
+       from: 20987762n, to: 20987762n, replay: false
+     })
+   } finally { await mq.down() }
+   '
+   ```
+
+   Verify `AddedNewVault`/`UpdateDebtAllocator`, deployment provenance, and
+   shared `UpdateStrategyDebtRatio` rows in `evmlog`. The Ethereum #471 reference
+   is block `20,987,762`, transaction index `163`, log index `422`: vault
+   `0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204` was assigned
+   `0x1e9eB053228B1156831759401dE0E115356b8671`. The Polygon reference is described
+   in Verification below. Repeat discovery/backfill if required evidence is absent.
+
+4. **Dry-run, then write the saved allocator states.** Start with the reference
+   vault and inspect the result:
+
+   ```bash
+   bun --env-file=.env packages/scripts/src/allocators/refresh.ts --chain=1 --vault=0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204
+   bun --env-file=.env packages/scripts/src/allocators/refresh.ts --chain=1 --vault=0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204 --write
+   ```
+
+   Omit `--vault` to check/write all stored V3 vaults on a chain. Repeat for each
+   deployed chain serving supported vaults, including `137`, `8453` and `747474`.
+   Review every unavailable result and record explicit exclusions, including the
+   agreed legacy Gnosis vaults. Do not treat a partial run as complete.
+
+   `dry_run` means no write. With `--write`, `applied` means the candidate was
+   saved, `skipped` reports the retained state, and `stale` means only stale
+   metadata was saved on a prior observation. Inspect support/status as well as
+   outcome: `written: true` alone is not a readiness check. Required evidence
+   failures exit nonzero, including when stale metadata was saved.
+
+   Inventory the saved state before promotion (read-only SQL):
+
+   ```sql
+   SELECT s.chain_id, s.address,
+     s.hook->'allocatorState'->>'status' AS status,
+     s.hook->'allocatorState'->>'support' AS support,
+     s.hook->'allocatorState'->>'reason' AS reason,
+     s.hook->'allocatorState'->>'revision' AS revision,
+     s.hook->'allocatorState'->>'asOfBlock' AS as_of_block,
+     s.hook->'allocatorState'->>'stale' AS stale
+   FROM snapshot s JOIN thing t USING (chain_id, address)
+   WHERE t.label = 'vault'
+     AND COALESCE(s.snapshot->>'apiVersion', t.defaults->>'apiVersion', '') LIKE '3.%'
+   ORDER BY s.chain_id, s.address;
+   ```
+
+   Every intended supported vault must have a validated revision, no stale
+   marker, and the expected assignment/clear with appropriate ratio support.
+   Confirm its observation block covers the required changes. Classify custom
+   unsupported contracts and deliberate exclusions separately from indexing or
+   RPC failures. Finish or correct those failures before promoting web.
+
+5. **Promote the new web/API build and refresh serving caches.** After the gate
+   above passes, promote the build from the same commit, then run:
+
+   ```bash
+   bun --env-file=.env --tsconfig-override=packages/web/tsconfig.json packages/web/app/api/rest/refresh-vaults.cli.ts
+   ```
+
+   Use the target web deployment's database/cache environment. If GraphQL
+   response caching is enabled, allow its configured TTL to expire or use the
+   deployment's normal targeted invalidation procedure. Compare
+   `vault.allocator` / `vault.allocatorState`, `allocator(chainId,vault)` and
+   REST `/api/rest/snapshot/{chainId}/{vault}`: address, revision, status and
+   strategy ratios must agree. Check Ethereum #471, Polygon, a shared allocator
+   used by two vaults, and the documented exclusions. A healthy homepage does
+   not establish API readiness.
+
+No database migration is required. Production discovery/backfill and
+snapshot/cache activation have not been performed as part of this PR's local
+validation. Full allocation-history APIs remain outside this PR.
 
 ## Verification
 

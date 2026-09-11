@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { allocatorSnapshotFields, allocatorSnapshotSql } from 'lib/allocator-snapshot'
 import { updateSnapshotAllocator } from './store'
-import { projectCurrentAllocator, type CurrentAllocatorProjection } from './projection'
-import db from '../../../../db'
-import { upsertSnapshot } from '../../../../load'
+import { projectCurrentAllocator, type CurrentAllocatorProjection } from 'ingest/abis/yearn/lib/allocators/projection'
+import db from 'ingest/db'
+import { upsertSnapshot } from 'ingest/load'
 
 const vault = '0x1111111111111111111111111111111111111111'
 const assigned = '0x2222222222222222222222222222222222222222'
