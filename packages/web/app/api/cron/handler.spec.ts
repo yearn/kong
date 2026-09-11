@@ -1,4 +1,8 @@
 import { strict as assert } from 'node:assert'
+
+const { setLastRefresh } = vi.hoisted(() => ({ setLastRefresh: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('../rest/cache', () => ({ setLastRefresh }))
+
 import { createCronHandler } from './handler'
 
 describe('createCronHandler', () => {
@@ -7,6 +11,31 @@ describe('createCronHandler', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     global.fetch = originalFetch
+    setLastRefresh.mockClear()
+  })
+
+  it('records the last refresh time keyed by the cron path slug', async () => {
+    vi.stubEnv('CRON_SECRET', 'secret')
+    const job = vi.fn().mockResolvedValue(undefined)
+    const handler = createCronHandler(job, 'UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS')
+
+    await handler(new Request('http://localhost/api/cron/refresh-cache', {
+      headers: { authorization: 'Bearer secret' },
+    }))
+
+    assert.deepEqual(setLastRefresh.mock.calls, [['refresh-cache']])
+  })
+
+  it('does not record the last refresh time when the job fails', async () => {
+    vi.stubEnv('CRON_SECRET', 'secret')
+    const job = vi.fn().mockRejectedValue(new Error('boom'))
+    const handler = createCronHandler(job, 'UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS')
+
+    await handler(new Request('http://localhost/api/cron/refresh-cache', {
+      headers: { authorization: 'Bearer secret' },
+    }))
+
+    assert.equal(setLastRefresh.mock.calls.length, 0)
   })
 
   it('returns 401 when no authorization header', async () => {

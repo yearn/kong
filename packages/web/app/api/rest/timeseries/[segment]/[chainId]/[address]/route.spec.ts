@@ -4,7 +4,8 @@ import { beforeEach, describe, it, vi } from 'vitest'
 const get = vi.fn()
 
 vi.mock('@/app/api/rest/cache', () => ({
-  getKeyvClient: () => ({ get })
+  getKeyvClient: () => ({ get }),
+  lastRefreshHeaders: async () => ({})
 }))
 
 async function call(components?: string) {
