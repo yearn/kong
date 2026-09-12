@@ -88,3 +88,27 @@ export async function disconnect(): Promise<void> {
   await writeClient.disconnect()
   await keyv.disconnect()
 }
+
+const LAST_REFRESH_PREFIX = 'rest:refresh:'
+
+export async function setLastRefresh(job: string, at = new Date()): Promise<void> {
+  await keyv.set(`${LAST_REFRESH_PREFIX}${job}`, at.toISOString())
+}
+
+export async function getLastRefresh(job: string): Promise<string | undefined> {
+  return await keyv.get(`${LAST_REFRESH_PREFIX}${job}`) as string | undefined
+}
+
+export async function lastRefreshHeaders(job: string): Promise<Record<string, string>> {
+  try {
+    const at = await getLastRefresh(job)
+    if (!at) return {}
+    return {
+      'x-last-refresh': at,
+      'access-control-expose-headers': 'x-last-refresh',
+    }
+  } catch (err) {
+    console.error(`last refresh read failed for ${job}:`, err)
+    return {}
+  }
+}

@@ -6,6 +6,7 @@ const refreshHistorical = vi.fn().mockResolvedValue(undefined)
 const refreshReportsLatest = vi.fn().mockResolvedValue(undefined)
 const refreshReportsHistorical = vi.fn().mockResolvedValue(undefined)
 
+vi.mock('../rest/cache', () => ({ setLastRefresh: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../rest/refresh-vaults', () => ({ refresh }))
 vi.mock('../rest/timeseries/refresh', () => ({ refreshLatest }))
 vi.mock('../rest/timeseries/refresh-historical', () => ({ refreshHistorical }))
