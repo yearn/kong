@@ -23,6 +23,8 @@ describe('mergeSnapshot', () => {
     )
 
     assert.deepEqual(result, {
+      allocator: null,
+      allocatorState: { schemaVersion: 1, status: 'unavailable', reason: 'not_materialized', address: null },
       origin: 'yearn',
       defaultOnly: true,
       pricePerShare: 'fresh',
@@ -48,6 +50,17 @@ describe('mergeSnapshot', () => {
   })
 
   it('handles missing blobs without throwing', () => {
-    assert.deepEqual(mergeSnapshot(undefined, { pricePerShare: 'fresh' }, null), { pricePerShare: 'fresh' })
+    assert.deepEqual(mergeSnapshot(undefined, { pricePerShare: 'fresh' }, null), { pricePerShare: 'fresh', allocator: null, allocatorState: { schemaVersion: 1, status: 'unavailable', reason: 'not_materialized', address: null } })
+  })
+})
+
+
+describe('allocator snapshot consistency', () => {
+  it('overrides stale contract/default allocator keys with the saved projection', () => {
+    const hook = { allocatorState: { schemaVersion: 1, address: 'assigned', revision: 'revision', ratios: { strategy: { targetDebtRatio: 0, maxDebtRatio: 0 } } },
+      debts: [{ strategy: 'strategy', currentDebt: '100', targetDebtRatio: 7000 }] }
+    const merged = mergeSnapshot({ allocator: 'factory' }, { allocator: 'old', debts: [{ strategy: 'strategy', targetDebtRatio: 9000 }] }, hook)
+    assert.equal(merged.allocator, 'assigned')
+    assert.deepEqual(merged.debts, [{ strategy: 'strategy', currentDebt: '100', targetDebtRatio: 0, maxDebtRatio: 0 }])
   })
 })

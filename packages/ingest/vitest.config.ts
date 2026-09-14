@@ -18,7 +18,8 @@ export default defineConfig({
           ...shared,
           globalSetup: ['./vitest.global.ts'],
           name: 'ingest',
-          include: ['**/*.spec.ts'],
+          // Allocator maintenance specs share this package's database setup.
+          include: ['**/*.spec.ts', '../scripts/src/allocators/**/*.spec.ts'],
           exclude: ['**/node_modules/**', '**/*containers.spec.ts', '**/*.mock.spec.ts'],
           setupFiles: ['./vitest.setup.ts'],
           // one shared set of testcontainers + sequential execution: several specs
@@ -35,7 +36,7 @@ export default defineConfig({
         test: {
           ...shared,
           name: 'mocks',
-          include: ['**/*.mock.spec.ts'],
+          include: ['**/*.mock.spec.ts', '../scripts/src/allocators/**/*.mock.spec.ts'],
           exclude: ['**/node_modules/**'],
           setupFiles: ['./vitest.mocks.setup.ts'],
         },

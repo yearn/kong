@@ -1,3 +1,5 @@
+import { allocatorSnapshotFields, allocatorSnapshotSql } from 'lib/allocator-snapshot'
+
 type Blob = Record<string, unknown> | null | undefined
 
 export type SnapshotRow = {
@@ -18,6 +20,7 @@ export function mergeSnapshot(defaults: Blob, snapshot: Blob, hook: Blob): Recor
     ...(hook ?? {}),
     ...(snapshot ?? {}),
     ...(hook?.asset != null ? { asset: hook.asset } : {}),
+    ...allocatorSnapshotFields(hook ?? {}),
   }
 }
 
@@ -35,5 +38,6 @@ export const mergedJsonSql = (key: string) => `(${MERGED_BLOBS}->'${key}')`
 
 export const mergeSnapshotSql = (omit: string[] = []) =>
   `(${MERGED_BLOBS}
-    || COALESCE(jsonb_strip_nulls(jsonb_build_object('asset', snapshot.hook->'asset')), '{}'))
+    || COALESCE(jsonb_strip_nulls(jsonb_build_object('asset', snapshot.hook->'asset')), '{}')
+    || ${allocatorSnapshotSql})
     - ARRAY[${omit.map(k => `'${k}'`).join(', ')}]::text[]`

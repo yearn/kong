@@ -6,9 +6,11 @@ import { rpcs } from '../../../../../rpcs'
 import vaultAbi from '../../vault/abi'
 import { getBlock } from 'lib/blocks'
 import { first } from '../../../../../db'
+import { discoverAllocator } from '../../../lib/allocator-discovery'
 
 export const topics = [
-  'event AddedNewVault(address indexed vault, address indexed debtAllocator, uint256 category)'
+  'event AddedNewVault(address indexed vault, address indexed debtAllocator, uint256 category)',
+  'event UpdateDebtAllocator(address indexed vault, address indexed debtAllocator)'
 ].map(e => toEventSelector(e))
 
 const HookSchema = z.object({
@@ -24,6 +26,10 @@ type Hook = z.infer<typeof HookSchema>
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
+  const { debtAllocator } = z.object({ debtAllocator: EvmAddressSchema }).parse(data.args)
+  await discoverAllocator(chainId, debtAllocator)
+  if (data.eventName === 'UpdateDebtAllocator') return
+
   const {
     number: inceptBlock,
     timestamp: inceptTime
