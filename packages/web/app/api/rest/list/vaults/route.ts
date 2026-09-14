@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
-import { getKeyvClient } from '../../cache'
+import { getKeyvClient, lastRefreshHeaders } from '../../cache'
 import type { VaultListItem } from '../db'
 
 const keyv = getKeyvClient()
 
 export const runtime = 'nodejs'
+
+const REFRESH_JOB = 'refresh-cache'
 
 const corsHeaders = {
   'access-control-allow-origin': '*',
@@ -16,7 +18,10 @@ export async function GET(request: Request) {
   const origin = searchParams.get('origin')
 
   try {
-    const allVaults = await keyv.get('rest:list:vaults:all') as VaultListItem[] | undefined
+    const [allVaults, refreshHeaders] = await Promise.all([
+      keyv.get('rest:list:vaults:all') as Promise<VaultListItem[] | undefined>,
+      lastRefreshHeaders(REFRESH_JOB),
+    ])
 
     if (!allVaults) {
       return new NextResponse('Not found', { status: 404, headers: corsHeaders })
@@ -31,6 +36,7 @@ export async function GET(request: Request) {
       headers: {
         'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
         ...corsHeaders,
+        ...refreshHeaders,
       },
     })
   } catch (err) {

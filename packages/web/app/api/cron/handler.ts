@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
+import { setLastRefresh } from '../rest/cache'
 
 function isAuthenticated(request: Request): boolean {
   const secret = process.env.CRON_SECRET
@@ -23,6 +24,7 @@ export function createCronHandler(job: () => Promise<void>, kumaEnvVar: string) 
     }
     try {
       await job()
+      await recordLastRefresh(request)
       await pushUptimeKuma(kumaEnvVar, 'up', 'OK')
       return NextResponse.json({ ok: true })
     } catch (error) {
@@ -30,6 +32,16 @@ export function createCronHandler(job: () => Promise<void>, kumaEnvVar: string) 
       await pushUptimeKuma(kumaEnvVar, 'down', 'Run failed')
       return NextResponse.json({ ok: false }, { status: 500 })
     }
+  }
+}
+
+async function recordLastRefresh(request: Request) {
+  const job = new URL(request.url).pathname.split('/').filter(Boolean).pop()
+  if (!job) return
+  try {
+    await setLastRefresh(job)
+  } catch (error) {
+    console.error(`last refresh write failed (${job})`, error)
   }
 }
 

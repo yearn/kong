@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
-import { getKeyvClient } from '../../../cache'
+import { getKeyvClient, lastRefreshHeaders } from '../../../cache'
 import type { VaultListItem } from '../../db'
 
 const keyv = getKeyvClient()
 
 export const runtime = 'nodejs'
+
+const REFRESH_JOB = 'refresh-cache'
 
 const corsHeaders = {
   'access-control-allow-origin': '*',
@@ -30,8 +32,12 @@ export async function GET(
   }
 
   let vaults: VaultListItem[] | undefined
+  let refreshHeaders: Record<string, string> = {}
   try {
-    vaults = await keyv.get(`rest:list:vaults:${chainId}`) as VaultListItem[] | undefined
+    ;[vaults, refreshHeaders] = await Promise.all([
+      keyv.get(`rest:list:vaults:${chainId}`) as Promise<VaultListItem[] | undefined>,
+      lastRefreshHeaders(REFRESH_JOB),
+    ])
   } catch (err) {
     console.error(`Redis read failed for chainId ${chainId}:`, err)
     throw err
@@ -50,6 +56,7 @@ export async function GET(
     headers: {
       'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
       ...corsHeaders,
+      ...refreshHeaders,
     },
   })
 }
