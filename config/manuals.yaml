@@ -204,3 +204,35 @@ manuals:
       inceptBlock: 33344574,
       inceptTime: 1712609130
     }
+
+  - chainId: 4663
+    address: '0xC7d60aBfa6f4D79C2C42Bf84A54795bD8c586957'
+    label: 'vault'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      yearn: true,
+      origin: 'yearn',
+      name: 'spUSDG/USDG Morpho Looper',
+      asset: '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168',
+      apiVersion: '3.0.4',
+      decimals: 6,
+      inceptBlock: 3362381,
+      inceptTime: 1783378324
+    }
+
+  - chainId: 4663
+    address: '0xC7d60aBfa6f4D79C2C42Bf84A54795bD8c586957'
+    label: 'strategy'
+    defaults: {
+      erc4626: true,
+      v3: true,
+      yearn: true,
+      origin: 'yearn',
+      name: 'spUSDG/USDG Morpho Looper',
+      asset: '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168',
+      apiVersion: '3.0.4',
+      decimals: 6,
+      inceptBlock: 3362381,
+      inceptTime: 1783378324
+    }
