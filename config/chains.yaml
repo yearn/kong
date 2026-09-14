@@ -9,5 +9,6 @@ chains: [
   'base',
   'arbitrum',
   'bera',
-  'katana'
+  'katana',
+  'robinhood'
 ]

@@ -36,6 +36,10 @@ export const ORACLE_ADDRESSES: Record<number, OracleConfig> = {
     address: '0x1981AD9F44F2EA9aDd2dC4AD7D075c102C70aF92',
     inceptBlock: 265347717,
   },
+  4663: {
+    address: '0x1981AD9F44F2EA9aDd2dC4AD7D075c102C70aF92',
+    inceptBlock: 3354374,
+  },
   80094: {
     address: '0x1981AD9F44F2EA9aDd2dC4AD7D075c102C70aF92',
     inceptBlock: 827653,
