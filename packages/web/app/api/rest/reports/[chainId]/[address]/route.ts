@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getKeyvClient } from '../../../cache'
+import { getKeyvClient, lastRefreshHeaders } from '../../../cache'
 import { VaultReport } from '../../db'
 import { getReportKey, getReportLatestKey } from '../../redis'
 
 const keyv = getKeyvClient()
+
+const REFRESH_JOB = 'reports-refresh'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,9 +30,10 @@ export async function GET(
   const historicalKey = getReportKey(chainId, address)
   const latestKey = getReportLatestKey(chainId, address)
 
-  const [historical, latest] = await Promise.all([
+  const [historical, latest, refreshHeaders] = await Promise.all([
     keyv.get(historicalKey) as Promise<VaultReport[] | undefined>,
     keyv.get(latestKey) as Promise<VaultReport[] | undefined>,
+    lastRefreshHeaders(REFRESH_JOB),
   ])
 
   if (!historical && !latest) {
@@ -53,6 +56,7 @@ export async function GET(
     headers: {
       'Cache-Control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
       ...corsHeaders,
+      ...refreshHeaders,
     }
   })
 }

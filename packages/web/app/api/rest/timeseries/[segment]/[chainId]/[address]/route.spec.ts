@@ -2,27 +2,34 @@ import { strict as assert } from 'node:assert'
 import { beforeEach, describe, it, vi } from 'vitest'
 
 const get = vi.fn()
+const lastRefreshHeaders = vi.fn()
 
 vi.mock('@/app/api/rest/cache', () => ({
-  getKeyvClient: () => ({ get })
+  getKeyvClient: () => ({ get }),
+  lastRefreshHeaders,
 }))
 
-async function call(components?: string) {
+async function callResponse(components?: string) {
   const { GET } = await import('./route')
   const url = `http://localhost/api/rest/timeseries/tvl/1/0x1111111111111111111111111111111111111111${components ?? ''}`
-  const response = await GET(new Request(url) as never, {
+  return GET(new Request(url) as never, {
     params: Promise.resolve({
       segment: 'tvl',
       chainId: '1',
       address: '0x1111111111111111111111111111111111111111'
     })
   })
-  return await response.json()
+}
+
+async function call(components?: string) {
+  return await (await callResponse(components)).json()
 }
 
 describe('rest timeseries route', () => {
   beforeEach(() => {
     get.mockReset()
+    lastRefreshHeaders.mockReset()
+    lastRefreshHeaders.mockResolvedValue({})
   })
 
   it('omits null-valued days instead of serving them as zero', async () => {
@@ -52,5 +59,19 @@ describe('rest timeseries route', () => {
     const rows = await call()
 
     assert.deepEqual(rows, [])
+  })
+
+  it('exposes x-last-refresh from the timeseries-refresh job', async () => {
+    get.mockResolvedValue([])
+    lastRefreshHeaders.mockResolvedValue({
+      'x-last-refresh': '2026-01-02T03:04:05.000Z',
+      'access-control-expose-headers': 'x-last-refresh',
+    })
+
+    const response = await callResponse()
+
+    assert.equal(response.headers.get('x-last-refresh'), '2026-01-02T03:04:05.000Z')
+    assert.equal(response.headers.get('access-control-expose-headers'), 'x-last-refresh')
+    assert.deepEqual(lastRefreshHeaders.mock.calls, [['timeseries-refresh']])
   })
 })
