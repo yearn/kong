@@ -8,6 +8,7 @@ manuals:
       origin: 'yearn',
       asset: '0x0CA1C1eC4EBf3CC67a9f545fF90a3795b318cA4a',
       apiVersion: '3.0.2',
+      v3: true,
       decimals: 18,
       inceptBlock: 32996757,
       inceptTime: 1710788115
@@ -22,6 +23,7 @@ manuals:
       origin: 'yearn',
       asset: '0x0CA1C1eC4EBf3CC67a9f545fF90a3795b318cA4a',
       apiVersion: '3.0.2',
+      v3: true,
       decimals: 18,
       inceptBlock: 32996757,
       inceptTime: 1710788115
@@ -36,6 +38,7 @@ manuals:
       origin: 'yearn',
       asset: '0xcB444e90D8198415266c6a2724b7900fb12FC56E',
       apiVersion: '3.0.1',
+      v3: true,
       decimals: 18,
       inceptBlock: 33306010,
       inceptTime: 1712407830
@@ -50,6 +53,7 @@ manuals:
       origin: 'yearn',
       asset: '0xcB444e90D8198415266c6a2724b7900fb12FC56E',
       apiVersion: '3.0.1',
+      v3: true,
       decimals: 18,
       inceptBlock: 33349837,
       inceptTime: 1712636500
@@ -64,6 +68,7 @@ manuals:
       origin: 'yearn',
       asset: '0xcB444e90D8198415266c6a2724b7900fb12FC56E',
       apiVersion: '3.0.2',
+      v3: true,
       decimals: 18,
       inceptBlock: 32895582,
       inceptTime: 1712636500
@@ -78,6 +83,7 @@ manuals:
       origin: 'yearn',
       asset: '0xcB444e90D8198415266c6a2724b7900fb12FC56E',
       apiVersion: '3.0.2',
+      v3: true,
       decimals: 18,
       inceptBlock: 32895582,
       inceptTime: 1712636500
@@ -92,6 +98,7 @@ manuals:
       origin: 'yearn',
       asset: '0xcB444e90D8198415266c6a2724b7900fb12FC56E',
       apiVersion: '3.0.2',
+      v3: true,
       decimals: 18,
       inceptBlock: 32945516,
       inceptTime: 1710521005
@@ -106,6 +113,7 @@ manuals:
       origin: 'yearn',
       asset: '0xcB444e90D8198415266c6a2724b7900fb12FC56E',
       apiVersion: '3.0.2',
+      v3: true,
       decimals: 18,
       inceptBlock: 32945516,
       inceptTime: 1710521005
