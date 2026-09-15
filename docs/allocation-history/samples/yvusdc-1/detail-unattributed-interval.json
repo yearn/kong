@@ -1,0 +1,1122 @@
+{
+  "schemaVersion": 2,
+  "projection": "detail",
+  "generatedAt": 1789069544,
+  "dataQuality": {
+    "certification": "provisional",
+    "limitations": [
+      "Envio coverage metadata is unavailable; event replay begins at block 0",
+      "Envio accounting checkpoints are unavailable; unallocated values are omitted",
+      "Envio checkpoint-failure records are unavailable",
+      "Provisional state reconstruction begins at the first indexed transition block 19419991"
+    ]
+  },
+  "vault": {
+    "name": "USDC-1 yVault",
+    "symbol": "yvUSDC-1",
+    "address": "0xbe53a109b494e5c9f97b9cd39fe969be68bf6204",
+    "chainId": 1,
+    "assetSymbol": "USDC",
+    "assetAddress": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "assetDecimals": 6
+  },
+  "entry": {
+    "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:25245069-25245125",
+    "kind": "strategy_reallocation",
+    "after": {
+      "source": "archive_rpc",
+      "totalDebt": "27492640419738",
+      "totalIdle": "0",
+      "allocations": [
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "USDC Fluid Lender",
+          "allocatorAdded": true,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Morpho Steakhouse USDC Compounder",
+          "allocatorAdded": false,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": true,
+          "maxDebt": "50000000000000",
+          "maxDebtBps": 18187,
+          "currentDebt": "1011729167446",
+          "strategyName": "Spark USDC Lender",
+          "allocatorAdded": true,
+          "currentDebtBps": 368,
+          "maxDebtRatioBps": 368,
+          "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673",
+          "targetDebtRatioBps": 307
+        },
+        {
+          "active": true,
+          "maxDebt": "50000000000000",
+          "maxDebtBps": 18187,
+          "currentDebt": "12206732345486",
+          "strategyName": "USDC to USDS Depositor",
+          "allocatorAdded": true,
+          "currentDebtBps": 4440,
+          "maxDebtRatioBps": 5328,
+          "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52",
+          "targetDebtRatioBps": 4440
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "sUSDC",
+          "allocatorAdded": false,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x459f99d7c83bc3653b1913b62d2978b1deda01b5",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Aave V3 Lido USDC Lender",
+          "allocatorAdded": true,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x522478b54046ab7197880f2626b74a96d45b9b02",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "USDC to yvUSDS Farmer",
+          "allocatorAdded": false,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x602da189f5ada033e9ac7096fc39c7f44a77e942",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": true,
+          "maxDebt": "50000000000000",
+          "maxDebtBps": 18187,
+          "currentDebt": "1286655571643",
+          "strategyName": "Yearn USDC",
+          "allocatorAdded": true,
+          "currentDebtBps": 468,
+          "maxDebtRatioBps": 468,
+          "strategyAddress": "0x68aea7b82df6ccdf76235d46445ed83f85f845a3",
+          "targetDebtRatioBps": 390
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Aave V3 USDC Lender",
+          "allocatorAdded": true,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x694cdd19ebee7a974ba8fe3af8b383bb256f2858",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Morpho Gauntlet USDC Prime Compounder",
+          "allocatorAdded": true,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": true,
+          "maxDebt": "50000000000000",
+          "maxDebtBps": 18187,
+          "currentDebt": "12987523335163",
+          "strategyName": "USDC to sUSDS Lender",
+          "allocatorAdded": true,
+          "currentDebtBps": 4724,
+          "maxDebtRatioBps": 5835,
+          "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f",
+          "targetDebtRatioBps": 4863
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Compound V3 USD Lender",
+          "allocatorAdded": false,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x7ee351aa702c8fc735d77fb229b7676ac15d7c79",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Morpho OEV-boosted USDC Compounder",
+          "allocatorAdded": true,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Aave V3 USDC Lender",
+          "allocatorAdded": false,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0xbdb97ec319c41c6fa383e94ece6bdf383dfc7be4",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Morpho Yearn USDC Compounder",
+          "allocatorAdded": false,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0xf1784a1bf0cbde0f868838dd093e65215343c4c0",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Aave V3 USDC Lender",
+          "allocatorAdded": true,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0xf766c7293f4e0265ddfa8369f78a808df8ac70c1",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "sUSDC",
+          "allocatorAdded": false,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0xfb7c06ddd70c74ac2f68d0f947be3b4c503e3d6c",
+          "targetDebtRatioBps": 0
+        }
+      ],
+      "blockNumber": 25245125,
+      "totalAssets": "27492640419738",
+      "blockTimestamp": 1780589399,
+      "unallocatedBps": null,
+      "accountingChecks": {
+        "totalAssetsEqualsDebtPlusIdle": true,
+        "strategyDebtSumEqualsTotalDebt": true
+      },
+      "allocatorAddress": "0x1e9eb053228b1156831759401de0e115356b8671",
+      "unallocatedSource": null,
+      "allocatorResolution": {
+        "family": "shared",
+        "reason": null,
+        "status": "assigned",
+        "address": "0x1e9eb053228b1156831759401de0e115356b8671",
+        "support": "supported",
+        "asOfBlock": 25245125,
+        "assignmentId": "1:0x0f64a680d0ef7a867d2161459be3d53451446fe22f0bbb8d4eb2a4e49997ae32:142",
+        "roleManagerAddress": "0xb3bd6b2e61753c311efbcf0111f75d29706d9a41",
+        "deploymentSourceEventId": "1:0x0224754db7f407f031b1df3ca312e14da5a967e565da4c63ba1daa0ba6ebb85e:345"
+      },
+      "unallocatedCheckpointId": null
+    },
+    "before": {
+      "source": "archive_rpc",
+      "totalDebt": "27492640416314",
+      "totalIdle": "3424",
+      "allocations": [
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "USDC Fluid Lender",
+          "allocatorAdded": true,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Morpho Steakhouse USDC Compounder",
+          "allocatorAdded": false,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": true,
+          "maxDebt": "50000000000000",
+          "maxDebtBps": 18187,
+          "currentDebt": "0",
+          "strategyName": "Spark USDC Lender",
+          "allocatorAdded": true,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 368,
+          "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673",
+          "targetDebtRatioBps": 307
+        },
+        {
+          "active": true,
+          "maxDebt": "50000000000000",
+          "maxDebtBps": 18187,
+          "currentDebt": "24403129715544",
+          "strategyName": "USDC to USDS Depositor",
+          "allocatorAdded": true,
+          "currentDebtBps": 8876,
+          "maxDebtRatioBps": 5328,
+          "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52",
+          "targetDebtRatioBps": 4440
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "sUSDC",
+          "allocatorAdded": false,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x459f99d7c83bc3653b1913b62d2978b1deda01b5",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Aave V3 Lido USDC Lender",
+          "allocatorAdded": true,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x522478b54046ab7197880f2626b74a96d45b9b02",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "USDC to yvUSDS Farmer",
+          "allocatorAdded": false,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x602da189f5ada033e9ac7096fc39c7f44a77e942",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": true,
+          "maxDebt": "50000000000000",
+          "maxDebtBps": 18187,
+          "currentDebt": "338167365810",
+          "strategyName": "Yearn USDC",
+          "allocatorAdded": true,
+          "currentDebtBps": 123,
+          "maxDebtRatioBps": 468,
+          "strategyAddress": "0x68aea7b82df6ccdf76235d46445ed83f85f845a3",
+          "targetDebtRatioBps": 390
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Aave V3 USDC Lender",
+          "allocatorAdded": true,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x694cdd19ebee7a974ba8fe3af8b383bb256f2858",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Morpho Gauntlet USDC Prime Compounder",
+          "allocatorAdded": true,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": true,
+          "maxDebt": "50000000000000",
+          "maxDebtBps": 18187,
+          "currentDebt": "2751343334960",
+          "strategyName": "USDC to sUSDS Lender",
+          "allocatorAdded": true,
+          "currentDebtBps": 1001,
+          "maxDebtRatioBps": 5835,
+          "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f",
+          "targetDebtRatioBps": 4863
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Compound V3 USD Lender",
+          "allocatorAdded": false,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x7ee351aa702c8fc735d77fb229b7676ac15d7c79",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Morpho OEV-boosted USDC Compounder",
+          "allocatorAdded": true,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Aave V3 USDC Lender",
+          "allocatorAdded": false,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0xbdb97ec319c41c6fa383e94ece6bdf383dfc7be4",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Morpho Yearn USDC Compounder",
+          "allocatorAdded": false,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0xf1784a1bf0cbde0f868838dd093e65215343c4c0",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "Aave V3 USDC Lender",
+          "allocatorAdded": true,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0xf766c7293f4e0265ddfa8369f78a808df8ac70c1",
+          "targetDebtRatioBps": 0
+        },
+        {
+          "active": false,
+          "maxDebt": "0",
+          "maxDebtBps": 0,
+          "currentDebt": "0",
+          "strategyName": "sUSDC",
+          "allocatorAdded": false,
+          "currentDebtBps": 0,
+          "maxDebtRatioBps": 0,
+          "strategyAddress": "0xfb7c06ddd70c74ac2f68d0f947be3b4c503e3d6c",
+          "targetDebtRatioBps": 0
+        }
+      ],
+      "blockNumber": 25245068,
+      "totalAssets": "27492640419738",
+      "blockTimestamp": 1780588715,
+      "unallocatedBps": null,
+      "accountingChecks": {
+        "totalAssetsEqualsDebtPlusIdle": true,
+        "strategyDebtSumEqualsTotalDebt": true
+      },
+      "allocatorAddress": "0x1e9eb053228b1156831759401de0e115356b8671",
+      "unallocatedSource": null,
+      "allocatorResolution": {
+        "family": "shared",
+        "reason": null,
+        "status": "assigned",
+        "address": "0x1e9eb053228b1156831759401de0e115356b8671",
+        "support": "supported",
+        "asOfBlock": 25245068,
+        "assignmentId": "1:0x0f64a680d0ef7a867d2161459be3d53451446fe22f0bbb8d4eb2a4e49997ae32:142",
+        "roleManagerAddress": "0xb3bd6b2e61753c311efbcf0111f75d29706d9a41",
+        "deploymentSourceEventId": "1:0x0224754db7f407f031b1df3ca312e14da5a967e565da4c63ba1daa0ba6ebb85e:345"
+      },
+      "unallocatedCheckpointId": null
+    },
+    "policy": {
+      "id": "allocation-policy:doa:optimizations:1:1780586057",
+      "source": "doa",
+      "targets": [
+        {
+          "targetApr": 342,
+          "currentApr": 335,
+          "maxRatioBps": 5328,
+          "strategyName": "USDC to USDS Depositor",
+          "targetRatioBps": 4440,
+          "currentRatioBps": 8897,
+          "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+        },
+        {
+          "targetApr": 445,
+          "currentApr": 513,
+          "maxRatioBps": 468,
+          "strategyName": "Yearn USDC",
+          "targetRatioBps": 390,
+          "currentRatioBps": 103,
+          "strategyAddress": "0x68aea7b82df6ccdf76235d46445ed83f85f845a3"
+        },
+        {
+          "targetApr": 379,
+          "currentApr": 399,
+          "maxRatioBps": 368,
+          "strategyName": "Spark USDC Lender",
+          "targetRatioBps": 307,
+          "currentRatioBps": 0,
+          "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+        },
+        {
+          "targetApr": 359,
+          "currentApr": 359,
+          "maxRatioBps": 5835,
+          "strategyName": "USDC to sUSDS Lender",
+          "targetRatioBps": 4863,
+          "currentRatioBps": 1000,
+          "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+        }
+      ],
+      "proposal": {
+        "explain": "\nUSDC-1 yVault (1: 0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204)\nTVL: 27,493,281.77\nOptimization: trust-constr + adaptive spline\nWARNING: constr_violation 0.00000000\nCurrent (allocated) APR: 3.400930%\nCurrent (target) APR: 3.397694%\nProposed APR: 3.560343%\nAbove min bps threshold vs current target (relative): 478 / 250\nMinimum change threshold: 50,000.00\n  USDC to USDS Depositor: 88.97% => 44.40%\n    (3.36%) (3.35% => 3.42%)\n  Yearn USDC: 1.03% => 3.90%\n    (5.09%) (5.14% => 4.45%)\n  Spark USDC Lender: 0.00% => 3.07%\n    (3.99%) (3.99% => 3.79%)\n  USDC to sUSDS Lender (auto:vault_only): 10.00% => 48.63%\n    (3.60%) (3.60% => 3.60%)\n",
+        "sourceKey": "doa:optimizations:1:1780586057",
+        "publishedAt": 1780586057,
+        "optimizerCurrentApr": 339,
+        "optimizerProposedApr": 356
+      },
+      "application": {
+        "status": "confirmed",
+        "blockNumber": 25244846,
+        "sourceEventIds": [
+          "1:0x808fc0ac6e96fd099f6af795b76aa6b49e03bc62718450ce15985a6d9063bb4d:598",
+          "1:0x808fc0ac6e96fd099f6af795b76aa6b49e03bc62718450ce15985a6d9063bb4d:599",
+          "1:0x808fc0ac6e96fd099f6af795b76aa6b49e03bc62718450ce15985a6d9063bb4d:600",
+          "1:0x808fc0ac6e96fd099f6af795b76aa6b49e03bc62718450ce15985a6d9063bb4d:601"
+        ],
+        "transactionHash": "0x808fc0ac6e96fd099f6af795b76aa6b49e03bc62718450ce15985a6d9063bb4d"
+      }
+    },
+    "changes": {
+      "strategies": [
+        {
+          "activeAfter": true,
+          "activeBefore": true,
+          "maxDebtAfter": "50000000000000",
+          "maxDebtDelta": "0",
+          "strategyName": "Spark USDC Lender",
+          "maxDebtBefore": "50000000000000",
+          "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673",
+          "currentDebtAfter": "1011729167446",
+          "currentDebtDelta": "1011729167446",
+          "currentDebtBefore": "0",
+          "currentDebtBpsAfter": 368,
+          "currentDebtBpsDelta": 368,
+          "currentDebtBpsBefore": 0,
+          "maxDebtRatioBpsAfter": 368,
+          "maxDebtRatioBpsBefore": 368,
+          "targetDebtRatioBpsAfter": 307,
+          "targetDebtRatioBpsBefore": 307
+        },
+        {
+          "activeAfter": true,
+          "activeBefore": true,
+          "maxDebtAfter": "50000000000000",
+          "maxDebtDelta": "0",
+          "strategyName": "USDC to USDS Depositor",
+          "maxDebtBefore": "50000000000000",
+          "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52",
+          "currentDebtAfter": "12206732345486",
+          "currentDebtDelta": "-12196397370058",
+          "currentDebtBefore": "24403129715544",
+          "currentDebtBpsAfter": 4440,
+          "currentDebtBpsDelta": -4436,
+          "currentDebtBpsBefore": 8876,
+          "maxDebtRatioBpsAfter": 5328,
+          "maxDebtRatioBpsBefore": 5328,
+          "targetDebtRatioBpsAfter": 4440,
+          "targetDebtRatioBpsBefore": 4440
+        },
+        {
+          "activeAfter": true,
+          "activeBefore": true,
+          "maxDebtAfter": "50000000000000",
+          "maxDebtDelta": "0",
+          "strategyName": "Yearn USDC",
+          "maxDebtBefore": "50000000000000",
+          "strategyAddress": "0x68aea7b82df6ccdf76235d46445ed83f85f845a3",
+          "currentDebtAfter": "1286655571643",
+          "currentDebtDelta": "948488205833",
+          "currentDebtBefore": "338167365810",
+          "currentDebtBpsAfter": 468,
+          "currentDebtBpsDelta": 345,
+          "currentDebtBpsBefore": 123,
+          "maxDebtRatioBpsAfter": 468,
+          "maxDebtRatioBpsBefore": 468,
+          "targetDebtRatioBpsAfter": 390,
+          "targetDebtRatioBpsBefore": 390
+        },
+        {
+          "activeAfter": true,
+          "activeBefore": true,
+          "maxDebtAfter": "50000000000000",
+          "maxDebtDelta": "0",
+          "strategyName": "USDC to sUSDS Lender",
+          "maxDebtBefore": "50000000000000",
+          "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f",
+          "currentDebtAfter": "12987523335163",
+          "currentDebtDelta": "10236180000203",
+          "currentDebtBefore": "2751343334960",
+          "currentDebtBpsAfter": 4724,
+          "currentDebtBpsDelta": 3723,
+          "currentDebtBpsBefore": 1001,
+          "maxDebtRatioBpsAfter": 5835,
+          "maxDebtRatioBpsBefore": 5835,
+          "targetDebtRatioBpsAfter": 4863,
+          "targetDebtRatioBpsBefore": 4863
+        }
+      ],
+      "totalDebtDelta": "3424",
+      "totalIdleDelta": "-3424"
+    },
+    "endBlock": 25245125,
+    "execution": {
+      "mechanism": "allocator_keeper",
+      "automation": "automatic",
+      "targetStatus": "matched",
+      "transactions": [
+        {
+          "kind": "doa_execution",
+          "callPath": [
+            "0x283132390ea87d6ecc20255b59ba94329ee17961",
+            "0x604e586f17ce106b64185a7a0d2c1da5bace711e",
+            "0x1e9eb053228b1156831759401de0e115356b8671",
+            "0xa47eb754d44339b5dedcf4d804428708857e7899",
+            "0x1e9eb053228b1156831759401de0e115356b8671",
+            "0xbe53a109b494e5c9f97b9cd39fe969be68bf6204"
+          ],
+          "originator": {
+            "role": "doa_keeper",
+            "label": "Yearn TKS DOA keeper",
+            "address": "0x283132390ea87d6ecc20255b59ba94329ee17961"
+          },
+          "blockNumber": 25245069,
+          "traceStatus": "available",
+          "authorization": {
+            "role": "DEBT_MANAGER",
+            "roleMask": "96",
+            "confirmedAtBlock": true
+          },
+          "inputSelector": "0x22bee494",
+          "blockTimestamp": 1780588727,
+          "sourceEventIds": [
+            "1:0xa6dcf684ea8520eba6a850501c119ad7666570ed74d6f0b7d3868357f16cd12c:673"
+          ],
+          "triggerReplays": [
+            {
+              "reason": null,
+              "status": "matched",
+              "readAtBlock": 25245068,
+              "expectedDebt": "12206732345486",
+              "shouldUpdate": true,
+              "matchTolerance": "12206",
+              "recommendedDebt": "12206732346363",
+              "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52",
+              "allocatorAddress": "0x1e9eb053228b1156831759401de0e115356b8671",
+              "absoluteDifference": "877"
+            }
+          ],
+          "transactionHash": "0xa6dcf684ea8520eba6a850501c119ad7666570ed74d6f0b7d3868357f16cd12c",
+          "transactionTarget": "0x604e586f17ce106b64185a7a0d2c1da5bace711e",
+          "immediateVaultCaller": "0x1e9eb053228b1156831759401de0e115356b8671"
+        },
+        {
+          "kind": "doa_execution",
+          "callPath": [
+            "0x283132390ea87d6ecc20255b59ba94329ee17961",
+            "0x604e586f17ce106b64185a7a0d2c1da5bace711e",
+            "0x1e9eb053228b1156831759401de0e115356b8671",
+            "0xa47eb754d44339b5dedcf4d804428708857e7899",
+            "0x1e9eb053228b1156831759401de0e115356b8671",
+            "0xbe53a109b494e5c9f97b9cd39fe969be68bf6204"
+          ],
+          "originator": {
+            "role": "doa_keeper",
+            "label": "Yearn TKS DOA keeper",
+            "address": "0x283132390ea87d6ecc20255b59ba94329ee17961"
+          },
+          "blockNumber": 25245121,
+          "traceStatus": "available",
+          "authorization": {
+            "role": "DEBT_MANAGER",
+            "roleMask": "96",
+            "confirmedAtBlock": true
+          },
+          "inputSelector": "0x22bee494",
+          "blockTimestamp": 1780589351,
+          "sourceEventIds": [
+            "1:0x9d5d0b54b8aca361e740fcde2b942bbfd31e2e454b66b2769d9ba28aa754ebc3:1017"
+          ],
+          "triggerReplays": [
+            {
+              "reason": null,
+              "status": "matched",
+              "readAtBlock": 25245120,
+              "expectedDebt": "1286655571643",
+              "shouldUpdate": true,
+              "matchTolerance": "1286",
+              "recommendedDebt": "1286655571643",
+              "strategyAddress": "0x68aea7b82df6ccdf76235d46445ed83f85f845a3",
+              "allocatorAddress": "0x1e9eb053228b1156831759401de0e115356b8671",
+              "absoluteDifference": "0"
+            }
+          ],
+          "transactionHash": "0x9d5d0b54b8aca361e740fcde2b942bbfd31e2e454b66b2769d9ba28aa754ebc3",
+          "transactionTarget": "0x604e586f17ce106b64185a7a0d2c1da5bace711e",
+          "immediateVaultCaller": "0x1e9eb053228b1156831759401de0e115356b8671"
+        },
+        {
+          "kind": "doa_execution",
+          "callPath": [
+            "0x283132390ea87d6ecc20255b59ba94329ee17961",
+            "0x604e586f17ce106b64185a7a0d2c1da5bace711e",
+            "0x1e9eb053228b1156831759401de0e115356b8671",
+            "0xa47eb754d44339b5dedcf4d804428708857e7899",
+            "0x1e9eb053228b1156831759401de0e115356b8671",
+            "0xbe53a109b494e5c9f97b9cd39fe969be68bf6204"
+          ],
+          "originator": {
+            "role": "doa_keeper",
+            "label": "Yearn TKS DOA keeper",
+            "address": "0x283132390ea87d6ecc20255b59ba94329ee17961"
+          },
+          "blockNumber": 25245124,
+          "traceStatus": "available",
+          "authorization": {
+            "role": "DEBT_MANAGER",
+            "roleMask": "96",
+            "confirmedAtBlock": true
+          },
+          "inputSelector": "0x22bee494",
+          "blockTimestamp": 1780589387,
+          "sourceEventIds": [
+            "1:0x991f0adfb61275b6d773f44897db45c3a9f40c0780a20ff7e2e8123ffff97ab0:519"
+          ],
+          "triggerReplays": [
+            {
+              "reason": null,
+              "status": "matched",
+              "readAtBlock": 25245123,
+              "expectedDebt": "1011729167446",
+              "shouldUpdate": true,
+              "matchTolerance": "1011",
+              "recommendedDebt": "1011729167446",
+              "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673",
+              "allocatorAddress": "0x1e9eb053228b1156831759401de0e115356b8671",
+              "absoluteDifference": "0"
+            }
+          ],
+          "transactionHash": "0x991f0adfb61275b6d773f44897db45c3a9f40c0780a20ff7e2e8123ffff97ab0",
+          "transactionTarget": "0x604e586f17ce106b64185a7a0d2c1da5bace711e",
+          "immediateVaultCaller": "0x1e9eb053228b1156831759401de0e115356b8671"
+        },
+        {
+          "kind": "doa_execution",
+          "callPath": [
+            "0x283132390ea87d6ecc20255b59ba94329ee17961",
+            "0x604e586f17ce106b64185a7a0d2c1da5bace711e",
+            "0x1e9eb053228b1156831759401de0e115356b8671",
+            "0xa47eb754d44339b5dedcf4d804428708857e7899",
+            "0x1e9eb053228b1156831759401de0e115356b8671",
+            "0xbe53a109b494e5c9f97b9cd39fe969be68bf6204"
+          ],
+          "originator": {
+            "role": "doa_keeper",
+            "label": "Yearn TKS DOA keeper",
+            "address": "0x283132390ea87d6ecc20255b59ba94329ee17961"
+          },
+          "blockNumber": 25245125,
+          "traceStatus": "available",
+          "authorization": {
+            "role": "DEBT_MANAGER",
+            "roleMask": "96",
+            "confirmedAtBlock": true
+          },
+          "inputSelector": "0x22bee494",
+          "blockTimestamp": 1780589399,
+          "sourceEventIds": [
+            "1:0xb003590b733cee8e30e0b5a6ea7c5eac5a0f05cb0e6edaab84876bc46b8960ff:440"
+          ],
+          "triggerReplays": [
+            {
+              "reason": null,
+              "status": "matched",
+              "readAtBlock": 25245124,
+              "expectedDebt": "12987523335163",
+              "shouldUpdate": true,
+              "matchTolerance": "12987",
+              "recommendedDebt": "12987523335163",
+              "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f",
+              "allocatorAddress": "0x1e9eb053228b1156831759401de0e115356b8671",
+              "absoluteDifference": "0"
+            }
+          ],
+          "transactionHash": "0xb003590b733cee8e30e0b5a6ea7c5eac5a0f05cb0e6edaab84876bc46b8960ff",
+          "transactionTarget": "0x604e586f17ce106b64185a7a0d2c1da5bace711e",
+          "immediateVaultCaller": "0x1e9eb053228b1156831759401de0e115356b8671"
+        }
+      ]
+    },
+    "operations": [],
+    "startBlock": 25245069,
+    "endTimestamp": 1780589399,
+    "classification": {
+      "evidence": [
+        "archive RPC before/after accounting snapshots",
+        "4 state-continuous execution steps grouped",
+        "archive RPC transaction call paths resolved",
+        "historical allocator trigger replay matched every executed target within the disclosed tolerance",
+        "Envio indexed the exact allocator policy application",
+        "whole-entry strategy debt includes both decreases and increases",
+        "allocator keeper followed the historical allocator recommendation"
+      ],
+      "confidence": "high",
+      "limitations": [
+        "Envio coverage metadata is unavailable; event replay begins at block 0",
+        "Envio accounting checkpoints are unavailable; unallocated values are omitted",
+        "Envio checkpoint-failure records are unavailable",
+        "Provisional state reconstruction begins at the first indexed transition block 19419991"
+      ]
+    },
+    "startTimestamp": 1780588727,
+    "detailsAvailable": false
+  },
+  "interval": {
+    "flows": [
+      {
+        "kind": "unattributed_asset_change",
+        "amount": "2",
+        "source": {
+          "type": "idle"
+        },
+        "target": {
+          "type": "accounting"
+        },
+        "evidence": {
+          "eventCount": 0,
+          "transactionCount": 0
+        },
+        "attribution": "residual_balance"
+      },
+      {
+        "kind": "withdrawal",
+        "amount": "641353456",
+        "source": {
+          "type": "idle"
+        },
+        "target": {
+          "type": "external"
+        },
+        "evidence": {
+          "eventCount": 1,
+          "transactionCount": 1
+        },
+        "attribution": "observed_event"
+      },
+      {
+        "kind": "idle_deployment",
+        "amount": "3424",
+        "source": {
+          "type": "idle"
+        },
+        "target": {
+          "name": "USDC to sUSDS Lender",
+          "type": "strategy",
+          "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+        },
+        "evidence": {
+          "eventCount": 4,
+          "transactionCount": 4
+        },
+        "attribution": "derived_from_debt_updates"
+      },
+      {
+        "kind": "idle_deallocation",
+        "amount": "641356882",
+        "source": {
+          "name": "USDC to USDS Depositor",
+          "type": "strategy",
+          "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+        },
+        "target": {
+          "type": "idle"
+        },
+        "evidence": {
+          "eventCount": 1,
+          "transactionCount": 1
+        },
+        "attribution": "derived_from_debt_updates"
+      },
+      {
+        "kind": "strategy_reallocation",
+        "amount": "1011729167446",
+        "source": {
+          "name": "USDC to USDS Depositor",
+          "type": "strategy",
+          "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+        },
+        "target": {
+          "name": "Spark USDC Lender",
+          "type": "strategy",
+          "address": "0x25f893276544d86a82b1ce407182836f45cb6673"
+        },
+        "evidence": {
+          "eventCount": 4,
+          "transactionCount": 4
+        },
+        "attribution": "derived_from_debt_updates"
+      },
+      {
+        "kind": "strategy_reallocation",
+        "amount": "948488205833",
+        "source": {
+          "name": "USDC to USDS Depositor",
+          "type": "strategy",
+          "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+        },
+        "target": {
+          "name": "Yearn USDC",
+          "type": "strategy",
+          "address": "0x68aea7b82df6ccdf76235d46445ed83f85f845a3"
+        },
+        "evidence": {
+          "eventCount": 4,
+          "transactionCount": 4
+        },
+        "attribution": "derived_from_debt_updates"
+      },
+      {
+        "kind": "strategy_reallocation",
+        "amount": "10236179996779",
+        "source": {
+          "name": "USDC to USDS Depositor",
+          "type": "strategy",
+          "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+        },
+        "target": {
+          "name": "USDC to sUSDS Lender",
+          "type": "strategy",
+          "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+        },
+        "evidence": {
+          "eventCount": 4,
+          "transactionCount": 4
+        },
+        "attribution": "derived_from_debt_updates"
+      }
+    ],
+    "endKind": "allocation_entry",
+    "endState": {
+      "idleBps": 0,
+      "totalIdle": "0",
+      "allocations": [
+        {
+          "currentDebt": "1011729167446",
+          "strategyName": "Spark USDC Lender",
+          "currentDebtBps": 368,
+          "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+        },
+        {
+          "currentDebt": "12206732345486",
+          "strategyName": "USDC to USDS Depositor",
+          "currentDebtBps": 4440,
+          "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+        },
+        {
+          "currentDebt": "1286655571643",
+          "strategyName": "Yearn USDC",
+          "currentDebtBps": 468,
+          "strategyAddress": "0x68aea7b82df6ccdf76235d46445ed83f85f845a3"
+        },
+        {
+          "currentDebt": "12987523335163",
+          "strategyName": "USDC to sUSDS Lender",
+          "currentDebtBps": 4724,
+          "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+        }
+      ],
+      "blockNumber": 25245125,
+      "totalAssets": "27492640419738",
+      "blockTimestamp": 1780589399
+    },
+    "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:25245069-25245125",
+    "startState": {
+      "idleBps": 0,
+      "totalIdle": "0",
+      "allocations": [
+        {
+          "currentDebt": "0",
+          "strategyName": "Spark USDC Lender",
+          "currentDebtBps": 0,
+          "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+        },
+        {
+          "currentDebt": "24403771072426",
+          "strategyName": "USDC to USDS Depositor",
+          "currentDebtBps": 8876,
+          "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+        },
+        {
+          "currentDebt": "338167365810",
+          "strategyName": "Yearn USDC",
+          "currentDebtBps": 123,
+          "strategyAddress": "0x68aea7b82df6ccdf76235d46445ed83f85f845a3"
+        },
+        {
+          "currentDebt": "2751343334960",
+          "strategyName": "USDC to sUSDS Lender",
+          "currentDebtBps": 1001,
+          "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+        }
+      ],
+      "blockNumber": 25244726,
+      "totalAssets": "27493281773196",
+      "blockTimestamp": 1780584599
+    },
+    "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:25244672-25244726",
+    "reconciliation": {
+      "residuals": [
+        {
+          "node": {
+            "type": "idle"
+          },
+          "closingBalance": "0",
+          "openingBalance": "0",
+          "residualAmount": "0",
+          "attributedInflows": "641356882",
+          "attributedOutflows": "641356880",
+          "unattributedInflows": "0",
+          "unattributedOutflows": "2"
+        },
+        {
+          "node": {
+            "name": "Spark USDC Lender",
+            "type": "strategy",
+            "address": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          "closingBalance": "1011729167446",
+          "openingBalance": "0",
+          "residualAmount": "0",
+          "attributedInflows": "1011729167446",
+          "attributedOutflows": "0",
+          "unattributedInflows": "0",
+          "unattributedOutflows": "0"
+        },
+        {
+          "node": {
+            "name": "USDC to USDS Depositor",
+            "type": "strategy",
+            "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          "closingBalance": "12206732345486",
+          "openingBalance": "24403771072426",
+          "residualAmount": "0",
+          "attributedInflows": "0",
+          "attributedOutflows": "12197038726940",
+          "unattributedInflows": "0",
+          "unattributedOutflows": "0"
+        },
+        {
+          "node": {
+            "name": "Yearn USDC",
+            "type": "strategy",
+            "address": "0x68aea7b82df6ccdf76235d46445ed83f85f845a3"
+          },
+          "closingBalance": "1286655571643",
+          "openingBalance": "338167365810",
+          "residualAmount": "0",
+          "attributedInflows": "948488205833",
+          "attributedOutflows": "0",
+          "unattributedInflows": "0",
+          "unattributedOutflows": "0"
+        },
+        {
+          "node": {
+            "name": "USDC to sUSDS Lender",
+            "type": "strategy",
+            "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          "closingBalance": "12987523335163",
+          "openingBalance": "2751343334960",
+          "residualAmount": "0",
+          "attributedInflows": "10236180000203",
+          "attributedOutflows": "0",
+          "unattributedInflows": "0",
+          "unattributedOutflows": "0"
+        }
+      ],
+      "balanceStatus": "reconciled",
+      "checkedNodeTypes": [
+        "idle",
+        "strategy"
+      ],
+      "totalAssetsDelta": "-641353458",
+      "attributionStatus": "partial",
+      "closingTotalAssets": "27492640419738",
+      "openingTotalAssets": "27493281773196",
+      "unattributedAmount": "2"
+    }
+  }
+}

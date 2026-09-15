@@ -1,0 +1,29 @@
+{
+  "checkedAt": "2026-09-15T14:03:56.732919+00:00",
+  "status": "passed",
+  "counts": {
+    "stateChecks": 175,
+    "intervalChecks": 56,
+    "crossPageBoundaryChecks": 1,
+    "detailMatches": 5
+  },
+  "checks": [
+    "Chain and vault identity on every response",
+    "One run across chart detail links and one generatedAt across all responses",
+    "Two consecutive pages using the first response cursor; no overlapping entry IDs",
+    "Current snapshot only on the first page",
+    "Cross-page boundary state equals the corresponding next-page entry state",
+    "Integer-string balances and exact strategy debt plus idle equals total assets",
+    "Every captured interval reconciles independently at every idle and strategy node",
+    "Unattributed flow sum equals the reported unattributed amount",
+    "Detail residual equations balance",
+    "Selected detail states and execution classifications agree with chart entries",
+    "Strategy dictionaries cover referenced chart states",
+    "HTTP URLs, private hostnames and credential markers absent from response bodies"
+  ],
+  "limits": [
+    "Checks establish internal consistency of captured responses, not completeness of indexed history.",
+    "No independent on-chain replay or verification of the producer execution classifications was performed.",
+    "No live refresh, expired-cursor or full-history traversal was exercised."
+  ]
+}
