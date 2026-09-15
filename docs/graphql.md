@@ -1098,6 +1098,9 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 | `cvxAPR` | `Float` | Convex APR |
 | `keepCRV` | `Float` | Keep CRV |
 | `keepVelo` | `Float` | Keep VELO |
+| `estimatedDebtCoverage` | `Float` | Fraction of active strategy debt backed by a real Morpho/Merkl estimate rather than Kong-oracle-only fallback |
+| `morphoBaseAPY` | `Float` | Debt-weighted Morpho base APY contribution |
+| `morphoRewardsAPR` | `Float` | Debt-weighted non-KAT Morpho rewards APR contribution |
 
 ### Historical
 
