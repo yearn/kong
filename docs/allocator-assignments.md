@@ -38,6 +38,17 @@ There is no `allocatorState`, separate revision/staleness protocol, event-based
 assignment reconstruction, deployment-family classification, or custom refresh
 CLI. Responses have ordinary snapshot/cache freshness, not a live-chain guarantee.
 
+## Security: issue #476
+
+The old factory-event query also allowed an unrelated indexed emitter to select
+an allocator by supplying the victim vault argument. This fix removes that query
+and has no event fallback, including on RPC failure. A dedicated regression seeds
+a newer forged deployment, proves the old SQL would select it, and verifies that
+real snapshot extraction and persistence use only the manager-assigned allocator.
+See [the security regression and Gnosis audit](allocator-476-audit.md) for evidence
+and limits. The public API audit found no non-null allocator/ratio values for the
+three legacy vaults; raw target-database verification remains a deployment check.
+
 ## Legacy Gnosis preservation
 
 These retired vault/controller pairs retain their stored allocator address and
@@ -70,6 +81,8 @@ than claimed complete by this fix.
 1. Inventory the three legacy Gnosis snapshots, including their controller,
    allocator, and both ratio fields in debts/composition. Retain the inventory for
    the before/after comparison; missing data cannot be recovered by this fix.
+   Check any non-null legacy values for trusted provenance as described in the
+   [#476 audit](allocator-476-audit.md); do not silently retain untrusted data.
 2. Deploy ingestion and run normal ABI snapshot fanout for affected vaults. Confirm
    successful jobs; investigate unavailable assignments and retry transport failures.
    No allocator assignment-event backfill or dedicated materialization is needed.

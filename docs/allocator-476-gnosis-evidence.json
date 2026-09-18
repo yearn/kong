@@ -1,0 +1,249 @@
+{
+  "scope": "Public serving-layer inventory and chain controller verification; no raw production database access or exhaustive historical log audit.",
+  "graphqlUrl": "https://kong.yearn.fi/api/gql",
+  "records": [
+    {
+      "vault": "0xa21Cc1a4a239708690134bAeD3a1B93cAD55F625",
+      "fetchedAt": "2026-09-18T16:44:56.964Z",
+      "restUrl": "https://kong.yearn.fi/api/rest/snapshot/100/0xa21Cc1a4a239708690134bAeD3a1B93cAD55F625",
+      "snapshotBlock": "48315934",
+      "restManager": "0xFB4464a18d18f3FF439680BBbCE659dB2806A187",
+      "onChainManagerAtSnapshotBlock": "0xFB4464a18d18f3FF439680BBbCE659dB2806A187",
+      "restAllocator": {
+        "present": false,
+        "value": null
+      },
+      "debts": [
+        {
+          "strategy": "0x1b66B4a3a80eBCFA3eCaBf5580cD9929ABa57bb1",
+          "targetDebtRatio": {
+            "present": false,
+            "value": null
+          },
+          "maxDebtRatio": {
+            "present": false,
+            "value": null
+          }
+        }
+      ],
+      "composition": [
+        {
+          "strategy": "0x1b66B4a3a80eBCFA3eCaBf5580cD9929ABa57bb1",
+          "targetDebtRatio": {
+            "present": false,
+            "value": null
+          },
+          "maxDebtRatio": {
+            "present": false,
+            "value": null
+          }
+        }
+      ],
+      "graphql": {
+        "data": {
+          "vault": {
+            "address": "0xa21Cc1a4a239708690134bAeD3a1B93cAD55F625",
+            "allocator": null,
+            "role_manager": "0xFB4464a18d18f3FF439680BBbCE659dB2806A187",
+            "debts": [
+              {
+                "strategy": "0x1b66B4a3a80eBCFA3eCaBf5580cD9929ABa57bb1",
+                "targetDebtRatio": null,
+                "maxDebtRatio": null
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "vault": "0x39B68451F05Aaa020611CF887a7338f0991fFd60",
+      "fetchedAt": "2026-09-18T16:44:57.048Z",
+      "restUrl": "https://kong.yearn.fi/api/rest/snapshot/100/0x39B68451F05Aaa020611CF887a7338f0991fFd60",
+      "snapshotBlock": "48315934",
+      "restManager": "0xF9b85835b023ADb7E7b3bD3529B5cd967920E8eC",
+      "onChainManagerAtSnapshotBlock": "0xF9b85835b023ADb7E7b3bD3529B5cd967920E8eC",
+      "restAllocator": {
+        "present": false,
+        "value": null
+      },
+      "debts": [
+        {
+          "strategy": "0xA48359e7E970BE9f38fB6D183C57c8d0b28268B9",
+          "targetDebtRatio": {
+            "present": false,
+            "value": null
+          },
+          "maxDebtRatio": {
+            "present": false,
+            "value": null
+          }
+        },
+        {
+          "strategy": "0x5012C6bf79b3047ECFFf2F212DfFDA4d2128188f",
+          "targetDebtRatio": {
+            "present": false,
+            "value": null
+          },
+          "maxDebtRatio": {
+            "present": false,
+            "value": null
+          }
+        },
+        {
+          "strategy": "0x94c5786393Ab223e0fC111D7463405F165CE86e3",
+          "targetDebtRatio": {
+            "present": false,
+            "value": null
+          },
+          "maxDebtRatio": {
+            "present": false,
+            "value": null
+          }
+        }
+      ],
+      "composition": [
+        {
+          "strategy": "0xA48359e7E970BE9f38fB6D183C57c8d0b28268B9",
+          "targetDebtRatio": {
+            "present": false,
+            "value": null
+          },
+          "maxDebtRatio": {
+            "present": false,
+            "value": null
+          }
+        },
+        {
+          "strategy": "0x5012C6bf79b3047ECFFf2F212DfFDA4d2128188f",
+          "targetDebtRatio": {
+            "present": false,
+            "value": null
+          },
+          "maxDebtRatio": {
+            "present": false,
+            "value": null
+          }
+        },
+        {
+          "strategy": "0x94c5786393Ab223e0fC111D7463405F165CE86e3",
+          "targetDebtRatio": {
+            "present": false,
+            "value": null
+          },
+          "maxDebtRatio": {
+            "present": false,
+            "value": null
+          }
+        }
+      ],
+      "graphql": {
+        "data": {
+          "vault": {
+            "address": "0x39B68451F05Aaa020611CF887a7338f0991fFd60",
+            "allocator": null,
+            "role_manager": "0xF9b85835b023ADb7E7b3bD3529B5cd967920E8eC",
+            "debts": [
+              {
+                "strategy": "0xA48359e7E970BE9f38fB6D183C57c8d0b28268B9",
+                "targetDebtRatio": null,
+                "maxDebtRatio": null
+              },
+              {
+                "strategy": "0x5012C6bf79b3047ECFFf2F212DfFDA4d2128188f",
+                "targetDebtRatio": null,
+                "maxDebtRatio": null
+              },
+              {
+                "strategy": "0x94c5786393Ab223e0fC111D7463405F165CE86e3",
+                "targetDebtRatio": null,
+                "maxDebtRatio": null
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "vault": "0x5012C6bf79b3047ECFFf2F212DfFDA4d2128188f",
+      "fetchedAt": "2026-09-18T16:44:57.127Z",
+      "restUrl": "https://kong.yearn.fi/api/rest/snapshot/100/0x5012C6bf79b3047ECFFf2F212DfFDA4d2128188f",
+      "snapshotBlock": "48315934",
+      "restManager": "0x22eAe41c7Da367b9a15e942EB6227DF849Bb498C",
+      "onChainManagerAtSnapshotBlock": "0x22eAe41c7Da367b9a15e942EB6227DF849Bb498C",
+      "restAllocator": {
+        "present": false,
+        "value": null
+      },
+      "debts": [
+        {
+          "strategy": "0x99474363F03D21375dA1aF4C9694cabCF995e02a",
+          "targetDebtRatio": {
+            "present": false,
+            "value": null
+          },
+          "maxDebtRatio": {
+            "present": false,
+            "value": null
+          }
+        },
+        {
+          "strategy": "0x4B40C9FF9D654Fd7f1E24eD66d8f0f260b199b43",
+          "targetDebtRatio": {
+            "present": false,
+            "value": null
+          },
+          "maxDebtRatio": {
+            "present": false,
+            "value": null
+          }
+        }
+      ],
+      "composition": [
+        {
+          "strategy": "0x99474363F03D21375dA1aF4C9694cabCF995e02a",
+          "targetDebtRatio": {
+            "present": false,
+            "value": null
+          },
+          "maxDebtRatio": {
+            "present": false,
+            "value": null
+          }
+        },
+        {
+          "strategy": "0x4B40C9FF9D654Fd7f1E24eD66d8f0f260b199b43",
+          "targetDebtRatio": {
+            "present": false,
+            "value": null
+          },
+          "maxDebtRatio": {
+            "present": false,
+            "value": null
+          }
+        }
+      ],
+      "graphql": {
+        "data": {
+          "vault": {
+            "address": "0x5012C6bf79b3047ECFFf2F212DfFDA4d2128188f",
+            "allocator": null,
+            "role_manager": "0x22eAe41c7Da367b9a15e942EB6227DF849Bb498C",
+            "debts": [
+              {
+                "strategy": "0x99474363F03D21375dA1aF4C9694cabCF995e02a",
+                "targetDebtRatio": null,
+                "maxDebtRatio": null
+              },
+              {
+                "strategy": "0x4B40C9FF9D654Fd7f1E24eD66d8f0f260b199b43",
+                "targetDebtRatio": null,
+                "maxDebtRatio": null
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
