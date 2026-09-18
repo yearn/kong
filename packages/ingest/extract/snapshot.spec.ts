@@ -49,4 +49,26 @@ describe('SnapshotExtractor', function() {
       vi.restoreAllMocks()
     }
   })
+  it('does not enqueue a snapshot when its required allocator read fails', async function() {
+    vi.spyOn(abiutil, 'load').mockResolvedValue([])
+    vi.spyOn(abiutil, 'fields').mockReturnValue([])
+    vi.spyOn(blocks, 'getBlock').mockResolvedValue({ chainId: 1, number: 123n, timestamp: 456n })
+    vi.spyOn(rpcs, 'next').mockReturnValue({ multicall: vi.fn().mockResolvedValue([]) } as never)
+    const add = vi.spyOn(mq, 'add').mockResolvedValue({} as never)
+    const extractor = new SnapshotExtractor()
+    extractor.resolveHooks = () => [{ module: { default: async () => { throw new Error('Allocator RPC unavailable') } } }] as never
+    try {
+      let failure: unknown
+      try { await extractor.extract({
+        abi: { abiPath: 'yearn/3/vault', sources: [], skip: false, only: false },
+        source: { chainId: 1, address: ADDRESS, inceptBlock: 0n, skip: false, only: false }
+      }) } catch (error) { failure = error }
+      expect(failure).to.be.instanceOf(Error)
+      expect((failure as Error).message).to.equal('Allocator RPC unavailable')
+      expect(add.mock.calls).to.have.length(0)
+    } finally {
+      vi.restoreAllMocks()
+    }
+  })
+
 })

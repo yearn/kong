@@ -3,9 +3,9 @@ import { estimateCreationBlock } from 'lib/blocks'
 import { priced } from 'lib/math'
 import { snakeToCamelCols } from 'lib/strings'
 import { EstimatedAprSchema, EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
-import { parseAbi, toEventSelector, zeroAddress } from 'viem'
+import { getAddress, parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
-import { projectCurrentAllocator, type CurrentAllocatorProjection } from '../../../lib/allocators/projection'
+import { isLegacyAllocator, readVaultAllocator, type VaultAllocator } from '../../../lib/allocator'
 import db, { getSparkline } from '../../../../../db'
 import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
@@ -56,7 +56,6 @@ export const CompositionSchema = z.object({
 export const ResultSchema = z.object({
   strategies: z.array(zhexstring),
   allocator: zhexstring.nullish(),
-  allocatorState: z.record(z.unknown()).optional(),
   debts: z.array(z.object({
     strategy: zhexstring,
     activation: z.bigint(),
@@ -87,6 +86,7 @@ export const ResultSchema = z.object({
 })
 
 export const SnapshotSchema = z.object({
+  blockNumber: z.bigint({ coerce: true }),
   accountant: EvmAddressSchema.optional(),
   role_manager: EvmAddressSchema.optional(),
   use_default_queue: z.boolean().optional(),
@@ -99,14 +99,29 @@ type Snapshot = z.infer<typeof SnapshotSchema>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const snapshot = SnapshotSchema.parse(data)
-  const strategies = await projectStrategies(chainId, address, undefined, snapshot)
+  let strategies = await projectStrategies(chainId, address, snapshot.blockNumber, snapshot)
+  const legacyAllocator = isLegacyAllocator(chainId, address, snapshot.role_manager)
+  if (legacyAllocator) {
+    // Retired strategies may no longer be in the queue/events. Re-read their
+    // accounting so preserving their stored ratios never drops their rows.
+    const { rows } = await db.query(`SELECT hook FROM snapshot WHERE chain_id = $1 AND address = $2
+      AND lower(snapshot->>'role_manager') = lower($3)`, [chainId, address, snapshot.role_manager])
+    const saved = z.object({
+      debts: z.array(z.object({ strategy: zhexstring })).nullish(),
+      composition: z.array(z.object({ address: zhexstring })).nullish()
+    }).parse(rows[0]?.hook ?? {})
+    strategies = [...new Set([...strategies, ...(saved.debts ?? []).map(row => row.strategy),
+      ...(saved.composition ?? []).map(row => row.address)].map(value => getAddress(value)))]
+  }
   const roles = await projectRoles(chainId, address)
   if (snapshot.role_manager) appendRoleManagerPseudoRole(roles, snapshot.role_manager)
 
-  const allocatorState = await projectCurrentAllocator(chainId, address, strategies, rpcs.next(chainId, 0n))
-  const allocator = allocatorState.address
+  const allocatorData = snapshot.role_manager === zeroAddress || legacyAllocator
+    ? { address: null, ratios: {} }
+    : await readVaultAllocator(address, snapshot.role_manager, strategies, snapshot.blockNumber, rpcs.next(chainId, snapshot.blockNumber))
+  const allocator = allocatorData.address
 
-  const debts = await extractDebts(chainId, address, strategies, allocatorState)
+  const debts = await extractDebts(chainId, address, strategies, allocatorData)
   const estimatedApr = await getLatestEstimatedAprV3(chainId, address)
   const composition = await extractComposition(chainId, address, strategies, debts, estimatedApr?.type)
   const fees = await extractFeesBps(chainId, address, snapshot)
@@ -158,7 +173,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     : undefined
 
   return {
-    asset, strategies, allocator, allocatorState, roles, debts, composition, fees, locker,
+    asset, strategies, allocator, roles, debts, composition, fees, locker,
     risk, meta: { ...meta, token },
     sparklines,
     tvl: sparklines.tvl[0],
@@ -249,7 +264,7 @@ function appendRoleManagerPseudoRole(
   }
 }
 
-export async function extractDebts(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[], allocator: CurrentAllocatorProjection) {
+export async function extractDebts(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[], allocator: VaultAllocator) {
   const results: {
     strategy: `0x${string}`,
     activation: bigint,
@@ -263,8 +278,8 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
     totalGainUsd: number,
     totalLoss: bigint,
     totalLossUsd: number,
-    targetDebtRatio: number | null | undefined,
-    maxDebtRatio: number | null | undefined
+    targetDebtRatio: number | null,
+    maxDebtRatio: number | null
   }[] = []
 
   const snapshot = await db.query(

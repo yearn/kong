@@ -1,4 +1,4 @@
-import { mergeAllocatorHook } from 'lib/allocator-snapshot'
+import { isLegacyAllocator, preserveLegacyAllocator } from '../abis/yearn/lib/allocator'
 import { z } from 'zod'
 import { mq, strider, types } from 'lib'
 import db, { firstRow, getTravelledStrides, toUpsertSql, upsertThingDefaults } from '../db'
@@ -94,19 +94,35 @@ export async function upsertSnapshot(data: object) {
 
   try {
     await client.query('BEGIN')
-    const { snapshot: currentSnapshot, hook: currentHook } = (await firstRow(
-      'SELECT snapshot, hook FROM snapshot WHERE chain_id = $1 AND address = $2 FOR UPDATE',
+    const { snapshot: storedSnapshot, hook: storedHook, block_number: currentBlock } = (await firstRow(
+      'SELECT snapshot, hook, block_number FROM snapshot WHERE chain_id = $1 AND address = $2 FOR UPDATE',
       [snapshot.chainId, snapshot.address],
       client
     )) ?? { snapshot: {}, hook: {} }
 
+    const currentSnapshot = storedSnapshot ?? {}
+    const currentHook = storedHook ?? {}
+
+    // V3 snapshots carry allocator and ratio reads from this same block. Reject
+    // delayed writes under the row lock so they cannot restore an old assignment.
+    const v3 = String(snapshot.snapshot.apiVersion ?? currentSnapshot.apiVersion ?? '').startsWith('3.')
+    if (v3 && currentBlock != null && BigInt(currentBlock) > snapshot.blockNumber) {
+      await client.query('COMMIT')
+      return
+    }
+    if (isLegacyAllocator(snapshot.chainId, snapshot.address, snapshot.snapshot.role_manager)) {
+      const saved = isLegacyAllocator(snapshot.chainId, snapshot.address, currentSnapshot.role_manager) ? currentHook : {}
+      snapshot.hook = preserveLegacyAllocator(saved, snapshot.hook)
+    }
     snapshot.snapshot = { ...currentSnapshot, ...snapshot.snapshot }
 
     snapshot.hook = {
-      ...mergeAllocatorHook(currentHook, snapshot.hook),
+      ...currentHook,
+      ...snapshot.hook,
       meta: snapshot.hook.meta ? { ...currentHook.meta, ...JSON.parse(JSON.stringify(snapshot.hook.meta)) } : currentHook.meta
     }
-    await upsert(snapshot, 'snapshot', 'chain_id, address', undefined, client)
+    await upsert(snapshot, 'snapshot', 'chain_id, address',
+      v3 ? 'WHERE snapshot.block_number <= EXCLUDED.block_number' : undefined, client)
 
     await client.query('COMMIT')
 

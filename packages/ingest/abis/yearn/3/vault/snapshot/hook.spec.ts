@@ -47,8 +47,8 @@ describe('abis/yearn/3/vault/snapshot/hook', function() {
       totalGainUsd: 0,
       totalLoss: 0n,
       totalLossUsd: 0,
-      targetDebtRatio: undefined,
-      maxDebtRatio: undefined
+      targetDebtRatio: null,
+      maxDebtRatio: null
     }]
 
     try {
@@ -105,8 +105,8 @@ describe('abis/yearn/3/vault/snapshot/hook', function() {
       totalGainUsd: 0,
       totalLoss: 0n,
       totalLossUsd: 0,
-      targetDebtRatio: undefined,
-      maxDebtRatio: undefined
+      targetDebtRatio: null,
+      maxDebtRatio: null
     }]
 
     try {
@@ -142,7 +142,7 @@ describe('abis/yearn/3/vault/snapshot/hook', function() {
 
     try {
       const composition = await extractComposition(chainId, vault, [], [])
-      const hook = await process(chainId, vault, { asset, pricePerShare })
+      const hook = await process(chainId, vault, { asset, pricePerShare, blockNumber: 123n, role_manager: '0x0000000000000000000000000000000000000000' })
 
       expect(composition).to.have.length(0)
       expect(hook.pricePerShare).to.equal(pricePerShare)
