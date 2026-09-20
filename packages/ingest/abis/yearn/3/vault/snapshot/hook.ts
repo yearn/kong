@@ -1,11 +1,11 @@
-import { mq, sentry } from 'lib'
+import { abisConfig, mq, sentry } from 'lib'
 import { estimateCreationBlock } from 'lib/blocks'
 import { priced } from 'lib/math'
 import { snakeToCamelCols } from 'lib/strings'
 import { EstimatedAprSchema, EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
-import db, { getSparkline } from '../../../../../db'
+import db, { getSparkline, getTravelledStrides } from '../../../../../db'
 import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
@@ -202,11 +202,44 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
     }
   }
 
-  for (const strategy of snapshot?.get_default_queue ?? []) {
-    if (!result.includes(strategy)) { result.push(strategy) }
+  const gaps = [...new Set((snapshot?.get_default_queue ?? []).filter(strategy => !result.includes(strategy)))]
+  result.push(...gaps)
+  if (gaps.length > 0) {
+    try {
+      await repairDiscoveryGap(chainId, vault, gaps)
+    } catch (error) {
+      console.error('🚨 DISCOVERY_GAP repair failed', chainId, vault, error)
+    }
   }
 
   return result
+}
+
+async function repairDiscoveryGap(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[]) {
+  const travelled = await getTravelledStrides(chainId, vault)
+  if (!travelled?.length) return
+
+  console.error(`🚨 DISCOVERY_GAP: chainId=${chainId} vault=${vault} strategies=${strategies.join(',')}`)
+  sentry.captureMessage('DISCOVERY_GAP', {
+    level: 'warning',
+    tags: { component: 'ingest', hook: 'vault.snapshot.projectStrategies' },
+    extra: { chainId, vault, strategies }
+  })
+
+  const abi = abisConfig.abis.find(a => a.abiPath === 'yearn/3/vault')
+  const thing = await db.query(
+    `SELECT defaults->>'inceptBlock' AS "inceptBlock" FROM thing WHERE chain_id = $1 AND address = $2 AND label = 'vault'`,
+    [chainId, vault]
+  )
+  const inceptBlock = thing.rows[0]?.inceptBlock
+  if (!abi || !inceptBlock) {
+    console.error('🚨 DISCOVERY_GAP repair skipped', chainId, vault, { abiFound: !!abi, inceptBlock })
+    return
+  }
+
+  await mq.add(mq.job.fanout.events, {
+    chainId, abi, source: { chainId, address: vault, inceptBlock }, ignoreStrides: true
+  }, { jobId: `fanout-events-repair-${chainId}-${vault}`, removeOnComplete: { age: 24 * 60 * 60 }, removeOnFail: { age: 24 * 60 * 60 } })
 }
 
 export async function projectDebtAllocator(chainId: number, vault: `0x${string}`) {
