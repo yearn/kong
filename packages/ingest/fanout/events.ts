@@ -1,10 +1,11 @@
 import { setTimeout } from 'timers/promises'
-import { mq, strider } from 'lib'
+import { math, mq, strider } from 'lib'
 import { AbiConfig, AbiConfigSchema, SourceConfig, SourceConfigSchema } from 'lib/abis'
 import { estimateHeight, getBlockNumber } from 'lib/blocks'
 import { getTravelledStrides } from '../db'
 import { StrideSchema } from 'lib/types'
 import { gnosis, polygon, fantom } from 'viem/chains'
+import { envioProgressBlock, useEnvio } from '../envio'
 
 const LOG_STRIDES: {
   [key: number]: number
@@ -28,7 +29,8 @@ export default class EventsFanout {
       ? await estimateHeight(chainId, replay?.since)
       : startBlock ?? inceptBlock
 
-    const to = endBlock ?? await getBlockNumber(chainId)
+    const head = await getBlockNumber(chainId)
+    const to = endBlock ?? (useEnvio(chainId) ? math.min(head, await envioProgressBlock(chainId)) : head)
 
     const replayRange = undefined // [{ from: 19309874n, to: 19309874n }]
     const travelled = replay?.enabled ? undefined : await getTravelledStrides(chainId, address)
