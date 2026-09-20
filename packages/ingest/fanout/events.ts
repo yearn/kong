@@ -19,10 +19,10 @@ function getLogStride(chainId: number) {
 }
 
 export default class EventsFanout {
-  async fanout(data: { abi: AbiConfig, source: SourceConfig, replay?: { enabled: boolean, since?: bigint } }) {
+  async fanout(data: { abi: AbiConfig, source: SourceConfig, replay?: { enabled: boolean, since?: bigint }, ignoreStrides?: boolean }) {
     const { chainId, address, inceptBlock, startBlock, endBlock } = SourceConfigSchema.parse(data.source)
     const { abiPath } = AbiConfigSchema.parse(data.abi)
-    const { replay } = data
+    const { replay, ignoreStrides } = data
 
     const from = replay?.enabled && replay?.since
       ? await estimateHeight(chainId, replay?.since)
@@ -31,13 +31,13 @@ export default class EventsFanout {
     const to = endBlock ?? await getBlockNumber(chainId)
 
     const replayRange = undefined // [{ from: 19309874n, to: 19309874n }]
-    const travelled = replay?.enabled ? undefined : await getTravelledStrides(chainId, address)
+    const travelled = replay?.enabled || ignoreStrides ? undefined : await getTravelledStrides(chainId, address)
     const nextStrides = replayRange ? replayRange : strider.plan(from, to, travelled)
 
     for (const stride of StrideSchema.array().parse(nextStrides)) {
       console.log('📤', 'stride', chainId, address, stride.from, stride.to)
       await walklog({...stride, logStride: getLogStride(chainId)}, async (from, to) => {
-        const jobId = `evmlog-${chainId}-${address}-${from}-${to}`
+        const jobId = `evmlog-${abiPath}-${chainId}-${address}-${from}-${to}`
         await mq.add(mq.job.extract.evmlog, {
           abiPath, chainId, address, from, to, replay: replay?.enabled
         }, { jobId })

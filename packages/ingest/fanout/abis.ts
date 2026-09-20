@@ -21,11 +21,15 @@ export default class AbisFanout {
 
     const webhookCollector = new WebhookCollector()
 
+    const readers = new Map<string, string[]>()
+
     await mq.add(mq.job.extract.manuals, data)
 
     for (const abi of abisConfig.abis) {
       for (const source of abi.sources) {
         console.info('🤝', 'source', 'abiPath', abi.abiPath, source.chainId, source.address)
+        const key = `${source.chainId}-${source.address.toLowerCase()}`
+        readers.set(key, [...(readers.get(key) ?? []), abi.abiPath])
         const _data = { ...data, chainId: source.chainId, abi, source }
         await mq.add(mq.job.fanout.events, _data)
         await mq.add(mq.job.extract.snapshot, _data)
@@ -38,6 +42,8 @@ export default class AbisFanout {
         const _things = (await things.get(abi.things)).filter(thing => chainIds.includes(thing.chainId))
         for (const _thing of _things) {
           console.info('🤝', 'thing', 'abiPath', abi.abiPath, _thing.chainId, _thing.address)
+          const key = `${_thing.chainId}-${_thing.address.toLowerCase()}`
+          readers.set(key, [...(readers.get(key) ?? []), abi.abiPath])
           const _data = {
             ...data,
             chainId: _thing.chainId,
@@ -56,6 +62,16 @@ export default class AbisFanout {
           webhookCollector.collect(abi, _data.source)
         }
       }
+    }
+
+    const overlaps = [...readers].filter(([, abiPaths]) => abiPaths.length > 1)
+    if (overlaps.length > 0) {
+      console.warn(`🚨 ABI_READER_OVERLAP: ${overlaps.length} addresses match more than one reader`)
+      sentry.captureMessage('ABI_READER_OVERLAP', {
+        level: 'warning',
+        tags: { component: 'ingest', job: 'fanout.abis' },
+        extra: { count: overlaps.length, sample: Object.fromEntries(overlaps.slice(0, 10)) }
+      })
     }
 
     await webhookCollector.flush()
