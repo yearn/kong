@@ -1,5 +1,7 @@
 -- Reader-specific rows cannot be merged back into one address-wide row without
 -- claiming that every reader covered the union of their ranges.
+LOCK TABLE evmlog_strides IN ACCESS EXCLUSIVE MODE;
+
 DO $$
 BEGIN
   IF EXISTS (

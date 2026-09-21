@@ -72,7 +72,7 @@ describe('fanout/events reader identity', () => {
     const normalId = await fanout('yearn/3/vault')
     const replayId = await fanout('yearn/3/vault', { enabled: true })
 
-    expect(replayId).to.equal(`${normalId}-replay`)
+    expect(replayId).to.match(new RegExp(`^${normalId}-replay-\\d+$`))
     expect(getTravelledStrides).toHaveBeenCalledTimes(1)
   })
 })

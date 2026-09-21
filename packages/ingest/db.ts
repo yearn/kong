@@ -144,7 +144,9 @@ export function toUpsertSql(table: string, pk: string, data: object, where?: str
       : `$${index + 1}`
   ).join(', ')
 
-  const updates = fields.map(field => mergeJsonbFields.includes(field)
+  const mergeFields = mergeJsonbFields.map(field => strings.camelToSnake(field))
+
+  const updates = fields.map(field => mergeFields.includes(field)
     ? `${field} = COALESCE(${table}.${field}, '{}'::jsonb) || COALESCE(EXCLUDED.${field}, '{}'::jsonb)`
     : `${field} = EXCLUDED.${field}`
   ).join(', ')

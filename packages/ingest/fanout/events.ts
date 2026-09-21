@@ -22,8 +22,8 @@ export default class EventsFanout {
   async fanout(data: { abi: AbiConfig, source: SourceConfig, replay?: { enabled: boolean, since?: bigint } }) {
     const { chainId, address, inceptBlock, startBlock, endBlock } = SourceConfigSchema.parse(data.source)
     const { abiPath } = AbiConfigSchema.parse(data.abi)
-    if (!abiPath) throw new Error('!abiPath')
     const { replay } = data
+    const replayRunId = Date.now()
 
     const from = replay?.enabled && replay?.since
       ? await estimateHeight(chainId, replay?.since)
@@ -39,7 +39,7 @@ export default class EventsFanout {
       console.log('📤', 'stride', chainId, address, stride.from, stride.to)
       await walklog({...stride, logStride: getLogStride(chainId)}, async (from, to) => {
         const jobIdParts = ['evmlog', abiPath, chainId, address, from, to]
-        if (replay?.enabled) jobIdParts.push('replay')
+        if (replay?.enabled) jobIdParts.push('replay', replayRunId)
         const jobId = jobIdParts.join('-')
         await mq.add(mq.job.extract.evmlog, {
           abiPath, chainId, address, from, to, replay: replay?.enabled
