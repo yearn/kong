@@ -67,10 +67,11 @@ export async function firstValue<T>(query: string, params: any[] = [], client?: 
   return result.rows[0] ? result.rows[0][Object.keys(result.rows[0])[0]] as T : undefined
 }
 
-export async function getTravelledStrides(chainId: number, address: `0x${string}`, client?: PoolClient) {
+export async function getTravelledStrides(chainId: number, address: `0x${string}`, abiPath: string, client?: PoolClient) {
+  if (!abiPath) throw new Error('!abiPath')
   const result = await (client ?? db).query(
-    `SELECT strides FROM evmlog_strides WHERE chain_id = $1 AND address = $2 ${client ? 'FOR UPDATE' : ''};`,
-    [chainId, address]
+    `SELECT strides FROM evmlog_strides WHERE chain_id = $1 AND address = $2 AND abi_path = $3 ${client ? 'FOR UPDATE' : ''};`,
+    [chainId, address, abiPath]
   )
   const stridesJson = result.rows[0]?.strides
   return stridesJson ? StrideSchema.array().parse(JSON.parse(stridesJson)) : undefined
@@ -128,7 +129,7 @@ export async function upsertThingDefaults(thing: Thing, client?: PoolClient) {
   `, [thing.chainId, thing.address, thing.label, thing.defaults])
 }
 
-export function toUpsertSql(table: string, pk: string, data: object, where?: string) {
+export function toUpsertSql(table: string, pk: string, data: object, where?: string, mergeJsonbFields: string[] = []) {
   const timestampConversionExceptions = [ 'profit_max_unlock_time' ]
 
   const fields = Object.keys(data).map(key =>
@@ -143,8 +144,9 @@ export function toUpsertSql(table: string, pk: string, data: object, where?: str
       : `$${index + 1}`
   ).join(', ')
 
-  const updates = fields.map(field =>
-    `${field} = EXCLUDED.${field}`
+  const updates = fields.map(field => mergeJsonbFields.includes(field)
+    ? `${field} = COALESCE(${table}.${field}, '{}'::jsonb) || COALESCE(EXCLUDED.${field}, '{}'::jsonb)`
+    : `${field} = EXCLUDED.${field}`
   ).join(', ')
 
   return `

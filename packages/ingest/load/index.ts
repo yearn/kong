@@ -53,28 +53,49 @@ export default class Load implements Processor {
 }
 
 export async function upsertEvmLog(data: object) {
-  const { chainId, address, from, to, batch } = z.object({
+  const { abiPath, chainId, address, from, to, replay, batch } = z.object({
+    abiPath: z.string().min(1),
     chainId: z.number(),
     address: zhexstring,
     from: z.bigint({ coerce: true }),
     to: z.bigint({ coerce: true }),
+    replay: z.boolean().optional(),
     batch: z.array(types.EvmLogSchema)
   }).parse(data)
 
   const client = await db.connect()
   try {
     await client.query('BEGIN')
-    await upsertBatch(batch, 'evmlog', 'chain_id, address, signature, block_number, log_index, transaction_hash', undefined, client)
-
-    const current = await getTravelledStrides(chainId, address, client)
-    const next = strider.add({ from, to }, current)
-    await client.query(`
-      INSERT INTO evmlog_strides(chain_id, address, strides)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (chain_id, address)
-      DO UPDATE SET strides = $3`,
-    [chainId, address, JSON.stringify(next)]
+    await upsertBatch(
+      batch,
+      'evmlog',
+      'chain_id, address, signature, block_number, log_index, transaction_hash',
+      undefined,
+      client,
+      ['hook']
     )
+
+    if (!replay) {
+      // Establish the row before locking it. ON CONFLICT waits for an in-flight
+      // first insert, so concurrent initial writes then serialize on the same
+      // row and merge their ranges instead of overwriting one another.
+      await client.query(`
+        INSERT INTO evmlog_strides(chain_id, address, abi_path, strides)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (chain_id, address, abi_path)
+        DO NOTHING`,
+      [chainId, address, abiPath, JSON.stringify([])]
+      )
+
+      const current = await getTravelledStrides(chainId, address, abiPath, client)
+      const next = strider.add({ from, to }, current)
+      await client.query(`
+        UPDATE evmlog_strides
+        SET strides = $4
+        WHERE chain_id = $1 AND address = $2 AND abi_path = $3`,
+      [chainId, address, abiPath, JSON.stringify(next)]
+      )
+    }
 
     await client.query('COMMIT')
   } catch(error) {
@@ -150,13 +171,13 @@ export async function upsert(data: object, table: string, pk: string, where?: st
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function upsertBatch(batch: any[], table: string, pk: string, where?: string, _client?: PoolClient) {
+export async function upsertBatch(batch: any[], table: string, pk: string, where?: string, _client?: PoolClient, mergeJsonbFields: string[] = []) {
   const client = _client ?? await db.connect()
   try {
     if(!_client) await client.query('BEGIN')
     for(const object of batch) {
       await client.query(
-        toUpsertSql(table, pk, object, where),
+        toUpsertSql(table, pk, object, where, mergeJsonbFields),
         Object.values(object)
       )
     }

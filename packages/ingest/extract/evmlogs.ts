@@ -18,7 +18,7 @@ export class EvmLogsExtractor {
     if (!this.resolveHooks) this.resolveHooks = await requireHooks()
 
     const { abiPath, chainId, address, from, to, replay } = z.object({
-      abiPath: z.string(),
+      abiPath: z.string().min(1),
       chainId: z.number(),
       address: zhexstring,
       from: z.bigint({ coerce: true }),
@@ -88,7 +88,7 @@ export class EvmLogsExtractor {
 
     try {
       await mq.add(mq.job.load.evmlog, {
-        chainId, address, from, to,
+        abiPath, chainId, address, from, to, replay,
         batch: EvmLogSchema.array().parse(processedLogs)
       }, {
         priority: mq.LOWEST_PRIORITY
