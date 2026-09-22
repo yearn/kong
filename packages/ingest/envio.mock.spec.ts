@@ -5,41 +5,32 @@ import abi from './abis/yearn/2/vault/abi'
 import { mapEnvioRow, useEnvio } from './envio'
 
 describe('envio', function() {
-  it('maps an aliased overloaded event', function() {
+  it('maps an entity row to an EvmLog', function() {
     const strategy = '0x0000000000000000000000000000000000000001'
+    const vault = '0x0000000000000000000000000000000000000002'
+    const event = abi.find((e: any) => e.name === 'StrategyReported' && e.inputs.some((i: any) => i.name === 'debtPaid'))
     const row = {
-      event_name: 'StrategyReportedLegacy',
-      block_number: '100',
-      block_timestamp: '200',
-      log_index: 3,
-      src_address: '0x0000000000000000000000000000000000000002',
-      transaction_fields: { hash: '0x' + '11'.repeat(32), transactionIndex: 4 },
-      params: { strategy, gain: '1', loss: '0', totalGain: '1', totalLoss: '0', totalDebt: '5', debtAdded: '0', debtRatio: '100' }
+      blockNumber: 100, blockTimestamp: 200, logIndex: 3,
+      transactionHash: '0x' + '11'.repeat(32), transactionIndex: 4,
+      strategy, gain: '1', loss: '0', debtPaid: '2', totalGain: '1', totalLoss: '0', totalDebt: '5', debtAdded: '0', debtRatio: '100'
     }
-    const log = mapEnvioRow(row, abi, 1)
+    const log = mapEnvioRow(row, event, 1, vault)
     expect(log.eventName).to.equal('StrategyReported')
     expect(log.args.gain).to.equal(1n)
+    expect(log.args.debtPaid).to.equal(2n)
     expect(log.args.strategy).to.equal(getAddress(strategy))
-    expect(log.topics[0]).to.equal(toEventSelector('event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtRatio)'))
+    expect(log.topics[0]).to.equal(toEventSelector('event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 debtPaid, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtRatio)'))
     expect(log.topics[1]).to.equal(pad(getAddress(strategy), { size: 32 }))
-    expect(log.address).to.equal(getAddress(row.src_address))
+    expect(log.address).to.equal(getAddress(vault))
     expect(log.blockNumber).to.equal(100n)
     expect(log.blockTime).to.equal(200n)
     expect(() => EvmLogSchema.parse(log)).not.to.throw()
   })
 
-  it('maps integer values for non-overloaded events', function() {
-    const row = {
-      event_name: 'Transfer',
-      block_number: '100',
-      block_timestamp: '200',
-      log_index: 0,
-      src_address: '0x0000000000000000000000000000000000000002',
-      transaction_fields: { hash: '0x' + '22'.repeat(32), transactionIndex: 0 },
-      params: { sender: '0x0000000000000000000000000000000000000001', receiver: '0x0000000000000000000000000000000000000002', value: '7' }
-    }
-    const log = mapEnvioRow(row, abi, 1)
-    expect(log.args.value).to.equal(7n)
+  it('names the row when tx fields are missing', function() {
+    const event = abi.find((e: any) => e.name === 'Transfer')
+    expect(() => mapEnvioRow({ blockNumber: 100, logIndex: 0 }, event, 1, '0x0000000000000000000000000000000000000002'))
+      .to.throw('Envio row missing tx fields: Transfer')
   })
 
   it('uses the envio chain flag', function() {

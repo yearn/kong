@@ -39,7 +39,7 @@ export class EvmLogsExtractor {
       if (replay) {
         return await fetchLogs(chainId, address, from, to)
       } else if (useEnvio(chainId)) {
-        return await fetchEnvioLogs(chainId, address, from, to, abi, events)
+        return await fetchEnvioLogs(chainId, address, from, to, events, abiPath)
       } else {
         return await rpcs.next(chainId, from).getLogs({
           address,
@@ -85,7 +85,7 @@ export class EvmLogsExtractor {
         signature: log.topics[0],
         args,
         hook: hookResult,
-        blockTime: (log as any).blockTime ?? await getBlockTime(chainId, log.blockNumber || undefined)
+        blockTime: ('blockTime' in log ? log.blockTime : undefined) ?? await getBlockTime(chainId, log.blockNumber || undefined)
       })
     }
 

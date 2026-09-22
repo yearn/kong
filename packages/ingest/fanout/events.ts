@@ -30,7 +30,12 @@ export default class EventsFanout {
       : startBlock ?? inceptBlock
 
     const head = await getBlockNumber(chainId)
-    const to = endBlock ?? (useEnvio(chainId) ? math.min(head, await envioProgressBlock(chainId)) : head)
+    const capped = !replay?.enabled && useEnvio(chainId)
+    const to = capped ? math.min(endBlock ?? head, await envioProgressBlock(chainId)) : endBlock ?? head
+    if (capped && to < from) {
+      console.log('⏳', 'envio behind', chainId, address, from, to)
+      return
+    }
 
     const replayRange = undefined // [{ from: 19309874n, to: 19309874n }]
     const travelled = replay?.enabled ? undefined : await getTravelledStrides(chainId, address)
