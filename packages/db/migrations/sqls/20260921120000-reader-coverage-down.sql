@@ -10,7 +10,8 @@ BEGIN
     WHERE abi_path IS DISTINCT FROM '__legacy__'
   ) THEN
     RAISE EXCEPTION
-      'Cannot roll back evmlog_strides while reader-specific coverage rows exist';
+      'Cannot roll back evmlog_strides while reader-specific coverage rows exist'
+      USING HINT = 'DELETE FROM evmlog_strides WHERE abi_path <> ''__legacy__''; affected readers re-index their ranges.';
   END IF;
 END;
 $$;

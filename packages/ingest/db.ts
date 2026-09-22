@@ -67,10 +67,11 @@ export async function firstValue<T>(query: string, params: any[] = [], client?: 
   return result.rows[0] ? result.rows[0][Object.keys(result.rows[0])[0]] as T : undefined
 }
 
-export async function getTravelledStrides(chainId: number, address: `0x${string}`, abiPath: string, client?: PoolClient) {
+export async function getTravelledStrides(chainId: number, address: `0x${string}`, abiPath: string, client?: PoolClient, forUpdate = false) {
   if (!abiPath) throw new Error('!abiPath')
+  if (forUpdate && !client) throw new Error('!client')
   const result = await (client ?? db).query(
-    `SELECT strides FROM evmlog_strides WHERE chain_id = $1 AND address = $2 AND abi_path = $3 ${client ? 'FOR UPDATE' : ''};`,
+    `SELECT strides FROM evmlog_strides WHERE chain_id = $1 AND address = $2 AND abi_path = $3 ${forUpdate ? 'FOR UPDATE' : ''};`,
     [chainId, address, abiPath]
   )
   const stridesJson = result.rows[0]?.strides
@@ -145,6 +146,8 @@ export function toUpsertSql(table: string, pk: string, data: object, where?: str
   ).join(', ')
 
   const mergeFields = mergeJsonbFields.map(field => strings.camelToSnake(field))
+  const missingMergeFields = mergeFields.filter(field => !fields.includes(field))
+  if (missingMergeFields.length > 0) throw new Error(`!mergeJsonbFields ${missingMergeFields.join(', ')}`)
 
   const updates = fields.map(field => mergeFields.includes(field)
     ? `${field} = COALESCE(${table}.${field}, '{}'::jsonb) || COALESCE(EXCLUDED.${field}, '{}'::jsonb)`

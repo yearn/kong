@@ -91,7 +91,7 @@ async function main() {
 
     if (affected.length > 0) {
       console.log(`📌 ${CHAIN_NAMES[chain]} (${chain}): ${affected.length} coverage records will be rolled back to block ${targetBlock}`)
-      console.log(`   First few: ${affected.slice(0, 3).map(a => a.address).join(', ')}${affected.length > 3 ? '...' : ''}`)
+      console.log(`   First few: ${affected.slice(0, 3).map(a => `${a.address} [${a.abiPath}]`).join(', ')}${affected.length > 3 ? '...' : ''}`)
     } else {
       console.log(`✅ ${CHAIN_NAMES[chain]} (${chain}): No coverage records need rollback`)
     }

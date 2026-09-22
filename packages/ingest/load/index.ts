@@ -87,14 +87,15 @@ export async function upsertEvmLog(data: object) {
       [chainId, address, abiPath, JSON.stringify([])]
       )
 
-      const current = await getTravelledStrides(chainId, address, abiPath, client)
+      const current = await getTravelledStrides(chainId, address, abiPath, client, true)
       const next = strider.add({ from, to }, current)
-      await client.query(`
+      const update = await client.query(`
         UPDATE evmlog_strides
         SET strides = $4
         WHERE chain_id = $1 AND address = $2 AND abi_path = $3`,
       [chainId, address, abiPath, JSON.stringify(next)]
       )
+      if (update.rowCount !== 1) throw new Error(`!coverage row ${chainId} ${address} ${abiPath}`)
     }
 
     await client.query('COMMIT')

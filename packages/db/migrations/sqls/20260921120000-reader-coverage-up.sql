@@ -9,6 +9,9 @@ ALTER TABLE evmlog_strides
   ALTER COLUMN abi_path DROP DEFAULT;
 
 ALTER TABLE evmlog_strides
+  ADD CONSTRAINT evmlog_strides_abi_path_not_empty CHECK (abi_path <> '');
+
+ALTER TABLE evmlog_strides
   DROP CONSTRAINT evmlog_strides_pkey;
 
 ALTER TABLE evmlog_strides
