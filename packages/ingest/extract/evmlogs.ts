@@ -10,6 +10,7 @@ import { requireHooks } from '../abis'
 import abiutil from '../abiutil'
 import blacklist from 'lib/blacklist'
 import { safeFetchOrExtractDecimals } from '../abis/yearn/lib'
+import { fetchEnvioLogs, useEnvio } from '../envio'
 
 export class EvmLogsExtractor {
   resolveHooks: ResolveHooks|undefined
@@ -37,6 +38,8 @@ export class EvmLogsExtractor {
     const logs = await (async () => {
       if (replay) {
         return await fetchLogs(chainId, address, from, to)
+      } else if (useEnvio(chainId)) {
+        return await fetchEnvioLogs(chainId, address, from, to, events, abiPath)
       } else {
         return await rpcs.next(chainId, from).getLogs({
           address,
@@ -82,7 +85,7 @@ export class EvmLogsExtractor {
         signature: log.topics[0],
         args,
         hook: hookResult,
-        blockTime: await getBlockTime(chainId, log.blockNumber || undefined)
+        blockTime: ('blockTime' in log ? log.blockTime : undefined) ?? await getBlockTime(chainId, log.blockNumber || undefined)
       })
     }
 
