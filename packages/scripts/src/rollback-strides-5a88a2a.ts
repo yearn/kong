@@ -40,6 +40,7 @@ const CHAIN_NAMES: Record<ChainId, string> = {
 interface StrideRow {
   chain_id: number
   address: string
+  abi_path: string
   strides: string
 }
 
@@ -62,19 +63,19 @@ async function main() {
     password: process.env.POSTGRES_PASSWORD ?? 'password',
   })
 
-  console.log('🔍 Checking which addresses will be affected...\n')
+  console.log('🔍 Checking which coverage records will be affected...\n')
 
-  // Compute affected addresses for all chains
-  const affectedByChain = new Map<ChainId, Array<{ address: string, strides: Stride[], rolledback: Stride[] }>>()
+  // Compute affected coverage records for all chains
+  const affectedByChain = new Map<ChainId, Array<{ address: string, abiPath: string, strides: Stride[], rolledback: Stride[] }>>()
 
   for (const [chainId, targetBlock] of Object.entries(ROLLBACK_TARGETS)) {
     const chain = Number(chainId) as ChainId
     const result = await pool.query<StrideRow>(
-      'SELECT chain_id, address, strides FROM evmlog_strides WHERE chain_id = $1',
+      'SELECT chain_id, address, abi_path, strides FROM evmlog_strides WHERE chain_id = $1',
       [chain]
     )
 
-    const affected: Array<{ address: string, strides: Stride[], rolledback: Stride[] }> = []
+    const affected: Array<{ address: string, abiPath: string, strides: Stride[], rolledback: Stride[] }> = []
 
     for (const row of result.rows) {
       const strides: Stride[] = JSON.parse(row.strides)
@@ -82,17 +83,17 @@ async function main() {
 
       // Only include if rollback changes something
       if (JSON.stringify(strides) !== JSON.stringify(rolledback)) {
-        affected.push({ address: row.address, strides, rolledback })
+        affected.push({ address: row.address, abiPath: row.abi_path, strides, rolledback })
       }
     }
 
     affectedByChain.set(chain, affected)
 
     if (affected.length > 0) {
-      console.log(`📌 ${CHAIN_NAMES[chain]} (${chain}): ${affected.length} addresses will be rolled back to block ${targetBlock}`)
-      console.log(`   First few: ${affected.slice(0, 3).map(a => a.address).join(', ')}${affected.length > 3 ? '...' : ''}`)
+      console.log(`📌 ${CHAIN_NAMES[chain]} (${chain}): ${affected.length} coverage records will be rolled back to block ${targetBlock}`)
+      console.log(`   First few: ${affected.slice(0, 3).map(a => `${a.address} [${a.abiPath}]`).join(', ')}${affected.length > 3 ? '...' : ''}`)
     } else {
-      console.log(`✅ ${CHAIN_NAMES[chain]} (${chain}): No addresses need rollback`)
+      console.log(`✅ ${CHAIN_NAMES[chain]} (${chain}): No coverage records need rollback`)
     }
   }
 
@@ -111,25 +112,25 @@ async function main() {
 
     if (affected.length === 0) continue
 
-    for (const { address, strides, rolledback } of affected) {
+    for (const { address, abiPath, strides, rolledback } of affected) {
       const rolledbackStridesJson = rolledback.map(s => ({
         from: s.from.toString(),
         to: s.to.toString()
       }))
 
       await pool.query(
-        'UPDATE evmlog_strides SET strides = $1 WHERE chain_id = $2 AND address = $3',
-        [JSON.stringify(rolledbackStridesJson), chain, address]
+        'UPDATE evmlog_strides SET strides = $1 WHERE chain_id = $2 AND address = $3 AND abi_path = $4',
+        [JSON.stringify(rolledbackStridesJson), chain, address, abiPath]
       )
 
-      console.log(`  ✓ ${CHAIN_NAMES[chain]}: ${address} (${strides.length} → ${rolledback.length} strides)`)
+      console.log(`  ✓ ${CHAIN_NAMES[chain]}: ${address} [${abiPath}] (${strides.length} → ${rolledback.length} strides)`)
     }
 
-    console.log(`\n✅ ${CHAIN_NAMES[chain]}: Updated ${affected.length} addresses\n`)
+    console.log(`\n✅ ${CHAIN_NAMES[chain]}: Updated ${affected.length} coverage records\n`)
     totalUpdated += affected.length
   }
 
-  console.log(`\n🎉 Rollback complete! Updated ${totalUpdated} total addresses.`)
+  console.log(`\n🎉 Rollback complete! Updated ${totalUpdated} total coverage records.`)
 
   await pool.end()
 }

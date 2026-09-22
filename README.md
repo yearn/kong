@@ -159,7 +159,7 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 ### Postgres schema
 `evmlog` - raw evm logs + event hook data
 
-`evmlog_strides` - state of event block coverage
+`evmlog_strides` - state of event block coverage per ABI reader
 
 `snapshot` - latest snapshot of each contract + snapshot hook data
 
@@ -426,19 +426,22 @@ desc limit 1;
 
 
 ### evmlog_strides
-The strides table records which blocks have been queried for logs for all of the indexer's domain objects.
+The strides table records which blocks have been queried for logs by each ABI reader. Its primary key is `(chain_id, address, abi_path)`, so coverage from one reader cannot suppress another reader's extraction.
 
 | column_name | data_type | is_nullable | column_default |
 |-------------|-----------|-------------|----------------|
 | chain_id    | integer   | NO          |                |
 | address     | text      | NO          |                |
+| abi_path    | text      | NO          |                |
 | strides     | text      | NO          |                |
 
 The `strides` field is a json formatted string representing ranges of blocks.
 
-A strides array that looks like `[{"from":"19419991","to":"19813291"}]` tells the indexer everything between 19419991 and 19813291 has been indexed.
+A strides array that looks like `[{"from":"19419991","to":"19813291"}]` tells the indexer that reader has indexed the range from 19419991 through 19813291.
 
 A strides array that looks like `[{"from":"19419991","to":"19800000"}, {"from":"19800100","to":"19813291"}]` tells the indexer there's a gap between 19800000 and 19800100 that needs to be indexed.
+
+Rows with `abi_path = '__legacy__'` preserve coverage recorded before reader identity was tracked. They are not used by current readers. Database replay reruns hooks on logs already stored and does not advance reader coverage, so it cannot stand in for an RPC fetch of a range that was never stored. See [the migration and deployment notes](docs/issue-473.md).
 
 
 ## More documentation

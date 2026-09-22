@@ -34,7 +34,7 @@ export const ThingsConfigSchema = z.object({
 export type ThingsConfig = z.infer<typeof ThingsConfigSchema>
 
 export const AbiConfigSchema = z.object({
-  abiPath: z.string(),
+  abiPath: z.string().min(1),
   sources: SourceConfigSchema.array().optional().default([]),
   things: ThingsConfigSchema.optional(),
   skip: z.boolean().optional().default(false),

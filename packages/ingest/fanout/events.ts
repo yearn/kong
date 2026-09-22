@@ -31,13 +31,16 @@ export default class EventsFanout {
     const to = endBlock ?? await getBlockNumber(chainId)
 
     const replayRange = undefined // [{ from: 19309874n, to: 19309874n }]
-    const travelled = replay?.enabled ? undefined : await getTravelledStrides(chainId, address)
+    const travelled = replay?.enabled ? undefined : await getTravelledStrides(chainId, address, abiPath)
     const nextStrides = replayRange ? replayRange : strider.plan(from, to, travelled)
+    const replayRunId = replay?.enabled ? crypto.randomUUID() : undefined
 
     for (const stride of StrideSchema.array().parse(nextStrides)) {
       console.log('📤', 'stride', chainId, address, stride.from, stride.to)
       await walklog({...stride, logStride: getLogStride(chainId)}, async (from, to) => {
-        const jobId = `evmlog-${chainId}-${address}-${from}-${to}`
+        const jobIdParts = ['evmlog', abiPath, chainId, address, from, to]
+        if (replayRunId) jobIdParts.push('replay', replayRunId)
+        const jobId = jobIdParts.join('-')
         await mq.add(mq.job.extract.evmlog, {
           abiPath, chainId, address, from, to, replay: replay?.enabled
         }, { jobId })
