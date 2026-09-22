@@ -441,7 +441,7 @@ A strides array that looks like `[{"from":"19419991","to":"19813291"}]` tells th
 
 A strides array that looks like `[{"from":"19419991","to":"19800000"}, {"from":"19800100","to":"19813291"}]` tells the indexer there's a gap between 19800000 and 19800100 that needs to be indexed.
 
-Rows with `abi_path = '__legacy__'` preserve coverage recorded before reader identity was tracked. They are not used by current readers. Database replay does not advance reader coverage because it cannot recover logs absent from the database. See [the migration and deployment notes](docs/issue-473.md).
+Rows with `abi_path = '__legacy__'` preserve coverage recorded before reader identity was tracked. They are not used by current readers. Database replay reruns hooks on logs already stored and does not advance reader coverage, so it cannot stand in for an RPC fetch of a range that was never stored. See [the migration and deployment notes](docs/issue-473.md).
 
 
 ## More documentation
