@@ -90,6 +90,25 @@ vi.mock('../abis/yearn/lib', () => ({ safeFetchOrExtractDecimals }))
 import { EvmLogsExtractor } from './evmlogs'
 
 describe('extract/evmlogs reader identity', () => {
+  it('rejects an empty reader identity', async () => {
+    mqAdd.mockClear()
+    let failed = false
+    try {
+      await new EvmLogsExtractor().extract({
+        abiPath: '',
+        chainId: 1,
+        address: '0x1111111111111111111111111111111111111111',
+        from: 10n,
+        to: 20n
+      })
+    } catch (error) {
+      failed = true
+      expect((error as Error).name).to.equal('ZodError')
+    }
+    expect(failed).to.equal(true)
+    expect(mqAdd).not.toHaveBeenCalled()
+  })
+
   it('propagates the Yearn reader identity to the load job', async () => {
     getLogs.mockClear()
     mqAdd.mockClear()

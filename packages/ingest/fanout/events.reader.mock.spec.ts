@@ -51,6 +51,19 @@ async function fanout(abiPath: string, replay?: { enabled: boolean }) {
 }
 
 describe('fanout/events reader identity', () => {
+  it('rejects an empty reader identity before scheduling', async () => {
+    mqAdd.mockClear()
+    let failed = false
+    try {
+      await fanout('')
+    } catch (error) {
+      failed = true
+      expect((error as Error).name).to.equal('ZodError')
+    }
+    expect(failed).to.equal(true)
+    expect(mqAdd).not.toHaveBeenCalled()
+  })
+
   it('uses distinct IDs for readers and a stable ID for repeated normal work', async () => {
     mqAdd.mockClear()
     getTravelledStrides.mockClear()

@@ -72,6 +72,33 @@ afterEach(async () => {
 })
 
 describe('reader-specific event coverage', () => {
+  it('rejects an empty reader identity before reading or writing coverage', async () => {
+    let readFailed = false
+    try {
+      await getTravelledStrides(CHAIN_ID, ADDRESS, '')
+    } catch (error) {
+      readFailed = true
+      expect((error as Error).message).to.equal('!abiPath')
+    }
+    expect(readFailed).to.equal(true)
+
+    let writeFailed = false
+    try {
+      await upsertEvmLog({
+        abiPath: '',
+        chainId: CHAIN_ID,
+        address: ADDRESS,
+        from: 1n,
+        to: 2n,
+        batch: []
+      })
+    } catch (error) {
+      writeFailed = true
+      expect((error as Error).name).to.equal('ZodError')
+    }
+    expect(writeFailed).to.equal(true)
+  })
+
   it('keeps Yearn planning after generic coverage and skips only after Yearn finishes', async () => {
     await loadRange(GENERIC_READER, 1n, 10n)
 
