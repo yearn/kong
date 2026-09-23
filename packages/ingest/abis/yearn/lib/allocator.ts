@@ -1,18 +1,5 @@
 import { ContractFunctionExecutionError, ContractFunctionRevertedError, ContractFunctionZeroDataError, getAddress, parseAbi, zeroAddress, type Address, type PublicClient } from 'viem'
 
-// Preserve existing data only while these retired vaults retain their legacy
-// controllers. This is not a chain-wide exclusion or a factory-log fallback.
-const legacyControllers: Record<string, string> = {
-  '0xa21cc1a4a239708690134baed3a1b93cad55f625': '0xfb4464a18d18f3ff439680bbbce659db2806a187',
-  '0x39b68451f05aaa020611cf887a7338f0991ffd60': '0xf9b85835b023adb7e7b3bd3529b5cd967920e8ec',
-  '0x5012c6bf79b3047ecfff2f212dffda4d2128188f': '0x22eae41c7da367b9a15e942eb6227df849bb498c'
-}
-
-export function isLegacyAllocator(chainId: number, vault: string, manager: unknown): boolean {
-  return chainId === 100 && typeof manager === 'string' &&
-    legacyControllers[vault.toLowerCase()] === manager.toLowerCase()
-}
-
 export interface AllocatorRatios {
   targetDebtRatio: number | null
   maxDebtRatio: number | null
@@ -87,28 +74,4 @@ export async function readVaultAllocator(vault: Address, manager: Address | unde
   return { address: assigned, ratios: Object.fromEntries(strategies.map((strategy, index) =>
     [strategy.toLowerCase(), selectAllocatorRatios(results.slice(index * 4, index * 4 + 4))]
   )) }
-}
-
-type Hook = Record<string, unknown>
-type Row = Record<string, unknown>
-
-export function preserveLegacyAllocator(current: Hook, incoming: Hook): Hook {
-  const result = { ...incoming, allocator: current.allocator ?? null }
-  for (const field of ['debts', 'composition']) {
-    const previous = current[field] as Row[] | undefined
-    const next = incoming[field] as Row[] | undefined
-    if (!Array.isArray(next)) continue
-    const keys = new Set(next.map(row => String(row.strategy ?? row.address).toLowerCase()))
-    if (Array.isArray(previous) && previous.some(row => !keys.has(String(row.strategy ?? row.address).toLowerCase()))) {
-      throw new Error('Legacy allocator strategy rows missing; retry snapshot')
-    }
-    const byStrategy = new Map((Array.isArray(previous) ? previous : []).map(row =>
-      [String(row.strategy ?? row.address).toLowerCase(), row]
-    ))
-    Object.assign(result, { [field]: next.map(row => {
-      const saved = byStrategy.get(String(row.strategy ?? row.address).toLowerCase())
-      return { ...row, targetDebtRatio: saved?.targetDebtRatio ?? null, maxDebtRatio: saved?.maxDebtRatio ?? null }
-    }) })
-  }
-  return result
 }

@@ -3,9 +3,9 @@ import { estimateCreationBlock } from 'lib/blocks'
 import { priced } from 'lib/math'
 import { snakeToCamelCols } from 'lib/strings'
 import { EstimatedAprSchema, EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
-import { getAddress, parseAbi, toEventSelector, zeroAddress } from 'viem'
+import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
-import { isLegacyAllocator, readVaultAllocator, type VaultAllocator } from '../../../lib/allocator'
+import { readVaultAllocator, type VaultAllocator } from '../../../lib/allocator'
 import db, { getSparkline } from '../../../../../db'
 import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
@@ -99,24 +99,11 @@ type Snapshot = z.infer<typeof SnapshotSchema>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const snapshot = SnapshotSchema.parse(data)
-  let strategies = await projectStrategies(chainId, address, snapshot.blockNumber, snapshot)
-  const legacyAllocator = isLegacyAllocator(chainId, address, snapshot.role_manager)
-  if (legacyAllocator) {
-    // Retired strategies may no longer be in the queue/events. Re-read their
-    // accounting so preserving their stored ratios never drops their rows.
-    const { rows } = await db.query(`SELECT hook FROM snapshot WHERE chain_id = $1 AND address = $2
-      AND lower(snapshot->>'role_manager') = lower($3)`, [chainId, address, snapshot.role_manager])
-    const saved = z.object({
-      debts: z.array(z.object({ strategy: zhexstring })).nullish(),
-      composition: z.array(z.object({ address: zhexstring })).nullish()
-    }).parse(rows[0]?.hook ?? {})
-    strategies = [...new Set([...strategies, ...(saved.debts ?? []).map(row => row.strategy),
-      ...(saved.composition ?? []).map(row => row.address)].map(value => getAddress(value)))]
-  }
+  const strategies = await projectStrategies(chainId, address, snapshot.blockNumber, snapshot)
   const roles = await projectRoles(chainId, address)
   if (snapshot.role_manager) appendRoleManagerPseudoRole(roles, snapshot.role_manager)
 
-  const allocatorData = snapshot.role_manager === zeroAddress || legacyAllocator
+  const allocatorData = snapshot.role_manager === zeroAddress
     ? { address: null, ratios: {} }
     : await readVaultAllocator(address, snapshot.role_manager, strategies, snapshot.blockNumber, rpcs.next(chainId, snapshot.blockNumber))
   const allocator = allocatorData.address

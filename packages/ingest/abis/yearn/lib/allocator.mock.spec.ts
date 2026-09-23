@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BaseError, ContractFunctionExecutionError, createPublicClient, custom, encodeFunctionResult, getAddress, parseAbi, zeroAddress, type Address } from 'viem'
 import { mainnet } from 'viem/chains'
-import { isLegacyAllocator, readVaultAllocator, selectAllocatorRatios } from './allocator'
+import { readVaultAllocator, selectAllocatorRatios } from './allocator'
 
 const vault = '0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204' as Address
 const manager = '0xb3bd6B2E61753C311EFbCF0111f75D29706D9a41' as Address
@@ -54,8 +54,8 @@ describe('current allocator reads', () => {
     expect(rpc.readContract).toHaveBeenCalledWith(expect.objectContaining({ address: manager,
       functionName: 'getDebtAllocator', args: [vault], blockNumber: 20987762n }))
     expect(rpc.multicall).toHaveBeenCalledWith(expect.objectContaining({ blockNumber: 20987762n, allowFailure: true,
-      contracts: [expect.objectContaining({ args: [strategy] }), expect.objectContaining({ args: [strategy] }),
-        expect.objectContaining({ args: [vault, strategy] }), expect.objectContaining({ args: [vault, strategy] })] }))
+      contracts: [expect.objectContaining({ address: allocator, args: [strategy] }), expect.objectContaining({ address: allocator, args: [strategy] }),
+        expect.objectContaining({ address: allocator, args: [vault, strategy] }), expect.objectContaining({ address: allocator, args: [vault, strategy] })] }))
   })
   it('scopes two vaults using the same allocator to different ratios', async () => {
     const { rpc, read } = setup()
@@ -93,6 +93,7 @@ describe('current allocator reads', () => {
     const { rpc, read } = setup()
     rpc[method].mockRejectedValue(new Error('RPC unavailable'))
     await expect(read()).rejects.toThrow('RPC unavailable')
+    if (method === 'readContract') expect(rpc.multicall).not.toHaveBeenCalled()
   })
   it('does not retain an old assignment when a new manager returns no contract data', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -108,16 +109,5 @@ describe('current allocator reads', () => {
     } }, { retryCount: 0 }) })
     await expect(readVaultAllocator(vault, manager, [strategy], 20987762n, client)).rejects.toThrow('Aggregate RPC unavailable')
     expect(calls).toBe(2)
-  })
-  it.each([
-    ['0xa21Cc1a4a239708690134bAeD3a1B93cAD55F625', '0xFB4464a18d18f3FF439680BBbCE659dB2806A187'],
-    ['0x39B68451F05Aaa020611CF887a7338f0991fFd60', '0xF9b85835b023ADb7E7b3bD3529B5cd967920E8eC'],
-    ['0x5012C6bf79b3047ECFFf2F212DfFDA4d2128188f', '0x22eAe41c7Da367b9a15e942EB6227DF849Bb498C']
-  ])('limits preservation to the legacy vault/controller pair %s', (legacyVault, controller) => {
-    expect(isLegacyAllocator(100, legacyVault, controller)).toBe(true)
-    expect(isLegacyAllocator(1, legacyVault, controller)).toBe(false)
-    expect(isLegacyAllocator(100, legacyVault, manager)).toBe(false)
-    expect(isLegacyAllocator(100, vault, controller)).toBe(false)
-    expect(isLegacyAllocator(100, legacyVault, undefined)).toBe(false)
   })
 })

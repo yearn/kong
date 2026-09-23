@@ -1,4 +1,6 @@
 import { expect } from 'chai'
+import { toEventSelector, type Address } from 'viem'
+import { rpcs } from 'lib/rpcs'
 import process, { extractComposition } from './hook'
 import db, { toUpsertSql } from '../../../../../db'
 
@@ -150,4 +152,44 @@ describe('abis/yearn/3/vault/snapshot/hook', function() {
       globalThis.fetch = originalFetch
     }
   })
+
+  it('uses the manager assignment despite a forged deployment and never falls back on RPC failure', async function() {
+    const chainId = 1337
+    const vault = '0x1000000000000000000000000000000000000476'
+    const asset = '0x2000000000000000000000000000000000000476'
+    const manager = '0x4000000000000000000000000000000000000476'
+    const assigned = '0x5000000000000000000000000000000000000476'
+    const forged = '0x6000000000000000000000000000000000000476'
+    const emitter = '0x7000000000000000000000000000000000000476'
+    const signature = toEventSelector('event NewDebtAllocator(address indexed allocator, address indexed vault)')
+    const readContract = vi.fn(async ({ address }: { address: Address }) => address === manager ? assigned : 0)
+    vi.spyOn(rpcs, 'next').mockReturnValue({ readContract } as never)
+    vi.stubGlobal('fetch', vi.fn(async () => ({ json: async () => [] })))
+    try {
+      await db.query('INSERT INTO thing (chain_id,address,label,defaults) VALUES ($1,$2,\'erc20\',$3)',
+        [chainId, asset, { name: 'Fixture USD', symbol: 'USD', decimals: 18 }])
+      await db.query(`INSERT INTO evmlog
+        (chain_id,address,event_name,signature,topics,args,block_number,log_index,transaction_hash,transaction_index)
+        VALUES ($1,$2,'NewDebtAllocator',$3,$4,$5,999,0,$6,0)`,
+      [chainId, emitter, signature, [signature], { allocator: forged, vault }, `0x${'0'.repeat(60)}0476`])
+      const snapshot = { asset, role_manager: manager, blockNumber: 1000n }
+      const hook = await process(chainId, vault, snapshot)
+      expect(hook.allocator).to.equal(assigned)
+      expect(readContract.mock.calls[0][0]).to.include({ address: manager, blockNumber: 1000n })
+      expect(readContract.mock.calls.map(([call]) => call.address)).not.to.include(forged)
+
+      readContract.mockRejectedValueOnce(new Error('Manager RPC unavailable'))
+      let failure: unknown
+      try { await process(chainId, vault, snapshot) } catch (error) { failure = error }
+      expect(failure).to.be.instanceOf(Error)
+      expect((failure as Error).message).to.equal('Manager RPC unavailable')
+      expect(readContract.mock.calls.map(([call]) => call.address)).not.to.include(forged)
+    } finally {
+      vi.restoreAllMocks()
+      vi.unstubAllGlobals()
+      await db.query('DELETE FROM evmlog WHERE chain_id=$1 AND address=$2', [chainId, emitter])
+      await db.query('DELETE FROM thing WHERE chain_id=$1 AND address=$2', [chainId, asset])
+    }
+  })
+
 })
