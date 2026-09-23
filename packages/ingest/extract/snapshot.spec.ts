@@ -2,7 +2,10 @@ import { expect } from 'chai'
 import { mq } from 'lib'
 import * as blocks from 'lib/blocks'
 import { rpcs } from 'lib/rpcs'
+import { createPublicClient, custom } from 'viem'
+import { mainnet } from 'viem/chains'
 import abiutil from '../abiutil'
+import { readVaultAllocator } from '../abis/yearn/lib/allocator'
 import { SnapshotExtractor } from './snapshot'
 
 const ADDRESS = '0x696d02db93291651ed510704c9b286841d506987' as `0x${string}`
@@ -49,14 +52,19 @@ describe('SnapshotExtractor', function() {
       vi.restoreAllMocks()
     }
   })
-  it('does not enqueue a snapshot when its required allocator read fails', async function() {
+  it.each([undefined, -32603])('does not enqueue a snapshot when its required allocator read fails with RPC code %s', async function(code) {
     vi.spyOn(abiutil, 'load').mockResolvedValue([])
     vi.spyOn(abiutil, 'fields').mockReturnValue([])
     vi.spyOn(blocks, 'getBlock').mockResolvedValue({ chainId: 1, number: 123n, timestamp: 456n })
     vi.spyOn(rpcs, 'next').mockReturnValue({ multicall: vi.fn().mockResolvedValue([]) } as never)
     const add = vi.spyOn(mq, 'add').mockResolvedValue({} as never)
+    const client = createPublicClient({ chain: mainnet, transport: custom({ request: async () => {
+      throw Object.assign(new Error('Allocator RPC unavailable'), { code })
+    } }, { retryCount: 0 }) })
     const extractor = new SnapshotExtractor()
-    extractor.resolveHooks = () => [{ module: { default: async () => { throw new Error('Allocator RPC unavailable') } } }] as never
+    extractor.resolveHooks = () => [{ module: { default: async () =>
+      readVaultAllocator(ADDRESS, '0xb3bd6B2E61753C311EFbCF0111f75D29706D9a41', [], 123n, client)
+    } }] as never
     try {
       let failure: unknown
       try { await extractor.extract({
@@ -64,7 +72,7 @@ describe('SnapshotExtractor', function() {
         source: { chainId: 1, address: ADDRESS, inceptBlock: 0n, skip: false, only: false }
       }) } catch (error) { failure = error }
       expect(failure).to.be.instanceOf(Error)
-      expect((failure as Error).message).to.equal('Allocator RPC unavailable')
+      expect((failure as Error).message).to.include('Allocator RPC unavailable')
       expect(add.mock.calls).to.have.length(0)
     } finally {
       vi.restoreAllMocks()

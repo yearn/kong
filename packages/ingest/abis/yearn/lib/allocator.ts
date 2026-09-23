@@ -42,11 +42,13 @@ export async function readVaultAllocator(vault: Address, manager: Address | unde
       functionName: 'getDebtAllocator', args: [vault], blockNumber
     }))
   } catch (error) {
-    // A contract-level revert or empty return cannot supply an assignment.
-    // Publish null rather than retaining another manager's address. Transport
-    // failures still reject the snapshot job and leave its prior observation.
-    if (error instanceof ContractFunctionExecutionError &&
-      (error.cause instanceof ContractFunctionRevertedError || error.cause instanceof ContractFunctionZeroDataError)) {
+    // viem 2.5 also wraps provider internal errors as contract reverts and drops
+    // their RPC code. Require revert data or an explicit execution-reverted
+    // reason; ambiguous failures must reject the job, not clear saved fields.
+    const cause = error instanceof ContractFunctionExecutionError ? error.cause : undefined
+    const reverted = cause instanceof ContractFunctionRevertedError &&
+      (cause.data !== undefined || cause.signature !== undefined || /^execution reverted\b/i.test(cause.reason ?? ''))
+    if (reverted || cause instanceof ContractFunctionZeroDataError) {
       console.warn('Allocator assignment unavailable', vault, manager, blockNumber)
       return { address: null, ratios: {} }
     }

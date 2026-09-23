@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BaseError, ContractFunctionExecutionError, createPublicClient, custom, encodeFunctionResult, getAddress, parseAbi, zeroAddress, type Address } from 'viem'
+import { BaseError, ContractFunctionExecutionError, createPublicClient, custom, encodeErrorResult, encodeFunctionResult, getAddress, parseAbi, zeroAddress, type Address } from 'viem'
 import { mainnet } from 'viem/chains'
 import { readVaultAllocator, selectAllocatorRatios } from './allocator'
 
@@ -98,6 +98,26 @@ describe('current allocator reads', () => {
   it('does not retain an old assignment when a new manager returns no contract data', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const client = createPublicClient({ chain: mainnet, transport: custom({ request: async () => '0x' }, { retryCount: 0 }) })
+    expect(await readVaultAllocator(vault, manager, [strategy], 20987762n, client)).toEqual({ address: null, ratios: {} })
+  })
+  it.each([undefined, '0x'])('rejects provider internal errors with data %s instead of clearing the assignment', async data => {
+    const client = createPublicClient({ chain: mainnet, transport: custom({ request: async () => {
+      throw Object.assign(new Error('Internal error'), { code: -32603, data })
+    } }, { retryCount: 0 }) })
+    await expect(readVaultAllocator(vault, manager, [strategy], 20987762n, client)).rejects.toThrow('Internal error')
+  })
+  it.each([
+    { code: 3, message: 'execution reverted', data: '0x' },
+    { code: -32603, message: 'execution reverted', data: '0x' },
+    { code: -32603, message: 'Internal error', data: encodeErrorResult({
+      abi: parseAbi(['error Error(string)']), errorName: 'Error', args: ['Getter unsupported']
+    }) },
+    { code: 3, message: 'execution reverted', data: '0x12345678' }
+  ])('clears an unsupported assignment getter with contract revert evidence: %j', async ({ code, message, data }) => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const client = createPublicClient({ chain: mainnet, transport: custom({ request: async () => {
+      throw Object.assign(new Error(message), { code, data })
+    } }, { retryCount: 0 }) })
     expect(await readVaultAllocator(vault, manager, [strategy], 20987762n, client)).toEqual({ address: null, ratios: {} })
   })
   it('retries an aggregate transport failure even when viem returns per-call failures', async () => {
