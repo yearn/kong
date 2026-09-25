@@ -5,7 +5,7 @@ import { snakeToCamelCols } from 'lib/strings'
 import { EstimatedAprSchema, EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
-import { readVaultAllocator, type VaultAllocator } from '../../../lib/allocator'
+import { ratiosFor, readVaultAllocator, type VaultAllocator } from '../../../lib/allocator'
 import db, { getSparkline } from '../../../../../db'
 import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
@@ -103,12 +103,10 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const roles = await projectRoles(chainId, address)
   if (snapshot.role_manager) appendRoleManagerPseudoRole(roles, snapshot.role_manager)
 
-  const allocatorData = snapshot.role_manager === zeroAddress
-    ? { address: null, ratios: {} }
-    : await readVaultAllocator(address, snapshot.role_manager, strategies, snapshot.blockNumber, rpcs.next(chainId, snapshot.blockNumber))
+  const allocatorData = await readVaultAllocator(address, snapshot.role_manager, strategies, snapshot.blockNumber, rpcs.next(chainId, snapshot.blockNumber))
   const allocator = allocatorData.address
 
-  const debts = await extractDebts(chainId, address, strategies, allocatorData)
+  const debts = await extractDebts(chainId, address, strategies, allocatorData, snapshot.blockNumber)
   const estimatedApr = await getLatestEstimatedAprV3(chainId, address)
   const composition = await extractComposition(chainId, address, strategies, debts, estimatedApr?.type)
   const fees = await extractFeesBps(chainId, address, snapshot)
@@ -251,7 +249,7 @@ function appendRoleManagerPseudoRole(
   }
 }
 
-export async function extractDebts(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[], allocator: VaultAllocator) {
+export async function extractDebts(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[], allocator: VaultAllocator, blockNumber: bigint) {
   const results: {
     strategy: `0x${string}`,
     activation: bigint,
@@ -296,7 +294,7 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
         }
       ]
 
-      const multicall = await rpcs.next(chainId).multicall({ contracts })
+      const multicall = await rpcs.next(chainId, blockNumber).multicall({ contracts, blockNumber })
 
       const [activation, lastReport, currentDebt, maxDebt] = multicall[0].result
         ? multicall[0].result! as [bigint, bigint, bigint, bigint]
@@ -306,9 +304,7 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
         ? BigInt(multicall[1].result as number)
         : 0n
 
-      const ratio = allocator.ratios[strategy.toLowerCase()]
-      const targetDebtRatio = ratio?.targetDebtRatio ?? null
-      const maxDebtRatio = ratio?.maxDebtRatio ?? null
+      const { targetDebtRatio, maxDebtRatio } = ratiosFor(allocator, strategy)
 
       const price = await fetchErc20PriceUsd(chainId, asset)
 

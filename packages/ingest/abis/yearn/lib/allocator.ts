@@ -12,6 +12,9 @@ export interface VaultAllocator {
 
 type Rpc = Pick<PublicClient, 'readContract' | 'multicall'>
 type CallResult = { status: string; result?: unknown }
+const RATIO_GETTERS = ['getStrategyTargetRatio', 'getStrategyMaxRatio'] as const
+const INTERFACES = [false, true] as const
+const CALLS_PER_STRATEGY = INTERFACES.length * RATIO_GETTERS.length
 const emptyRatios = (): AllocatorRatios => ({ targetDebtRatio: null, maxDebtRatio: null })
 
 function validRatio(call: CallResult | undefined): number | null {
@@ -20,7 +23,7 @@ function validRatio(call: CallResult | undefined): number | null {
 }
 
 export function selectAllocatorRatios(results: readonly CallResult[]): AllocatorRatios {
-  const pairs = [0, 2].map(offset => ({
+  const pairs = INTERFACES.map((_, index) => index * RATIO_GETTERS.length).map(offset => ({
     targetDebtRatio: validRatio(results[offset]), maxDebtRatio: validRatio(results[offset + 1])
   })).filter(pair => pair.targetDebtRatio !== null && pair.maxDebtRatio !== null)
   if (pairs.length === 2 && (pairs[0].targetDebtRatio !== pairs[1].targetDebtRatio || pairs[0].maxDebtRatio !== pairs[1].maxDebtRatio)) {
@@ -28,6 +31,10 @@ export function selectAllocatorRatios(results: readonly CallResult[]): Allocator
     return emptyRatios()
   }
   return pairs[0] ?? emptyRatios()
+}
+
+export function ratiosFor(allocator: VaultAllocator, strategy: Address): AllocatorRatios {
+  return allocator.ratios[strategy.toLowerCase()] ?? emptyRatios()
 }
 
 // The manager comes from the vault read at blockNumber. Required read failures
@@ -55,8 +62,8 @@ export async function readVaultAllocator(vault: Address, manager: Address | unde
     throw error
   }
   if (assigned === zeroAddress) return { address: null, ratios: {} }
-  const contracts = strategies.flatMap(strategy => [false, true].flatMap(shared =>
-    ['getStrategyTargetRatio', 'getStrategyMaxRatio'].map(functionName => ({
+  const contracts = strategies.flatMap(strategy => INTERFACES.flatMap(shared =>
+    RATIO_GETTERS.map(functionName => ({
       address: assigned, functionName,
       abi: parseAbi([`function ${functionName}(${shared ? 'address,address' : 'address'}) view returns (uint256)`]),
       args: shared ? [vault, strategy] : [strategy]
@@ -68,12 +75,13 @@ export async function readVaultAllocator(vault: Address, manager: Address | unde
   // viem also wraps failed aggregate RPC requests in per-call failures when
   // allowFailure is enabled. Only getter execution/decoding failures are data.
   for (const result of results) {
-    if (result.status === 'failure' && (!(result.error instanceof ContractFunctionExecutionError) ||
-      !['getStrategyTargetRatio', 'getStrategyMaxRatio'].includes(result.error.functionName))) {
-      throw result.error
+    if (result.status !== 'failure') continue
+    const error = result.error
+    if (!(error instanceof ContractFunctionExecutionError) || !RATIO_GETTERS.some(name => name === error.functionName)) {
+      throw error
     }
   }
   return { address: assigned, ratios: Object.fromEntries(strategies.map((strategy, index) =>
-    [strategy.toLowerCase(), selectAllocatorRatios(results.slice(index * 4, index * 4 + 4))]
+    [strategy.toLowerCase(), selectAllocatorRatios(results.slice(index * CALLS_PER_STRATEGY, (index + 1) * CALLS_PER_STRATEGY))]
   )) }
 }

@@ -1,7 +1,8 @@
 import { expect } from 'chai'
 import { toEventSelector, type Address } from 'viem'
-import { rpcs } from 'lib/rpcs'
-import process, { extractComposition } from './hook'
+import { rpcs } from '../../../../../rpcs'
+import * as prices from '../../../../../prices'
+import process, { extractComposition, extractDebts } from './hook'
 import db, { toUpsertSql } from '../../../../../db'
 
 describe('abis/yearn/3/vault/snapshot/hook', function() {
@@ -134,6 +135,8 @@ describe('abis/yearn/3/vault/snapshot/hook', function() {
     const vault = '0x5000000000000000000000000000000000000005'
     const asset = '0x6000000000000000000000000000000000000006'
     const pricePerShare = 1021955n
+    const readContract = vi.fn().mockResolvedValue(0)
+    vi.spyOn(rpcs, 'next').mockReturnValue({ readContract } as never)
     const assetData = {
       chain_id: chainId,
       address: asset,
@@ -148,7 +151,10 @@ describe('abis/yearn/3/vault/snapshot/hook', function() {
 
       expect(composition).to.have.length(0)
       expect(hook.pricePerShare).to.equal(pricePerShare)
+      expect(hook.allocator).to.equal(null)
+      expect(readContract.mock.calls.map(([call]) => call.functionName)).not.to.include('getDebtAllocator')
     } finally {
+      vi.restoreAllMocks()
       globalThis.fetch = originalFetch
     }
   })
@@ -189,6 +195,34 @@ describe('abis/yearn/3/vault/snapshot/hook', function() {
       vi.unstubAllGlobals()
       await db.query('DELETE FROM evmlog WHERE chain_id=$1 AND address=$2', [chainId, emitter])
       await db.query('DELETE FROM thing WHERE chain_id=$1 AND address=$2', [chainId, asset])
+    }
+  })
+
+  it('reads debt and performance fees at the ratio snapshot block', async function() {
+    const chainId = 1
+    const vault = '0x1000000000000000000000000000000000000472'
+    const asset = '0x2000000000000000000000000000000000000472'
+    const strategy = '0xAbCdEf0000000000000000000000000000000472' as Address
+    const blockNumber = 1000n
+    const multicall = vi.fn(async (args: { blockNumber?: bigint }) => [
+      { status: 'success', result: [1n, 2n, args.blockNumber === blockNumber ? 3n : 99n, 4n] },
+      { status: 'success', result: 100 }
+    ])
+    const next = vi.spyOn(rpcs, 'next').mockReturnValue({ multicall } as never)
+    vi.spyOn(prices, 'fetchErc20PriceUsd').mockResolvedValue({ priceUsd: 1 } as never)
+    try {
+      await db.query('INSERT INTO snapshot (chain_id,address,snapshot,hook,block_number) VALUES ($1,$2,$3,\'{}\',1000)',
+        [chainId, vault, { asset, decimals: 18 }])
+      const debts = await extractDebts(chainId, vault, [strategy], {
+        address: '0x5000000000000000000000000000000000000472',
+        ratios: { [strategy.toLowerCase()]: { targetDebtRatio: 250, maxDebtRatio: 500 } }
+      }, blockNumber)
+      expect(next.mock.calls).to.deep.equal([[chainId, blockNumber]])
+      expect(multicall.mock.calls[0][0].blockNumber).to.equal(blockNumber)
+      expect(debts[0]).to.include({ currentDebt: 3n, performanceFee: 100n, targetDebtRatio: 250, maxDebtRatio: 500 })
+    } finally {
+      vi.restoreAllMocks()
+      await db.query('DELETE FROM snapshot WHERE chain_id=$1 AND address=$2', [chainId, vault])
     }
   })
 

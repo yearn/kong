@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BaseError, ContractFunctionExecutionError, createPublicClient, custom, encodeErrorResult, encodeFunctionResult, getAddress, parseAbi, zeroAddress, type Address } from 'viem'
 import { mainnet } from 'viem/chains'
-import { readVaultAllocator, selectAllocatorRatios } from './allocator'
+import { ratiosFor, readVaultAllocator, selectAllocatorRatios } from './allocator'
 
 const vault = '0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204' as Address
 const manager = '0xb3bd6B2E61753C311EFbCF0111f75D29706D9a41' as Address
@@ -56,6 +56,24 @@ describe('current allocator reads', () => {
     expect(rpc.multicall).toHaveBeenCalledWith(expect.objectContaining({ blockNumber: 20987762n, allowFailure: true,
       contracts: [expect.objectContaining({ address: allocator, args: [strategy] }), expect.objectContaining({ address: allocator, args: [strategy] }),
         expect.objectContaining({ address: allocator, args: [vault, strategy] }), expect.objectContaining({ address: allocator, args: [vault, strategy] })] }))
+  })
+  it('keeps multiple strategies separate and normalizes ratio lookups', async () => {
+    const { rpc } = setup()
+    const other = getAddress('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd')
+    rpc.multicall.mockResolvedValue([
+      success(100n), success(200n), fail, fail,
+      fail, fail, success(300n), success(400n)
+    ])
+    const result = await readVaultAllocator(vault, manager, [getAddress(strategy), other], 20987762n, rpc as never)
+    expect(ratiosFor(result, getAddress(strategy))).toEqual({ targetDebtRatio: 100, maxDebtRatio: 200 })
+    expect(ratiosFor(result, strategy)).toEqual(ratiosFor(result, getAddress(strategy)))
+    expect(ratiosFor(result, other.toLowerCase() as Address)).toEqual({ targetDebtRatio: 300, maxDebtRatio: 400 })
+    expect(ratiosFor(result, other)).toEqual(ratiosFor(result, other.toLowerCase() as Address))
+    expect(ratiosFor(result, vault)).toEqual(empty)
+    expect(rpc.multicall.mock.calls[0][0].contracts.map((call: { args: Address[] }) => call.args)).toEqual([
+      [getAddress(strategy)], [getAddress(strategy)], [vault, getAddress(strategy)], [vault, getAddress(strategy)],
+      [other], [other], [vault, other], [vault, other]
+    ])
   })
   it('scopes two vaults using the same allocator to different ratios', async () => {
     const { rpc, read } = setup()
