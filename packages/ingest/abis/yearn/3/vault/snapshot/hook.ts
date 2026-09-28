@@ -5,7 +5,7 @@ import { snakeToCamelCols } from 'lib/strings'
 import { EstimatedAprSchema, EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
-import { ratiosFor, readVaultAllocator, type VaultAllocator } from '../../../lib/allocator'
+import { ratiosFor, readRoleManager, readVaultAllocator, type VaultAllocator } from '../../../lib/allocator'
 import db, { getSparkline } from '../../../../../db'
 import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
@@ -99,11 +99,19 @@ type Snapshot = z.infer<typeof SnapshotSchema>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const snapshot = SnapshotSchema.parse(data)
+  const rpc = rpcs.next(chainId, snapshot.blockNumber)
+  if (snapshot.role_manager === undefined) {
+    snapshot.role_manager = await readRoleManager(address, snapshot.blockNumber, rpc)
+    // Keep a recovered read in the extractor's snapshot as well as this hook.
+    if (snapshot.role_manager !== undefined) data.role_manager = snapshot.role_manager
+  }
   const strategies = await projectStrategies(chainId, address, snapshot.blockNumber, snapshot)
   const roles = await projectRoles(chainId, address)
   if (snapshot.role_manager) appendRoleManagerPseudoRole(roles, snapshot.role_manager)
 
-  const allocatorData = await readVaultAllocator(address, snapshot.role_manager, strategies, snapshot.blockNumber, rpcs.next(chainId, snapshot.blockNumber))
+  const allocatorData = snapshot.role_manager === undefined
+    ? { address: null, ratios: {} }
+    : await readVaultAllocator(address, snapshot.role_manager, strategies, snapshot.blockNumber, rpc)
   const allocator = allocatorData.address
 
   const debts = await extractDebts(chainId, address, strategies, allocatorData, snapshot.blockNumber)

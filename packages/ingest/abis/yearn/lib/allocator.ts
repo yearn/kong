@@ -37,6 +37,30 @@ export function ratiosFor(allocator: VaultAllocator, strategy: Address): Allocat
   return allocator.ratios[strategy.toLowerCase()] ?? emptyRatios()
 }
 
+// viem 2.5 also wraps provider internal errors as contract reverts and drops
+// their RPC code. Only explicit revert evidence or an empty return establishes
+// that a getter is unavailable; ambiguous failures must retry the snapshot.
+function isUnsupportedGetter(error: unknown): boolean {
+  const cause = error instanceof ContractFunctionExecutionError ? error.cause : undefined
+  const reverted = cause instanceof ContractFunctionRevertedError &&
+    (cause.data !== undefined || cause.signature !== undefined || /^execution reverted\b/i.test(cause.reason ?? ''))
+  return reverted || cause instanceof ContractFunctionZeroDataError
+}
+
+// Snapshot multicalls discard per-field errors. Confirm a missing manager at
+// the same block so tokenized strategies can refresh without masking RPC faults.
+export async function readRoleManager(vault: Address, blockNumber: bigint, rpc: Rpc): Promise<Address | undefined> {
+  try {
+    return getAddress(await rpc.readContract({
+      address: vault, abi: parseAbi(['function role_manager() view returns (address)']),
+      functionName: 'role_manager', blockNumber
+    }))
+  } catch (error) {
+    if (isUnsupportedGetter(error)) return undefined
+    throw error
+  }
+}
+
 // The manager comes from the vault read at blockNumber. Required read failures
 // propagate to the snapshot job: no factory fallback and no fabricated clear.
 export async function readVaultAllocator(vault: Address, manager: Address | undefined, strategies: Address[], blockNumber: bigint, rpc: Rpc): Promise<VaultAllocator> {
@@ -49,13 +73,7 @@ export async function readVaultAllocator(vault: Address, manager: Address | unde
       functionName: 'getDebtAllocator', args: [vault], blockNumber
     }))
   } catch (error) {
-    // viem 2.5 also wraps provider internal errors as contract reverts and drops
-    // their RPC code. Require revert data or an explicit execution-reverted
-    // reason; ambiguous failures must reject the job, not clear saved fields.
-    const cause = error instanceof ContractFunctionExecutionError ? error.cause : undefined
-    const reverted = cause instanceof ContractFunctionRevertedError &&
-      (cause.data !== undefined || cause.signature !== undefined || /^execution reverted\b/i.test(cause.reason ?? ''))
-    if (reverted || cause instanceof ContractFunctionZeroDataError) {
+    if (isUnsupportedGetter(error)) {
       console.warn('Allocator assignment unavailable', vault, manager, blockNumber)
       return { address: null, ratios: {} }
     }
