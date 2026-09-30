@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import { strings } from 'lib'
-import { StrideSchema, Thing } from 'lib/types'
+import { Stride, StrideSchema, Thing } from 'lib/types'
 import { Pool, PoolClient, types as pgTypes } from 'pg'
 import { snakeToCamelCols } from 'lib/strings'
 
@@ -67,13 +67,28 @@ export async function firstValue<T>(query: string, params: any[] = [], client?: 
   return result.rows[0] ? result.rows[0][Object.keys(result.rows[0])[0]] as T : undefined
 }
 
-export async function getTravelledStrides(chainId: number, address: `0x${string}`, client?: PoolClient) {
+export async function getTravelledStrides(chainId: number, address: `0x${string}`, signatures: string[], client?: PoolClient) {
   const result = await (client ?? db).query(
-    `SELECT strides FROM evmlog_strides WHERE chain_id = $1 AND address = $2 ${client ? 'FOR UPDATE' : ''};`,
-    [chainId, address]
+    `SELECT signature, strides FROM evmlog_strides WHERE chain_id = $1 AND address = $2 AND signature = ANY($3) ${client ? 'FOR UPDATE' : ''};`,
+    [chainId, address, signatures]
   )
-  const stridesJson = result.rows[0]?.strides
-  return stridesJson ? StrideSchema.array().parse(JSON.parse(stridesJson)) : undefined
+  const travelled: Record<string, Stride[]> = {}
+  for (const row of result.rows) travelled[row.signature] = StrideSchema.array().parse(JSON.parse(row.strides))
+  return travelled
+}
+
+export async function adoptLegacyStrides(chainId: number, address: `0x${string}`, signatures: string[]) {
+  await db.query(`
+    INSERT INTO evmlog_strides(chain_id, address, signature, strides)
+    SELECT chain_id, address, unnest($3::text[]), strides FROM evmlog_strides
+    WHERE chain_id = $1 AND address = $2 AND signature = ''
+      AND NOT EXISTS (
+        SELECT 1 FROM thing
+        WHERE chain_id = $1 AND address = $2
+        HAVING bool_or(defaults->>'erc4626' = 'true') OR count(DISTINCT label) > 1
+      )
+    ON CONFLICT DO NOTHING`,
+  [chainId, address, signatures])
 }
 
 export async function getSparkline(chainId: number, address: string, label: string, component?: string) {

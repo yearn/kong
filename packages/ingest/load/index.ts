@@ -53,8 +53,10 @@ export default class Load implements Processor {
 }
 
 export async function upsertEvmLog(data: object) {
-  const { chainId, address, from, to, batch } = z.object({
+  const { chainId, address, from, to, replay, signatures, batch } = z.object({
     chainId: z.number(),
+    replay: z.boolean().optional(),
+    signatures: z.string().array().optional(),
     address: zhexstring,
     from: z.bigint({ coerce: true }),
     to: z.bigint({ coerce: true }),
@@ -66,15 +68,19 @@ export async function upsertEvmLog(data: object) {
     await client.query('BEGIN')
     await upsertBatch(batch, 'evmlog', 'chain_id, address, signature, block_number, log_index, transaction_hash', undefined, client)
 
-    const current = await getTravelledStrides(chainId, address, client)
-    const next = strider.add({ from, to }, current)
-    await client.query(`
-      INSERT INTO evmlog_strides(chain_id, address, strides)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (chain_id, address)
-      DO UPDATE SET strides = $3`,
-    [chainId, address, JSON.stringify(next)]
-    )
+    if (signatures && !replay) {
+      const travelled = await getTravelledStrides(chainId, address, signatures, client)
+      for (const signature of signatures) {
+        const next = strider.add({ from, to }, travelled[signature])
+        await client.query(`
+          INSERT INTO evmlog_strides(chain_id, address, signature, strides)
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT (chain_id, address, signature)
+          DO UPDATE SET strides = $4`,
+        [chainId, address, signature, JSON.stringify(next)]
+        )
+      }
+    }
 
     await client.query('COMMIT')
   } catch(error) {
