@@ -167,7 +167,7 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 
 `output` - timeseries hook data
 
-`price` - price data
+`price` - legacy price data (no longer written; pending drop)
 
 `latest_block` - latest block numbers
 
