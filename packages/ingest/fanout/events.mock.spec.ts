@@ -22,6 +22,7 @@ vi.mock('../db', () => ({
 }))
 
 import EventsFanout from './events'
+import { adoptLegacyStrides } from '../db'
 import abiutil from '../abiutil'
 
 const CHAIN_ID = 1
@@ -51,5 +52,6 @@ describe('EventsFanout', () => {
     expect(job.to).toBe(999n)
     expect(job.signatures).toContain(strategyChanged)
     for (const signature of erc4626) expect(job.signatures).not.toContain(signature)
+    expect(adoptLegacyStrides).not.toHaveBeenCalled()
   })
 })

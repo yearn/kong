@@ -69,6 +69,7 @@ export async function upsertEvmLog(data: object) {
     await upsertBatch(batch, 'evmlog', 'chain_id, address, signature, block_number, log_index, transaction_hash', undefined, client)
 
     if (signatures && !replay) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`evmlog_strides/${chainId}/${address}`])
       const travelled = await getTravelledStrides(chainId, address, signatures, client)
       const next = signatures.map(signature => JSON.stringify(strider.add({ from, to }, travelled[signature])))
       await client.query(`

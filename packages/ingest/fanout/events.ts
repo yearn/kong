@@ -53,7 +53,7 @@ export default class EventsFanout {
     }
 
     const signatures = Object.keys(ranges)
-    if (!replay?.enabled) await adoptLegacyStrides(chainId, address, signatures)
+    if (!replay?.enabled && abiPaths.size === 1) await adoptLegacyStrides(chainId, address, signatures)
     const travelled = replay?.enabled ? {} : await getTravelledStrides(chainId, address, signatures)
 
     const missing = Object.fromEntries(signatures.map(signature => [

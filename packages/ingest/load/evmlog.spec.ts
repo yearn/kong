@@ -1,5 +1,6 @@
 import { expect } from 'chai'
-import db, { adoptLegacyStrides, getTravelledStrides } from '../db'
+import { setTimeout } from 'timers/promises'
+import db, { adoptLegacyStrides, firstValue, getTravelledStrides } from '../db'
 import { upsertEvmLog } from '.'
 
 const CHAIN_ID = 1
@@ -7,10 +8,10 @@ const ADDRESS = '0x0eD92e4225126578791303BF579F2853e7Fdca6B' as const
 const SIG_A = '0xaaaa'
 const SIG_B = '0xbbbb'
 
-async function seedLegacy() {
+async function seedLegacy(address: string = ADDRESS) {
   await db.query(
     'INSERT INTO evmlog_strides(chain_id, address, signature, strides) VALUES ($1, $2, \'\', $3)',
-    [CHAIN_ID, ADDRESS, JSON.stringify([{ from: '1', to: '50' }])])
+    [CHAIN_ID, address, JSON.stringify([{ from: '1', to: '50' }])])
 }
 
 async function seedThing(label: string, defaults: object) {
@@ -21,7 +22,7 @@ async function seedThing(label: string, defaults: object) {
 
 describe('load/evmlog strides', () => {
   afterEach(async () => {
-    await db.query('DELETE FROM evmlog_strides WHERE chain_id = $1 AND address = $2', [CHAIN_ID, ADDRESS])
+    await db.query('DELETE FROM evmlog_strides WHERE chain_id = $1 AND lower(address) = lower($2)', [CHAIN_ID, ADDRESS])
     await db.query('DELETE FROM thing WHERE chain_id = $1 AND address = $2', [CHAIN_ID, ADDRESS])
   })
 
@@ -52,6 +53,37 @@ describe('load/evmlog strides', () => {
       [SIG_A]: [{ from: 100n, to: 200n }],
       [SIG_B]: [{ from: 1n, to: 50n }]
     })
+  })
+
+  it('keeps both ranges when concurrent first loads race', async () => {
+    const gate = await db.connect()
+    await gate.query('BEGIN; LOCK TABLE evmlog_strides IN SHARE MODE')
+    const loads = Promise.all([
+      upsertEvmLog({ signatures: [SIG_A], chainId: CHAIN_ID, address: ADDRESS, from: 100n, to: 200n, batch: [] }),
+      upsertEvmLog({ signatures: [SIG_A], chainId: CHAIN_ID, address: ADDRESS, from: 300n, to: 400n, batch: [] })
+    ])
+    while (await firstValue<number>('SELECT count(*)::int FROM pg_stat_activity WHERE wait_event_type = \'Lock\' AND datname = current_database()') < 2) {
+      await setTimeout(10)
+    }
+    await gate.query('COMMIT')
+    gate.release()
+    await loads
+
+    expect(await getTravelledStrides(CHAIN_ID, ADDRESS, [SIG_A])).to.deep.equal({
+      [SIG_A]: [{ from: 100n, to: 200n }, { from: 300n, to: 400n }]
+    })
+  })
+
+  it('adopts and retires a lowercase legacy row under the checksummed address', async () => {
+    await seedLegacy(ADDRESS.toLowerCase())
+
+    await adoptLegacyStrides(CHAIN_ID, ADDRESS, [SIG_A])
+
+    expect(await getTravelledStrides(CHAIN_ID, ADDRESS, [SIG_A])).to.deep.equal({
+      [SIG_A]: [{ from: 1n, to: 50n }]
+    })
+    const legacy = await db.query('SELECT 1 FROM evmlog_strides WHERE chain_id = $1 AND signature = \'\' AND lower(address) = lower($2)', [CHAIN_ID, ADDRESS])
+    expect(legacy.rowCount).to.equal(0)
   })
 
   it('retires legacy coverage once adopted', async () => {
