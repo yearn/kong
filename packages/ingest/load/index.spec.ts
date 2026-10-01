@@ -38,6 +38,13 @@ describe('load/upsertBatch', () => {
     expect(result[0].value).to.equal(2)
   })
 
+  it('merges same-pk rows, keeping value from the earlier one', async () => {
+    await upsertBatch([output(1000, { value: 4 }), output(1000, { blockNumber: 8 })], 'output', PK)
+    const [row] = await rows()
+    expect(row.value).to.equal(4)
+    expect(Number(row.block_number)).to.equal(8)
+  })
+
   it('updates non-pk columns on conflict', async () => {
     await upsertBatch([output(1000, { value: 1 })], 'output', PK)
     await upsertBatch([output(1000, { value: 5, blockNumber: 9 })], 'output', PK)

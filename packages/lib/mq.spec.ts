@@ -1,4 +1,6 @@
 import { expect } from 'chai'
+import { Queue } from 'bullmq'
+import { vi } from 'vitest'
 import { addBulk, computeConcurrency, connect, down, job } from './mq'
 
 describe('mq', function() {
@@ -31,6 +33,16 @@ describe('mq', function() {
     beforeEach(clean)
     afterEach(clean)
     afterAll(down)
+
+    it('chunks bulk adds per queue into slices of 1000', async function() {
+      const spy = vi.spyOn(Queue.prototype, 'addBulk')
+      try {
+        await addBulk(Array.from({ length: 2500 }, (_, n) => ({ job: job.load.thing, data: { n } })))
+        expect(spy.mock.calls).to.have.length(3)
+      } finally {
+        spy.mockRestore()
+      }
+    })
 
     it('lands each job in its chain queue with priority and attempts', async function() {
       await addBulk([

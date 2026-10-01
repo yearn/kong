@@ -36,16 +36,20 @@ export default db
 
 export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>) {
   const client = await db.connect()
+  let broken = false
   try {
     await client.query('BEGIN')
     const result = await fn(client)
     await client.query('COMMIT')
     return result
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => {})
+    await client.query('ROLLBACK').catch(rollbackError => {
+      broken = true
+      console.error('rollback failed', rollbackError)
+    })
     throw error
   } finally {
-    client.release()
+    client.release(broken || undefined)
   }
 }
 
@@ -95,8 +99,7 @@ export async function getTravelledStrides(chainId: number, address: `0x${string}
 
 export async function getSparkline(chainId: number, address: string, label: string, component?: string) {
   // series_time floor prunes hypertable chunks. If the 90d window holds all 3
-  // buckets they're the 3 most recent overall; widen the window when
-  // fewer, so sparse/stale vaults widen to a 365d window.
+  // buckets they're the 3 most recent overall; fall back to a 365d window when fewer, so sparse/stale vaults keep a bounded series.
   const sql = (floor: string) => `
     SELECT
       CAST($1 AS int4) AS "chainId",
@@ -167,9 +170,9 @@ export function toBulkUpsertSql(table: string, pk: string, fields: string[], row
     INSERT INTO ${table} (${fields.join(', ')})
     VALUES ${rows}
     ON CONFLICT (${pk})
-    DO UPDATE SET
+    ${updates ? `DO UPDATE SET
       ${updates}
-    ${where || ''};
+    ${where || ''}` : 'DO NOTHING'};
   `
 }
 

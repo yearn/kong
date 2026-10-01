@@ -127,7 +127,8 @@ export async function upsertBatch(batch: any[], table: string, pk: string, where
   for (const object of batch) {
     const row: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(object)) row[strings.camelToSnake(key)] = value
-    rows.set(pkColumns.map(column => String(row[column])).join(','), row)
+    const key = pkColumns.map(column => String(row[column])).join('\u0000')
+    rows.set(key, { ...rows.get(key), ...row })
   }
 
   const groups = new Map<string, Record<string, unknown>[]>()

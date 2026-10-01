@@ -64,6 +64,7 @@ const bull = { connection: {
 }}
 
 const queues: { [key: string]: Queue } = {}
+const BULK_CHUNK = 1000
 
 export function connect(queueName: string) {
   return new Queue(queueName, bull)
@@ -101,7 +102,13 @@ export async function addBulk(jobs: { job: Job, data: any, options?: any }[]) {
     bulk.push({ name: job.name, data, opts: { priority: DEFAULT_PRIORITY, attempts: 1, ...options } })
     byQueue.set(queue, bulk)
   }
-  return (await Promise.all([...byQueue].map(([queue, bulk]) => queue.addBulk(bulk)))).flat()
+  return (await Promise.all([...byQueue].map(async ([queue, bulk]) => {
+    const added: Awaited<ReturnType<Queue['addBulk']>> = []
+    for (let i = 0; i < bulk.length; i += BULK_CHUNK) {
+      added.push(...await queue.addBulk(bulk.slice(i, i + BULK_CHUNK)))
+    }
+    return added
+  }))).flat()
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -190,5 +197,7 @@ export function computeConcurrency(jobs: number, options: ConcurrencyOptions) {
 
 export async function down() {
   if (MQ_INVENTORY) await flushSentry(5000)
-  return Promise.all(Object.values(queues).map(async queue => queue.close()))
+  const closing = Object.values(queues)
+  for (const name of Object.keys(queues)) delete queues[name]
+  return Promise.all(closing.map(async queue => queue.close()))
 }
