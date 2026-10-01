@@ -11,7 +11,7 @@ import { Processor, ProcessorPool } from 'lib/processor'
 import { cache, chains, abisConfig, crons as cronsConfig, mq, sentry } from 'lib'
 import db from './db'
 import { camelToSnake } from 'lib/strings'
-import { assertPriceSourceConfig, usePriceService } from './prices'
+import { assertPriceSourceConfig } from './prices'
 
 const exportsProcessor = (filePath: string): boolean => {
   const fileContent = fs.readFileSync(filePath, 'utf8')
@@ -87,7 +87,7 @@ function up() {
     abis,
   ]).then(() => {
 
-    console.log('🐒 ingest up', `USE_PRICE_SERVICE=${usePriceService()}`)
+    console.log('🐒 ingest up')
 
   }).catch(error => fatal('up', error))
 }

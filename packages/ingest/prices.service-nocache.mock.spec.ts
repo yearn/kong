@@ -10,18 +10,14 @@ import { fetchErc20PriceUsd } from './prices'
 const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' as const
 const CHAIN_ID = 137
 
-describe('fetchErc20PriceUsd (service mode, cache never upped)', () => {
-  const originalUsePriceService = process.env.USE_PRICE_SERVICE
+describe('fetchErc20PriceUsd (cache never upped)', () => {
   const originalApiKey = process.env.PRICE_SERVICE_API_KEY
 
   beforeEach(() => {
-    process.env.USE_PRICE_SERVICE = 'true'
     process.env.PRICE_SERVICE_API_KEY = 'test-key'
   })
 
   afterEach(() => {
-    if (originalUsePriceService === undefined) delete process.env.USE_PRICE_SERVICE
-    else process.env.USE_PRICE_SERVICE = originalUsePriceService
     if (originalApiKey === undefined) delete process.env.PRICE_SERVICE_API_KEY
     else process.env.PRICE_SERVICE_API_KEY = originalApiKey
     vi.unstubAllGlobals()
