@@ -7,6 +7,8 @@ import { EvmLogSchema, ThingSchema } from 'lib/types'
 import { upsertBatch } from '../../../load'
 import db from '../../../db'
 import { rpcs } from '../../../rpcs'
+import { topics as v2ReportTopics } from '../2/vault/event/StrategyReported/hook'
+import { topics as v3ReportTopics } from '../3/vault/event/StrategyReported/hook'
 
 const hasPolygon = chains.some(chain => chain.id === polygon.id) && !!process.env.HTTP_ARCHIVE_137
 
@@ -15,7 +17,7 @@ describe('abis/yearn/lib/apy', () => {
     {
       const harvest = EvmLogSchema.parse({
         chainId: mainnet.id, address: addresses.v2.yvusdt,
-        eventName: 'StrategyReported', signature: '0x', topics: [], args: {}, hook: {},
+        eventName: 'StrategyReported', signature: v2ReportTopics[0], topics: [], args: {}, hook: {},
         blockNumber: 15243268n, blockTime: 1n, logIndex: 1, transactionHash: '0x', transactionIndex: 1
       })
       await upsertBatch([harvest, {...harvest, blockNumber: 15243269n, blockTime: 2n}],
@@ -25,7 +27,7 @@ describe('abis/yearn/lib/apy', () => {
     {
       const harvest = EvmLogSchema.parse({
         chainId: polygon.id, address: addresses.v3.yvusdca,
-        eventName: 'StrategyReported', signature: '0x', topics: [], args: {}, hook: {},
+        eventName: 'StrategyReported', signature: v3ReportTopics[0], topics: [], args: {}, hook: {},
         blockNumber: 49181585n, blockTime: 1n, logIndex: 1, transactionHash: '0x', transactionIndex: 1
       })
       await upsertBatch([harvest, {...harvest, blockNumber: 49181586n, blockTime: 2n}],

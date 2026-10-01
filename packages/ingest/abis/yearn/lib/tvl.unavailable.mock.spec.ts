@@ -49,8 +49,12 @@ import { endOfDay } from 'lib/dates'
 const VAULT = '0xdA816459F1AB5631232FE5e97a05BBBb94970c95' as const
 const data = { outputLabel: 'tvl', blockTime: 1600000000n } as Data
 
+let tests = 0
+
 describe('tvl hook on price service unavailable', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 11 * 60 * 1000 * ++tests)
     vi.mocked(fetchErc20PriceUsd).mockResolvedValue({ priceUsd: 0, priceSource: 'unavailable' })
     someMock.mockReset()
     someMock.mockResolvedValue(false)
