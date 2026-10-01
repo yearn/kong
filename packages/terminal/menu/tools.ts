@@ -57,6 +57,7 @@ async function action() {
           TRUNCATE TABLE thing;
           TRUNCATE TABLE snapshot;
           TRUNCATE TABLE output;
+          TRUNCATE TABLE price;
         `)
       await db.query('VACUUM FULL evmlog;')
       await db.query('REINDEX TABLE evmlog;')
@@ -68,6 +69,8 @@ async function action() {
       await db.query('REINDEX TABLE snapshot;')
       await db.query('VACUUM FULL output;')
       await db.query('REINDEX TABLE output;')
+      await db.query('VACUUM FULL price;')
+      await db.query('REINDEX TABLE price;')
       break
     }
     }
