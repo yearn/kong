@@ -56,7 +56,7 @@ Vault metadata is fetched by address in one request via the `addresses` filter.
 
 **`--update totalAssets`** — Fetches on-chain `totalAssets()` via multicall at end-of-day blocks (resolved through DefiLlama) and upserts into the `output` table.
 
-**`--update tvls`** — Reads stored `totalAssets` from the database, fetches historical asset prices from DefiLlama, computes `tvl = totalAssets * priceUsd`, and upserts `tvl`, `priceUsd`, and `price` table rows.
+**`--update tvls`** — Reads stored `totalAssets` from the database, fetches historical asset prices from DefiLlama, computes `tvl = totalAssets * priceUsd`, and upserts `tvl` and `priceUsd` rows into the `output` table.
 
 ### Options
 
@@ -100,7 +100,7 @@ bun run tvl-backfill.ts --update tvls \
 
 Issue [#439](https://github.com/yearn/kong/issues/439) Phase 2 verification.
 
-**Always compares against prod.** Prod is the baseline (`--prod`, default `https://kong.yearn.fi`). The fork is the trial side (`--fork`, required) — e.g. local web, Neon branch deploy, or any host running with `USE_PRICE_SERVICE`.
+**Always compares against prod.** Prod is the baseline (`--prod`, default `https://kong.yearn.fi`). The fork is the trial side (`--fork`, required) — e.g. local web, Neon branch deploy, or any other host.
 
 For each vault it hits the same REST paths on **both** bases and diffs price-influenced fields (`tvl`, `priceUsd`) plus on-chain anchors (`totalAssets`, `pricePerShare`).
 
