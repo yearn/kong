@@ -19,7 +19,7 @@ describe('abis/erc4626/timeseries/pps/hook', () => {
     expect(pps.humanized).to.be.closeTo(1.1040043785400659, 1e-5)
   })
 
-  it.skipIf(!hasBase)('extracts avantis usdc pps', { timeout: 30_000 }, async () => {
+  it.skipIf(!hasBase || !process.env.HTTP_ARCHIVE_8453)('extracts avantis usdc pps', { timeout: 30_000 }, async () => {
     const usdc = '0x944766f715b51967E56aFdE5f0Aa76cEaCc9E7f9'
     const vault = ThingSchema.parse({
       chainId: base.id,
