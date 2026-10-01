@@ -29,15 +29,15 @@ const LABEL = 'katana-estimated-apr'
 // the reported strategy: a v3 vault AND a strategy of PARENT_VAULT, whose
 // katana-apr emission carries katRewardsAPR.
 const STRATEGY_VAULT = '0x6E0D2096BA6A3fe35c8186077F81BEf2c33E5bed'
-const STRATEGY_INCEPT = 37839045
+const STRATEGY_INCEPT = 40850000
 
 // the allocator vault that embeds STRATEGY_VAULT in its composition.
-const PARENT_VAULT = '0x80c34bd3a3569e126e7055831036aa7b212cb159'
-// Capped near chain head to skip ~33M blocks of history. Composition is read
+const PARENT_VAULT = '0x80c34BD3A3569E126e7055831036aa7b212cB159'
+// Capped near chain head to skip historical replay. Composition is read
 // from the vault's current on-chain state (get_default_queue / debts), not from
 // replayed events, and the estimated-apr rows come from the live webhook, so a
 // recent incept still assembles the full composition.
-const PARENT_INCEPT = 37839045
+const PARENT_INCEPT = 40850000
 
 // sibling already in parent get_default_queue. Only indexed sources hit the
 // live webhook; seed this one with the prod failure shape (netAPR/netAPY only)
@@ -88,6 +88,46 @@ async function fetchRestSnapshot(webUrl: string, address: string) {
     performance?: { estimated?: Estimated }
     composition?: Array<{ address: string, performance?: { estimated?: Estimated } }>
   }
+}
+
+async function fetchRestListVault(webUrl: string, address: string) {
+  const res = await fetch(`${webUrl}/api/rest/list/vaults/${CHAIN_ID}`)
+  expect(res.status).to.equal(200)
+  const vaults = await res.json() as Array<{
+    address?: string
+    performance?: { estimated?: Estimated }
+  }>
+  return vaults.find(vault => vault.address?.toLowerCase() === address.toLowerCase())
+}
+
+async function fetchGqlEstimated(webUrl: string, address: string): Promise<Estimated | undefined> {
+  const res = await fetch(`${webUrl}/api/gql`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      query: `query($chainId: Int!, $address: String!) {
+        vault(chainId: $chainId, address: $address) {
+          performance {
+            estimated {
+              components {
+                estimatedDebtCoverage
+                morphoBaseAPY
+                morphoRewardsAPR
+              }
+            }
+          }
+        }
+      }`,
+      variables: { chainId: CHAIN_ID, address },
+    }),
+  })
+  expect(res.status).to.equal(200)
+  const body = await res.json() as {
+    data?: { vault?: { performance?: { estimated?: Estimated } } }
+    errors?: unknown[]
+  }
+  expect(body.errors, JSON.stringify(body)).to.be.undefined
+  return body.data?.vault?.performance?.estimated
 }
 
 // Gate: the parent's composition entry for the strategy carries the estimated
@@ -145,7 +185,13 @@ describe('e2e: katana strategy rewards APR surfaces in parent composition (PR #4
       netAPY: 0.051,
       katRewardsAPR: 0.012,
     })
-    await seedOutput(pool, PARENT_VAULT, { netAPR: 0.04, netAPY: 0.041 })
+    await seedOutput(pool, PARENT_VAULT, {
+      netAPR: 0.04,
+      netAPY: 0.041,
+      estimatedDebtCoverage: 0.625,
+      morphoBaseAPY: 0.031,
+      morphoRewardsAPR: 0.012,
+    })
 
     // Drive fanout until the parent's composition carries the strategy's
     // estimated block; needs a parent re-snapshot after seeds, so re-trigger
@@ -191,5 +237,27 @@ describe('e2e: katana strategy rewards APR surfaces in parent composition (PR #4
     expect(performance?.estimated?.type).to.equal(LABEL)
     expect(performance?.estimated?.apr).to.be.a('number')
     expect(performance?.estimated?.apy).to.be.a('number')
+  })
+
+  it('GraphQL returns the parent Katana diagnostics unchanged', async function() {
+    const estimated = await fetchGqlEstimated(webUrl, PARENT_VAULT)
+    expect(estimated?.components?.estimatedDebtCoverage).to.equal(0.625)
+    expect(estimated?.components?.morphoBaseAPY).to.equal(0.031)
+    expect(estimated?.components?.morphoRewardsAPR).to.equal(0.012)
+  })
+
+  it('REST vault list returns the parent Katana diagnostics unchanged', async function() {
+    const vault = await fetchRestListVault(webUrl, PARENT_VAULT)
+    expect(vault, 'parent missing from REST vault list').to.not.be.undefined
+    expect(vault!.performance?.estimated?.components?.estimatedDebtCoverage).to.equal(0.625)
+    expect(vault!.performance?.estimated?.components?.morphoBaseAPY).to.equal(0.031)
+    expect(vault!.performance?.estimated?.components?.morphoRewardsAPR).to.equal(0.012)
+  })
+
+  it('REST snapshot returns the parent Katana diagnostics unchanged', async function() {
+    const { performance } = await fetchRestSnapshot(webUrl, PARENT_VAULT)
+    expect(performance?.estimated?.components?.estimatedDebtCoverage).to.equal(0.625)
+    expect(performance?.estimated?.components?.morphoBaseAPY).to.equal(0.031)
+    expect(performance?.estimated?.components?.morphoRewardsAPR).to.equal(0.012)
   })
 })
