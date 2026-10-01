@@ -1,5 +1,6 @@
 import { expect } from 'chai'
-import db from '../db'
+import { vi } from 'vitest'
+import db, { toBulkUpsertSql } from '../db'
 import { upsertBatch } from '.'
 
 const PK = 'chain_id, address, label, component, series_time'
@@ -27,7 +28,15 @@ describe('load/upsertBatch', () => {
   })
 
   it('chunks past 500 rows', async () => {
-    await upsertBatch(Array.from({ length: 1201 }, (_, i) => output(1000 + i, { value: i })), 'output', PK)
+    const client = await db.connect()
+    const spy = vi.spyOn(client, 'query')
+    try {
+      await upsertBatch(Array.from({ length: 1201 }, (_, i) => output(1000 + i, { value: i })), 'output', PK, undefined, client)
+      const inserts = spy.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO output'))
+      expect(inserts).to.have.length(3)
+    } finally {
+      client.release()
+    }
     expect(await rows()).to.have.length(1201)
   })
 
@@ -58,6 +67,12 @@ describe('load/upsertBatch', () => {
     await upsertBatch([output(1000, { value: 2 })], 'output', PK)
     const [row] = await rows()
     expect(Number(row.st)).to.equal(1000)
+
+    const fields = ['chain_id', 'address', 'label', 'component', 'series_time', 'value']
+    const sql = toBulkUpsertSql('output', PK, fields, 1)
+    const set = sql.slice(sql.indexOf('DO UPDATE SET') + 'DO UPDATE SET'.length)
+    const setColumns = [...set.matchAll(/(\w+) = EXCLUDED\./g)].map(match => match[1])
+    expect(setColumns).to.deep.equal(['value'])
   })
 
   it('keeps columns missing from a later row, mixed key sets in one batch', async () => {
