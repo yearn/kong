@@ -20,7 +20,7 @@ E2E tests use `TestEnvironment` from `lib/helpers/containers` to run the full st
 ### Prerequisites
 
 - Docker running
-- `.env` at repo root with RPC endpoints (`HTTP_ARCHIVE_*`, `HTTP_FULLNODE_*`, etc.)
+- `.env` at repo root with RPC endpoints (`HTTP_ARCHIVE_*`, `HTTP_FULLNODE_*`, etc.) and `PRICE_SERVICE_API_KEY` (ingest exits at startup without it)
 
 ### Running
 
