@@ -3,7 +3,7 @@ import { EvmAddressSchema, ThingSchema } from 'lib/types'
 import { z } from 'zod'
 import { getSparkline } from '../../../db'
 import { getLatestApy, getLatestOracleApr } from '../../../helpers/apy-apr'
-import { fetchOrExtractErc20 } from '../../yearn/lib'
+import { extractErc20, fetchErc20 } from '../../yearn/lib'
 
 export default async function process(chainId: number, address: `0x${string}`, data: object) {
   const { asset } = z.object({ asset: EvmAddressSchema }).parse(data)
@@ -17,10 +17,13 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const oracle = await getLatestOracleApr(chainId, address)
   const historical = await getLatestApy(chainId, address)
 
-  const erc20 = await fetchOrExtractErc20(chainId, asset)
-  await mq.add(mq.job.load.thing, ThingSchema.parse({
-    chainId, address: asset, label: 'erc20', defaults: erc20
-  }))
+  let erc20 = await fetchErc20(chainId, asset)
+  if (!erc20) {
+    erc20 = await extractErc20(chainId, asset)
+    await mq.add(mq.job.load.thing, ThingSchema.parse({
+      chainId, address: asset, label: 'erc20', defaults: erc20
+    }))
+  }
 
   return {
     asset: erc20,
