@@ -103,9 +103,9 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
   const allocator = await projectDebtAllocator(chainId, address)
 
-  const debts = await extractDebts(chainId, address, strategies, allocator)
+  const debts = await extractDebts(chainId, address, strategies, allocator, data)
   const estimatedApr = await getLatestEstimatedAprV3(chainId, address)
-  const composition = await extractComposition(chainId, address, strategies, debts, estimatedApr?.type)
+  const composition = await extractComposition(chainId, address, strategies, debts, estimatedApr?.type, data.get_default_queue)
   const fees = await extractFeesBps(chainId, address, snapshot)
   const locker = snapshot.accountant && snapshot.accountant !== zeroAddress
     && await things.exist(chainId, snapshot.accountant, 'vault')
@@ -198,7 +198,8 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
     if (changeType[event.change_type] === 'add') {
       result.push(zhexstring.parse(event.strategy))
     } else {
-      result.splice(result.indexOf(zhexstring.parse(event.strategy)), 1)
+      const index = result.indexOf(zhexstring.parse(event.strategy))
+      if (index >= 0) result.splice(index, 1)
     }
   }
 
@@ -209,7 +210,13 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   return result
 }
 
+const allocators = new Map<string, { value: `0x${string}` | undefined, expires: number }>()
+
 export async function projectDebtAllocator(chainId: number, vault: `0x${string}`) {
+  const key = `${chainId}:${vault.toLowerCase()}`
+  const cached = allocators.get(key)
+  if (cached && cached.expires > Date.now()) return cached.value
+
   const topic = toEventSelector('event NewDebtAllocator(address indexed allocator, address indexed vault)')
   const events = await db.query(`
   SELECT args->>'allocator' AS allocator
@@ -218,8 +225,9 @@ export async function projectDebtAllocator(chainId: number, vault: `0x${string}`
   ORDER BY block_number DESC, log_index DESC
   LIMIT 1`,
   [chainId, topic, vault])
-  if(events.rows.length === 0) return undefined
-  return zhexstring.parse(events.rows[0].allocator)
+  const value = events.rows.length === 0 ? undefined : zhexstring.parse(events.rows[0].allocator)
+  allocators.set(key, { value, expires: Date.now() + 60 * 60 * 1000 })
+  return value
 }
 
 export async function projectRoles(chainId: number, vault: `0x${string}`) {
@@ -259,7 +267,7 @@ function appendRoleManagerPseudoRole(
   }
 }
 
-export async function extractDebts(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[], allocator: `0x${string}` | undefined) {
+export async function extractDebts(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[], allocator: `0x${string}` | undefined, data: { asset?: unknown, decimals?: unknown }) {
   const results: {
     strategy: `0x${string}`,
     activation: bigint,
@@ -277,65 +285,54 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
     maxDebtRatio: number | undefined
   }[] = []
 
-  const snapshot = await db.query(
-    `SELECT
-      snapshot->'asset' AS asset,
-      snapshot->'decimals' AS decimals
-    FROM snapshot
-    WHERE chain_id = $1 AND address = $2`,
-    [chainId, vault]
-  )
-
   const { asset, decimals } = z.object({
     asset: zhexstring.nullish(),
     decimals: z.number({ coerce: true }).nullish()
-  }).parse(snapshot.rows[0] || {})
+  }).parse(data)
 
-  if (asset && decimals && strategies) {
+  if (asset && decimals && strategies.length > 0) {
+    const strategiesAbi = parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256)'])
+    const performanceFeeAbi = parseAbi(['function performanceFee() view returns (uint16)'])
+    const targetRatioAbi = parseAbi(['function getStrategyTargetRatio(address) view returns (uint256)'])
+    const maxRatioAbi = parseAbi(['function getStrategyMaxRatio(address) view returns (uint256)'])
+    const stride = allocator ? 4 : 2
+
+    const contracts: any[] = []
     for (const strategy of strategies) {
-      const contracts: any[] = [
-        {
-          address: vault, functionName: 'strategies', args: [strategy],
-          abi: parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256)'])
-        },
-        {
-          address: strategy, functionName: 'performanceFee',
-          abi: parseAbi(['function performanceFee() view returns (uint16)'])
-        }
-      ]
-
+      contracts.push(
+        { address: vault, functionName: 'strategies', args: [strategy], abi: strategiesAbi },
+        { address: strategy, functionName: 'performanceFee', abi: performanceFeeAbi }
+      )
       if (allocator) {
         contracts.push(
-          {
-            address: allocator, functionName: 'getStrategyTargetRatio', args: [strategy],
-            abi: parseAbi(['function getStrategyTargetRatio(address) view returns (uint256)'])
-          },
-          {
-            address: allocator, functionName: 'getStrategyMaxRatio', args: [strategy],
-            abi: parseAbi(['function getStrategyMaxRatio(address) view returns (uint256)'])
-          }
+          { address: allocator, functionName: 'getStrategyTargetRatio', args: [strategy], abi: targetRatioAbi },
+          { address: allocator, functionName: 'getStrategyMaxRatio', args: [strategy], abi: maxRatioAbi }
         )
       }
+    }
 
-      const multicall = await rpcs.next(chainId).multicall({ contracts })
+    const multicall = await rpcs.next(chainId).multicall({ contracts })
+    const price = await fetchErc20PriceUsd(chainId, asset)
 
-      const [activation, lastReport, currentDebt, maxDebt] = multicall[0].result
-        ? multicall[0].result! as [bigint, bigint, bigint, bigint]
+    for (let i = 0; i < strategies.length; i++) {
+      const strategy = strategies[i]
+      const offset = i * stride
+
+      const [activation, lastReport, currentDebt, maxDebt] = multicall[offset].result
+        ? multicall[offset].result! as [bigint, bigint, bigint, bigint]
         : [0n, 0n, 0n, 0n] as [bigint, bigint, bigint, bigint]
 
-      const performanceFee = multicall[1]?.result
-        ? BigInt(multicall[1].result as number)
+      const performanceFee = multicall[offset + 1]?.result
+        ? BigInt(multicall[offset + 1].result as number)
         : 0n
 
-      const targetDebtRatio = multicall[2]?.result
-        ? Number(multicall[2].result)
+      const targetDebtRatio = multicall[offset + 2]?.result
+        ? Number(multicall[offset + 2].result)
         : undefined
 
-      const maxDebtRatio = multicall[3]?.result
-        ? Number(multicall[3].result)
+      const maxDebtRatio = multicall[offset + 3]?.result
+        ? Number(multicall[offset + 3].result)
         : undefined
-
-      const price = await fetchErc20PriceUsd(chainId, asset)
 
       // V3 contracts don't track totalGain and totalLoss at the strategy level
       const totalGain = 0n
@@ -470,22 +467,10 @@ export async function extractComposition(
   vault: `0x${string}`,
   strategies: `0x${string}`[],
   debts: Awaited<ReturnType<typeof extractDebts>>,
-  estimatedAprLabel?: string
+  estimatedAprLabel?: string,
+  defaultQueueRaw?: unknown
 ) {
-  // Fetch vault snapshot data for queue context
-  const vaultSnapshot = await db.query(`
-    SELECT
-      hook->'strategies' as strategies,
-      snapshot->'get_default_queue' as "defaultQueue",
-      snapshot->'use_default_queue' as "useDefaultQueue"
-    FROM snapshot
-    WHERE chain_id = $1 AND address = $2
-  `, [chainId, vault])
-
-  const { defaultQueue } = z.object({
-    strategies: z.array(zhexstring).nullish(),
-    defaultQueue: z.array(zhexstring).nullish()
-  }).parse(vaultSnapshot.rows[0] || {})
+  const defaultQueue = zhexstring.array().nullish().parse(defaultQueueRaw)
 
   // Batch-fetch strategy snapshots for name and APR
   const strategySnapshots = await fetchStrategySnapshots(chainId, strategies)
