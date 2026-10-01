@@ -8,7 +8,8 @@
     "start": "next start",
     "test": "vitest run",
     "clean": "rm -rf .next && rm -rf node_modules",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@apollo/server": "4.11.3",
@@ -40,7 +41,7 @@
     "@eslint/eslintrc": "3.2.0",
     "@eslint/js": "9.19.0",
     "@types/figlet": "1.7.0",
-    "@types/node": "20.5.6",
+    "@types/node": "20.17.17",
     "@types/pg": "8.11.11",
     "@types/react": "18.2.21",
     "@types/react-dom": "18.2.7",
@@ -50,6 +51,6 @@
     "eslint": "9.19.0",
     "eslint-config-next": "15.1.6",
     "tailwindcss": "3.3.3",
-    "typescript": "5.2.2"
+    "typescript": "5.7.3"
   }
 }

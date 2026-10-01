@@ -14,3 +14,10 @@ jobs:
       - run: bun --filter lib lint
       - run: bun --filter terminal lint
       - run: bun --filter web lint
+      - run: bun --filter terminal typecheck
+      - run: bun --filter ingest typecheck
+        continue-on-error: true
+      - run: bun --filter lib typecheck
+        continue-on-error: true
+      - run: bun --filter web typecheck
+        continue-on-error: true

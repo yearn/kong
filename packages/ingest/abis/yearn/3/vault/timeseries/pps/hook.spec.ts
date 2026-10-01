@@ -6,7 +6,7 @@ import { addresses } from '../../../../../../test-addresses'
 import * as shared from '../../../../2/vault/timeseries/pps/hook'
 import process from './hook'
 
-const hasPolygon = chains.some(chain => chain.id === polygon.id)
+const hasPolygon = chains.some(chain => chain.id === polygon.id) && !!globalThis.process.env.HTTP_ARCHIVE_137
 
 describe('abis/yearn/3/vault/timeseries/pps/hook', function() {
   it.skipIf(!hasPolygon)('reads and humanizes pricePerShare for a v3 vault', async function() {

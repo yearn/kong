@@ -7,7 +7,7 @@ import { chains } from 'lib'
 const hasBase = chains.some(chain => chain.id === base.id)
 
 describe('abis/erc4626/timeseries/pps/hook', () => {
-  it('extracts sdai pps', { timeout: 30_000 }, async () => {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('extracts sdai pps', { timeout: 30_000 }, async () => {
     const sdai = '0x83F20F44975D03b1b09e64809B757c47f942BEeA'
     const vault = ThingSchema.parse({
       chainId: mainnet.id,
@@ -32,7 +32,7 @@ describe('abis/erc4626/timeseries/pps/hook', () => {
     expect(pps.humanized).to.be.closeTo(1.2807073904123205, 1e-5)
   })
 
-  it('uses share decimals when they differ from asset decimals', { timeout: 30_000 }, async () => {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('uses share decimals when they differ from asset decimals', { timeout: 30_000 }, async () => {
     // Yearn USDT (Morpho): 18-decimal shares, 6-decimal USDT asset.
     // defaults.decimals holds the asset decimals (6); convertToAssets needs the
     // share decimals (18) or it rounds to 0. Pre-fix this returned 0.

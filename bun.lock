@@ -167,7 +167,7 @@
         "@eslint/eslintrc": "3.2.0",
         "@eslint/js": "9.19.0",
         "@types/figlet": "1.7.0",
-        "@types/node": "20.5.6",
+        "@types/node": "20.17.17",
         "@types/pg": "8.11.11",
         "@types/react": "18.2.21",
         "@types/react-dom": "18.2.7",
@@ -177,7 +177,7 @@
         "eslint": "9.19.0",
         "eslint-config-next": "15.1.6",
         "tailwindcss": "3.3.3",
-        "typescript": "5.2.2",
+        "typescript": "5.7.3",
       },
     },
   },
@@ -2571,10 +2571,6 @@
     "wait-for-postgres/pg": ["pg@6.4.2", "", { "dependencies": { "buffer-writer": "1.0.1", "js-string-escape": "1.0.1", "packet-reader": "0.3.1", "pg-connection-string": "0.1.3", "pg-pool": "1.*", "pg-types": "1.*", "pgpass": "1.*", "semver": "4.3.2" } }, "sha512-ytdBy5prmCLKJ+djccqS5oQW6+sUsQGCcCFtVe8Or4Zmo3buaWSVHMnkpSuhhdG7dBbkMHThXblShzHc0atDDg=="],
 
     "wait-on/joi": ["joi@17.13.3", "", { "dependencies": { "@hapi/hoek": "^9.3.0", "@hapi/topo": "^5.1.0", "@sideway/address": "^4.1.5", "@sideway/formula": "^3.0.1", "@sideway/pinpoint": "^2.0.0" } }, "sha512-otDA4ldcIx+ZXsKHWmp0YizCweVRZG96J10b0FevjfuncLO1oX59THoAmHkNubYJ+9gWsYsp5k8v4ib6oDv1fA=="],
-
-    "web/@types/node": ["@types/node@20.5.6", "", {}, "sha512-Gi5wRGPbbyOTX+4Y2iULQ27oUPrefaB0PxGQJnfyWN3kvEDGM3mIB5M/gQLmitZf7A9FmLeaqxD3L1CXpm3VKQ=="],
-
-    "web/typescript": ["typescript@5.2.2", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-mI4WrpHsbCIcwT9cF4FZvr80QUeKvsUsUvKDoR+X/7XHQH98xYD8YHZg7ANtz2GtZt/CBq2QJ0thkGJMHfqc1w=="],
 
     "winston/async": ["async@2.6.4", "", { "dependencies": { "lodash": "^4.17.14" } }, "sha512-mzo5dfJYwAn29PeiJ0zvwTo04zj8HDJj0Mn8TD7sno7q12prdbnasKJHhkm2c1LgrhlJ0teaea8860oxi51mGA=="],
 

@@ -4,7 +4,7 @@ import { __estimateHeight, getBlock } from './blocks'
 import { rpcs } from './rpcs'
 
 describe('blocks', function() {
-  it('estimates block height', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('estimates block height', async function() {
     const result = await __estimateHeight(1, 1716356553n)
     const ranged = result >= 19923410n && result <= 19923414n
     if (!ranged) console.error ('result', result)
