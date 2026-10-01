@@ -91,29 +91,3 @@ export async function getRecentTimeseries(
 
   return result.rows as TimeseriesRow[]
 }
-
-export async function getLatestTimeseries(
-  chainId: number,
-  address: string,
-  label: string,
-): Promise<TimeseriesRow[]> {
-  const result = await db.query(
-    `
-    SELECT DISTINCT ON (component)
-      chain_id AS "chainId",
-      address,
-      label,
-      component,
-      value,
-      series_time AS time
-    FROM output
-    WHERE chain_id = $1
-      AND address = $2
-      AND label = $3
-    ORDER BY component, series_time DESC
-  `,
-    [chainId, getAddress(address as `0x${string}`), label],
-  )
-
-  return result.rows as TimeseriesRow[]
-}
