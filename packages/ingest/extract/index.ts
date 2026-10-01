@@ -1,4 +1,4 @@
-import { mq } from 'lib'
+import { mq, sentry } from 'lib'
 import { Worker } from 'bullmq'
 import { Processor } from 'lib/processor'
 import { EvmLogsExtractor } from './evmlogs'
@@ -26,8 +26,14 @@ export default class Extract implements Processor {
       const label = job.data.replay
         ? `🎭 ${job.name} ${job.id} ${job.data.chainId}`
         : `🛸 ${job.name} ${job.id} ${job.data.chainId}`
+      const extractor = this.extractors[job.name]
+      if (!extractor) {
+        console.warn('🚨', 'unknown extract job', job.name)
+        sentry.captureMessage(`unknown extract job ${job.name}`, { level: 'warning', tags: { component: 'extract' } })
+        return
+      }
       console.time(label)
-      await this.extractors[job.name].extract(job.data)
+      await extractor.extract(job.data)
       console.timeEnd(label)
     }
     this.workers = mq.workers(mq.q.extract, handler)

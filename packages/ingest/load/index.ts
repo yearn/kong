@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { mq, strider, types } from 'lib'
+import { mq, sentry, strider, types } from 'lib'
 import db, { firstRow, getTravelledStrides, toUpsertSql, upsertThingDefaults } from '../db'
 import { Processor } from 'lib/processor'
 import { PoolClient } from 'pg'
@@ -38,7 +38,11 @@ export default class Load implements Processor {
     this.worker = mq.worker(mq.q.load, async job => {
       const label = `📀 ${job.name} ${job.id}`
       const handler = this.handlers[job.name]
-      if (!handler) { console.warn('🚨', 'unknown load job', job.name); return }
+      if (!handler) {
+        console.warn('🚨', 'unknown load job', job.name)
+        sentry.captureMessage(`unknown load job ${job.name}`, { level: 'warning', tags: { component: 'load' } })
+        return
+      }
       console.time(label)
       await handler(job.data)
       console.timeEnd(label)
