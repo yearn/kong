@@ -54,7 +54,7 @@ async function __getBlock(chainId: number, blockNumber?: bigint) {
 export async function getDefaultStartBlockNumber(chainId: number): Promise<bigint> {
   const result = cache.wrap(`getDefaultStartBlock:${chainId}`, async () => {
     return await estimateHeight(chainId, dates.DEFAULT_START())
-  }, 10_000)
+  }, 60 * 60 * 1000)
   return BigInt(await result)
 }
 
@@ -98,7 +98,7 @@ async function estimateHeightManual(chainId: number, timestamp: bigint) {
 export async function estimateCreationBlock(chainId: number, contract: `0x${string}`): Promise<Block> {
   const result = cache.wrap(`estimateCreationBlock:${chainId}:${contract}`, async () => {
     return await __estimateCreationBlock(chainId, contract)
-  }, 10_000)
+  }, 30 * 24 * 60 * 60 * 1000)
   return BlockSchema.parse(await result)
 }
 

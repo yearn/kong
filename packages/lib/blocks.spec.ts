@@ -1,6 +1,7 @@
 import { expect } from 'chai'
+import { vi } from 'vitest'
 import { cache } from './cache'
-import { __estimateHeight, getBlock } from './blocks'
+import { __estimateHeight, estimateCreationBlock, getBlock, getDefaultStartBlockNumber } from './blocks'
 import { rpcs } from './rpcs'
 
 describe('blocks', function() {
@@ -80,5 +81,28 @@ describe('blocks', function() {
         ['undefined', '1', '2', '3', '4', '5'].map(blockNumber => cache.del(`getBlock:${chainId}:${blockNumber}`))
       )
     }
+  })
+
+  describe('cache ttl', function() {
+    afterEach(() => vi.restoreAllMocks())
+
+    function spyOnWrap(value: unknown) {
+      const wrap = vi.fn(async () => value)
+      vi.spyOn(cache, 'wrap', 'get').mockReturnValue(wrap as unknown as typeof cache.wrap)
+      return wrap
+    }
+
+    it('caches the creation block for 30 days', async function() {
+      const wrap = spyOnWrap({ chainId: 1, number: 1n, timestamp: 2n })
+      await estimateCreationBlock(1, '0x0000000000000000000000000000000000000001')
+      expect(wrap.mock.calls[0]).to.have.length(3)
+      expect((wrap.mock.calls[0] as unknown[])[2]).to.equal(30 * 24 * 60 * 60 * 1000)
+    })
+
+    it('caches the default start block for 1 hour', async function() {
+      const wrap = spyOnWrap(1n)
+      await getDefaultStartBlockNumber(1)
+      expect((wrap.mock.calls[0] as unknown[])[2]).to.equal(60 * 60 * 1000)
+    })
   })
 })
