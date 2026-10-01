@@ -3,7 +3,6 @@ import { Worker } from 'bullmq'
 import { Processor } from 'lib/processor'
 import { EvmLogsExtractor } from './evmlogs'
 import { BlockExtractor } from './block'
-import { WaveyDbExtractor } from './waveydb'
 import { SnapshotExtractor } from './snapshot'
 import { TimeseriesExtractor } from './timeseries'
 import { ManualsExtractor } from './manuals'
@@ -15,7 +14,6 @@ export default class Extract implements Processor {
   extractors = {
     [mq.job.extract.block.name]: new BlockExtractor(),
     [mq.job.extract.evmlog.name]: new EvmLogsExtractor(),
-    [mq.job.extract.waveydb.name]: new WaveyDbExtractor(),
     [mq.job.extract.snapshot.name]: new SnapshotExtractor(),
     [mq.job.extract.timeseries.name]: new TimeseriesExtractor(),
     [mq.job.extract.manuals.name]: new ManualsExtractor(),
