@@ -281,7 +281,7 @@ async function fetchPriceServiceExactResult(request: {
 
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` },
-    signal: AbortSignal.timeout(10_000)
+    signal: AbortSignal.timeout(30_000)
   })
   if (!response.ok) {
     warn('http', response.status)
@@ -347,7 +347,7 @@ async function sendPriceServiceBatch(entries: PriceServiceBatchEntry[]) {
 
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` },
-      signal: AbortSignal.timeout(10_000)
+      signal: AbortSignal.timeout(30_000)
     })
     if (!response.ok) throw new Error(`batchHistorical ${response.status} ${url}`)
 

@@ -17,9 +17,11 @@ vi.mock('../../../rpcs', () => ({
   }
 }))
 
+const { height } = vi.hoisted(() => ({ height: { value: 100n } }))
+
 vi.mock('lib/blocks', () => ({
-  estimateHeight: vi.fn(async () => 100n),
-  getBlock: vi.fn(async () => ({ number: 100n, timestamp: 1700000000n }))
+  estimateHeight: vi.fn(async () => height.value),
+  getBlock: vi.fn(async () => ({ number: height.value, timestamp: 1700000000n }))
 }))
 
 vi.mock('../../../db', () => ({
@@ -53,8 +55,7 @@ let tests = 0
 
 describe('tvl hook on price service unavailable', () => {
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(Date.now() + 11 * 60 * 1000 * ++tests)
+    height.value = 100n + BigInt(++tests)
     vi.mocked(fetchErc20PriceUsd).mockResolvedValue({ priceUsd: 0, priceSource: 'unavailable' })
     someMock.mockReset()
     someMock.mockResolvedValue(false)

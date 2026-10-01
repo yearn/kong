@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { vi } from 'vitest'
+import { afterEach, vi } from 'vitest'
 import { cache } from './cache'
 import { __estimateHeight, estimateCreationBlock, getBlock, getDefaultStartBlockNumber } from './blocks'
 import { rpcs } from './rpcs'
@@ -86,17 +86,46 @@ describe('blocks', function() {
   describe('cache ttl', function() {
     afterEach(() => vi.restoreAllMocks())
 
+    function stubWrap(impl: unknown) {
+      vi.spyOn(cache as never, 'wrap' as never, 'get' as never).mockReturnValue(impl as never)
+    }
+
     function spyOnWrap(value: unknown) {
       const wrap = vi.fn(async () => value)
-      vi.spyOn(cache, 'wrap', 'get').mockReturnValue(wrap as unknown as typeof cache.wrap)
+      stubWrap(wrap)
       return wrap
     }
 
     it('caches the creation block for 30 days', async function() {
       const wrap = spyOnWrap({ chainId: 1, number: 1n, timestamp: 2n })
       await estimateCreationBlock(1, '0x0000000000000000000000000000000000000001')
-      expect(wrap.mock.calls[0]).to.have.length(3)
-      expect((wrap.mock.calls[0] as unknown[])[2]).to.equal(30 * 24 * 60 * 60 * 1000)
+      const ttl = (wrap.mock.calls[0] as unknown[])[2] as () => number
+      expect(ttl()).to.equal(30 * 24 * 60 * 60 * 1000)
+    })
+
+    it('keeps the 10s ttl when the creation block search hit an rpc error', async function() {
+      const originalNext = rpcs.next
+      let ttl: (() => number) | undefined
+      stubWrap(async (key: string, fn: () => Promise<unknown>, t: () => number) => {
+        if (key.startsWith('estimateCreationBlock')) ttl = t
+        return await fn()
+      })
+      await cache.del('getBlock:31339:undefined')
+      await cache.del('getBlock:31339:1')
+      rpcs.next = (() => ({
+        getBlockNumber: async () => 2n,
+        getBytecode: async () => { throw new Error('flaky') },
+        getBlock: async ({ blockNumber }: { blockNumber?: bigint } = {}) => ({ number: blockNumber ?? 2n, timestamp: 1n })
+      })) as unknown as typeof rpcs.next
+
+      try {
+        await estimateCreationBlock(31339, '0x0000000000000000000000000000000000000002')
+        expect(ttl!()).to.equal(10_000)
+      } finally {
+        rpcs.next = originalNext
+        await cache.del('getBlock:31339:undefined')
+        await cache.del('getBlock:31339:1')
+      }
     })
 
     it('caches the default start block for 1 hour', async function() {

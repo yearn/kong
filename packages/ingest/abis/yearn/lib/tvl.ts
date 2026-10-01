@@ -94,12 +94,12 @@ async function hasComputedTvl(chainId: number, address: `0x${string}`, label: st
 const computed = new Map<string, { value: Awaited<ReturnType<typeof computeTvl>>, expires: number }>()
 
 export async function _compute(vault: Thing, blockNumber: bigint, latest = false) {
-  const key = `${vault.chainId}:${vault.address.toLowerCase()}:${blockNumber}`
+  const key = `${vault.chainId}:${vault.address.toLowerCase()}:${blockNumber}:${latest}`
   const hit = computed.get(key)
   if (hit && hit.expires > Date.now()) return hit.value
 
   const value = await computeTvl(vault, blockNumber, latest)
-  if (value.priceSource !== 'unavailable') {
+  if (value.priceSource !== 'unavailable' && value.totalAssets !== undefined) {
     const now = Date.now()
     for (const [k, v] of computed) if (v.expires <= now) computed.delete(k)
     computed.set(key, { value, expires: now + 10 * 60 * 1000 })

@@ -58,6 +58,45 @@ describe('abis/yearn/3/vault/snapshot/hook', () => {
     expect(multicall.mock.calls[0][0].contracts).toHaveLength(4)
   })
 
+  it('extractDebts without allocator reads no ratios and keeps each strategy own debt', async () => {
+    multicall.mockResolvedValue([
+      { status: 'success', result: [1n, 2n, 3n, 4n] },
+      { status: 'success', result: 100 },
+      { status: 'success', result: [5n, 6n, 7n, 8n] },
+      { status: 'success', result: 200 }
+    ])
+    const debts = await extractDebts(1, VAULT, [A, B], undefined, { asset: ASSET, decimals: 18 })
+
+    expect(debts.map(d => d.currentDebt)).toEqual([3n, 7n])
+    expect(debts.map(d => d.performanceFee)).toEqual([100n, 200n])
+    for (const debt of debts) {
+      expect(debt.targetDebtRatio).toBeUndefined()
+      expect(debt.maxDebtRatio).toBeUndefined()
+    }
+  })
+
+  it('extractDebts falls back to the stored snapshot only when asset or decimals is missing', async () => {
+    multicall.mockResolvedValue([{ status: 'failure' }, { status: 'failure' }])
+    query.mockResolvedValue({ rows: [{ asset: ASSET, decimals: 6 }] })
+
+    await extractDebts(1, VAULT, [A], undefined, {})
+    expect(query).toHaveBeenCalledTimes(1)
+    expect(multicall).toHaveBeenCalledTimes(1)
+
+    query.mockClear()
+    await extractDebts(1, VAULT, [A], undefined, { asset: ASSET, decimals: 6 })
+    expect(query).not.toHaveBeenCalled()
+  })
+
+  it('projectDebtAllocator does not cache an absent allocator', async () => {
+    const vault = '0x6000000000000000000000000000000000000006' as const
+    query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ allocator: ALLOCATOR }] })
+
+    expect(await projectDebtAllocator(1, vault)).toBeUndefined()
+    expect(await projectDebtAllocator(1, vault)).toBe(ALLOCATOR)
+    expect(query).toHaveBeenCalledTimes(2)
+  })
+
   it('projectDebtAllocator queries once per (chain, vault)', async () => {
     query.mockResolvedValue({ rows: [{ allocator: ALLOCATOR }] })
     const vault = '0x4000000000000000000000000000000000000004' as const

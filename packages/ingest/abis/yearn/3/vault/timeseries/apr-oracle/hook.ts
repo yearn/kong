@@ -23,31 +23,24 @@ function isExpectedStrategyAprFallback(error: unknown): boolean {
   return !!error.walk(cause => cause instanceof ContractFunctionRevertedError)
 }
 
-const workingFunction = new Map<string, 'getStrategyApr' | 'getCurrentApr'>()
-
 export async function readApr(
   chainId: number,
   address: `0x${string}`,
   blockNumber: bigint,
   oracleAddress: `0x${string}`,
 ): Promise<number | undefined> {
-  const key = `${chainId}:${address.toLowerCase()}`
+  try {
+    const rawApr = await rpcs.next(chainId).readContract({
+      abi: V3_ORACLE_ABI,
+      address: oracleAddress,
+      functionName: 'getStrategyApr',
+      args: [address, 0n],
+      blockNumber,
+    })
 
-  if (workingFunction.get(key) !== 'getCurrentApr') {
-    try {
-      const rawApr = await rpcs.next(chainId).readContract({
-        abi: V3_ORACLE_ABI,
-        address: oracleAddress,
-        functionName: 'getStrategyApr',
-        args: [address, 0n],
-        blockNumber,
-      })
-
-      workingFunction.set(key, 'getStrategyApr')
-      return parseApr(rawApr)
-    } catch (error) {
-      if (!isExpectedStrategyAprFallback(error)) throw error
-    }
+    return parseApr(rawApr)
+  } catch (error) {
+    if (!isExpectedStrategyAprFallback(error)) throw error
   }
 
   try {
@@ -60,7 +53,6 @@ export async function readApr(
       args: [address],
       blockNumber,
     })
-    workingFunction.set(key, 'getCurrentApr')
     return parseApr(rawApr)
   } catch {
     console.warn('🚨', 'apr-oracle getCurrentApr failed', chainId, address, String(blockNumber))

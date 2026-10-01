@@ -210,7 +210,7 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   return result
 }
 
-const allocators = new Map<string, { value: `0x${string}` | undefined, expires: number }>()
+const allocators = new Map<string, { value: `0x${string}`, expires: number }>()
 
 export async function projectDebtAllocator(chainId: number, vault: `0x${string}`) {
   const key = `${chainId}:${vault.toLowerCase()}`
@@ -225,7 +225,8 @@ export async function projectDebtAllocator(chainId: number, vault: `0x${string}`
   ORDER BY block_number DESC, log_index DESC
   LIMIT 1`,
   [chainId, topic, vault])
-  const value = events.rows.length === 0 ? undefined : zhexstring.parse(events.rows[0].allocator)
+  if (events.rows.length === 0) return undefined
+  const value = zhexstring.parse(events.rows[0].allocator)
   allocators.set(key, { value, expires: Date.now() + 60 * 60 * 1000 })
   return value
 }
@@ -285,10 +286,24 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
     maxDebtRatio: number | undefined
   }[] = []
 
-  const { asset, decimals } = z.object({
+  const DebtsSnapshotSchema = z.object({
     asset: zhexstring.nullish(),
     decimals: z.number({ coerce: true }).nullish()
-  }).parse(data)
+  })
+  let { asset, decimals } = DebtsSnapshotSchema.parse(data)
+  if (asset == null || decimals == null) {
+    const snapshot = await db.query(
+      `SELECT
+        snapshot->'asset' AS asset,
+        snapshot->'decimals' AS decimals
+      FROM snapshot
+      WHERE chain_id = $1 AND address = $2`,
+      [chainId, vault]
+    )
+    const stored = DebtsSnapshotSchema.parse(snapshot.rows[0] || {})
+    asset ??= stored.asset
+    decimals ??= stored.decimals
+  }
 
   if (asset && decimals && strategies.length > 0) {
     const strategiesAbi = parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256)'])
@@ -326,11 +341,11 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
         ? BigInt(multicall[offset + 1].result as number)
         : 0n
 
-      const targetDebtRatio = multicall[offset + 2]?.result
+      const targetDebtRatio = allocator && multicall[offset + 2]?.result
         ? Number(multicall[offset + 2].result)
         : undefined
 
-      const maxDebtRatio = multicall[offset + 3]?.result
+      const maxDebtRatio = allocator && multicall[offset + 3]?.result
         ? Number(multicall[offset + 3].result)
         : undefined
 
@@ -470,6 +485,14 @@ export async function extractComposition(
   estimatedAprLabel?: string,
   defaultQueueRaw?: unknown
 ) {
+  if (defaultQueueRaw == null) {
+    const vaultSnapshot = await db.query(`
+      SELECT snapshot->'get_default_queue' AS "defaultQueue"
+      FROM snapshot
+      WHERE chain_id = $1 AND address = $2
+    `, [chainId, vault])
+    defaultQueueRaw = vaultSnapshot.rows[0]?.defaultQueue
+  }
   const defaultQueue = zhexstring.array().nullish().parse(defaultQueueRaw)
 
   // Batch-fetch strategy snapshots for name and APR

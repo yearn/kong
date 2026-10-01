@@ -96,9 +96,12 @@ async function estimateHeightManual(chainId: number, timestamp: bigint) {
 }
 
 export async function estimateCreationBlock(chainId: number, contract: `0x${string}`): Promise<Block> {
+  let failed = false
   const result = cache.wrap(`estimateCreationBlock:${chainId}:${contract}`, async () => {
-    return await __estimateCreationBlock(chainId, contract)
-  }, 30 * 24 * 60 * 60 * 1000)
+    const search = await searchCreationBlock(chainId, contract)
+    failed = search.failed
+    return search.block
+  }, () => failed ? 10_000 : 30 * 24 * 60 * 60 * 1000)
   return BlockSchema.parse(await result)
 }
 
@@ -106,7 +109,12 @@ export async function estimateCreationBlock(chainId: number, contract: `0x${stri
 // doesn't account for CREATE2 or SELFDESTRUCT
 // adapted from https://github.com/BobTheBuidler/ypricemagic/blob/5ba16b25302b47539b4e5a996554ba4c0a70e7c7/y/contracts.py#L68
 export async function __estimateCreationBlock(chainId: number, contract: `0x${string}`): Promise<Block> {
+  return (await searchCreationBlock(chainId, contract)).block
+}
+
+async function searchCreationBlock(chainId: number, contract: `0x${string}`): Promise<{ block: Block, failed: boolean }> {
   let counter = 0
+  let failed = false
   const label = `🕊 __estimateCreationBlock ${chainId} ${contract}`
   console.time(label)
   const height = await rpcs.next(chainId).getBlockNumber()
@@ -117,6 +125,7 @@ export async function __estimateCreationBlock(chainId: number, contract: `0x${st
       if(!bytecode || bytecode.length === 0) { lo = mid } else { hi = mid }
 
     } catch (error) {
+      failed = true
       lo = mid
 
     } finally {
@@ -127,7 +136,7 @@ export async function __estimateCreationBlock(chainId: number, contract: `0x${st
   }
   console.log('💥', 'estimateCreationBlock', chainId, contract, counter, hi)
   console.timeEnd(label)
-  return await getBlock(chainId, hi)
+  return { block: await getBlock(chainId, hi), failed }
 }
 
 const FULL_NODE_DEPTH = BigInt(process.env.FULL_NODE_DEPTH || 400)
