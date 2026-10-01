@@ -1,12 +1,12 @@
 import { expect } from 'chai'
 import db from '../db'
-import { getLatestApy, getLatestEstimatedAprV3 } from './apy-apr'
+import { getLatestApy, getLatestEstimatedAprLabel, getLatestEstimatedAprV3, promoteEstimatedApr } from './apy-apr'
 
 const TEST_CHAIN = 99999
 const VAULT_ADDR = '0xtest_vault_apr_spec'
 const LABEL = 'yvusd-estimated-apr'
 
-async function insertOutput(address: string, label: string, component: string, value: number, blockTime: Date, blockNumber = 1) {
+async function insertOutput(address: string, label: string, component: string, value: number | null, blockTime: Date, blockNumber = 1) {
   await db.query(
     `INSERT INTO output (chain_id, address, label, component, value, block_number, block_time, series_time)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
@@ -222,6 +222,179 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result!.apr).to.equal(0.03)
     expect(result!.apy).to.equal(0.031)
     expect(result!.components).to.deep.equal({})
+  })
+
+  it('promotes gross and net to top level', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.05, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPY', 0.051, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'grossAPR', 0.07, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'grossAPY', 0.072, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.deep.equal({
+      type: LABEL,
+      apr: 0.05,
+      apy: 0.051,
+      grossAPR: 0.07,
+      grossAPY: 0.072,
+      components: {}
+    })
+  })
+
+  it('leaves apr and apy undefined when only gross rows exist', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'grossAPR', 0.07, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'grossAPY', 0.072, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.not.be.undefined
+    expect(result!.apr).to.be.undefined
+    expect(result!.apy).to.be.undefined
+    expect(result!.grossAPR).to.equal(0.07)
+    expect(result!.grossAPY).to.equal(0.072)
+  })
+
+  it('keeps unpromoted components alongside promoted ones', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.05, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'grossAPR', 0.07, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'compoundingPeriodsPerYear', 365, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.not.be.undefined
+    expect(result!.components).to.deep.equal({ compoundingPeriodsPerYear: 365 })
+  })
+
+  it('excludes an emission with a non-zero isStrategy marker and no debtRatio', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.05, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPY', 0.051, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'isStrategy', 1, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.be.undefined
+  })
+
+  it('skips newer block_time with isStrategy, returns older vault-level rows', async function() {
+    const older = new Date(Date.now() - 60_000)
+    const newer = new Date()
+
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.04, older, 1)
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPY', 0.041, older, 1)
+
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.08, newer, 2)
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPY', 0.082, newer, 2)
+    await insertOutput(VAULT_ADDR, LABEL, 'isStrategy', 1, newer, 2)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.not.be.undefined
+    expect(result!.apr).to.equal(0.04)
+    expect(result!.apy).to.equal(0.041)
+  })
+
+  it('keeps an emission with isStrategy 0 even when debtRatio is present', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.05, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPY', 0.051, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'isStrategy', 0, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'debtRatio', 5000, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.not.be.undefined
+    expect(result!.apr).to.equal(0.05)
+    expect(result!.components).to.deep.equal({ isStrategy: 0, debtRatio: 5000 })
+  })
+
+  it('treats a null isStrategy marker as absent so debtRatio still excludes the emission', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.05, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'isStrategy', null, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'debtRatio', 5000, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.be.undefined
+  })
+
+  it('treats a null isStrategy marker as absent so a net-only emission stays vault-scoped', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.05, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'isStrategy', null, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.not.be.undefined
+    expect(result!.apr).to.equal(0.05)
+    expect(result!.components).to.deep.equal({})
+  })
+
+  it('omits null-valued components on the vault path', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', null, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'grossAPR', 0.07, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.not.be.undefined
+    expect(result).to.not.have.property('apr')
+    expect(result!.grossAPR).to.equal(0.07)
+  })
+
+  it('explicit label path ignores the isStrategy marker and keeps it in components', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.05, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPY', 0.051, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'isStrategy', 1, t)
+
+    const result = await getLatestEstimatedAprV3(TEST_CHAIN, VAULT_ADDR, LABEL)
+    expect(result).to.not.be.undefined
+    expect(result!.apr).to.equal(0.05)
+    expect(result!.components).to.deep.equal({ isStrategy: 1 })
+  })
+})
+
+describe('promoteEstimatedApr', function() {
+  it('keeps zero net and gross values instead of omitting them', function() {
+    expect(promoteEstimatedApr('x', { netAPR: 0, netAPY: 0, grossAPR: 0, grossAPY: 0 })).to.deep.equal({
+      type: 'x',
+      apr: 0,
+      apy: 0,
+      grossAPR: 0,
+      grossAPY: 0,
+      components: {}
+    })
+  })
+
+  it('omits absent promoted keys and leaves the rest in components', function() {
+    expect(promoteEstimatedApr('x', { katRewardsAPR: 0.01 })).to.deep.equal({
+      type: 'x',
+      components: { katRewardsAPR: 0.01 }
+    })
+  })
+})
+
+describe('getLatestEstimatedAprLabel', function() {
+  afterEach(cleanup)
+
+  it('returns undefined when no -estimated-apr rows exist', async function() {
+    const result = await getLatestEstimatedAprLabel(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.be.undefined
+  })
+
+  it('returns the label of the latest emission even when strategy-scoped by isStrategy marker', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.08, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'isStrategy', 1, t)
+
+    const result = await getLatestEstimatedAprLabel(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.equal(LABEL)
+  })
+
+  it('returns the label of the latest emission even when strategy-scoped by debtRatio', async function() {
+    const t = new Date()
+    await insertOutput(VAULT_ADDR, LABEL, 'netAPR', 0.08, t)
+    await insertOutput(VAULT_ADDR, LABEL, 'debtRatio', 5000, t)
+
+    const result = await getLatestEstimatedAprLabel(TEST_CHAIN, VAULT_ADDR)
+    expect(result).to.equal(LABEL)
   })
 })
 
