@@ -1,4 +1,4 @@
-import { chains } from 'lib'
+import { chains } from './chains'
 import { PublicClient, createPublicClient, http } from 'viem'
 import { Chain } from 'viem/chains'
 

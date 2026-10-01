@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { cache } from './cache'
 import { rpcs } from './rpcs'
-import { dates } from '.'
+import * as dates from './dates'
 
 export const BlockSchema = z.object({
   chainId: z.number(),

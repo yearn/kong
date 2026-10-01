@@ -24,6 +24,8 @@
     "framer-motion": "10.18.0",
     "graphql": "16.10.0",
     "graphql-tag": "2.12.6",
+    "keyv": "5.5.5",
+    "lib": "workspace:*",
     "next": "15.5.18",
     "pg": "8.13.1",
     "postcss": "8.4.28",
@@ -35,7 +37,8 @@
     "react-timeago": "7.2.0",
     "swr": "2.3.2",
     "tailwind-scrollbar": "3.1.0",
-    "viem": "2.5.0"
+    "viem": "2.5.0",
+    "zod": "3.22.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.2.0",
