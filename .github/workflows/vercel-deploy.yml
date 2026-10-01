@@ -2,8 +2,12 @@ name: Deploy to Vercel
 
 on:
   pull_request:
+    paths:
+      - 'packages/web/**'
   push:
     branches: [main]
+    paths:
+      - 'packages/web/**'
 
 concurrency:
   group: vercel-deploy-${{ github.ref }}
