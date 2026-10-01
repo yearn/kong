@@ -79,14 +79,18 @@ export async function getTravelledStrides(chainId: number, address: `0x${string}
 
 export async function adoptLegacyStrides(chainId: number, address: `0x${string}`, signatures: string[]) {
   await db.query(`
+    WITH legacy AS (
+      DELETE FROM evmlog_strides
+      WHERE chain_id = $1 AND lower(address) = lower($2) AND signature = ''
+      RETURNING strides
+    )
     INSERT INTO evmlog_strides(chain_id, address, signature, strides)
-    SELECT chain_id, address, unnest($3::text[]), strides FROM evmlog_strides
-    WHERE chain_id = $1 AND address = $2 AND signature = ''
-      AND NOT EXISTS (
-        SELECT 1 FROM thing
-        WHERE chain_id = $1 AND address = $2
-        HAVING bool_or(defaults->>'erc4626' = 'true') OR count(DISTINCT label) > 1
-      )
+    SELECT $1, $2, unnest($3::text[]), strides FROM legacy
+    WHERE NOT EXISTS (
+      SELECT 1 FROM thing
+      WHERE chain_id = $1 AND address = $2
+      HAVING bool_or(defaults->>'erc4626' = 'true') OR count(DISTINCT label) > 1
+    )
     ON CONFLICT DO NOTHING`,
   [chainId, address, signatures])
 }

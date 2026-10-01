@@ -159,7 +159,7 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 ### Postgres schema
 `evmlog` - raw evm logs + event hook data
 
-`evmlog_strides` - state of event block coverage
+`evmlog_strides` - state of event block coverage, per (chain_id, address, event signature)
 
 `snapshot` - latest snapshot of each contract + snapshot hook data
 

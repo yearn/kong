@@ -30,12 +30,12 @@ export default class EventsFanout {
     const { chainId, address } = SourceConfigSchema.parse(readers[0].source)
     const { replay } = data
 
-    const abiPaths: string[] = []
+    const abiPaths = new Set<string>()
     const ranges: Record<string, Stride> = {}
     for (const reader of readers) {
       const { inceptBlock, startBlock, endBlock } = SourceConfigSchema.parse(reader.source)
       const { abiPath } = AbiConfigSchema.parse(reader.abi)
-      abiPaths.push(abiPath)
+      abiPaths.add(abiPath)
 
       const from = replay?.enabled && replay?.since
         ? await estimateHeight(chainId, replay?.since)
@@ -67,10 +67,10 @@ export default class EventsFanout {
         const chunkSignatures = signatures.filter(signature =>
           missing[signature].some(m => m.from <= to && m.to >= from))
         if (chunkSignatures.length === 0) return
-        const hash = createHash('sha1').update([...abiPaths, ...chunkSignatures.sort()].join()).digest('hex').slice(0, 12)
+        const hash = createHash('sha1').update([...[...abiPaths].sort(), ...chunkSignatures.sort()].join()).digest('hex').slice(0, 12)
         const jobId = `evmlog-${chainId}-${address}-${from}-${to}-${hash}`
         await mq.add(mq.job.extract.evmlog, {
-          abiPaths, signatures: chunkSignatures, chainId, address, from, to, replay: replay?.enabled
+          abiPaths: [...abiPaths], signatures: chunkSignatures, chainId, address, from, to, replay: replay?.enabled
         }, { jobId })
       })
     }

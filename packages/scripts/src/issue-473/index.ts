@@ -28,6 +28,7 @@ async function inspect(vault: typeof VAULTS[number]) {
      ORDER BY block_number, log_index`,
     [CHAIN_ID, address, STRATEGY_CHANGED]
   )).rows
+  if (thing.inceptBlock == null) throw new Error(`!inceptBlock ${vault.address}`)
   const knownAddPresent = events.some(e => BigInt(e.blockNumber) === vault.knownAdd)
   return { ...vault, address, inceptBlock: BigInt(thing.inceptBlock), yearn: thing.yearn, strides, events, knownAddPresent }
 }
@@ -55,8 +56,8 @@ async function main() {
 
   for (const state of states) {
     const deleted = await db.query(
-      'DELETE FROM evmlog_strides WHERE chain_id = $1 AND address = $2',
-      [CHAIN_ID, state.address]
+      'DELETE FROM evmlog_strides WHERE chain_id = $1 AND lower(address) = lower($2) AND signature IN (\'\', $3)',
+      [CHAIN_ID, state.address, STRATEGY_CHANGED]
     )
     console.log('⏪', state.name, state.address, JSON.stringify({ deleted: deleted.rowCount }))
 

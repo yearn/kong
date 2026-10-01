@@ -54,6 +54,18 @@ describe('load/evmlog strides', () => {
     })
   })
 
+  it('retires legacy coverage once adopted', async () => {
+    await seedLegacy()
+    await seedThing('accountant', {})
+
+    await adoptLegacyStrides(CHAIN_ID, ADDRESS, [SIG_A])
+    await adoptLegacyStrides(CHAIN_ID, ADDRESS, [SIG_A, SIG_B])
+
+    expect(await getTravelledStrides(CHAIN_ID, ADDRESS, [SIG_A, SIG_B])).to.deep.equal({
+      [SIG_A]: [{ from: 1n, to: 50n }]
+    })
+  })
+
   it('does not adopt legacy coverage for erc4626 things', async () => {
     await seedLegacy()
     await seedThing('vault', { erc4626: true, yearn: true, apiVersion: '3.0.4' })

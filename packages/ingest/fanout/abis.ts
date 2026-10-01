@@ -1,5 +1,6 @@
 import { abisConfig, chains, mq, sentry } from 'lib'
 import { AbiConfig, SourceConfig } from 'lib/abis'
+import { getAddress } from 'viem'
 import * as things from '../things'
 import { clearNegativePriceCache } from '../prices'
 import WebhookCollector from './webhooks'
@@ -22,8 +23,9 @@ export default class AbisFanout {
 
     const webhookCollector = new WebhookCollector()
     const readers = new Map<string, { abi: AbiConfig, source: SourceConfig }[]>()
-    const read = (abi: AbiConfig, source: SourceConfig) => {
-      const key = `${source.chainId}/${source.address.toLowerCase()}`
+    const read = (abi: AbiConfig, _source: SourceConfig) => {
+      const source = { ..._source, address: getAddress(_source.address) }
+      const key = `${source.chainId}/${source.address}`
       readers.set(key, [...(readers.get(key) ?? []), { abi, source }])
     }
 

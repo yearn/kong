@@ -70,16 +70,14 @@ export async function upsertEvmLog(data: object) {
 
     if (signatures && !replay) {
       const travelled = await getTravelledStrides(chainId, address, signatures, client)
-      for (const signature of signatures) {
-        const next = strider.add({ from, to }, travelled[signature])
-        await client.query(`
-          INSERT INTO evmlog_strides(chain_id, address, signature, strides)
-          VALUES ($1, $2, $3, $4)
-          ON CONFLICT (chain_id, address, signature)
-          DO UPDATE SET strides = $4`,
-        [chainId, address, signature, JSON.stringify(next)]
-        )
-      }
+      const next = signatures.map(signature => JSON.stringify(strider.add({ from, to }, travelled[signature])))
+      await client.query(`
+        INSERT INTO evmlog_strides(chain_id, address, signature, strides)
+        SELECT $1, $2, s.signature, s.strides FROM unnest($3::text[], $4::text[]) AS s(signature, strides)
+        ON CONFLICT (chain_id, address, signature)
+        DO UPDATE SET strides = EXCLUDED.strides`,
+      [chainId, address, signatures, next]
+      )
     }
 
     await client.query('COMMIT')
