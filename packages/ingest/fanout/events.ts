@@ -1,4 +1,3 @@
-import { setTimeout } from 'timers/promises'
 import { mq, strider } from 'lib'
 import { AbiConfig, AbiConfigSchema, SourceConfig, SourceConfigSchema } from 'lib/abis'
 import { estimateHeight, getBlockNumber } from 'lib/blocks'
@@ -34,15 +33,19 @@ export default class EventsFanout {
     const travelled = replay?.enabled ? undefined : await getTravelledStrides(chainId, address)
     const nextStrides = replayRange ? replayRange : strider.plan(from, to, travelled)
 
+    const jobs: Parameters<typeof mq.addBulk>[0] = []
     for (const stride of StrideSchema.array().parse(nextStrides)) {
       console.log('📤', 'stride', chainId, address, stride.from, stride.to)
       await walklog({...stride, logStride: getLogStride(chainId)}, async (from, to) => {
         const jobId = `evmlog-${chainId}-${address}-${from}-${to}`
-        await mq.add(mq.job.extract.evmlog, {
-          abiPath, chainId, address, from, to, replay: replay?.enabled
-        }, { jobId })
+        jobs.push({
+          job: mq.job.extract.evmlog,
+          data: { abiPath, chainId, address, from, to, replay: replay?.enabled },
+          options: { jobId }
+        })
       })
     }
+    await mq.addBulk(jobs)
   }
 }
 
@@ -54,6 +57,5 @@ async function walklog(
   for (let fromBlock = o.from; fromBlock <= o.to; fromBlock += logStride) {
     const toBlock = fromBlock + logStride - 1n < o.to ? fromBlock + logStride - 1n : o.to
     await f(fromBlock, toBlock)
-    await setTimeout(16)
   }
 }

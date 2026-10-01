@@ -23,13 +23,16 @@ export default class AbisFanout {
 
     await mq.add(mq.job.extract.manuals, data)
 
+    const jobs: Parameters<typeof mq.addBulk>[0] = []
     for (const abi of abisConfig.abis) {
       for (const source of abi.sources) {
         console.info('🤝', 'source', 'abiPath', abi.abiPath, source.chainId, source.address)
         const _data = { ...data, chainId: source.chainId, abi, source }
-        await mq.add(mq.job.fanout.events, _data)
-        await mq.add(mq.job.extract.snapshot, _data)
-        await mq.add(mq.job.fanout.timeseries, _data)
+        jobs.push(
+          { job: mq.job.fanout.events, data: _data },
+          { job: mq.job.extract.snapshot, data: _data },
+          { job: mq.job.fanout.timeseries, data: _data }
+        )
         webhookCollector.collect(abi, source)
       }
 
@@ -50,14 +53,17 @@ export default class AbisFanout {
               skip: false,
               only: false
             } }
-          await mq.add(mq.job.fanout.events, _data)
-          await mq.add(mq.job.extract.snapshot, _data)
-          await mq.add(mq.job.fanout.timeseries, _data)
+          jobs.push(
+            { job: mq.job.fanout.events, data: _data },
+            { job: mq.job.extract.snapshot, data: _data },
+            { job: mq.job.fanout.timeseries, data: _data }
+          )
           webhookCollector.collect(abi, _data.source)
         }
       }
     }
 
+    await mq.addBulk(jobs)
     await webhookCollector.flush()
   }
 }
