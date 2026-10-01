@@ -13,10 +13,10 @@ function buildQueueSpecs(): QueueSpec[] {
     includedNames: new Set([mq.job.fanout.events.name, mq.job.fanout.timeseries.name])
   })
 
-  // extract (root) queue: include manuals, waveydb, webhook
+  // extract (root) queue: include manuals, webhook
   specs.push({
     queueName: mq.q.extract,
-    includedNames: new Set([mq.job.extract.manuals.name, mq.job.extract.waveydb.name, mq.job.extract.webhook.name])
+    includedNames: new Set([mq.job.extract.manuals.name, mq.job.extract.webhook.name])
   })
 
   // extract-{chainId} queues: include evmlog, snapshot, timeseries (exclude block)
@@ -29,7 +29,7 @@ function buildQueueSpecs(): QueueSpec[] {
     specs.push({ queueName: `${mq.q.extract}-${chain.id}`, includedNames: perChainNames })
   }
 
-  // load queue: include evmlog, snapshot, thing, output, price, monitor (exclude block)
+  // load queue: include evmlog, snapshot, thing, output, monitor (exclude block)
   specs.push({
     queueName: mq.q.load,
     includedNames: new Set([
@@ -37,7 +37,6 @@ function buildQueueSpecs(): QueueSpec[] {
       mq.job.load.snapshot.name,
       mq.job.load.thing.name,
       mq.job.load.output.name,
-      mq.job.load.price.name,
       mq.job.load.monitor.name
     ])
   })
