@@ -3,6 +3,7 @@ import { zhexstring } from 'lib/types'
 import { firstRow } from '../../../../../db'
 import { fetchOrExtractErc20 } from '../../../lib'
 import { getStrategyMeta, getVaultMeta } from '../../../lib/meta'
+import { topics as strategyEventTopics } from '../event/hook'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
@@ -15,13 +16,13 @@ export default async function process(chainId: number, address: `0x${string}`, d
 
 async function fetchLastReportDetail(chainId: number, address: `0x${string}`) {
   const row = await firstRow(`
-  SELECT *
+  SELECT chain_id, address, block_number, block_time, transaction_hash, args, hook
   FROM evmlog
   WHERE chain_id = $1
     AND address = $2
-    AND event_name = 'Reported'
+    AND signature = $3
   ORDER BY block_number DESC, log_index DESC
-  LIMIT 1;`, [chainId, address])
+  LIMIT 1;`, [chainId, address, strategyEventTopics[0]])
 
   if (!row) return undefined
 
