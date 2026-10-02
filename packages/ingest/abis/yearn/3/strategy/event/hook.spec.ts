@@ -4,7 +4,7 @@ import { chains } from 'lib'
 import { HarvestSchema, computeApr, totalAssets } from './hook'
 import { addresses } from '../../../../../test-addresses'
 
-const hasPolygon = chains.some(chain => chain.id === polygon.id)
+const hasPolygon = chains.some(chain => chain.id === polygon.id) && !!process.env.HTTP_ARCHIVE_137
 
 function mock() {
   return HarvestSchema.parse({

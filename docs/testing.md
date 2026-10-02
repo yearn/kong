@@ -25,7 +25,7 @@ E2E tests use `TestEnvironment` from `lib/helpers/containers` to run the full st
 ### Running
 
 ```bash
-node_modules/.bin/ts-node packages/ingest/run-e2e.ts
+bun --filter ingest test:containers
 ```
 
 ---
@@ -90,19 +90,17 @@ RPC endpoints (`HTTP_ARCHIVE_*`, `HTTP_FULLNODE_*`, etc.) are read automatically
 **`env.runScript(scriptPath)`** — runs a TypeScript script from the repo root as a child process, inheriting the test env vars (Postgres host/port, Redis URL, etc.). Use to run refresh scripts against the test containers:
 
 ```typescript
-await env.runScript('packages/web/app/api/rest/snapshot/refresh-snapshot.ts')
+await env.runScript('packages/web/app/api/rest/refresh-vaults.cli.ts')
 ```
 
 ### Full example
 
 ```typescript
-describe('e2e: ingest → web snapshot', function() {
-  this.timeout(8 * 60_000)
-
+describe('e2e: ingest → web snapshot', () => {
   let env: TestEnvironment
   let pool: Pool
 
-  before(async function() {
+  beforeAll(async () => {
     env = new TestEnvironment({
       configs: {
         chains: ['mainnet'],
@@ -133,15 +131,15 @@ describe('e2e: ingest → web snapshot', function() {
     `, [1, VAULT_ADDRESS])
 
     // populate Redis cache
-    await env.runScript('packages/web/app/api/rest/snapshot/refresh-snapshot.ts')
+    await env.runScript('packages/web/app/api/rest/refresh-vaults.cli.ts')
   })
 
-  after(async function() {
+  afterAll(async () => {
     await pool?.end()
     await env?.stop()
   })
 
-  it('serves snapshot', async function() {
+  it('serves snapshot', async () => {
     const res = await fetch(`${webUrl}/api/rest/snapshot/1/${VAULT_ADDRESS.toLowerCase()}`)
     expect(res.status).to.equal(200)
   })

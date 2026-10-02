@@ -6,7 +6,8 @@
   "scripts": {
     "test": "vitest run",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@sentry/node": "10.42.0",
