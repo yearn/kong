@@ -30,8 +30,8 @@ export default defineConfig({
         },
       },
       {
-        // Module-mocking specs: no containers, no shared setup — the `lib` barrel
-        // re-exports ./prices, so they need a registry of their own.
+        // Module-mocking specs: no containers, no shared setup. The ingest project
+        // runs with isolate: false in one fork, so their vi.mock calls would leak.
         test: {
           ...shared,
           name: 'mocks',

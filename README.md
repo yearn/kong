@@ -506,7 +506,7 @@ Kong uses viem to interface with rpcs. Because viem is new and changing often, a
 
 ### bun
 Bun has a built in flag on their cli which collapses the texts called [ellide](https://bun.sh/blog/bun-v1.1.43#elide-lines-n-controls-filter-output-line-length), you can use `--elide-lines 0` on each cli command, but it has a lot of bugs.
-There are some tickets related to this, that's why `--elide-lines 0` is only used on the root `lint:*` scripts
+There are some tickets related to this, that's why `--elide-lines 0` is only used on the root `lint` scripts and the Makefile `test` target
 
 
 ## Production
