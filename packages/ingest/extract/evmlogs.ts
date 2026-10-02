@@ -57,16 +57,10 @@ export class EvmLogsExtractor {
     })()
 
     const hooks = this.resolveHooks(abiPath, 'event')
-    const blockTimes = new Map<bigint | undefined, bigint>()
-    const blockNumbers = [...new Set(logs.map(log => log.blockNumber || undefined))]
-    await mapLimit(blockNumbers, BLOCK_TIME_CONCURRENCY, async blockNumber => {
-      blockTimes.set(blockNumber, await getBlockTime(chainId, blockNumber))
-    })
-
     let decimals: ReturnType<typeof safeFetchOrExtractDecimals> | undefined
     const getDecimals = () => decimals ??= safeFetchOrExtractDecimals(chainId, address)
 
-    const processedLogs: any[] = []
+    const kept: { log: (typeof logs)[number], args: any, hook: object }[] = []
     for (const log of logs) {
       if(!log.topics[0]) { throw new Error('!log.topics[0]') }
 
@@ -93,16 +87,24 @@ export class EvmLogsExtractor {
         }
       }
 
-      processedLogs.push({
-        ...log,
-        chainId,
-        address: getAddress(log.address),
-        signature: log.topics[0],
-        args,
-        hook: hookResult,
-        blockTime: blockTimes.get(log.blockNumber || undefined)
-      })
+      kept.push({ log, args, hook: hookResult })
     }
+
+    const blockTimes = new Map<bigint | undefined, bigint>()
+    const blockNumbers = [...new Set(kept.map(({ log }) => log.blockNumber || undefined))]
+    await mapLimit(blockNumbers, BLOCK_TIME_CONCURRENCY, async blockNumber => {
+      blockTimes.set(blockNumber, await getBlockTime(chainId, blockNumber))
+    })
+
+    const processedLogs = kept.map(({ log, args, hook }) => ({
+      ...log,
+      chainId,
+      address: getAddress(log.address),
+      signature: log.topics[0],
+      args,
+      hook,
+      blockTime: blockTimes.get(log.blockNumber || undefined)
+    }))
 
     try {
       await mq.add(mq.job.load.evmlog, {

@@ -73,4 +73,10 @@ describe('extract/evmlogs', () => {
     expect(getBlockTime).toHaveBeenCalledTimes(20)
     expect(inflight.max).toBe(8)
   })
+
+  it('skips block lookups for dropped logs', async () => {
+    await run([logRow(1, 0), { ...logRow(2, 1), args: { value: '1' } }])
+    expect(getBlockTime).toHaveBeenCalledTimes(1)
+    expect(mqAdd).toHaveBeenCalledTimes(1)
+  })
 })
