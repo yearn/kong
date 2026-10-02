@@ -30,7 +30,28 @@ const db = new Pool({
   connectionTimeoutMillis: 60_000,
 })
 
+db.on('error', error => console.error('pg pool', error))
+
 export default db
+
+export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>) {
+  const client = await db.connect()
+  let broken = false
+  try {
+    await client.query('BEGIN')
+    const result = await fn(client)
+    await client.query('COMMIT')
+    return result
+  } catch (error) {
+    await client.query('ROLLBACK').catch(rollbackError => {
+      broken = true
+      console.error('rollback failed', rollbackError)
+    })
+    throw error
+  } finally {
+    client.release(broken || undefined)
+  }
+}
 
 export async function query<T>(schema: z.ZodType<T>, sql: string, params: any[] = []) {
   return await _query<T>(schema)(sql, params)
@@ -78,9 +99,9 @@ export async function getTravelledStrides(chainId: number, address: `0x${string}
 
 export async function getSparkline(chainId: number, address: string, label: string, component?: string) {
   // series_time floor prunes hypertable chunks. If the 90d window holds all 3
-  // buckets they're the 3 most recent overall; fall back to a full scan when
-  // fewer, so sparse/stale vaults keep their full series.
-  const sql = (floor: string) => `
+  // buckets they're the 3 most recent overall; fall back to 365d, then a full
+  // scan when fewer, so sparse/stale vaults keep their full series.
+  const sql = (days?: number) => `
     SELECT
       CAST($1 AS int4) AS "chainId",
       CAST($2 AS text) AS address,
@@ -92,7 +113,7 @@ export async function getSparkline(chainId: number, address: string, label: stri
       COALESCE(LAST(NULLIF(value, 0), block_number) FILTER (WHERE value IS NOT NULL), 0) AS close
     FROM output
     WHERE chain_id = $1 AND address = $2 AND label = $3 AND (component = $4 OR $4 IS NULL)
-      ${floor}
+      ${days ? `AND series_time >= now() - make_interval(days => ${days})` : ''}
     GROUP BY "blockTime"
     HAVING COUNT(value) > 0
     ORDER BY "blockTime" DESC
@@ -100,8 +121,9 @@ export async function getSparkline(chainId: number, address: string, label: stri
   `
 
   const params = [chainId, address, label, component]
-  let result = await db.query(sql('AND series_time >= now() - make_interval(days => 90)'), params)
-  if (result.rows.length < 3) result = await db.query(sql(''), params)
+  let result = await db.query(sql(90), params)
+  if (result.rows.length < 3) result = await db.query(sql(365), params)
+  if (result.rows.length < 3) result = await db.query(sql(), params)
 
   return z.object({
     chainId: z.number(),
@@ -125,23 +147,45 @@ export async function upsertThingDefaults(thing: Thing, client?: PoolClient) {
     VALUES ($1, $2, $3, $4)
     ON CONFLICT (chain_id, address, label)
     DO UPDATE SET defaults = COALESCE(thing.defaults, '{}'::jsonb) || EXCLUDED.defaults
+    WHERE (COALESCE(thing.defaults, '{}'::jsonb) || EXCLUDED.defaults) IS DISTINCT FROM thing.defaults
   `, [thing.chainId, thing.address, thing.label, thing.defaults])
 }
 
-export function toUpsertSql(table: string, pk: string, data: object, where?: string) {
+function toValueSql(field: string, index: number) {
   const timestampConversionExceptions = [ 'profit_max_unlock_time' ]
+  return (field.endsWith('timestamp') || field.endsWith('time') && !timestampConversionExceptions.includes(field))
+    ? `to_timestamp($${index}::double precision)`
+    : `$${index}`
+}
 
+export function toBulkUpsertSql(table: string, pk: string, fields: string[], rowCount: number, where?: string) {
+  const pkColumns = pk.split(',').map(column => column.trim())
+  const rows = Array.from({ length: rowCount }, (_, row) =>
+    `(${fields.map((field, col) => toValueSql(field, row * fields.length + col + 1)).join(', ')})`
+  ).join(', ')
+
+  const updates = fields.filter(field => !pkColumns.includes(field)).map(field =>
+    `${field} = EXCLUDED.${field}`
+  ).join(', ')
+
+  return `
+    INSERT INTO ${table} (${fields.join(', ')})
+    VALUES ${rows}
+    ON CONFLICT (${pk})
+    ${updates ? `DO UPDATE SET
+      ${updates}
+    ${where || ''}` : 'DO NOTHING'};
+  `
+}
+
+export function toUpsertSql(table: string, pk: string, data: object, where?: string) {
   const fields = Object.keys(data).map(key =>
     strings.camelToSnake(key)
   ) as string[]
 
   const columns = fields.join(', ')
 
-  const values = fields.map((field, index) =>
-    (field.endsWith('timestamp') || field.endsWith('time') && !timestampConversionExceptions.includes(field))
-      ? `to_timestamp($${index + 1}::double precision)`
-      : `$${index + 1}`
-  ).join(', ')
+  const values = fields.map((field, index) => toValueSql(field, index + 1)).join(', ')
 
   const updates = fields.map(field =>
     `${field} = EXCLUDED.${field}`

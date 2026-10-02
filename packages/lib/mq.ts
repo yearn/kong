@@ -64,13 +64,14 @@ const bull = { connection: {
 }}
 
 const queues: { [key: string]: Queue } = {}
+const BULK_CHUNK = 1000
 
 export function connect(queueName: string) {
   return new Queue(queueName, bull)
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function add(job: Job, data: any, options?: any) {
+function enqueue(job: Job, data: any) {
   const queue = job.bychain ? `${job.queue}-${data.chainId}` : job.queue
   if (MQ_INVENTORY) {
     countMetric('mq.job_added', 1, {
@@ -84,7 +85,30 @@ export async function add(job: Job, data: any, options?: any) {
     })
   }
   if (!queues[queue]) { queues[queue] = connect(queue) }
-  return await queues[queue].add(job.name, data, { priority: DEFAULT_PRIORITY, attempts: 1, ...options })
+  return queues[queue]
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function add(job: Job, data: any, options?: any) {
+  return await enqueue(job, data).add(job.name, data, { priority: DEFAULT_PRIORITY, attempts: 1, ...options })
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function addBulk(jobs: { job: Job, data: any, options?: any }[]) {
+  const byQueue = new Map<Queue, { name: string, data: unknown, opts: object }[]>()
+  for (const { job, data, options } of jobs) {
+    const queue = enqueue(job, data)
+    const bulk = byQueue.get(queue) ?? []
+    bulk.push({ name: job.name, data, opts: { priority: DEFAULT_PRIORITY, attempts: 1, ...options } })
+    byQueue.set(queue, bulk)
+  }
+  return (await Promise.all([...byQueue].map(async ([queue, bulk]) => {
+    const added: Awaited<ReturnType<Queue['addBulk']>> = []
+    for (let i = 0; i < bulk.length; i += BULK_CHUNK) {
+      added.push(...await queue.addBulk(bulk.slice(i, i + BULK_CHUNK)))
+    }
+    return added
+  }))).flat()
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -120,27 +144,31 @@ export function worker(queueName: string, handler: (job: any) => Promise<any>, c
   })
 
   const timer = setInterval(async () => {
-    const MQ_CONCURRENCY_MAX_PER_PROCESSOR_ENVAR = chainId ? `MQ_CONCURRENCY_MAX_PER_PROCESSOR_${chainId}` : 'MQ_CONCURRENCY_MAX_PER_PROCESSOR'
-    const MQ_CONCURRENCY_THRESHOLD_ENVAR = chainId ? `MQ_CONCURRENCY_THRESHOLD_${chainId}` : 'MQ_CONCURRENCY_THRESHOLD'
-    const MQ_CONCURRENCY_MAX_PER_PROCESSOR = (process.env[MQ_CONCURRENCY_MAX_PER_PROCESSOR_ENVAR] || 50) as number
-    const MQ_CONCURRENCY_THRESHOLD = (process.env[MQ_CONCURRENCY_THRESHOLD_ENVAR] || 200) as number
+    try {
+      const MQ_CONCURRENCY_MAX_PER_PROCESSOR_ENVAR = chainId ? `MQ_CONCURRENCY_MAX_PER_PROCESSOR_${chainId}` : 'MQ_CONCURRENCY_MAX_PER_PROCESSOR'
+      const MQ_CONCURRENCY_THRESHOLD_ENVAR = chainId ? `MQ_CONCURRENCY_THRESHOLD_${chainId}` : 'MQ_CONCURRENCY_THRESHOLD'
+      const MQ_CONCURRENCY_MAX_PER_PROCESSOR = (process.env[MQ_CONCURRENCY_MAX_PER_PROCESSOR_ENVAR] || 50) as number
+      const MQ_CONCURRENCY_THRESHOLD = (process.env[MQ_CONCURRENCY_THRESHOLD_ENVAR] || 200) as number
 
-    const jobs = await queue.count()
-    const targetConcurrency = computeConcurrency(jobs, {
-      min: 1, max: MQ_CONCURRENCY_MAX_PER_PROCESSOR,
-      threshold: MQ_CONCURRENCY_THRESHOLD
-    })
+      const jobs = await queue.count()
+      const targetConcurrency = computeConcurrency(jobs, {
+        min: 1, max: MQ_CONCURRENCY_MAX_PER_PROCESSOR,
+        threshold: MQ_CONCURRENCY_THRESHOLD
+      })
 
-    if(targetConcurrency > concurrency) {
-      console.log('🚀', 'concurrency up', queueName, targetConcurrency)
-      concurrency = targetConcurrency
-      worker.concurrency = targetConcurrency
+      if(targetConcurrency > concurrency) {
+        console.log('🚀', 'concurrency up', queueName, targetConcurrency)
+        concurrency = targetConcurrency
+        worker.concurrency = targetConcurrency
 
-    } else if(targetConcurrency < concurrency) {
-      console.log('🐌', 'concurrency down', queueName, targetConcurrency)
-      concurrency = targetConcurrency
-      worker.concurrency = targetConcurrency
+      } else if(targetConcurrency < concurrency) {
+        console.log('🐌', 'concurrency down', queueName, targetConcurrency)
+        concurrency = targetConcurrency
+        worker.concurrency = targetConcurrency
 
+      }
+    } catch (error) {
+      console.error('🤬', 'concurrency', queueName, error)
     }
   }, 5000)
 
@@ -169,5 +197,7 @@ export function computeConcurrency(jobs: number, options: ConcurrencyOptions) {
 
 export async function down() {
   if (MQ_INVENTORY) await flushSentry(5000)
-  return Promise.all(Object.values(queues).map(async queue => queue.close()))
+  const closing = Object.values(queues)
+  for (const name of Object.keys(queues)) delete queues[name]
+  return Promise.all(closing.map(async queue => queue.close()))
 }
