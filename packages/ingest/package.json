@@ -10,7 +10,7 @@
     "test:containers": "vitest run --config vitest.containers.config.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node ../../scripts/typecheck.mjs"
   },
   "dependencies": {
     "@types/node": "20.17.17",

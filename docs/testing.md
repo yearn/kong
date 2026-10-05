@@ -6,10 +6,12 @@ Use Bun 1.4.2 (`packageManager` in the root manifest, also pinned in CI and
 Dockerfiles). Install with `bun install --frozen-lockfile`.
 
 Workspace `typecheck` scripts run the native TypeScript 7.0.2 compiler (`tsc`),
-installed at the root as `@typescript/native`. ESLint, Next.js 15 and ts-node
+resolved directly from `@typescript/native` by `scripts/typecheck.mjs`, which
+checks both the package version and compiler output before running. ESLint, Next.js 15 and ts-node
 still need the JavaScript compiler API, so workspace `typescript` dependencies
 alias Microsoft's `@typescript/typescript6` compatibility package. Its underlying
-6.x API is pinned by `bun.lock`; it does not replace the native `tsc` executable.
+6.x API is pinned by `bun.lock`; typecheck does not use the potentially ambiguous
+`node_modules/.bin/tsc` shim.
 The ESLint parser/plugin use 8.69.0, which supports that API. Do not replace the
 compatibility alias with native TypeScript: these tools import its JavaScript API.
 
@@ -191,3 +193,12 @@ lib (40), and web (2) diagnostics. It compares file, code, message and occurrenc
 count, ignoring line/column so unrelated edits can move existing diagnostics.
 Fixing an error passes immediately; remove its baseline entry afterward. Do not
 refresh the baseline to accept a regression. Terminal remains a zero-error gate.
+
+Web typecheck uses checked-in `next-types.d.ts` for Next ambient declarations.
+Generated `next-env.d.ts` and `.next` files are excluded so local builds do not
+change the gate's input files.
+
+`packages/scripts` is deliberately outside this initial gate: its operational
+scripts still have an unaudited diagnostic backlog and require a separate baseline
+audit. The gate currently covers terminal, ingest, lib and web; it does not claim
+type safety for the scripts workspace.
