@@ -1,5 +1,34 @@
 # Testing
 
+## TypeScript toolchain
+
+Use Bun 1.4.2 (`packageManager` in the root manifest, also pinned in CI and
+Dockerfiles). Install with `bun install --frozen-lockfile`.
+
+Workspace `typecheck` scripts run the native TypeScript 7.0.2 compiler (`tsc`),
+installed at the root as `@typescript/native`. ESLint, Next.js 15 and ts-node
+still need the JavaScript compiler API, so workspace `typescript` dependencies
+alias Microsoft's `@typescript/typescript6` compatibility package. Its underlying
+6.x API is pinned by `bun.lock`; it does not replace the native `tsc` executable.
+The ESLint parser/plugin use 8.69.0, which supports that API. Do not replace the
+compatibility alias with native TypeScript: these tools import its JavaScript API.
+
+```bash
+bun --filter terminal typecheck
+bun --filter ingest typecheck
+bun --filter lib typecheck
+bun --filter web typecheck
+```
+
+The native compiler requires ES2020 for the web package's BigInt usage. Node
+packages set `rootDir` to the workspace parent so ts-node can compile their
+cross-workspace imports with the 6.x API. Next.js continues to transpile browser
+code using its own build pipeline.
+
+Typecheck remains blocking for terminal. The other three jobs report existing
+test/config typing errors with `continue-on-error`; a green workflow does not
+mean those packages have no diagnostics.
+
 ## Unit tests
 
 Run unit tests for `lib` and `ingest`:
