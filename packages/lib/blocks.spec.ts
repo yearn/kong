@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { afterEach, describe, it, vi } from 'vitest'
 import { cache } from './cache'
-import { createClient } from 'redis'
+import { Queue } from 'bullmq'
 import { __estimateHeight, estimateCreationBlock, getBlock, getDefaultStartBlockNumber } from './blocks'
 import { rpcs } from './rpcs'
 
@@ -89,8 +89,8 @@ describe('blocks', function() {
     const chainId = { clean: 31341, empty: 31342, throw: 31343 }[mode]
     const address = '0x0000000000000000000000000000000000000009'
     const key = `estimateCreationBlock:${chainId}:${address}`
-    const redis = createClient({ socket: { host: process.env.REDIS_HOST || 'localhost', port: Number(process.env.REDIS_PORT || 6379) } })
-    await redis.connect()
+    const queue = new Queue('creation-ttl-spec', { connection: { host: process.env.REDIS_HOST || 'localhost', port: Number(process.env.REDIS_PORT || 6379) } })
+    const redis = await queue.client
     await cache.del(key)
     await cache.del(`getBlock:${chainId}:undefined`)
     await cache.del(`getBlock:${chainId}:2`)
@@ -104,7 +104,7 @@ describe('blocks', function() {
     })) as unknown as typeof rpcs.next
     try {
       await estimateCreationBlock(chainId, address)
-      const ttl = await redis.pTTL(key)
+      const ttl = await redis.pttl(key)
       const expected = mode === 'clean' ? 30 * 24 * 60 * 60 * 1000 : 10_000
       expect(ttl).to.be.within(expected - 5_000, expected)
     } finally {
@@ -113,7 +113,7 @@ describe('blocks', function() {
       await cache.del(`getBlock:${chainId}:undefined`)
       await cache.del(`getBlock:${chainId}:1`)
       await cache.del(`getBlock:${chainId}:2`)
-      await redis.quit()
+      await queue.close()
     }
   })
 
