@@ -1,9 +1,11 @@
+import { z } from 'zod'
 import { mq, types } from 'lib'
 import { latestBlocks, rpcs } from '../rpcs'
 
 export class BlockExtractor {
-  async extract(data: { chainId: number }) {
-    const rpc = rpcs.next(data.chainId)
+  async extract(data: unknown) {
+    const { chainId } = z.object({ chainId: z.number().int().positive() }).parse(data)
+    const rpc = rpcs.next(chainId)
     const block = await rpc.getBlock()
 
     latestBlocks[rpc.chain?.id as number] = {

@@ -8,7 +8,7 @@
     "production": "ts-node --transpile-only index.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node ../../scripts/typecheck.mjs"
   },
   "dependencies": {
     "@types/cli-spinner": "0.2.3",
