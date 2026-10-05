@@ -111,6 +111,7 @@ export async function estimateCreationBlock(chainId: number, contract: `0x${stri
 async function searchCreationBlock(chainId: number, contract: `0x${string}`): Promise<{ block: Block, failed: boolean }> {
   let counter = 0
   let failed = false
+  let foundBytecode = false
   const label = `🕊 estimateCreationBlock ${chainId} ${contract}`
   console.time(label)
   const height = await rpcs.next(chainId).getBlockNumber()
@@ -118,7 +119,7 @@ async function searchCreationBlock(chainId: number, contract: `0x${string}`): Pr
   while (hi - lo > 1n) {
     try {
       const bytecode = await rpcs.next(chainId, useArchiveNode(height, mid)).getBytecode({ address: contract, blockNumber: mid })
-      if(!bytecode || bytecode.length === 0) { lo = mid } else { hi = mid }
+      if (!bytecode || bytecode === '0x') { lo = mid } else { foundBytecode = true; hi = mid }
 
     } catch (error) {
       failed = true
@@ -132,7 +133,7 @@ async function searchCreationBlock(chainId: number, contract: `0x${string}`): Pr
   }
   console.log('💥', 'estimateCreationBlock', chainId, contract, counter, hi)
   console.timeEnd(label)
-  return { block: await getBlock(chainId, hi), failed }
+  return { block: await getBlock(chainId, hi), failed: failed || !foundBytecode }
 }
 
 const FULL_NODE_DEPTH = BigInt(process.env.FULL_NODE_DEPTH || 400)

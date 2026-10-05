@@ -1,6 +1,7 @@
 import { expect } from 'chai'
 import { afterEach, describe, it, vi } from 'vitest'
 import { cache } from './cache'
+import { createClient } from 'redis'
 import { __estimateHeight, estimateCreationBlock, getBlock, getDefaultStartBlockNumber } from './blocks'
 import { rpcs } from './rpcs'
 
@@ -80,6 +81,39 @@ describe('blocks', function() {
       await Promise.all(
         ['undefined', '1', '2', '3', '4', '5'].map(blockNumber => cache.del(`getBlock:${chainId}:${blockNumber}`))
       )
+    }
+  })
+
+  it.each(['clean', 'empty', 'throw'] as const)('stores the actual Redis TTL after a %s creation search', async mode => {
+    const originalNext = rpcs.next
+    const chainId = { clean: 31341, empty: 31342, throw: 31343 }[mode]
+    const address = '0x0000000000000000000000000000000000000009'
+    const key = `estimateCreationBlock:${chainId}:${address}`
+    const redis = createClient({ socket: { host: process.env.REDIS_HOST || 'localhost', port: Number(process.env.REDIS_PORT || 6379) } })
+    await redis.connect()
+    await cache.del(key)
+    await cache.del(`getBlock:${chainId}:undefined`)
+    await cache.del(`getBlock:${chainId}:2`)
+    rpcs.next = (() => ({
+      getBlockNumber: async () => 2n,
+      getBytecode: async () => {
+        if (mode === 'throw') throw new Error('pruned')
+        return mode === 'clean' ? '0x6000' : '0x'
+      },
+      getBlock: async ({ blockNumber }: { blockNumber?: bigint } = {}) => ({ number: blockNumber ?? 2n, timestamp: 1n })
+    })) as unknown as typeof rpcs.next
+    try {
+      await estimateCreationBlock(chainId, address)
+      const ttl = await redis.pTTL(key)
+      const expected = mode === 'clean' ? 30 * 24 * 60 * 60 * 1000 : 10_000
+      expect(ttl).to.be.within(expected - 5_000, expected)
+    } finally {
+      rpcs.next = originalNext
+      await cache.del(key)
+      await cache.del(`getBlock:${chainId}:undefined`)
+      await cache.del(`getBlock:${chainId}:1`)
+      await cache.del(`getBlock:${chainId}:2`)
+      await redis.quit()
     }
   })
 
