@@ -25,15 +25,15 @@
     "prompts": "2.4.2",
     "redis": "4.7.0",
     "ts-node": "10.9.2",
-    "typescript": "5.7.3",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
     "viem": "2.5.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.2.0",
     "@eslint/js": "9.19.0",
     "@types/pg": "8.11.11",
-    "@typescript-eslint/eslint-plugin": "8.23.0",
-    "@typescript-eslint/parser": "8.23.0",
+    "@typescript-eslint/eslint-plugin": "8.69.0",
+    "@typescript-eslint/parser": "8.69.0",
     "eslint": "9.19.0"
   }
 }
