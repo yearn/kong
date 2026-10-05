@@ -1085,6 +1085,9 @@ See [Estimated APR](./estimated-apr.md) for the promotion rules.
 
 ### EstimatedAprComponents
 
+`grossAPR` was removed from this type. Select `EstimatedApr.grossAPR` instead;
+queries using `components { grossAPR }` fail validation.
+
 | Field | Type | Description |
 |-------|------|-------------|
 | `boost` | `Float` | Boost component |
@@ -1096,7 +1099,6 @@ See [Estimated APR](./estimated-apr.md) for the promotion rules.
 | `cvxAPR` | `Float` | Convex APR |
 | `keepCRV` | `Float` | Keep CRV |
 | `keepVelo` | `Float` | Keep VELO |
-| `grossAPR` | `Float` | Deprecated. Use `EstimatedApr.grossAPR` |
 | `baseNetAPR` | `Float` | Base net APR |
 | `baseNetAPY` | `Float` | Base net APY |
 | `lockerBonusAPR` | `Float` | Locker bonus APR |
