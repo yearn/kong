@@ -43,7 +43,8 @@ export class EvmLogsExtractor {
     const union = requested.map(signature => bySignature.get(signature)).filter(Boolean)
 
     const defaultStartBlockNumber = await getDefaultStartBlockNumber(chainId)
-    const excludeLimitlist = from < defaultStartBlockNumber
+    // Signature-aware backfill must query every planned selector, even for old blocks.
+    const excludeLimitlist = !signatures && from < defaultStartBlockNumber
 
     const events = excludeLimitlist
       ? abiutil.exclude([...blacklist.events.ignore, ...blacklist.events.limit], union)
@@ -105,7 +106,7 @@ export class EvmLogsExtractor {
 
     try {
       await mq.add(mq.job.load.evmlog, {
-        chainId, address, from, to, replay, signatures: signatures ? requested : undefined,
+        chainId, address, from, to, replay, signatures: signatures ? (replay ? requested : events.map(event => toEventSelector(event))) : undefined,
         batch: EvmLogSchema.array().parse(processedLogs)
       }, {
         priority: mq.LOWEST_PRIORITY

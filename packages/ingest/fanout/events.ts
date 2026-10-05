@@ -1,6 +1,6 @@
 import { setTimeout } from 'timers/promises'
 import { createHash } from 'crypto'
-import { toEventSelector } from 'viem'
+import { getAddress, toEventSelector } from 'viem'
 import { mq, strider } from 'lib'
 import { AbiConfig, AbiConfigSchema, SourceConfig, SourceConfigSchema } from 'lib/abis'
 import { estimateHeight, getBlockNumber } from 'lib/blocks'
@@ -27,7 +27,8 @@ type Reader = { abi: AbiConfig, source: SourceConfig }
 export default class EventsFanout {
   async fanout(data: { readers?: Reader[], abi?: AbiConfig, source?: SourceConfig, replay?: { enabled: boolean, since?: bigint } }) {
     const readers = data.readers ?? [{ abi: data.abi!, source: data.source! }]
-    const { chainId, address } = SourceConfigSchema.parse(readers[0].source)
+    const { chainId, address: rawAddress } = SourceConfigSchema.parse(readers[0].source)
+    const address = getAddress(rawAddress)
     const { replay } = data
 
     const abiPaths = new Set<string>()

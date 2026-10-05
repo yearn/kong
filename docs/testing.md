@@ -157,5 +157,4 @@ address before reading logs/coverage or enqueuing fanout.
 The signature down migration refuses to run once nonempty signature rows exist.
 Stop workers and restore a reviewed conservative address-level coverage snapshot
 before rolling back. It never silently discards adopted coverage or combines
-histories with different completeness. No recovery script or migration was run
-as part of this review follow-up.
+histories with different completeness.

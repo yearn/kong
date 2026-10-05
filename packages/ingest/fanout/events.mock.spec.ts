@@ -22,7 +22,7 @@ vi.mock('../db', () => ({
 }))
 
 import EventsFanout from './events'
-import { adoptLegacyStrides } from '../db'
+import { adoptLegacyStrides, getTravelledStrides } from '../db'
 import abiutil from '../abiutil'
 
 const CHAIN_ID = 1
@@ -53,5 +53,10 @@ describe('EventsFanout', () => {
     expect(job.signatures).toContain(strategyChanged)
     for (const signature of erc4626) expect(job.signatures).not.toContain(signature)
     expect(adoptLegacyStrides).toHaveBeenCalledWith(CHAIN_ID, ADDRESS, expect.any(Array), true)
+  })
+  it('normalizes legacy source payloads before adopting and reading coverage', async () => {
+    await new EventsFanout().fanout({ abi: { abiPath: 'erc4626' }, source: { ...source, address: ADDRESS.toLowerCase() } } as never)
+    expect(adoptLegacyStrides).toHaveBeenLastCalledWith(CHAIN_ID, ADDRESS, expect.any(Array), false)
+    expect(getTravelledStrides).toHaveBeenLastCalledWith(CHAIN_ID, ADDRESS, expect.any(Array))
   })
 })

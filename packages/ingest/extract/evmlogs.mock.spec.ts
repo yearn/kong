@@ -1,15 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import { toEventSelector } from 'viem'
 
-const { mqAdd, getLogs, dbQuery, yearnHook } = vi.hoisted(() => ({
+const { mqAdd, getLogs, defaultStart, dbQuery, yearnHook } = vi.hoisted(() => ({
   mqAdd: vi.fn(async () => undefined),
   getLogs: vi.fn(),
+  defaultStart: vi.fn(async () => 0n),
   dbQuery: vi.fn(),
   yearnHook: vi.fn(async () => ({ yearn: true }))
 }))
 
 vi.mock('lib', () => ({ mq: { add: mqAdd, job: { load: { evmlog: {} } }, LOWEST_PRIORITY: 0 } }))
-vi.mock('lib/blocks', () => ({ getBlockTime: vi.fn(async () => 1n), getDefaultStartBlockNumber: vi.fn(async () => 0n) }))
+vi.mock('lib/blocks', () => ({ getBlockTime: vi.fn(async () => 1n), getDefaultStartBlockNumber: defaultStart }))
 vi.mock('../rpcs', () => ({ rpcs: { next: () => ({ getLogs }) } }))
 vi.mock('../db', () => ({ default: { query: dbQuery } }))
 vi.mock('../abis/yearn/lib', () => ({ safeFetchOrExtractDecimals: vi.fn(async () => ({ success: false })) }))
@@ -63,6 +64,15 @@ describe('EvmLogsExtractor multi-abi', () => {
     getLogs.mockResolvedValueOnce([])
     await new EvmLogsExtractor().extract({ abiPath: 'erc4626', chainId: 1, address: ADDRESS, from: 0n, to: 9n })
     expect((mqAdd.mock.calls.at(-1) as unknown[])[1]).toMatchObject({ signatures: undefined })
+  })
+
+  it('queries and credits erc4626 selectors below the default start block', async () => {
+    defaultStart.mockResolvedValueOnce(100n)
+    getLogs.mockResolvedValueOnce([])
+    await new EvmLogsExtractor().extract({ abiPaths: ['erc4626'], signatures: [DEPOSIT], chainId: 1, address: ADDRESS, from: 0n, to: 9n })
+    const { events } = (getLogs.mock.calls.at(-1) as unknown[])[0] as { events: object[] }
+    expect(events.map(event => toEventSelector(event as never))).toEqual([DEPOSIT])
+    expect((mqAdd.mock.calls.at(-1) as unknown[])[1]).toMatchObject({ signatures: [DEPOSIT] })
   })
 
   it('rejects obsolete requested signatures instead of marking them covered', async () => {
