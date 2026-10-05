@@ -305,7 +305,7 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
     decimals ??= stored.decimals
   }
 
-  if (asset && decimals && strategies.length > 0) {
+  if (asset && decimals != null && strategies.length > 0) {
     const strategiesAbi = parseAbi(['function strategies(address) view returns (uint256, uint256, uint256, uint256)'])
     const performanceFeeAbi = parseAbi(['function performanceFee() view returns (uint16)'])
     const targetRatioAbi = parseAbi(['function getStrategyTargetRatio(address) view returns (uint256)'])
@@ -341,11 +341,11 @@ export async function extractDebts(chainId: number, vault: `0x${string}`, strate
         ? BigInt(multicall[offset + 1].result as number)
         : 0n
 
-      const targetDebtRatio = allocator && multicall[offset + 2]?.result
+      const targetDebtRatio = allocator && multicall[offset + 2]?.result != null
         ? Number(multicall[offset + 2].result)
         : undefined
 
-      const maxDebtRatio = allocator && multicall[offset + 3]?.result
+      const maxDebtRatio = allocator && multicall[offset + 3]?.result != null
         ? Number(multicall[offset + 3].result)
         : undefined
 

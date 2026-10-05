@@ -58,6 +58,19 @@ describe('abis/yearn/3/vault/snapshot/hook', () => {
     expect(multicall.mock.calls[0][0].contracts).toHaveLength(4)
   })
 
+  it('preserves zero ratios and debts for a zero-decimal asset', async () => {
+    multicall.mockResolvedValue([
+      { status: 'success', result: [1n, 2n, 3n, 4n] },
+      { status: 'success', result: 0 },
+      { status: 'success', result: 0n },
+      { status: 'success', result: 0n }
+    ])
+    const debts = await extractDebts(1, VAULT, [A], ALLOCATOR, { asset: ASSET, decimals: 0 })
+    expect(debts).toHaveLength(1)
+    expect(debts[0]).toMatchObject({ currentDebtUsd: 6, targetDebtRatio: 0, maxDebtRatio: 0 })
+    expect(query).not.toHaveBeenCalled()
+  })
+
   it('extractDebts without allocator reads no ratios and keeps each strategy own debt', async () => {
     multicall.mockResolvedValue([
       { status: 'success', result: [1n, 2n, 3n, 4n] },

@@ -43,6 +43,26 @@ describe('abis/yearn/lib/tvl memo', () => {
     expect(multicall).toHaveBeenCalledTimes(2)
   })
 
+  it('shares concurrent tvl and tvl-c computations', async () => {
+    const [legacy, components] = await Promise.all([_compute(vault, 104n), _compute(vault, 104n)])
+    expect(components).toEqual(legacy)
+    expect(multicall).toHaveBeenCalledTimes(1)
+    expect(fetchPrice).toHaveBeenCalledTimes(1)
+  })
+
+  it('recomputes when corrected defaults change the asset scale', async () => {
+    await _compute(vault, 105n)
+    const corrected = await _compute({ ...vault, defaults: { ...vault.defaults, decimals: 17 } }, 105n)
+    expect(corrected.tvl).toBe(100)
+    expect(multicall).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries after a rejected shared computation', async () => {
+    fetchPrice.mockRejectedValueOnce(new Error('price failed'))
+    await expect(_compute(vault, 106n)).rejects.toThrow('price failed')
+    expect((await _compute(vault, 106n)).tvl).toBe(10)
+  })
+
   it('does not memoize unavailable prices', async () => {
     fetchPrice.mockResolvedValue({ priceUsd: 0, priceSource: 'unavailable' })
     await _compute(vault, 103n)

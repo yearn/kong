@@ -92,19 +92,31 @@ async function hasComputedTvl(chainId: number, address: `0x${string}`, label: st
 }
 
 const computed = new Map<string, { value: Awaited<ReturnType<typeof computeTvl>>, expires: number }>()
+const computing = new Map<string, ReturnType<typeof computeTvl>>()
+const MAX_COMPUTED_TVLS = 1000
 
 export async function _compute(vault: Thing, blockNumber: bigint, latest = false) {
-  const key = `${vault.chainId}:${vault.address.toLowerCase()}:${blockNumber}:${latest}`
+  const { asset, decimals, apiVersion } = vault.defaults
+  const key = `${vault.chainId}:${vault.address.toLowerCase()}:${blockNumber}:${latest}:${asset}:${decimals}:${apiVersion}`
   const hit = computed.get(key)
   if (hit && hit.expires > Date.now()) return hit.value
+  computed.delete(key)
+  const pending = computing.get(key)
+  if (pending) return pending
 
-  const value = await computeTvl(vault, blockNumber, latest)
-  if (value.priceSource !== 'unavailable' && value.totalAssets !== undefined) {
-    const now = Date.now()
-    for (const [k, v] of computed) if (v.expires <= now) computed.delete(k)
-    computed.set(key, { value, expires: now + 10 * 60 * 1000 })
+  const task = computeTvl(vault, blockNumber, latest)
+  computing.set(key, task)
+  try {
+    const value = await task
+    if (value.priceSource !== 'unavailable' && value.totalAssets !== undefined) {
+      // Bound backfills without scanning every cached block for every insertion.
+      if (computed.size >= MAX_COMPUTED_TVLS) computed.delete(computed.keys().next().value!)
+      computed.set(key, { value, expires: Date.now() + 10 * 60 * 1000 })
+    }
+    return value
+  } finally {
+    computing.delete(key)
   }
-  return value
 }
 
 async function computeTvl(vault: Thing, blockNumber: bigint, latest: boolean) {
