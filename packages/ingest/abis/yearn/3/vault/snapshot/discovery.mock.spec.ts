@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAddress } from 'viem'
 
-const { query, travelled, add, countMetric, captureMessage } = vi.hoisted(() => ({
-  query: vi.fn(), travelled: vi.fn(), add: vi.fn(), captureMessage: vi.fn(), countMetric: vi.fn()
+const { query, travelled, add, countMetric, captureMessage, next, readContract } = vi.hoisted(() => ({
+  query: vi.fn(), travelled: vi.fn(), add: vi.fn(), captureMessage: vi.fn(), countMetric: vi.fn(), next: vi.fn(), readContract: vi.fn()
 }))
 vi.mock('../../../../../db', () => ({ default: { query }, getSparkline: vi.fn(), getTravelledStrides: travelled }))
-vi.mock('../../../../../rpcs', () => ({ rpcs: { next: vi.fn() } }))
+vi.mock('../../../../../rpcs', () => ({ rpcs: { next } }))
 vi.mock('../../../../../prices', () => ({ fetchErc20PriceUsd: vi.fn() }))
 vi.mock('lib', async importOriginal => ({
   ...await importOriginal<typeof import('lib')>(),
@@ -21,6 +21,8 @@ const snapshot = SnapshotSchema.parse({ blockNumber: 100n, get_default_queue: [g
 describe('vault discovery repair', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    next.mockReturnValue({ readContract })
+    readContract.mockResolvedValue([])
     travelled.mockResolvedValue([{ from: 1n, to: 100n }])
     query.mockResolvedValue({ rows: [] })
   })
@@ -50,7 +52,19 @@ describe('vault discovery repair', () => {
     await projectStrategies(1, vault, undefined, snapshot)
     expect(add).not.toHaveBeenCalled()
     expect(captureMessage).not.toHaveBeenCalled()
-    expect(countMetric).toHaveBeenCalledWith('discovery_gap.deferred', 1, { chainId: '1', reason: 'incomplete_coverage' })
+    expect(countMetric).toHaveBeenCalledWith('discovery_gap.deferred', 1, { chainId: '1', reason: 'awaiting_event_coverage' })
+  })
+
+  it('repairs a permanent gap while ingestion trails the snapshot head', async () => {
+    travelled.mockResolvedValue([{ from: 1n, to: 99n }])
+    readContract.mockResolvedValue([strategy])
+    query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ inceptBlock: '1' }] }).mockResolvedValueOnce({ rows: [] })
+    await projectStrategies(1, vault, undefined, snapshot)
+    expect(next).toHaveBeenCalledWith(1, 99n)
+    expect(readContract).toHaveBeenCalledWith(expect.objectContaining({ blockNumber: 99n, functionName: 'get_default_queue' }))
+    expect(query).toHaveBeenLastCalledWith(expect.any(String), [1, vault, expect.any(String), 99n])
+    expect(captureMessage).toHaveBeenCalledWith('DISCOVERY_GAP', expect.objectContaining({ extra: expect.objectContaining({ comparisonBlock: '99', snapshotBlock: '100' }) }))
+    expect(add).toHaveBeenCalledTimes(1)
   })
 
   it('does not alert without a pinned snapshot block', async () => {

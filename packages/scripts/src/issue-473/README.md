@@ -51,7 +51,7 @@ Note: job-ID change alone does not help; shared coverage still blocks the second
 
 Detect, in `packages/ingest/abis/yearn/3/vault/snapshot/hook.ts` `projectStrategies` (`:185-210`):
 - The hook already merges on-chain `get_default_queue` with `StrategyChanged` evmlog rows.
-- Only after coverage is continuous from inception through the pinned snapshot block, queue strategy absent from the event projection = gap (addresses are checksummed; unknown revokes cannot remove another strategy). On-chain state is the oracle. No logs, no DB replay needed.
+- At the last block continuously covered from inception (capped at the pinned snapshot block), queue strategy absent from the event projection at that same block = gap (addresses are checksummed; unknown revokes cannot remove another strategy). On-chain state is the oracle. No logs, no DB replay needed.
 - On gap: `sentry.captureMessage('DISCOVERY_GAP')` with chainId, vault, strategy (pattern: `fanout/abis.ts:12`).
 
 Autofix, same place:
@@ -59,7 +59,7 @@ Autofix, same place:
 - `EventsFanout.fanout` (`fanout/events.ts:22-45`): when `ignoreStrides`, set `travelled = undefined` (same line as replay, `:34`)
   and prefix the job ID with `abiPath` so it cannot collide with the erc4626 job (`:40`).
 - Extract runs the normal RPC path (`replay` stays false). `StrategyChanged` hook creates the strategy things. Upserts are idempotent.
-- A peer becomes eligible for repair once coverage reaches its pinned snapshot block continuously from inception. Deferred checks emit `DISCOVERY_GAP_DEFERRED` and a reason metric; the first post-deploy snapshot is not guaranteed to qualify.
+- A peer becomes eligible once any prefix from inception is continuously covered. When ingestion trails the snapshot, an archival RPC queue read and a DB projection both use the last covered block; head-only additions are deferred. Deferred checks emit `DISCOVERY_GAP_DEFERRED` and a reason metric; the first post-deploy snapshot is not guaranteed to qualify.
 
 Overlap metric, in `AbisFanout.fanout` (`fanout/abis.ts:26-59`):
 - Count readers per `(chainId, address)`. Every fanout records `abi_reader_overlap.addresses`, including zero, and logs `ABI_READER_OVERLAP_BASELINE` with the count and a sample. Overlaps are expected with this configuration and do not emit warning alerts.
@@ -90,7 +90,7 @@ Limits:
 
 Acceptance:
 - BTC, Curve USG-frxUSD, ETH yVaults show `StrategyChanged` at blocks 25,490,630 / 25,341,800 / 25,475,622 and strategy things exist, with no manual step.
-- `DISCOVERY_GAP` fires only after continuous coverage reaches the snapshot block. It clears on a later snapshot after repair extraction and loading finish; no fixed cycle count is guaranteed.
+- `DISCOVERY_GAP` compares queue and events at the same continuously covered block, even when ingestion trails head. It clears on a later snapshot after repair extraction and loading finish; no fixed cycle count is guaranteed.
 - `erc4626` timeseries for unendorsed vaults has no new gaps (`packages/web/app/api/monitor/tvl-gaps/detector.ts`).
 - No migration in the diff.
 
@@ -103,7 +103,7 @@ Spec file exists at `packages/scripts/src/issue-473/README.md`, every claim pinn
 ## Audit validation
 
 Mock regressions cover forced fanout, covered-history skipping, repair enqueue,
-initial-load and lagging-ingestion suppression, mixed-case addresses, and unrelated revocations. The
+initial-load and head-only addition suppression, permanent-gap repair under ingestion lag, mixed-case addresses, and unrelated revocations. The
 overlap metric counts distinct ABI paths, so a source and thing using the same ABI
 do not produce a false overlap. Probe counters remain a follow-up; the current
 implementation emits Sentry metrics and diagnostic logs, with warning alerts reserved for confirmed discovery gaps.

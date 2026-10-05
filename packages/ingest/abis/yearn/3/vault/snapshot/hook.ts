@@ -1,4 +1,4 @@
-import { abisConfig, mq, sentry, strider } from 'lib'
+import { abisConfig, mq, sentry } from 'lib'
 import { estimateCreationBlock } from 'lib/blocks'
 import { priced } from 'lib/math'
 import { snakeToCamelCols } from 'lib/strings'
@@ -16,6 +16,7 @@ import { getStrategyMeta, getTokenMeta, getVaultMeta } from '../../../lib/meta'
 import { getRiskScore } from '../../../lib/risk'
 import { Roles } from '../../../lib/types'
 import accountantAbi from '../../accountant/abi'
+import vaultAbi from '../abi'
 
 export const CompositionSchema = z.object({
   address: zhexstring,
@@ -235,13 +236,28 @@ async function repairDiscoveryGap(chainId: number, vault: `0x${string}`, strateg
   )
   const inceptBlock = thing.rows[0]?.inceptBlock
   if (!abi || inceptBlock == null) { deferred(!abi ? 'missing_reader' : 'missing_inception'); return }
-  if (strider.plan(BigInt(inceptBlock), blockNumber, travelled).length > 0) { deferred('incomplete_coverage'); return }
+  let coveredBlock = BigInt(inceptBlock) - 1n
+  for (const stride of [...travelled].sort((a, b) => a.from < b.from ? -1 : a.from > b.from ? 1 : 0)) {
+    if (stride.from > coveredBlock + 1n) break
+    if (stride.to > coveredBlock) coveredBlock = stride.to
+  }
+  if (coveredBlock < BigInt(inceptBlock)) { deferred('incomplete_coverage'); return }
+  if (coveredBlock > blockNumber) coveredBlock = blockNumber
+  if (coveredBlock < blockNumber) {
+    // Compare both sides at the last continuously loaded block, not at RPC head.
+    const queue = EvmAddressSchema.array().parse(await rpcs.next(chainId, coveredBlock).readContract({
+      address: vault, abi: vaultAbi, functionName: 'get_default_queue', blockNumber: coveredBlock
+    }))
+    const projected = await projectStrategies(chainId, vault, coveredBlock)
+    strategies = [...new Set(queue.filter(strategy => !projected.includes(strategy)))]
+    if (!strategies.length) { deferred('awaiting_event_coverage'); return }
+  }
 
   console.error(`🚨 DISCOVERY_GAP: chainId=${chainId} vault=${vault} strategies=${strategies.join(',')}`)
   sentry.captureMessage('DISCOVERY_GAP', {
     level: 'warning',
     tags: { component: 'ingest', hook: 'vault.snapshot.projectStrategies' },
-    extra: { chainId, vault, strategies, blockNumber: String(blockNumber) }
+    extra: { chainId, vault, strategies, snapshotBlock: String(blockNumber), comparisonBlock: String(coveredBlock) }
   })
 
   await mq.add(mq.job.fanout.events, {
