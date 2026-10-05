@@ -30,7 +30,7 @@ export default class Load implements Processor {
       await upsertThing(data),
 
     [mq.job.load.output.name]: async data =>
-      await upsertBatchOutput(data.batch),
+      await upsertBatchOutput(data.batch === undefined ? [data] : data.batch),
 
     [mq.job.load.price.name]: async data => data.batch
       ? await upsertBatch(data.batch, 'price', 'chain_id, address, block_number')

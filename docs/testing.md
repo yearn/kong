@@ -189,7 +189,7 @@ this command; a green test job does not establish end-to-end RPC coverage.
 
 Run `node scripts/check-typecheck-baseline.mjs` after installing dependencies.
 The checked-in baseline records the TypeScript 7 audit's existing ingest (17),
-lib (40), and web (2) diagnostics. It compares file, code, message and occurrence
+lib (1), and web (2) diagnostics. It compares file, code, message and occurrence
 count, ignoring line/column so unrelated edits can move existing diagnostics.
 Fixing an error passes immediately; remove its baseline entry afterward. Do not
 refresh the baseline to accept a regression. Terminal remains a zero-error gate.
@@ -202,3 +202,11 @@ change the gate's input files.
 scripts still have an unaudited diagnostic backlog and require a separate baseline
 audit. The gate currently covers terminal, ingest, lib and web; it does not claim
 type safety for the scripts workspace.
+
+CI does not execute the production ts-node entrypoint. Its TypeScript 6 compatibility
+API was checked locally in the prepared package, but a green CI gate does not
+verify runtime compiler compatibility. Validate that path before deployment.
+
+`load.output` accepts current `{ batch }` payloads and wraps legacy single-output
+payloads as a one-element batch before validation, preserving queued work across
+upgrades. Invalid payloads still fail schema validation.
