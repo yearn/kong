@@ -8,7 +8,8 @@ export const queueNames = [
   'extract',
   ...chains.map(c => `extract-${c.id}`),
   'load',
-  'probe'
+  'probe',
+  'quarantine'
 ]
 
 // Cache queues
