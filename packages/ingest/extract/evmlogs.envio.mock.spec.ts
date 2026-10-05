@@ -15,6 +15,7 @@ vi.mock('../envio', async importOriginal => ({
 }))
 
 import { EvmLogsExtractor } from './evmlogs'
+import { EnvioLagError } from '../envio'
 const address = '0x0000000000000000000000000000000000000002'
 const job = { abiPath: 'yearn/3/vault', chainId: 1, address, from: 1n, to: 9n }
 const signature = toEventSelector('event StrategyChanged(address indexed strategy, uint256 change_type)')
@@ -71,6 +72,25 @@ describe('Envio extraction coverage', () => {
     await new EvmLogsExtractor().extract(job)
     expect(fetchEnvioLogs).not.toHaveBeenCalled()
     expect(getLogs).toHaveBeenCalledOnce()
+  })
+
+  it('distinguishes routine watermark lag from indexer breakage', async () => {
+    fetchEnvioLogs.mockRejectedValue(new EnvioLagError(1, 9n, 8n))
+    const info = vi.spyOn(console, 'info')
+    const warning = vi.spyOn(console, 'warn')
+    try {
+      await new EvmLogsExtractor().extract(job)
+      expect(info).toHaveBeenCalledWith('ENVIO_LAG_RPC', expect.objectContaining({ progress: '8' }))
+      expect(warning).not.toHaveBeenCalled()
+      expect(mqAdd).toHaveBeenCalledOnce()
+    } finally { info.mockRestore(); warning.mockRestore() }
+  })
+
+  it('does not enqueue persistence when both Envio and RPC extraction fail', async () => {
+    fetchEnvioLogs.mockRejectedValue(new Error('bad response'))
+    getLogs.mockRejectedValue(new Error('RPC unavailable'))
+    await expect(new EvmLogsExtractor().extract(job)).rejects.toThrow('RPC unavailable')
+    expect(mqAdd).not.toHaveBeenCalled()
   })
 
   it('fetches full RPC coverage after an Envio failure', async () => {

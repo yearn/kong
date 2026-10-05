@@ -129,6 +129,13 @@ export async function envioProgressBlock(chainId: number): Promise<bigint> {
   return BigInt(result)
 }
 
+export class EnvioLagError extends Error {
+  constructor(readonly chainId: number, readonly to: bigint, readonly progress: bigint) {
+    super(`Envio behind for chain ${chainId}: to ${to} > progress ${progress}`)
+    this.name = 'EnvioLagError'
+  }
+}
+
 export async function fetchEnvioLogs(
   chainId: number,
   address: `0x${string}`,
@@ -141,7 +148,7 @@ export async function fetchEnvioLogs(
   if (unmapped.length) throw new Error(`Unmapped Envio events: ${abiPath} ${unmapped.map(event => event.name).join(', ')}`)
   if (!events.length) return []
   const progress = await envioProgressBlock(chainId)
-  if (to > progress) throw new Error(`Envio behind for chain ${chainId}: to ${to} > progress ${progress}`)
+  if (to > progress) throw new EnvioLagError(chainId, to, progress)
 
   const logs: EvmLog[] = []
   for (const [key, { entity, address: addressField, has, lacks }] of Object.entries(ENVIO_ENTITIES)) {
@@ -156,7 +163,7 @@ export async function fetchEnvioLogs(
       ${entity}(
         where: {
           chainId: { _eq: $chainId }
-          ${addressField}: { _ilike: $address }
+          ${addressField}: { _eq: $address }
           blockNumber: { _lte: $to }
           ${has ? `${has}: { _is_null: false }` : ''}
           ${lacks ? `${lacks}: { _is_null: true }` : ''}

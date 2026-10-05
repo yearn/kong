@@ -10,7 +10,7 @@ import { requireHooks } from '../abis'
 import abiutil from '../abiutil'
 import blacklist from 'lib/blacklist'
 import { safeFetchOrExtractDecimals } from '../abis/yearn/lib'
-import { fetchEnvioLogs, isEnvioSourceCovered, partitionEnvioEvents } from '../envio'
+import { EnvioLagError, fetchEnvioLogs, isEnvioSourceCovered, partitionEnvioEvents } from '../envio'
 
 export class EvmLogsExtractor {
   resolveHooks: ResolveHooks|undefined
@@ -44,7 +44,11 @@ export class EvmLogsExtractor {
         try {
           envioLogs = await fetchEnvioLogs(chainId, address, from, to, mapped, abiPath)
         } catch (error) {
-          console.warn('ENVIO_RPC_FALLBACK', { chainId, address, abiPath, from: String(from), to: String(to), phase: 'extract', error })
+          if (error instanceof EnvioLagError) {
+            console.info('ENVIO_LAG_RPC', { chainId, address, abiPath, from: String(from), to: String(to), progress: String(error.progress) })
+          } else {
+            console.warn('ENVIO_RPC_FALLBACK', { chainId, address, abiPath, from: String(from), to: String(to), phase: 'extract', error })
+          }
           return await rpcs.next(chainId, from).getLogs({ address, events, fromBlock: from, toBlock: to })
         }
         // Entity coverage is narrower than an ABI. Never credit missing events

@@ -68,7 +68,7 @@ describe('envio', function() {
       .rejects.toThrow('Envio response missing entity: StrategyChanged')
   })
 
-  it('uses verified metadata fields and a case-insensitive address filter', async () => {
+  it('uses verified metadata fields and an exact checksummed address filter', async () => {
     const request = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({ data: { chain_metadata: [{ chain_id: 1, latest_processed_block: 100 }] } }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { StrategyChanged: [] } }) })
     vi.stubGlobal('fetch', request)
@@ -78,7 +78,26 @@ describe('envio', function() {
     const entity = JSON.parse(request.mock.calls[1][1].body)
     expect(metadata.query).to.include('chain_metadata')
     expect(metadata.query).to.include('latest_processed_block')
-    expect(entity.query).to.include('vaultAddress: { _ilike: $address }')
+    expect(entity.query).to.include('vaultAddress: { _eq: $address }')
+  })
+
+  it('paginates one entity without skipping or duplicating rows at the cursor boundary', async () => {
+    const address = '0x0000000000000000000000000000000000000002'
+    const events = parseAbi(['event StrategyChanged(address indexed strategy, uint256 change_type)'])
+    const row = (blockNumber: number, logIndex: number) => ({ blockNumber, logIndex, blockTimestamp: 200, transactionHash: '0x' + '11'.repeat(32), transactionIndex: 0, strategy: address, change_type: '1' })
+    const firstPage = Array.from({ length: 1000 }, (_, index) => row(10, index))
+    const secondPage = [row(10, 1000), row(11, 0)]
+    const request = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { chain_metadata: [{ chain_id: 1, latest_processed_block: 100 }] } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { StrategyChanged: firstPage } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { StrategyChanged: secondPage } }) })
+    vi.stubGlobal('fetch', request)
+    const logs = await fetchEnvioLogs(1, address, 10n, 100n, events, 'yearn/3/vault')
+    expect(JSON.parse(request.mock.calls[1][1].body).variables).to.include({ block: 10, logIndex: -1 })
+    expect(JSON.parse(request.mock.calls[2][1].body).variables).to.include({ block: 10, logIndex: 999 })
+    expect(logs).to.have.length(1002)
+    expect(new Set(logs.map(log => `${log.blockNumber}:${log.logIndex}`)).size).to.equal(1002)
+    expect(logs.map(log => [log.blockNumber, log.logIndex])).to.deep.equal([...firstPage, ...secondPage].map(row => [BigInt(row.blockNumber), row.logIndex]))
   })
 
   it('rejects a missing numeric argument rather than converting null to zero', () => {

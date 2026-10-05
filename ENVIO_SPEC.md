@@ -30,7 +30,7 @@ entries use the latest `fromBlock`, preserving the most restrictive trust bounda
   If RPC finds mapped events, `ENVIO_EMPTY_RPC_MISMATCH` reports the source/range.
 - Fanout follows RPC head/configured end, so indexer lag does not delay RPC-only
   events. Extraction checks the processed watermark and uses full RPC for chunks
-  extending past it.
+  extending past it, logged as `ENVIO_LAG_RPC` without a breakage warning.
 - Hasura errors, absent entity response fields, and missing event arguments trigger
   a full RPC fetch with `ENVIO_RPC_FALLBACK`. Coverage advances only after that
   fetch succeeds. Fanout does not depend on the progress query.
@@ -41,7 +41,7 @@ entries use the latest `fromBlock`, preserving the most restrictive trust bounda
 Partial nonempty histories cannot be detected from entity rows alone. That is why
 confirmed-source configuration is mandatory. Revalidate it after changing Envio
 handlers, start blocks, or Kong's mapping. RPC fallback costs remain for unmapped
-events; this PR does not promise zero RPC calls for every ABI.
+events and every mapped event with an empty result. For sparse factories and registries, enabling Envio adds metadata/entity queries while retaining one RPC request per empty chunk, increasing total request volume. This safety check prioritizes coverage over RPC savings.
 
 ## External prerequisites
 
@@ -73,9 +73,7 @@ the extractor and fanout and require an explicit integration review when combine
 The public deployment `https://indexer.hyperindex.xyz/5a089e4/v1/graphql` was
 introspected on 2026-10-05. `docs/envio-schema-contract.json` records the endpoint,
 introspection digest, indexer checkout revision and 27 supported mapping contracts.
-Every retained entity's selected fields and `_ilike` address filter were accepted
-by live GraphQL queries with `limit: 0`. A live `StrategyChanged` row uses an
-EIP-55 address; `_ilike` also supports deployments storing lowercase addresses.
+Every retained entity's selected fields were accepted by live GraphQL queries with `limit: 0`. Address predicates use exact `_eq` against `getAddress(address)`, matching this deployment's EIP-55 storage and permitting btree lookup. Deployments using a different casing require revalidation and a corresponding filter change.
 Metadata is `chain_metadata.chain_id/latest_processed_block`, not `_meta`.
 The schema itself exposes no version identifier; the endpoint, digest and observed
 contract identify this target. Revalidate it before configuring a different deployment.

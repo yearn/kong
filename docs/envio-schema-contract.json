@@ -8,7 +8,7 @@
     "chainId": "chain_id",
     "progress": "latest_processed_block"
   },
-  "addressComparison": "_ilike",
+  "addressComparison": "_eq",
   "mappings": [
     {
       "key": "yearn/2/registry:NewVault",
@@ -297,5 +297,6 @@
         "idx"
       ]
     }
-  ]
+  ],
+  "addressEncoding": "EIP-55 via viem.getAddress; exact filter validated against the target schema"
 }
