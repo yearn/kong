@@ -17,12 +17,14 @@ import { quarantine } from 'lib/mq'
 
 describe('durable quarantine in the CI mocks project', () => {
   it('preserves BullMQ originating queues and separates same-id payloads', async () => {
-    const originalJob = (name: string) => new Job({ name, qualifiedName: `bull:${name}`, toKey: (key: string) => `bull:${name}:${key}` } as never,
+    const originalJob = (name: string) => new Job({ name, qualifiedName: `bull:${name}`, keys: { wait: `bull:${name}:wait`, paused: `bull:${name}:paused`, meta: `bull:${name}:meta` }, toKey: (key: string) => `bull:${name}:${key}` } as never,
       'unexpected', { payload: name }, {}, '42')
     await quarantine(originalJob('extract-1'))
     await quarantine(originalJob('load'))
     const calls = add.mock.calls as unknown as [string, { queue: string, id: string, data: unknown }, { jobId: string, removeOnComplete: boolean, removeOnFail: boolean }][]
     expect(calls).toHaveLength(2)
+    expect(add.mock.contexts[0]).toHaveProperty('name', 'quarantine')
+    expect(add.mock.contexts[1]).toHaveProperty('name', 'quarantine')
     for (const [index, queue] of ['extract-1', 'load'].entries()) {
       expect(calls[index]).toEqual(['unexpected', { queue, id: '42', name: 'unexpected', data: { payload: queue } }, expect.objectContaining({
         jobId: Buffer.from(JSON.stringify([queue, '42'])).toString('base64url'), removeOnComplete: false, removeOnFail: false
