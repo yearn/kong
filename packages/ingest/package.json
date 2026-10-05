@@ -38,6 +38,7 @@
     "@typescript-eslint/parser": "8.69.0",
     "chai": "4.5.0",
     "chai-almost": "1.0.1",
-    "eslint": "9.19.0"
+    "eslint": "9.19.0",
+    "vitest": "3.2.6"
   }
 }
