@@ -27,6 +27,10 @@ export default class Extract implements Processor {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handler = async (job: any) => {
+      if (job.queueName === mq.q.extract && job.name === mq.job.extract.block.name && job.data?.chainId == null) {
+        console.info('IGNORED_LEGACY_BLOCK_JOB', job.id)
+        return
+      }
       const label = job.data.replay
         ? `🎭 ${job.name} ${job.id} ${job.data.chainId}`
         : `🛸 ${job.name} ${job.id} ${job.data.chainId}`

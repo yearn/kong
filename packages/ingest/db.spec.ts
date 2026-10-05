@@ -1,4 +1,5 @@
 import { expect } from 'chai'
+import { vi } from 'vitest'
 import { types } from 'lib'
 import db, { getSparkline, upsertThingDefaults } from './db'
 
@@ -152,6 +153,21 @@ describe('getSparkline', () => {
 
     const rows = await getSparkline(CHAIN_ID, ADDRESS, LABEL, 'tvl')
     expect(rows.map(row => row.close)).to.deep.equal([20, 10])
+  })
+
+  it('serves three older buckets from the bounded 365d tier without a full scan', async () => {
+    await insert(10, 1, bucketAt(200))
+    await insert(20, 2, bucketAt(160))
+    await insert(30, 3, bucketAt(120))
+    const queries = vi.spyOn(db, 'query')
+    try {
+      const rows = await getSparkline(CHAIN_ID, ADDRESS, LABEL, 'tvl')
+      expect(rows.map(row => row.close)).to.deep.equal([30, 20, 10])
+      const statements = queries.mock.calls.map(call => String(call[0]))
+      expect(statements).to.have.length(2)
+      expect(statements[1]).to.include('days => 365')
+      expect(statements.every(sql => sql.includes('series_time >= '))).to.equal(true)
+    } finally { queries.mockRestore() }
   })
 
   it('keeps a series last written over 365d ago', async () => {
