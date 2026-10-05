@@ -219,3 +219,10 @@ A silent zero-diagnostic result fails and lists the unmatched entries, guarding
 against lost compiler coverage. When fixing the last known error in a workspace,
 remove its now-resolved baseline entries in the same commit. Resolving some entries
 while others still match remains allowed.
+
+The baseline gate invokes each workspace's declared `typecheck` command. The
+native wrapper emits a completion record only to the gate; abnormal exits,
+signals, unexpected compiler stderr or missing records fail even when earlier
+diagnostics matched the baseline. A normal completed diagnostic run can still
+resolve some baseline entries. Failure headlines distinguish execution/coverage
+failures, unparsable output and new diagnostics.

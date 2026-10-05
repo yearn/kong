@@ -7,8 +7,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const baseline = JSON.parse(readFileSync(path.join(root, 'scripts/typecheck-baseline.json'), 'utf8'))
 let failed = false
 for (const [workspace, allowed] of Object.entries(baseline)) {
-  const result = spawnSync(process.execPath, [path.join(root, 'scripts/typecheck.mjs'), ...(workspace === 'web' ? ['--project', 'tsconfig.typecheck.json'] : [])], {
-    cwd: path.join(root, 'packages', workspace), encoding: 'utf8'
+  const cwd = path.join(root, 'packages', workspace)
+  const { scripts } = JSON.parse(readFileSync(path.join(cwd, 'package.json'), 'utf8'))
+  const result = spawnSync(scripts.typecheck, {
+    cwd, shell: true, encoding: 'utf8', env: { ...process.env, KONG_TYPECHECK_PROTOCOL: '1' }
   })
   const output = (result.stdout ?? '') + (result.stderr ?? '')
   const diagnostics = [...output.matchAll(/^(.+?)\(\d+,\d+\): error (TS\d+): (.*)$/gm)]
@@ -22,10 +24,21 @@ for (const [workspace, allowed] of Object.entries(baseline)) {
     return false
   })
   const noBaselineMatch = allowed.length > 0 && remaining.length === allowed.length
-  if (result.error || result.signal || (result.status !== 0 && diagnostics.length === 0) || added.length || unparsed.length || noBaselineMatch) {
+  const records = [...(result.stderr ?? '').matchAll(/^KONG_TYPECHECK_RESULT=(.+)$/gm)]
+  let completion
+  try { completion = records.length === 1 ? JSON.parse(records[0][1]) : undefined } catch { /* fail closed below */ }
+  const failures = []
+  if (result.error || result.signal) failures.push('workspace command crashed')
+  if (!completion) failures.push('compiler initialization failed or completion record missing')
+  else if (completion.error || completion.signal || ![0, 1, 2].includes(completion.status) || completion.unexpectedStderr || result.status !== completion.status) failures.push('compiler aborted or emitted unexpected failure output')
+  if (unparsed.length) failures.push('unparsable compiler diagnostics')
+  if (added.length) failures.push(`${added.length} new diagnostics`)
+  if (noBaselineMatch) failures.push('lost coverage: no baseline diagnostic matched')
+  if (completion?.status !== 0 && diagnostics.length === 0) failures.push('nonzero compiler exit without diagnostics')
+  if (failures.length) {
     failed = true
-    console.error(`${workspace}: typecheck failed with ${added.length} new diagnostics`)
-    if (noBaselineMatch) console.error(`No known diagnostic matched; check compiler coverage or update a fully resolved baseline:\n${remaining.join('\n')}`)
+    console.error(`${workspace}: typecheck failed — ${failures.join('; ')}`)
+    if (noBaselineMatch) console.error(`Unmatched baseline entries:\n${remaining.join('\n')}`)
     console.error(result.error ?? ([...added, ...unparsed].length ? [...added, ...unparsed].join('\n') : output))
   } else {
     console.log(`${workspace}: ${diagnostics.length} known diagnostics; ${remaining.length} baseline diagnostics resolved; no new errors`)

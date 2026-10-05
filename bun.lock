@@ -53,6 +53,7 @@
         "chai": "4.5.0",
         "chai-almost": "1.0.1",
         "eslint": "9.19.0",
+        "vitest": "3.2.6",
       },
     },
     "packages/lib": {
@@ -180,6 +181,7 @@
         "eslint-config-next": "15.1.6",
         "tailwindcss": "3.3.3",
         "typescript": "npm:@typescript/typescript6@6.0.2",
+        "vitest": "3.2.6",
       },
     },
   },
