@@ -22,6 +22,27 @@ describe('envio', function() {
     expect(isEnvioSourceCovered(1, address, 'yearn/3/vault', 100n)).to.equal(false)
   })
 
+  it('parses a confirmed-source list once across repeated job lookups', () => {
+    vi.stubEnv('USE_ENVIO', 'true')
+    vi.stubEnv('ENVIO_CHAINS', '1')
+    const address = '0x0000000000000000000000000000000000000003'
+    vi.stubEnv('ENVIO_CONFIRMED_SOURCES', JSON.stringify([{ chainId: 1, address, abiPath: 'yearn/2/vault', fromBlock: '1' }]))
+    const parse = vi.spyOn(JSON, 'parse')
+    try {
+      for (let i = 0; i < 100; i++) expect(isEnvioSourceCovered(1, address, 'yearn/2/vault', 100n)).to.equal(true)
+      expect(parse.mock.calls).to.have.length(1)
+    } finally {
+      parse.mockRestore()
+    }
+  })
+
+  it('continues rejecting malformed coverage after a valid list was cached', () => {
+    vi.stubEnv('USE_ENVIO', 'true')
+    vi.stubEnv('ENVIO_CHAINS', '1')
+    vi.stubEnv('ENVIO_CONFIRMED_SOURCES', '[{"invalid":true}]')
+    expect(() => isEnvioSourceCovered(1, '0x0000000000000000000000000000000000000003', 'yearn/2/vault', 100n)).to.throw()
+  })
+
   it('keeps unmapped events for RPC instead of silently discarding them', () => {
     const events = parseAbi(['event StrategyChanged(address indexed strategy, uint256 change_type)', 'event UpdateRoleManager(address indexed role_manager)'])
     const { mapped, unmapped } = partitionEnvioEvents('yearn/3/vault', events)

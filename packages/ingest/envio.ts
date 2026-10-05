@@ -69,13 +69,35 @@ const CoverageSchema = z.object({
   fromBlock: z.bigint({ coerce: true }).nonnegative()
 }).array()
 
-// Chain progress alone does not prove that a dynamically discovered contract
-// was indexed from inception. Unverified sources continue using RPC.
+let coverageConfig: string | undefined
+let coverageBySource = new Map<string, bigint>()
+
+function sourceKey(chainId: number, address: string, abiPath: string) {
+  return `${chainId}:${address.toLowerCase()}:${abiPath}`
+}
+
+// Validate/checksum once per configuration, then use constant-time source lookups.
+export function envioSourceStart(chainId: number, address: `0x${string}`, abiPath: string) {
+  if (!useEnvio(chainId)) return undefined
+  const config = process.env.ENVIO_CONFIRMED_SOURCES || '[]'
+  if (config !== coverageConfig) {
+    const coverage = CoverageSchema.parse(JSON.parse(config))
+    const next = new Map<string, bigint>()
+    for (const source of coverage) {
+      const key = sourceKey(source.chainId, source.address, source.abiPath)
+      const previous = next.get(key)
+      next.set(key, previous === undefined || source.fromBlock < previous ? source.fromBlock : previous)
+    }
+    coverageBySource = next
+    coverageConfig = config
+  }
+  return coverageBySource.get(sourceKey(chainId, address, abiPath))
+}
+
+// Chain progress alone does not prove a contract's historical coverage.
 export function isEnvioSourceCovered(chainId: number, address: `0x${string}`, abiPath: string, from: bigint) {
-  if (!useEnvio(chainId)) return false
-  const coverage = CoverageSchema.parse(JSON.parse(process.env.ENVIO_CONFIRMED_SOURCES || '[]'))
-  return coverage.some(source => source.chainId === chainId && source.address === getAddress(address)
-    && source.abiPath === abiPath && source.fromBlock <= from)
+  const start = envioSourceStart(chainId, address, abiPath)
+  return start !== undefined && start <= from
 }
 
 async function gql(query: string, variables?: Record<string, unknown>): Promise<any> {
