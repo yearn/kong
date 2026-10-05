@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const { captureMessage, captured, snapshotExtract } = vi.hoisted(() => ({
+const { captureException, captureMessage, captured, snapshotExtract } = vi.hoisted(() => ({
   captureMessage: vi.fn(),
-  captured: {} as { handler?: (job: { name: string; id: string; data: Record<string, unknown> }) => Promise<void> },
+  captureException: vi.fn(),
+  captured: {} as { handler?: (job: { name: string; id: string; queueName?: string; opts?: { removeOnFail?: boolean }; data: Record<string, unknown> }) => Promise<void> },
   snapshotExtract: vi.fn(async () => undefined)
 }))
 
@@ -33,7 +34,7 @@ vi.mock('lib', () => ({
       return { close: vi.fn() }
     })
   },
-  sentry: { captureMessage }
+  sentry: { captureMessage, captureException }
 }))
 
 import Extract from './index'
@@ -56,7 +57,15 @@ describe('extract worker unknown job guard', () => {
 
   it.each(['new-job', 'toString'])('quarantines unexpected job %s before failing', async name => {
     await new Extract().up()
-    await expect(captured.handler!({ name, id: '3', data: {} })).rejects.toThrow(`unknown extract job ${name}`)
-    expect(mq.quarantine).toHaveBeenCalledWith({ name, id: '3', data: {} })
+    await expect(captured.handler!({ name, id: '3', queueName: 'extract-1', data: {}, opts: {} })).rejects.toThrow(`unknown extract job ${name}`)
+    expect(mq.quarantine).toHaveBeenCalledWith({ name, id: '3', queueName: 'extract-1', data: {}, opts: {} })
+  })
+  it('retains the original failure when quarantine storage fails', async () => {
+    await new Extract().up()
+    vi.mocked(mq.quarantine).mockRejectedValueOnce(new Error('redis unavailable'))
+    const job = { name: 'new-job', id: 'failed-copy', queueName: 'extract-1', data: {}, opts: { removeOnFail: true } }
+    await expect(captured.handler!(job)).rejects.toThrow('unknown extract job new-job')
+    expect(job.opts.removeOnFail).toBe(false)
+    expect(captureException).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ tags: expect.objectContaining({ phase: 'quarantine_write' }) }))
   })
 })

@@ -1,7 +1,7 @@
 import { mq } from 'lib'
 import { Worker } from 'bullmq'
 import { Processor } from 'lib/processor'
-import { reportRetiredJob } from '../retired-jobs'
+import { quarantineUnknownJob, reportRetiredJob } from '../retired-jobs'
 import { EvmLogsExtractor } from './evmlogs'
 import { BlockExtractor } from './block'
 import { SnapshotExtractor } from './snapshot'
@@ -30,8 +30,7 @@ export default class Extract implements Processor {
       const extractor = Object.prototype.hasOwnProperty.call(this.extractors, job.name) ? this.extractors[job.name] : undefined
       if (!extractor) {
         if (job.name !== 'waveydb') {
-          await mq.quarantine(job)
-          throw new Error(`unknown extract job ${job.name}`)
+          await quarantineUnknownJob('extract', job)
         }
         reportRetiredJob('extract', job.name)
         return

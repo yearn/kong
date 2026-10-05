@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { mq, strider, types } from 'lib'
 import db, { firstRow, getTravelledStrides, toUpsertSql, upsertThingDefaults } from '../db'
 import { Processor } from 'lib/processor'
-import { reportRetiredJob } from '../retired-jobs'
+import { quarantineUnknownJob, reportRetiredJob } from '../retired-jobs'
 import { PoolClient } from 'pg'
 import { OutputSchema, SnapshotSchema, ThingSchema, zhexstring } from 'lib/types'
 import { Worker } from 'bullmq'
@@ -41,8 +41,7 @@ export default class Load implements Processor {
       const handler = Object.prototype.hasOwnProperty.call(this.handlers, job.name) ? this.handlers[job.name] : undefined
       if (!handler) {
         if (job.name !== 'price') {
-          await mq.quarantine(job)
-          throw new Error(`unknown load job ${job.name}`)
+          await quarantineUnknownJob('load', job)
         }
         reportRetiredJob('load', job.name)
         return
