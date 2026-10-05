@@ -78,6 +78,11 @@ describe('vault discovery repair', () => {
     expect(add).not.toHaveBeenCalled()
   })
 
+  it('does not confirm a repair from an empty queue', async () => {
+    await projectStrategies(1, vault, 100n, SnapshotSchema.parse({ blockNumber: 100n, get_default_queue: [] }))
+    expect(confirm).not.toHaveBeenCalled()
+  })
+
   it('does not alert without a pinned snapshot block', async () => {
     await projectStrategies(1, vault, undefined, { get_default_queue: [getAddress(strategy)] })
     expect(add).not.toHaveBeenCalled()

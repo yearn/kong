@@ -210,7 +210,7 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   const gaps = [...new Set((snapshot?.get_default_queue ?? []).map(strategy => EvmAddressSchema.parse(strategy)).filter(strategy => !result.includes(strategy)))]
   result.push(...gaps)
   const pinnedBlock = blockNumber ?? snapshot?.blockNumber
-  if (snapshot?.get_default_queue !== undefined && gaps.length === 0 && pinnedBlock !== undefined) {
+  if ((snapshot?.get_default_queue?.length ?? 0) > 0 && gaps.length === 0 && pinnedBlock !== undefined) {
     try { await mq.confirmDiscoveryRepair(chainId, vault, pinnedBlock) }
     catch (error) {
       sentry.captureMessage('DISCOVERY_REPAIR_CONFIRM_FAILED', { level: 'error', extra: { chainId, vault, error: String(error) } })

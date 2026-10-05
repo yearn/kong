@@ -28,12 +28,17 @@ describe('event discovery repair fanout', () => {
   })
   it('marks enqueue completion while retaining the repair comparison block', async () => {
     await new EventsFanout().fanout({ ...job, ignoreStrides: true, discoveryRepair: true, repairBlock: '90' } as never)
-    expect(reserve).toHaveBeenCalledWith(1, '0x01', 90n)
-    expect(finish).toHaveBeenCalledWith(1, '0x01', 'lease', true)
+    expect(reserve).toHaveBeenCalledWith(1, '0x01', 90n, 960)
+    expect(finish).toHaveBeenCalledWith(1, '0x01', 'lease', true, 960)
+  })
+  it('scales the reservation window with a long backfill', async () => {
+    await new EventsFanout().fanout({ ...job, source: { ...job.source, endBlock: 20000n }, ignoreStrides: true, discoveryRepair: true } as never)
+    expect(reserve).toHaveBeenCalledWith(1, '0x01', undefined, 1020)
+    expect(finish).toHaveBeenCalledWith(1, '0x01', 'lease', true, 1020)
   })
   it('releases the vault lease after failed fanout', async () => {
     add.mockRejectedValueOnce(new Error('RPC unavailable'))
     await expect(new EventsFanout().fanout({ ...job, ignoreStrides: true, discoveryRepair: true } as never)).rejects.toThrow('RPC unavailable')
-    expect(finish).toHaveBeenCalledWith(1, '0x01', 'lease', false)
+    expect(finish).toHaveBeenCalledWith(1, '0x01', 'lease', false, 960)
   })
 })

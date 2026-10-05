@@ -5,13 +5,14 @@ const chainId = 31337
 const addresses = ['0xAa', '0xBb']
 const key = (address: string) => `kong:discovery-repair:${chainId}:${address.toLowerCase()}`
 const budget = 'kong:discovery-repair:global-budget'
+const admissionKeys = [budget, 'kong:discovery-repair:first-pending', 'kong:discovery-repair:retry-pending', 'kong:discovery-repair:admitted']
 const queue = connect(q.fanout)
 let client: Awaited<typeof queue.client>
 
 // vitest.global.ts provides an isolated container Redis, never deployment Redis.
 describe('discovery repair Lua admission', () => {
-  beforeAll(async () => { client = await queue.client; await client.del(budget, ...addresses.map(key)) })
-  afterEach(async () => { await client.del(budget, ...addresses.map(key)) })
+  beforeAll(async () => { client = await queue.client; await client.del(...admissionKeys, ...addresses.map(key)) })
+  afterEach(async () => { await client.del(...admissionKeys, ...addresses.map(key)) })
   afterAll(async () => { await queue.close(); await down() })
 
   it('admits one vault and budgets the next, then persists a successful cooldown', async () => {
@@ -36,6 +37,16 @@ describe('discovery repair Lua admission', () => {
     await client.expire(key(addresses[0]), 0)
     await client.expire(budget, 0)
     expect((await reserveDiscoveryRepair(chainId, addresses[0], 100n)).status).toBe('granted')
+  })
+
+  it('keeps a long-backfill window and prefers a first repair over an unconfirmed retry', async () => {
+    const first = await reserveDiscoveryRepair(chainId, addresses[0], 100n, 7200)
+    await finishDiscoveryRepair(chainId, addresses[0], first.token, true, 7200)
+    expect(await client.ttl(key(addresses[0]))).toBeGreaterThan(7190)
+    expect((await reserveDiscoveryRepair(chainId, addresses[1], 100n)).status).toBe('budget')
+    await client.del(budget, key(addresses[0]))
+    expect((await reserveDiscoveryRepair(chainId, addresses[0], 100n)).status).toBe('fairness')
+    expect((await reserveDiscoveryRepair(chainId, addresses[1], 100n)).status).toBe('granted')
   })
 
   it('releases a failed vault while keeping the global budget', async () => {

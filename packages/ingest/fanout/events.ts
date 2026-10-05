@@ -24,10 +24,20 @@ export default class EventsFanout {
     const { chainId, address, inceptBlock, startBlock, endBlock } = SourceConfigSchema.parse(data.source)
     const { abiPath } = AbiConfigSchema.parse(data.abi)
     const { replay, ignoreStrides } = data
+    const from = replay?.enabled && replay?.since
+      ? await estimateHeight(chainId, replay.since)
+      : startBlock ?? inceptBlock
+    const to = endBlock ?? await getBlockNumber(chainId)
+    const logStride = getLogStride(chainId)
+    if (!Number.isSafeInteger(logStride) || logStride <= 0) throw new Error('invalid log stride')
+    // One minute per full-history chunk plus a 15-minute loading margin.
+    // Large backfills must not be re-admitted on every cron tick.
+    const chunks = to >= from ? Number((to - from) / BigInt(logStride) + 1n) : 0
+    const repairWindowSeconds = 900 + chunks * 60
     let repairToken: string | undefined
     if (data.discoveryRepair) {
       const minimumBlock = data.repairBlock === undefined ? undefined : z.bigint({ coerce: true }).nonnegative().parse(data.repairBlock)
-      const admission = await mq.reserveDiscoveryRepair(chainId, address, minimumBlock)
+      const admission = await mq.reserveDiscoveryRepair(chainId, address, minimumBlock, repairWindowSeconds)
       if (admission.status !== 'granted') {
         console.info('DISCOVERY_REPAIR_DEFERRED', { chainId, address, reason: admission.status })
         return
@@ -36,29 +46,23 @@ export default class EventsFanout {
     }
     try {
 
-      const from = replay?.enabled && replay?.since
-        ? await estimateHeight(chainId, replay?.since)
-        : startBlock ?? inceptBlock
-
-      const to = endBlock ?? await getBlockNumber(chainId)
-
       const replayRange = undefined // [{ from: 19309874n, to: 19309874n }]
       const travelled = replay?.enabled || ignoreStrides ? undefined : await getTravelledStrides(chainId, address)
       const nextStrides = replayRange ? replayRange : strider.plan(from, to, travelled)
 
       for (const stride of StrideSchema.array().parse(nextStrides)) {
         console.log('📤', 'stride', chainId, address, stride.from, stride.to)
-        await walklog({...stride, logStride: getLogStride(chainId)}, async (from, to) => {
+        await walklog({...stride, logStride}, async (from, to) => {
           const jobId = `evmlog-${abiPath}-${chainId}-${address}-${from}-${to}`
           await mq.add(mq.job.extract.evmlog, {
             abiPath, chainId, address, from, to, replay: replay?.enabled
           }, { jobId })
         })
       }
-      if (repairToken) await mq.finishDiscoveryRepair(chainId, address, repairToken, true)
+      if (repairToken) await mq.finishDiscoveryRepair(chainId, address, repairToken, true, repairWindowSeconds)
     } catch (error) {
       if (repairToken) {
-        try { await mq.finishDiscoveryRepair(chainId, address, repairToken, false) }
+        try { await mq.finishDiscoveryRepair(chainId, address, repairToken, false, repairWindowSeconds) }
         catch (releaseError) { console.error('DISCOVERY_REPAIR_RELEASE_FAILED', releaseError) }
       }
       throw error
