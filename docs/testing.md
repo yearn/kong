@@ -217,3 +217,5 @@ A silent zero-diagnostic result fails and lists the unmatched entries, guarding
 against lost compiler coverage. When fixing the last known error in a workspace,
 remove its now-resolved baseline entries in the same commit. Resolving some entries
 while others still match remains allowed.
+
+Ingest startup removes obsolete root-`extract` repeatable `block` jobs before starting workers. Per-chain crons keep their `chainId` payload; verify root repeatables are empty for `block` after rollout. Pool errors report to Sentry without crashing on an idle-client error. Concurrency probe errors report on the first failure and at most once per minute until recovery.
