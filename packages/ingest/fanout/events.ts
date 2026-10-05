@@ -84,7 +84,7 @@ export default class EventsFanout {
           const hash = createHash('sha1').update([...[...abiPaths].sort(), ...chunkSignatures.sort()].join()).digest('hex').slice(0, 12)
           const jobId = `evmlog-${chainId}-${address}-${chunkFrom}-${chunkTo}-${hash}`
           await mq.add(mq.job.extract.evmlog, {
-            abiPaths: [...abiPaths], signatures: chunkSignatures, chainId, address, from: chunkFrom, to: chunkTo, replay: replay?.enabled
+            abiPaths: [...abiPaths], signatures: chunkSignatures, chainId, address, from: chunkFrom, to: chunkTo, limitStartBlock: defaultStart, replay: replay?.enabled
           }, { jobId })
         }
       })

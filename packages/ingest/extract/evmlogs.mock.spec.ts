@@ -74,6 +74,15 @@ describe('EvmLogsExtractor multi-abi', () => {
     expect((mqAdd.mock.calls.at(-1) as unknown[])[1]).toMatchObject({ signatures: [] })
   })
 
+  it('honors the pinned planning floor after the wall-clock floor advances', async () => {
+    defaultStart.mockResolvedValueOnce(200n)
+    getLogs.mockClear()
+    getLogs.mockResolvedValueOnce([])
+    await new EvmLogsExtractor().extract({ abiPaths: ['erc4626'], signatures: [DEPOSIT], chainId: 1, address: ADDRESS, from: 100n, to: 109n, limitStartBlock: 100n })
+    expect(getLogs).toHaveBeenCalledOnce()
+    expect((mqAdd.mock.calls.at(-1) as unknown[])[1]).toMatchObject({ signatures: [DEPOSIT] })
+  })
+
   it('rejects obsolete requested signatures instead of marking them covered', async () => {
     mqAdd.mockClear()
     await expect(new EvmLogsExtractor().extract({ ...job, signatures: ['0xunknown'] }))

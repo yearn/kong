@@ -66,9 +66,10 @@ describe('EventsFanout', () => {
     defaultStart.mockResolvedValueOnce(500n)
     await new EventsFanout().fanout({ readers: [{ abi: { abiPath: 'yearn/3/vault' }, source }] } as never)
     const deposit = toEventSelector('event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)')
-    const jobs = mqAdd.mock.calls.map(call => (call as unknown[])[1] as { from: bigint, to: bigint, signatures: string[] })
+    const jobs = mqAdd.mock.calls.map(call => (call as unknown[])[1] as { from: bigint, to: bigint, signatures: string[], limitStartBlock: bigint })
     expect(jobs.find(job => job.from === 0n)?.signatures).not.toContain(deposit)
     expect(jobs.find(job => job.from === 500n)?.signatures).toContain(deposit)
+    expect(jobs.every(job => job.limitStartBlock === 500n)).toBe(true)
   })
   it('rejects inconsistent reader source keys', async () => {
     await expect(new EventsFanout().fanout({ readers: [

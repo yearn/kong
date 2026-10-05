@@ -17,7 +17,7 @@ export class EvmLogsExtractor {
   async extract(data: object) {
     if (!this.resolveHooks) this.resolveHooks = await requireHooks()
 
-    const { abiPath, abiPaths: _abiPaths, signatures, chainId, address, from, to, replay } = z.object({
+    const { abiPath, abiPaths: _abiPaths, signatures, chainId, address, from, to, replay, limitStartBlock } = z.object({
       abiPath: z.string().optional(),
       abiPaths: z.string().array().optional(),
       signatures: z.string().array().optional(),
@@ -25,7 +25,8 @@ export class EvmLogsExtractor {
       address: zhexstring,
       from: z.bigint({ coerce: true }),
       to: z.bigint({ coerce: true }),
-      replay: z.boolean().optional()
+      replay: z.boolean().optional(),
+      limitStartBlock: z.bigint({ coerce: true }).optional()
     }).parse(data)
 
     const abiPaths = _abiPaths ?? [abiPath!]
@@ -42,7 +43,7 @@ export class EvmLogsExtractor {
     }
     const union = requested.map(signature => bySignature.get(signature)).filter(Boolean)
 
-    const defaultStartBlockNumber = await getDefaultStartBlockNumber(chainId)
+    const defaultStartBlockNumber = limitStartBlock ?? await getDefaultStartBlockNumber(chainId)
     const excludeLimitlist = from < defaultStartBlockNumber
 
     const events = excludeLimitlist

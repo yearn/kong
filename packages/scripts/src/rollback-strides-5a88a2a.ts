@@ -112,8 +112,9 @@ async function main() {
 
     if (affected.length === 0) continue
 
-    for (const { address, signature, strides, rolledback } of affected) {
+    for (const { address, signature } of affected) {
       const client = await pool.connect()
+      let committedCounts: { before: number, after: number } | undefined
       try {
         await client.query('BEGIN')
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`evmlog_strides/${chain}/${address}`])
@@ -126,6 +127,7 @@ async function main() {
           [JSON.stringify(next), chain, address, signature]
         )
         await client.query('COMMIT')
+        committedCounts = { before: current.length, after: next.length }
       } catch (error) {
         await client.query('ROLLBACK')
         throw error
@@ -133,7 +135,7 @@ async function main() {
         client.release()
       }
 
-      console.log(`  ✓ ${CHAIN_NAMES[chain]}: ${address} ${signature} (${strides.length} → ${rolledback.length} strides)`)
+      console.log(`  ✓ ${CHAIN_NAMES[chain]}: ${address} ${signature} (${committedCounts?.before} → ${committedCounts?.after} strides)`)
     }
 
     console.log(`\n✅ ${CHAIN_NAMES[chain]}: Updated ${affected.length} signature rows across ${new Set(affected.map(row => row.address)).size} addresses\n`)
