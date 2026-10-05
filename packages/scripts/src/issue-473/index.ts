@@ -2,7 +2,7 @@ import 'lib/global'
 import { abisConfig, mq } from 'lib'
 import db, { getTravelledStrides } from 'ingest/db'
 import { findBusyMatch } from 'ingest/fanout/isBusy'
-import { toEventSelector } from 'viem'
+import { getAddress, toEventSelector } from 'viem'
 
 const CHAIN_ID = 1
 const VAULTS = [
@@ -20,7 +20,7 @@ async function inspect(vault: typeof VAULTS[number]) {
     [CHAIN_ID, vault.address]
   )).rows[0]
   if (!thing) throw new Error(`!thing ${vault.address}`)
-  const address = thing.address as `0x${string}`
+  const address = getAddress(thing.address)
   const strides = (await getTravelledStrides(CHAIN_ID, address, [STRATEGY_CHANGED]))[STRATEGY_CHANGED]
   const events = (await db.query(
     `SELECT block_number AS "blockNumber", args->>'strategy' AS strategy, args->>'change_type' AS "changeType"

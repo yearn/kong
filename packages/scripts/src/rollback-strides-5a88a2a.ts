@@ -41,6 +41,7 @@ interface StrideRow {
   chain_id: number
   address: string
   strides: string
+  signature: string
 }
 
 interface Stride {
@@ -65,16 +66,16 @@ async function main() {
   console.log('🔍 Checking which addresses will be affected...\n')
 
   // Compute affected addresses for all chains
-  const affectedByChain = new Map<ChainId, Array<{ address: string, strides: Stride[], rolledback: Stride[] }>>()
+  const affectedByChain = new Map<ChainId, Array<{ address: string, signature: string, strides: Stride[], rolledback: Stride[] }>>()
 
   for (const [chainId, targetBlock] of Object.entries(ROLLBACK_TARGETS)) {
     const chain = Number(chainId) as ChainId
     const result = await pool.query<StrideRow>(
-      'SELECT chain_id, address, strides FROM evmlog_strides WHERE chain_id = $1',
+      'SELECT chain_id, address, signature, strides FROM evmlog_strides WHERE chain_id = $1',
       [chain]
     )
 
-    const affected: Array<{ address: string, strides: Stride[], rolledback: Stride[] }> = []
+    const affected: Array<{ address: string, signature: string, strides: Stride[], rolledback: Stride[] }> = []
 
     for (const row of result.rows) {
       const strides: Stride[] = JSON.parse(row.strides)
@@ -82,7 +83,7 @@ async function main() {
 
       // Only include if rollback changes something
       if (JSON.stringify(strides) !== JSON.stringify(rolledback)) {
-        affected.push({ address: row.address, strides, rolledback })
+        affected.push({ address: row.address, signature: row.signature, strides, rolledback })
       }
     }
 
@@ -111,18 +112,18 @@ async function main() {
 
     if (affected.length === 0) continue
 
-    for (const { address, strides, rolledback } of affected) {
+    for (const { address, signature, strides, rolledback } of affected) {
       const rolledbackStridesJson = rolledback.map(s => ({
         from: s.from.toString(),
         to: s.to.toString()
       }))
 
       await pool.query(
-        'UPDATE evmlog_strides SET strides = $1 WHERE chain_id = $2 AND address = $3',
-        [JSON.stringify(rolledbackStridesJson), chain, address]
+        'UPDATE evmlog_strides SET strides = $1 WHERE chain_id = $2 AND address = $3 AND signature = $4',
+        [JSON.stringify(rolledbackStridesJson), chain, address, signature]
       )
 
-      console.log(`  ✓ ${CHAIN_NAMES[chain]}: ${address} (${strides.length} → ${rolledback.length} strides)`)
+      console.log(`  ✓ ${CHAIN_NAMES[chain]}: ${address} ${signature} (${strides.length} → ${rolledback.length} strides)`)
     }
 
     console.log(`\n✅ ${CHAIN_NAMES[chain]}: Updated ${affected.length} addresses\n`)
