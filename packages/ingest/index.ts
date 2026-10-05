@@ -13,60 +13,6 @@ import db from './db'
 import { camelToSnake } from 'lib/strings'
 import { assertPriceSourceConfig } from './prices'
 
-// Validate before constructing pools or scheduling any repeatable jobs.
-assertPriceSourceConfig()
-
-const exportsProcessor = (filePath: string): boolean => {
-  const fileContent = fs.readFileSync(filePath, 'utf8')
-  const regex = /export default class \S+ implements Processor/
-  return regex.test(fileContent)
-}
-
-console.log('🔗', 'chain', `[${chains.map(c => c.name.toLowerCase()).join(' x ')}]`)
-console.log('🎯', 'abi target', `[${abisConfig.abis.map(c => c.abiPath).join(' x ')}]`)
-
-const pools = fs.readdirSync(__dirname, { withFileTypes: true }).map(dirent => {
-  const tenMinutes = 10 * 60 * 1000
-  if (dirent.isDirectory()) {
-    const indexPath = path.join(__dirname, dirent.name, 'index.ts')
-    if (fs.existsSync(indexPath) && exportsProcessor(indexPath)) {
-      console.log('⬆', 'processor up', dirent.name)
-      const ProcessorClass = require(indexPath).default
-      return new ProcessorPool(ProcessorClass, 1, tenMinutes)
-    }
-  }
-}).filter(p => p) as Processor[]
-
-const crons = cronsConfig.default
-  .filter(cron => cron.start)
-  .map(cron => new Promise((resolve, reject) => {
-    const job = mq.job[cron.queue][cron.job]
-    if (job.bychain) {
-      for (const chain of chains) {
-        mq.add(job, { id: camelToSnake(cron.name), chainId: chain.id }, {
-          repeat: { pattern: cron.schedule }
-        }).then(() => {
-          console.log('⬆', 'cron up', cron.name, chain.id)
-        })
-      }
-
-    } else {
-      mq.add(job, { id: camelToSnake(cron.name) }, {
-        repeat: { pattern: cron.schedule }
-      }).then(() => {
-        console.log('⬆', 'cron up', cron.name)
-      })
-
-    }
-  }))
-
-const abis = abisConfig.cron.start
-  ? mq.add(mq.job.fanout.abis, { id: 'mq.job.fanout.abis' }, {
-    repeat: { pattern: abisConfig.cron.schedule }
-  }).then(() => {
-    console.log('⬆', 'abis up')
-  }) : Promise<null>
-
 async function fatal(phase: string, error: unknown) {
   console.error('🤬', phase, error)
   sentry.captureException(error, { tags: { component: 'ingest', phase } })
@@ -74,36 +20,101 @@ async function fatal(phase: string, error: unknown) {
   process.exit(1)
 }
 
-function up() {
-  Promise.all([
-    rpcs.up(),
-    cache.up(),
-    ...pools.map(pool => pool.up()),
-    ...crons,
-    abis,
-  ]).then(() => {
 
-    console.log('🐒 ingest up')
+async function start() {
+  // Report configuration failures before constructing pools or scheduling jobs.
+  try {
+    assertPriceSourceConfig()
+  } catch (error) {
+    await fatal('price_source_config', error)
+    return
+  }
 
-  }).catch(error => fatal('up', error))
+  const exportsProcessor = (filePath: string): boolean => {
+    const fileContent = fs.readFileSync(filePath, 'utf8')
+    const regex = /export default class \S+ implements Processor/
+    return regex.test(fileContent)
+  }
+
+  console.log('🔗', 'chain', `[${chains.map(c => c.name.toLowerCase()).join(' x ')}]`)
+  console.log('🎯', 'abi target', `[${abisConfig.abis.map(c => c.abiPath).join(' x ')}]`)
+
+  const pools = fs.readdirSync(__dirname, { withFileTypes: true }).map(dirent => {
+    const tenMinutes = 10 * 60 * 1000
+    if (dirent.isDirectory()) {
+      const indexPath = path.join(__dirname, dirent.name, 'index.ts')
+      if (fs.existsSync(indexPath) && exportsProcessor(indexPath)) {
+        console.log('⬆', 'processor up', dirent.name)
+        const ProcessorClass = require(indexPath).default
+        return new ProcessorPool(ProcessorClass, 1, tenMinutes)
+      }
+    }
+  }).filter(p => p) as Processor[]
+
+  const crons = cronsConfig.default
+    .filter(cron => cron.start)
+    .map(cron => new Promise((resolve, reject) => {
+      const job = mq.job[cron.queue][cron.job]
+      if (job.bychain) {
+        for (const chain of chains) {
+          mq.add(job, { id: camelToSnake(cron.name), chainId: chain.id }, {
+            repeat: { pattern: cron.schedule }
+          }).then(() => {
+            console.log('⬆', 'cron up', cron.name, chain.id)
+          })
+        }
+
+      } else {
+        mq.add(job, { id: camelToSnake(cron.name) }, {
+          repeat: { pattern: cron.schedule }
+        }).then(() => {
+          console.log('⬆', 'cron up', cron.name)
+        })
+
+      }
+    }))
+
+  const abis = abisConfig.cron.start
+    ? mq.add(mq.job.fanout.abis, { id: 'mq.job.fanout.abis' }, {
+      repeat: { pattern: abisConfig.cron.schedule }
+    }).then(() => {
+      console.log('⬆', 'abis up')
+    }) : Promise<null>
+
+
+  function up() {
+    Promise.all([
+      rpcs.up(),
+      cache.up(),
+      ...pools.map(pool => pool.up()),
+      ...crons,
+      abis,
+    ]).then(() => {
+
+      console.log('🐒 ingest up')
+
+    }).catch(error => fatal('up', error))
+  }
+
+  function down() {
+    Promise.all([
+      ...pools.map(pool => pool.down()),
+      rpcs.down(),
+      cache.down(),
+      db.end()
+    ]).then(() => {
+
+      console.log('🐒 ingest down')
+      process.exit(0)
+
+    }).catch(error => fatal('down', error))
+  }
+
+  up()
+  process.on('SIGINT', down)
+  process.on('SIGTERM', down)
+  process.on('unhandledRejection', reason => fatal('unhandledRejection', reason))
+  process.on('uncaughtException', error => fatal('uncaughtException', error))
 }
 
-function down() {
-  Promise.all([
-    ...pools.map(pool => pool.down()),
-    rpcs.down(),
-    cache.down(),
-    db.end()
-  ]).then(() => {
-
-    console.log('🐒 ingest down')
-    process.exit(0)
-
-  }).catch(error => fatal('down', error))
-}
-
-up()
-process.on('SIGINT', down)
-process.on('SIGTERM', down)
-process.on('unhandledRejection', reason => fatal('unhandledRejection', reason))
-process.on('uncaughtException', error => fatal('uncaughtException', error))
+void start().catch(error => fatal('startup', error))

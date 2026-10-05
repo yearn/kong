@@ -1,6 +1,7 @@
-import { mq, sentry } from 'lib'
+import { mq } from 'lib'
 import { Worker } from 'bullmq'
 import { Processor } from 'lib/processor'
+import { reportRetiredJob } from '../retired-jobs'
 import { EvmLogsExtractor } from './evmlogs'
 import { BlockExtractor } from './block'
 import { SnapshotExtractor } from './snapshot'
@@ -28,9 +29,11 @@ export default class Extract implements Processor {
         : `🛸 ${job.name} ${job.id} ${job.data.chainId}`
       const extractor = Object.prototype.hasOwnProperty.call(this.extractors, job.name) ? this.extractors[job.name] : undefined
       if (!extractor) {
-        if (job.name !== 'waveydb') throw new Error(`unknown extract job ${job.name}`)
-        console.warn('🚨', 'unknown extract job', job.name)
-        sentry.captureMessage(`unknown extract job ${job.name}`, { level: 'warning', tags: { component: 'extract' } })
+        if (job.name !== 'waveydb') {
+          await mq.quarantine(job)
+          throw new Error(`unknown extract job ${job.name}`)
+        }
+        reportRetiredJob('extract', job.name)
         return
       }
       console.time(label)
