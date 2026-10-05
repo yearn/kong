@@ -11,4 +11,6 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       - run: bun install --frozen-lockfile
       - run: bun --filter ingest test -- --project mocks
+      - name: Verify selector coverage adoption and concurrent loads
+        run: bun --filter ingest test -- --project ingest load/evmlog.spec.ts
       - run: bun --filter web test

@@ -172,3 +172,8 @@ Limit-listed Transfer/Deposit/Withdraw selectors are planned from the default
 recent-history start block. Older blocks are neither queried nor credited for
 those selectors; low-volume discovery selectors retain their full history.
 Legacy address-level coverage is adopted only for non-limit-listed selectors.
+
+
+PR CI executes `load/evmlog.spec.ts` in the ingest integration project with temporary PostgreSQL and Redis containers. This covers legacy adoption/retirement, ambiguous readers, the shared advisory lock and concurrent first loads; the mock project alone does not verify these SQL guarantees.
+
+ABI fanout groups readers before enqueueing event jobs. If address normalization, the things query or a snapshot/timeseries enqueue fails midway through the walk, the grouped event jobs are not flushed for that invocation, including addresses already visited. The default queue policy allows one attempt, so the failed job is not automatically retried; the next scheduled cycle rebuilds the groups, and may wait while partially enqueued work drains through the busy guard. This deferral preserves complete reader groups rather than treating a partially walked address as an unambiguous single-reader source. Operators investigating a skipped cycle should inspect the original fanout failure and pending snapshot/timeseries jobs before refetching.
