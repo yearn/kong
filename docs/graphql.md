@@ -1099,8 +1099,8 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 | `lockerBonusAPY` | `Float` | Publisher locker bonus APY component |
 | `katRewardsAPR` | `Float` | Publisher Katana rewards APR component |
 | `estimatedDebtCoverage` | `Float` | Publisher diagnostic for active debt backed by a live Morpho estimate; magnitude and unit are publisher-defined, so consumers must not assume a fixed scale; Kong serves the value unchanged and enforces no range |
-| `morphoBaseAPY` | `Float` | Debt-weighted Morpho base APY leg |
-| `morphoRewardsAPR` | `Float` | Debt-weighted Morpho rewards APR leg |
+| `morphoBaseAPY` | `Float` | Publisher Morpho base APY component; served unchanged, with publisher-defined aggregation and scale |
+| `morphoRewardsAPR` | `Float` | Publisher Morpho rewards APR component; served unchanged, with publisher-defined aggregation and scale |
 
 ### Historical
 
