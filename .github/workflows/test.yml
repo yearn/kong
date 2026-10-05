@@ -12,6 +12,11 @@ jobs:
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
+      - name: Initialize production ts-node compiler
+        working-directory: packages/ingest
+        env:
+          KONG_COMPILER_SMOKE: 'true'
+        run: bun run production
       - run: bun --filter lib test
       - run: bun --filter ingest test
       - run: bun --filter web test
