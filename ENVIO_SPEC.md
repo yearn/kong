@@ -25,13 +25,15 @@ entries use the latest `fromBlock`, preserving the most restrictive trust bounda
 
 - Mapped entities are selected by ABI path, event name, and overload fields.
 - Unmapped events are fetched using RPC and merged in block/log order before hooks run.
-- Empty Envio results are checked against the complete requested RPC event set.
+- Each mapped event with zero Envio rows is checked against RPC, independently
+  of sibling entity results.
   If RPC finds mapped events, `ENVIO_EMPTY_RPC_MISMATCH` reports the source/range.
-- Fanout is capped at the minimum of RPC head, configured end, and Envio progress
-  for confirmed sources. Extraction also checks progress, protecting queued jobs.
+- Fanout follows RPC head/configured end, so indexer lag does not delay RPC-only
+  events. Extraction checks the processed watermark and uses full RPC for chunks
+  extending past it.
 - Hasura errors, absent entity response fields, and missing event arguments trigger
   a full RPC fetch with `ENVIO_RPC_FALLBACK`. Coverage advances only after that
-  fetch succeeds. Progress-query failures leave fanout at its normal RPC range.
+  fetch succeeds. Fanout does not depend on the progress query.
 - Pagination uses block number and log index. Integer/address arguments follow
   viem's decoded types; supplied block timestamps avoid another RPC read. RPC timestamps are attached
   before hooks too, giving both paths the same timestamp-bearing log shape.

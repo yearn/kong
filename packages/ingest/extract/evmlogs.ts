@@ -49,11 +49,12 @@ export class EvmLogsExtractor {
         }
         // Entity coverage is narrower than an ABI. Never credit missing events
         // as fetched, and verify empty entity results against RPC.
-        const rpcEvents = envioLogs.length ? unmapped : events
+        const emptyMapped = mapped.filter(event => !envioLogs.some(log => log.topics[0] === toEventSelector(event)))
+        const rpcEvents = [...unmapped, ...emptyMapped]
         const rpcLogs = rpcEvents.length ? await rpcs.next(chainId, from).getLogs({
           address, events: rpcEvents, fromBlock: from, toBlock: to
         }) : []
-        if (mapped.length && !envioLogs.length && rpcLogs.some(log => mapped.some(event => toEventSelector(event) === log.topics[0]))) {
+        if (emptyMapped.length && rpcLogs.some(log => emptyMapped.some(event => toEventSelector(event) === log.topics[0]))) {
           console.warn('ENVIO_EMPTY_RPC_MISMATCH', { chainId, address, abiPath, from: String(from), to: String(to) })
         }
         return [...envioLogs, ...rpcLogs].sort((a, b) =>

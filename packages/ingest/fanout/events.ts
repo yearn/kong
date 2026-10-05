@@ -1,11 +1,10 @@
 import { setTimeout } from 'timers/promises'
-import { math, mq, strider } from 'lib'
+import { mq, strider } from 'lib'
 import { AbiConfig, AbiConfigSchema, SourceConfig, SourceConfigSchema } from 'lib/abis'
 import { estimateHeight, getBlockNumber } from 'lib/blocks'
 import { getTravelledStrides } from '../db'
 import { StrideSchema } from 'lib/types'
 import { gnosis, polygon, fantom } from 'viem/chains'
-import { envioProgressBlock, envioSourceStart } from '../envio'
 
 const LOG_STRIDES: {
   [key: number]: number
@@ -29,21 +28,9 @@ export default class EventsFanout {
       ? await estimateHeight(chainId, replay?.since)
       : startBlock ?? inceptBlock
 
-    const head = await getBlockNumber(chainId)
-    let capped = !replay?.enabled && envioSourceStart(chainId, address, abiPath) !== undefined
-    let to = endBlock ?? head
-    if (capped) {
-      try {
-        to = math.min(math.min(to, head), await envioProgressBlock(chainId))
-      } catch (error) {
-        capped = false
-        console.warn('ENVIO_RPC_FALLBACK', { chainId, address, abiPath, phase: 'progress', error })
-      }
-    }
-    if (capped && to < from) {
-      console.log('⏳', 'envio behind', chainId, address, from, to)
-      return
-    }
+    // Envio lag must not delay RPC-served events. Extraction chooses full RPC
+    // whenever a chunk extends past the indexer's processed watermark.
+    const to = endBlock ?? await getBlockNumber(chainId)
 
     const replayRange = undefined // [{ from: 19309874n, to: 19309874n }]
     const travelled = replay?.enabled ? undefined : await getTravelledStrides(chainId, address)

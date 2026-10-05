@@ -30,6 +30,7 @@ describe('Envio extraction coverage', () => {
     const rpcEvents = getLogs.mock.calls[0][0].events.map((event: never) => toEventSelector(event))
     expect(rpcEvents).toContain(toEventSelector('event RoleSet(address indexed account, uint256 role)'))
     expect(rpcEvents).not.toContain(signature)
+    expect(rpcEvents).toContain(toEventSelector('event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)'))
     expect(mqAdd.mock.calls[0][1].batch).toHaveLength(1)
   })
 
@@ -42,6 +43,19 @@ describe('Envio extraction coverage', () => {
     expect(warning).toHaveBeenCalledWith('ENVIO_EMPTY_RPC_MISMATCH', expect.any(Object))
     warning.mockRestore()
     expect(mqAdd.mock.calls[0][1].batch).toHaveLength(1)
+  })
+
+  it('checks a sibling mapped event even when another entity returned rows', async () => {
+    const depositSignature = toEventSelector('event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)')
+    fetchEnvioLogs.mockResolvedValue([log])
+    getLogs.mockResolvedValue([{ ...log, eventName: 'Deposit', topics: [depositSignature], logIndex: 2 }])
+    const warning = vi.spyOn(console, 'warn')
+    try {
+      await new EvmLogsExtractor().extract(job)
+      expect(getLogs.mock.calls[0][0].events.map((event: never) => toEventSelector(event))).toContain(depositSignature)
+      expect(warning).toHaveBeenCalledWith('ENVIO_EMPTY_RPC_MISMATCH', expect.any(Object))
+      expect(mqAdd.mock.calls[0][1].batch).toHaveLength(2)
+    } finally { warning.mockRestore() }
   })
 
   it('attaches the same timestamp before hooks on the RPC path', async () => {
