@@ -16,7 +16,7 @@ import { projectStrategies, SnapshotSchema } from './hook'
 
 const vault = '0x0000000000000000000000000000000000000001'
 const strategy = '0x0ed92e4225126578791303bf579f2853e7fdca6b'
-const snapshot = SnapshotSchema.parse({ get_default_queue: [getAddress(strategy)] })
+const snapshot = SnapshotSchema.parse({ blockNumber: 100n, get_default_queue: [getAddress(strategy)] })
 
 describe('vault discovery repair', () => {
   beforeEach(() => {
@@ -37,6 +37,23 @@ describe('vault discovery repair', () => {
   it('does not repair a contract whose initial logs have not loaded', async () => {
     travelled.mockResolvedValue(undefined)
     await projectStrategies(1, vault, undefined, snapshot)
+    expect(add).not.toHaveBeenCalled()
+    expect(captureMessage).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { coverage: [{ from: 1n, to: 99n }] },
+    { coverage: [{ from: 1n, to: 50n }, { from: 52n, to: 100n }] }
+  ])('does not repair while event history is incomplete: %j', async ({ coverage }) => {
+    travelled.mockResolvedValue(coverage)
+    query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ inceptBlock: '1' }] })
+    await projectStrategies(1, vault, undefined, snapshot)
+    expect(add).not.toHaveBeenCalled()
+    expect(captureMessage).not.toHaveBeenCalled()
+  })
+
+  it('does not alert without a pinned snapshot block', async () => {
+    await projectStrategies(1, vault, undefined, { get_default_queue: [getAddress(strategy)] })
     expect(add).not.toHaveBeenCalled()
     expect(captureMessage).not.toHaveBeenCalled()
   })

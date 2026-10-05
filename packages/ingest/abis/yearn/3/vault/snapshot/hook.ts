@@ -1,4 +1,4 @@
-import { abisConfig, mq, sentry } from 'lib'
+import { abisConfig, mq, sentry, strider } from 'lib'
 import { estimateCreationBlock } from 'lib/blocks'
 import { priced } from 'lib/math'
 import { snakeToCamelCols } from 'lib/strings'
@@ -85,6 +85,7 @@ export const ResultSchema = z.object({
 })
 
 export const SnapshotSchema = z.object({
+  blockNumber: z.bigint({ coerce: true }).optional(),
   accountant: EvmAddressSchema.optional(),
   role_manager: EvmAddressSchema.optional(),
   use_default_queue: z.boolean().optional(),
@@ -97,7 +98,7 @@ type Snapshot = z.infer<typeof SnapshotSchema>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const snapshot = SnapshotSchema.parse(data)
-  const strategies = await projectStrategies(chainId, address, undefined, snapshot)
+  const strategies = await projectStrategies(chainId, address, snapshot.blockNumber, snapshot)
   const roles = await projectRoles(chainId, address)
   if (snapshot.role_manager) appendRoleManagerPseudoRole(roles, snapshot.role_manager)
 
@@ -208,7 +209,7 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   result.push(...gaps)
   if (gaps.length > 0) {
     try {
-      await repairDiscoveryGap(chainId, vault, gaps)
+      await repairDiscoveryGap(chainId, vault, gaps, blockNumber ?? snapshot?.blockNumber)
     } catch (error) {
       console.error('🚨 DISCOVERY_GAP repair failed', chainId, vault, error)
     }
@@ -217,16 +218,11 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   return result
 }
 
-async function repairDiscoveryGap(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[]) {
+async function repairDiscoveryGap(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[], blockNumber?: bigint) {
+  // A head snapshot can arrive before the corresponding extract/load jobs.
+  if (blockNumber === undefined) return
   const travelled = await getTravelledStrides(chainId, vault)
   if (!travelled?.length) return
-
-  console.error(`🚨 DISCOVERY_GAP: chainId=${chainId} vault=${vault} strategies=${strategies.join(',')}`)
-  sentry.captureMessage('DISCOVERY_GAP', {
-    level: 'warning',
-    tags: { component: 'ingest', hook: 'vault.snapshot.projectStrategies' },
-    extra: { chainId, vault, strategies }
-  })
 
   const abi = abisConfig.abis.find(a => a.abiPath === 'yearn/3/vault')
   const thing = await db.query(
@@ -234,10 +230,15 @@ async function repairDiscoveryGap(chainId: number, vault: `0x${string}`, strateg
     [chainId, vault]
   )
   const inceptBlock = thing.rows[0]?.inceptBlock
-  if (!abi || !inceptBlock) {
-    console.error('🚨 DISCOVERY_GAP repair skipped', chainId, vault, { abiFound: !!abi, inceptBlock })
-    return
-  }
+  if (!abi || inceptBlock == null) return
+  if (strider.plan(BigInt(inceptBlock), blockNumber, travelled).length > 0) return
+
+  console.error(`🚨 DISCOVERY_GAP: chainId=${chainId} vault=${vault} strategies=${strategies.join(',')}`)
+  sentry.captureMessage('DISCOVERY_GAP', {
+    level: 'warning',
+    tags: { component: 'ingest', hook: 'vault.snapshot.projectStrategies' },
+    extra: { chainId, vault, strategies, blockNumber: String(blockNumber) }
+  })
 
   await mq.add(mq.job.fanout.events, {
     chainId, abi, source: { chainId, address: vault, inceptBlock }, ignoreStrides: true

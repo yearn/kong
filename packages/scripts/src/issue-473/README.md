@@ -51,7 +51,7 @@ Note: job-ID change alone does not help; shared coverage still blocks the second
 
 Detect, in `packages/ingest/abis/yearn/3/vault/snapshot/hook.ts` `projectStrategies` (`:185-210`):
 - The hook already merges on-chain `get_default_queue` with `StrategyChanged` evmlog rows.
-- Queue strategy absent from the event projection = gap (addresses are checksummed; unknown revokes cannot remove another strategy). On-chain state is the oracle. No logs, no DB replay needed.
+- Only after coverage is continuous from inception through the pinned snapshot block, queue strategy absent from the event projection = gap (addresses are checksummed; unknown revokes cannot remove another strategy). On-chain state is the oracle. No logs, no DB replay needed.
 - On gap: `sentry.captureMessage('DISCOVERY_GAP')` with chainId, vault, strategy (pattern: `fanout/abis.ts:12`).
 
 Autofix, same place:
@@ -63,7 +63,7 @@ Autofix, same place:
 
 Overlap alert, in `AbisFanout.fanout` (`fanout/abis.ts:26-59`):
 - Count readers per `(chainId, address)`. More than one → one `sentry` `ABI_READER_OVERLAP` per fanout with the count and a sample.
-- Surface gap and overlap counts in the probe monitor (`packages/ingest/probe/index.ts:84-215`).
+- Probe monitor counters are deferred; this branch emits Sentry diagnostics only.
 
 Limits:
 - Loop guard is the deterministic job ID only. A gap that re-extract cannot close re-fires each fanout; the alert makes it visible.
@@ -76,15 +76,15 @@ Limits:
 
 - Unit: `projectStrategies` with a queue strategy and no evmlog row → alert + one `fanout.events` add with `ignoreStrides`. No gap → none.
 - Unit: `EventsFanout` with `ignoreStrides` plans full range despite covering strides; job ID contains `abiPath`.
-- Integration (`containers.spec.ts` pattern): thing matching `erc4626` + `yearn/3/vault`, erc4626 covers all blocks,
-  snapshot runs, assert `StrategyChanged` extract job is queued. This is the #473 regression.
+- Not implemented: integration regression (`containers.spec.ts` pattern). It needs a configured RPC plus Redis/Timescale containers, unavailable during the audit. Intended scenario: thing matching `erc4626` + `yearn/3/vault`, erc4626 covers all blocks,
+  snapshot runs, assert `StrategyChanged` extract job is queued. End-to-end recovery remains unverified.
 - Unit: overlap alert fires once for a 2-reader address, silent for 1-reader.
 
 ## 6. Tasks and rollout
 
 1. `ignoreStrides` flag + job ID prefix in `fanout/events.ts`.
 2. Gap check + alert + autofix in the vault snapshot hook.
-3. Overlap alert in `fanout/abis.ts`; counts in probe.
+3. Overlap alert in `fanout/abis.ts`. Probe counters remain out of scope.
 4. Tests above.
 5. Deploy. Run `fanout abis` twice (detect, then drain).
 
@@ -103,7 +103,7 @@ Spec file exists at `packages/scripts/src/issue-473/README.md`, every claim pinn
 ## Audit validation
 
 Mock regressions cover forced fanout, covered-history skipping, repair enqueue,
-initial-load suppression, mixed-case addresses, and unrelated revocations. The
+initial-load and lagging-ingestion suppression, mixed-case addresses, and unrelated revocations. The
 overlap alert counts distinct ABI paths, so a source and thing using the same ABI
 do not produce a false overlap. Probe counters remain a follow-up; the current
 implementation emits Sentry diagnostics only.
