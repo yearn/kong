@@ -108,14 +108,10 @@ export async function estimateCreationBlock(chainId: number, contract: `0x${stri
 // use bin search to estimate contract creat block
 // doesn't account for CREATE2 or SELFDESTRUCT
 // adapted from https://github.com/BobTheBuidler/ypricemagic/blob/5ba16b25302b47539b4e5a996554ba4c0a70e7c7/y/contracts.py#L68
-export async function __estimateCreationBlock(chainId: number, contract: `0x${string}`): Promise<Block> {
-  return (await searchCreationBlock(chainId, contract)).block
-}
-
 async function searchCreationBlock(chainId: number, contract: `0x${string}`): Promise<{ block: Block, failed: boolean }> {
   let counter = 0
   let failed = false
-  const label = `🕊 __estimateCreationBlock ${chainId} ${contract}`
+  const label = `🕊 estimateCreationBlock ${chainId} ${contract}`
   console.time(label)
   const height = await rpcs.next(chainId).getBlockNumber()
   let lo = 0n, hi = height, mid = lo + (hi - lo) / 2n
