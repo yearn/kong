@@ -15,7 +15,7 @@ describe('Katana diagnostic fields', () => {
     expect(result.data).toEqual({ vault: { performance: { estimated: { components } } } })
   })
 
-  it('serializes the independently recorded publisher response contract', async () => {
+  it('serializes the adapted publisher response contract', async () => {
     const components = { katRewardsAPR: null, ...Object.fromEntries(publisher.outputs.map(row => [row.component, row.value])) }
     const result = await graphql({ schema, source,
       rootValue: { vault: { performance: { estimated: { type: 'katana-estimated-apr', components } } } } })
