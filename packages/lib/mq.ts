@@ -80,7 +80,7 @@ export async function add(job: Job, data: any, options?: any) {
       chainId: String(data.chainId ?? data.source?.chainId ?? ''),
       fromBlock: String(data.from ?? data.fromBlock ?? ''),
       toBlock: String(data.to ?? data.toBlock ?? ''),
-      abiPath: String(data.abiPath ?? data.abi?.abiPath ?? [...new Set(data.abiPaths ?? data.readers?.map(reader => reader.abi.abiPath) ?? [])].sort().join(','))
+      abiPath: String(data.abiPath ?? data.abi?.abiPath ?? [...new Set(data.abiPaths ?? data.readers?.map((reader: { abi: { abiPath: string } }) => reader.abi.abiPath) ?? [])].sort().join(','))
     })
   }
   if (!queues[queue]) { queues[queue] = connect(queue) }
