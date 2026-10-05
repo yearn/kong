@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import { Queue } from 'bullmq'
-import { vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, it, vi } from 'vitest'
 import { addBulk, computeConcurrency, connect, down, job } from './mq'
 
 describe('mq', function() {
