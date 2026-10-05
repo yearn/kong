@@ -49,4 +49,9 @@ describe('extract worker unknown job guard', () => {
     await captured.handler!({ name: 'snapshot', id: '2', data: { chainId: 1 } })
     expect(snapshotExtract).toHaveBeenCalledWith({ chainId: 1 })
   })
+
+  it.each(['new-job', 'toString'])('fails unexpected job %s so its payload is not lost', async name => {
+    await new Extract().up()
+    await expect(captured.handler!({ name, id: '3', data: {} })).rejects.toThrow(`unknown extract job ${name}`)
+  })
 })

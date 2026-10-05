@@ -55,4 +55,9 @@ describe('load worker unknown job guard', () => {
     await captured.handler!({ name: 'monitor', id: '2', data: { ok: true } })
     expect(monitor).toHaveBeenCalledWith({ ok: true })
   })
+
+  it.each(['new-job', 'toString'])('fails unexpected job %s so its payload is not lost', async name => {
+    await new Load().up()
+    await expect(captured.handler!({ name, id: '3', data: {} })).rejects.toThrow(`unknown load job ${name}`)
+  })
 })

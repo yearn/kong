@@ -19,6 +19,11 @@ describe('prices helpers', () => {
     expect(() => assertPriceSourceConfig()).to.not.throw()
   })
 
+  it('rejects whitespace-only keys', () => {
+    process.env.PRICE_SERVICE_API_KEY = '   '
+    expect(() => assertPriceSourceConfig()).to.throw('PRICE_SERVICE_API_KEY')
+  })
+
   it('maps chain 100 to gnosis (not xdai)', () => {
     expect(PRICE_SERVICE_CHAIN_NAMES[100]).to.equal('gnosis')
   })

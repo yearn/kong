@@ -16,7 +16,7 @@ const CLEAR_BATCH_SIZE = 100
 
 /** Fail closed without a key. Call from ingest startup. */
 export function assertPriceSourceConfig(): void {
-  if (!process.env.PRICE_SERVICE_API_KEY) throw new Error('PRICE_SERVICE_API_KEY is required')
+  if (!process.env.PRICE_SERVICE_API_KEY?.trim()) throw new Error('PRICE_SERVICE_API_KEY is required')
 }
 
 /** UTC day start (unix seconds): floor(ts/86400)*86400 — cache key, not service day-end. */

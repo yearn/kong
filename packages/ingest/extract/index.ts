@@ -26,8 +26,9 @@ export default class Extract implements Processor {
       const label = job.data.replay
         ? `🎭 ${job.name} ${job.id} ${job.data.chainId}`
         : `🛸 ${job.name} ${job.id} ${job.data.chainId}`
-      const extractor = this.extractors[job.name]
+      const extractor = Object.prototype.hasOwnProperty.call(this.extractors, job.name) ? this.extractors[job.name] : undefined
       if (!extractor) {
+        if (job.name !== 'waveydb') throw new Error(`unknown extract job ${job.name}`)
         console.warn('🚨', 'unknown extract job', job.name)
         sentry.captureMessage(`unknown extract job ${job.name}`, { level: 'warning', tags: { component: 'extract' } })
         return
