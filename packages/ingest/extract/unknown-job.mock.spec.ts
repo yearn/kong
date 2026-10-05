@@ -60,12 +60,12 @@ describe('extract worker unknown job guard', () => {
     await expect(captured.handler!({ name, id: '3', queueName: 'extract-1', data: {}, opts: {} })).rejects.toThrow(`unknown extract job ${name}`)
     expect(mq.quarantine).toHaveBeenCalledWith({ name, id: '3', queueName: 'extract-1', data: {}, opts: {} })
   })
-  it('retains the original failure when quarantine storage fails', async () => {
+  it('preserves the unknown-job error and separately reports quarantine storage failure', async () => {
     await new Extract().up()
     vi.mocked(mq.quarantine).mockRejectedValueOnce(new Error('redis unavailable'))
     const job = { name: 'new-job', id: 'failed-copy', queueName: 'extract-1', data: {}, opts: { removeOnFail: true } }
     await expect(captured.handler!(job)).rejects.toThrow('unknown extract job new-job')
-    expect(job.opts.removeOnFail).toBe(false)
+    expect(job.opts.removeOnFail).toBe(true)
     expect(captureException).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ tags: expect.objectContaining({ phase: 'quarantine_write' }) }))
   })
 })

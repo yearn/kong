@@ -528,8 +528,10 @@ queue monitor. Use the archive-and-drain command below to reclaim Redis space;
 inspect its original queue/name/data and replay explicitly after fixing the
 producer/consumer mismatch. Original failures retain the existing bounded failed
 job policy. If the quarantine write fails, a separate `quarantine_write` Sentry
-event is reported and the original failed job is retained without automatic cleanup
-for manual recovery. Retired `waveydb`/`price` payloads are drained, logged individually,
+event is reported. The original failed job follows the normal shared failed-set
+policy (15 minutes / 100 failures by default); later failures may remove it. Recover
+it immediately from the original queue if needed; a failed copy has no durable
+retention guarantee. Retired `waveydb`/`price` payloads are drained, logged individually,
 and reported to Sentry once per job name per process.
 
 
@@ -547,3 +549,23 @@ its Redis job, and stops on the first archive error without removing that job.
 Repeat with a new filename until the monitored depth reaches zero. Retain the
 files until all archived jobs have been inspected/replayed; automatic deletion
 would discard the very payloads quarantine is meant to preserve.
+
+
+The probe reports `QUARANTINE_BACKLOG` as a Sentry error on the first nonzero depth
+and at most once per minute while the backlog remains. Treat this as an operational
+alert: stop incompatible producers and archive/drain promptly. The queue is also
+listed in `/mq`. Automatic deletion/caps are deliberately absent to preserve the
+payloads; unattended backlog remains a Redis capacity risk, so the alert must be
+routed to an operator before enabling this behavior in production.
+
+After inspecting the archive and fixing the producer/consumer mismatch, replay it:
+
+```sh
+bun packages/scripts/src/replay-quarantine.ts /secure/archive/quarantine-2026-10-05.jsonl
+```
+
+Replay restores each payload to its recorded original queue/name with a stable
+`quarantine-replay-` job ID distinct from the failed original's ID. Keep the archive
+until the replayed jobs have completed; rerunning an archive deduplicates while its
+replay job IDs remain in Redis. Once those IDs are cleaned, another run can execute
+again, so operators must track completed archives.

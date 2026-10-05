@@ -10,15 +10,23 @@ export function reportRetiredJob(component: string, name: string) {
   sentry.captureMessage(`unknown ${component} job ${name}`, { level: 'warning', tags: { component } })
 }
 
-export async function quarantineUnknownJob(component: string, job: { queueName: string, id?: string, name: string, data: unknown, opts: { removeOnFail?: boolean | number | { age?: number, count?: number } } }) {
+export async function quarantineUnknownJob(component: string, job: { queueName: string, id?: string, name: string, data: unknown }) {
   const unknown = new Error(`unknown ${component} job ${job.name}`)
   try {
     await mq.quarantine(job)
   } catch (error) {
-    // BullMQ reads this option when it moves the active job to the failed set.
-    // Keep the original payload for manual recovery if its durable copy failed.
-    job.opts.removeOnFail = false
+    // A later failure can trim the shared failed set regardless of this job's policy.
+    // Report copy failure explicitly; recovery is limited to the normal failed-set window.
     sentry.captureException(error, { tags: { component, phase: 'quarantine_write', queue: job.queueName }, extra: { jobId: job.id, jobName: job.name } })
   }
   throw unknown
+}
+
+let lastQuarantineAlert = 0
+export function reportQuarantineDepth(depth: number) {
+  if (!depth) { lastQuarantineAlert = 0; return }
+  if (lastQuarantineAlert && Date.now() - lastQuarantineAlert < 60_000) return
+  lastQuarantineAlert = Date.now()
+  console.error('QUARANTINE_BACKLOG', { depth })
+  sentry.captureMessage('QUARANTINE_BACKLOG', { level: 'error', tags: { component: 'ingest', queue: 'quarantine' }, extra: { depth } })
 }

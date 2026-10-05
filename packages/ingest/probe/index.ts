@@ -1,3 +1,4 @@
+import { reportQuarantineDepth } from '../retired-jobs'
 import { Queue, Worker } from 'bullmq'
 import { chains, mq } from 'lib'
 import { Processor } from 'lib/processor'
@@ -129,6 +130,8 @@ export default class Probe implements Processor {
         failed: (await queue.getJobs('failed')).length
       })
     }
+
+    reportQuarantineDepth(result.queues.find(queue => queue.name === mq.q.quarantine)?.waiting ?? 0)
 
     const redisClient = await Object.values(this.queues)[0].client
     const rawRedis = await redisClient.info()

@@ -12,3 +12,14 @@ export async function archiveQuarantine(queue: Pick<Queue, 'getJobs'>, persist: 
   }
   return archived
 }
+
+export async function replayQuarantine(record: unknown, publish: (queue: string, name: string, data: unknown, jobId: string) => Promise<unknown>) {
+  if (!record || typeof record !== 'object') throw new Error('Invalid quarantine archive record')
+  const payload = record as { queue?: unknown, name?: unknown, id?: unknown, data?: unknown }
+  if (typeof payload.queue !== 'string' || !/^(fanout|load|probe|extract(?:-\d+)?)$/.test(payload.queue)
+    || typeof payload.name !== 'string' || !payload.name || typeof payload.id !== 'string' || !payload.id || !('data' in payload)) {
+    throw new Error('Invalid original queue, name, id or data in quarantine archive')
+  }
+  const jobId = `quarantine-replay-${Buffer.from(JSON.stringify([payload.queue, payload.id])).toString('base64url')}`
+  return publish(payload.queue, payload.name, payload.data, jobId)
+}
