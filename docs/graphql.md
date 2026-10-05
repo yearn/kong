@@ -1092,6 +1092,11 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 | `cvxAPR` | `Float` | Convex APR |
 | `keepCRV` | `Float` | Keep CRV |
 | `keepVelo` | `Float` | Keep VELO |
+| `grossAPR` | `Float` | Publisher gross APR component |
+| `baseNetAPR` | `Float` | Publisher base net APR component |
+| `baseNetAPY` | `Float` | Publisher base net APY component |
+| `lockerBonusAPR` | `Float` | Publisher locker bonus APR component |
+| `lockerBonusAPY` | `Float` | Publisher locker bonus APY component |
 | `estimatedDebtCoverage` | `Float` | Share of active debt backed by a live Morpho estimate (0–1); remainder falls back to Kong's APR oracle |
 | `morphoBaseAPY` | `Float` | Debt-weighted Morpho base APY leg |
 | `morphoRewardsAPR` | `Float` | Debt-weighted Morpho rewards APR leg |
