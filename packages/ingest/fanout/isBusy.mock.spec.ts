@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { queued } = vi.hoisted(() => ({
-  queued: {} as Record<string, { name: string; status: 'waiting' | 'active' }[]>
+  queued: {} as Record<string, { name: string; status: 'waiting' | 'prioritized' | 'active' }[]>
 }))
 
 vi.mock('lib', () => ({
@@ -42,8 +42,8 @@ describe('isBusy', () => {
   })
 
   it('reports a counted job', async () => {
-    queued.load = [{ name: 'output', status: 'waiting' }]
-    expect(await findBusyMatch()).toEqual({ queue: 'load', jobName: 'output', status: 'waiting' })
+    queued.load = [{ name: 'output', status: 'prioritized' }]
+    expect(await findBusyMatch()).toEqual({ queue: 'load', jobName: 'output', status: 'prioritized' })
   })
 
   it('reports per-chain extract jobs', async () => {

@@ -125,7 +125,7 @@ export default class Probe implements Processor {
     for(const queue of Object.values(this.queues)) {
       result.queues.push({
         name: queue.name,
-        waiting: await queue.count(),
+        waiting: await queuedDepth(queue),
         active: (await queue.getJobs('active')).length,
         failed: (await queue.getJobs('failed')).length
       })
@@ -217,4 +217,10 @@ export default class Probe implements Processor {
       eventCounts: await this.fetchEventCounts()
     }}
   }
+}
+
+// Explicitly count the states used by mq.add, including priority-tagged jobs.
+export async function queuedDepth(queue: Pick<ReturnType<typeof mq.connect>, 'getJobCounts'>) {
+  const counts = await queue.getJobCounts('waiting', 'prioritized')
+  return (counts.waiting ?? 0) + (counts.prioritized ?? 0)
 }
