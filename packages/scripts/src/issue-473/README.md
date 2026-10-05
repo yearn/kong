@@ -59,14 +59,14 @@ Autofix, same place:
 - `EventsFanout.fanout` (`fanout/events.ts:22-45`): when `ignoreStrides`, set `travelled = undefined` (same line as replay, `:34`)
   and prefix the job ID with `abiPath` so it cannot collide with the erc4626 job (`:40`).
 - Extract runs the normal RPC path (`replay` stays false). `StrategyChanged` hook creates the strategy things. Upserts are idempotent.
-- Known peers self-heal on first snapshot after deploy. This is why no separate historical repair exists.
+- A peer becomes eligible for repair once coverage reaches its pinned snapshot block continuously from inception. Deferred checks emit `DISCOVERY_GAP_DEFERRED` and a reason metric; the first post-deploy snapshot is not guaranteed to qualify.
 
 Overlap alert, in `AbisFanout.fanout` (`fanout/abis.ts:26-59`):
-- Count readers per `(chainId, address)`. More than one → one `sentry` `ABI_READER_OVERLAP` per fanout with the count and a sample.
-- Probe monitor counters are deferred; this branch emits Sentry diagnostics only.
+- Count readers per `(chainId, address)`. Every fanout records `abi_reader_overlap.addresses`, including zero, and logs `ABI_READER_OVERLAP_BASELINE` with the count and a sample. Overlaps are expected with this configuration and do not emit warning alerts.
+- Probe monitor counters are deferred; the diagnostics above use Sentry metrics and logs.
 
 Limits:
-- Loop guard is the deterministic job ID only. A gap that re-extract cannot close re-fires each fanout; the alert makes it visible.
+- Loop guard is the deterministic job ID only. Failed repair fanout jobs retry three times with exponential backoff from one minute and are removed after final failure, allowing a later snapshot cycle to retry. Successful repair fanout jobs retain their ID for 24 hours; the gap alert remains independent of this deduplication.
 - Autofix re-reads full vault history from `inceptBlock`. Accepted: rare, bounded by `LOG_STRIDE` paging.
 - Residual risk: strategy-reader events (`Reported`...) on tokenized strategies have alert only, no oracle.
   Follow-up if the overlap alert shows real loss: compare snapshot `lastReport` with latest `Reported` row.
@@ -78,7 +78,7 @@ Limits:
 - Unit: `EventsFanout` with `ignoreStrides` plans full range despite covering strides; job ID contains `abiPath`.
 - Not implemented: integration regression (`containers.spec.ts` pattern). It needs a configured RPC plus Redis/Timescale containers, unavailable during the audit. Intended scenario: thing matching `erc4626` + `yearn/3/vault`, erc4626 covers all blocks,
   snapshot runs, assert `StrategyChanged` extract job is queued. End-to-end recovery remains unverified.
-- Unit: overlap alert fires once for a 2-reader address, silent for 1-reader.
+- Unit: overlap metric records one for a 2-reader address and zero for a 1-reader address.
 
 ## 6. Tasks and rollout
 
@@ -90,7 +90,7 @@ Limits:
 
 Acceptance:
 - BTC, Curve USG-frxUSD, ETH yVaults show `StrategyChanged` at blocks 25,490,630 / 25,341,800 / 25,475,622 and strategy things exist, with no manual step.
-- `DISCOVERY_GAP` fires once per peer, then count is 0 on the next fanout.
+- `DISCOVERY_GAP` fires only after continuous coverage reaches the snapshot block. It clears on a later snapshot after repair extraction and loading finish; no fixed cycle count is guaranteed.
 - `erc4626` timeseries for unendorsed vaults has no new gaps (`packages/web/app/api/monitor/tvl-gaps/detector.ts`).
 - No migration in the diff.
 

@@ -219,10 +219,14 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
 }
 
 async function repairDiscoveryGap(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[], blockNumber?: bigint) {
+  const deferred = (reason: string) => {
+    console.info('DISCOVERY_GAP_DEFERRED', { chainId, vault, reason, snapshotBlock: blockNumber?.toString() })
+    sentry.countMetric('discovery_gap.deferred', 1, { chainId: String(chainId), reason })
+  }
   // A head snapshot can arrive before the corresponding extract/load jobs.
-  if (blockNumber === undefined) return
+  if (blockNumber === undefined) { deferred('missing_snapshot_block'); return }
   const travelled = await getTravelledStrides(chainId, vault)
-  if (!travelled?.length) return
+  if (!travelled?.length) { deferred('missing_coverage'); return }
 
   const abi = abisConfig.abis.find(a => a.abiPath === 'yearn/3/vault')
   const thing = await db.query(
@@ -230,8 +234,8 @@ async function repairDiscoveryGap(chainId: number, vault: `0x${string}`, strateg
     [chainId, vault]
   )
   const inceptBlock = thing.rows[0]?.inceptBlock
-  if (!abi || inceptBlock == null) return
-  if (strider.plan(BigInt(inceptBlock), blockNumber, travelled).length > 0) return
+  if (!abi || inceptBlock == null) { deferred(!abi ? 'missing_reader' : 'missing_inception'); return }
+  if (strider.plan(BigInt(inceptBlock), blockNumber, travelled).length > 0) { deferred('incomplete_coverage'); return }
 
   console.error(`🚨 DISCOVERY_GAP: chainId=${chainId} vault=${vault} strategies=${strategies.join(',')}`)
   sentry.captureMessage('DISCOVERY_GAP', {
@@ -242,7 +246,7 @@ async function repairDiscoveryGap(chainId: number, vault: `0x${string}`, strateg
 
   await mq.add(mq.job.fanout.events, {
     chainId, abi, source: { chainId, address: vault, inceptBlock }, ignoreStrides: true
-  }, { jobId: `fanout-events-repair-${chainId}-${vault}`, removeOnComplete: { age: 24 * 60 * 60 }, removeOnFail: { age: 24 * 60 * 60 } })
+  }, { jobId: `fanout-events-repair-${chainId}-${vault}`, removeOnComplete: { age: 24 * 60 * 60 }, removeOnFail: true, attempts: 3, backoff: { type: 'exponential', delay: 60_000 } })
 }
 
 export async function projectDebtAllocator(chainId: number, vault: `0x${string}`) {

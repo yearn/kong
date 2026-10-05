@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAddress } from 'viem'
 
-const { query, travelled, add, captureMessage } = vi.hoisted(() => ({
-  query: vi.fn(), travelled: vi.fn(), add: vi.fn(), captureMessage: vi.fn()
+const { query, travelled, add, countMetric, captureMessage } = vi.hoisted(() => ({
+  query: vi.fn(), travelled: vi.fn(), add: vi.fn(), captureMessage: vi.fn(), countMetric: vi.fn()
 }))
 vi.mock('../../../../../db', () => ({ default: { query }, getSparkline: vi.fn(), getTravelledStrides: travelled }))
 vi.mock('../../../../../rpcs', () => ({ rpcs: { next: vi.fn() } }))
@@ -10,7 +10,7 @@ vi.mock('../../../../../prices', () => ({ fetchErc20PriceUsd: vi.fn() }))
 vi.mock('lib', async importOriginal => ({
   ...await importOriginal<typeof import('lib')>(),
   mq: { add, job: { fanout: { events: { name: 'events', queue: 'fanout' } } } },
-  sentry: { captureMessage }, abisConfig: { abis: [{ abiPath: 'yearn/3/vault' }] }
+  sentry: { captureMessage, countMetric }, abisConfig: { abis: [{ abiPath: 'yearn/3/vault' }] }
 }))
 import { projectStrategies, SnapshotSchema } from './hook'
 
@@ -31,7 +31,7 @@ describe('vault discovery repair', () => {
     expect(captureMessage).toHaveBeenCalledWith('DISCOVERY_GAP', expect.any(Object))
     expect(add).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({
       ignoreStrides: true, source: { chainId: 1, address: vault, inceptBlock: '1' }
-    }), expect.objectContaining({ jobId: `fanout-events-repair-1-${vault}` }))
+    }), expect.objectContaining({ jobId: `fanout-events-repair-1-${vault}`, removeOnFail: true, attempts: 3 }))
   })
 
   it('does not repair a contract whose initial logs have not loaded', async () => {
@@ -50,6 +50,7 @@ describe('vault discovery repair', () => {
     await projectStrategies(1, vault, undefined, snapshot)
     expect(add).not.toHaveBeenCalled()
     expect(captureMessage).not.toHaveBeenCalled()
+    expect(countMetric).toHaveBeenCalledWith('discovery_gap.deferred', 1, { chainId: '1', reason: 'incomplete_coverage' })
   })
 
   it('does not alert without a pinned snapshot block', async () => {

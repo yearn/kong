@@ -66,14 +66,10 @@ export default class AbisFanout {
 
     const overlaps = [...readers].map(([key, abiPaths]) => [key, [...new Set(abiPaths)]] as const)
       .filter(([, abiPaths]) => abiPaths.length > 1)
-    if (overlaps.length > 0) {
-      console.warn(`🚨 ABI_READER_OVERLAP: ${overlaps.length} addresses match more than one reader`)
-      sentry.captureMessage('ABI_READER_OVERLAP', {
-        level: 'warning',
-        tags: { component: 'ingest', job: 'fanout.abis' },
-        extra: { count: overlaps.length, sample: Object.fromEntries(overlaps.slice(0, 10)) }
-      })
-    }
+    // Reader overlap is an expected steady-state property of the configuration.
+    // Record every cycle, including zero, without emitting a warning alert.
+    sentry.countMetric('abi_reader_overlap.addresses', overlaps.length, { component: 'ingest' })
+    console.info('ABI_READER_OVERLAP_BASELINE', { count: overlaps.length, sample: Object.fromEntries(overlaps.slice(0, 10)) })
 
     await webhookCollector.flush()
   }
