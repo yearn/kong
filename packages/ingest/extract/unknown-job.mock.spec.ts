@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 const { captureException, captureMessage, captured, snapshotExtract } = vi.hoisted(() => ({
   captureMessage: vi.fn(),
   captureException: vi.fn(),
-  captured: {} as { handler?: (job: { name: string; id: string; queueName?: string; opts?: { removeOnFail?: boolean }; data: Record<string, unknown> }) => Promise<void> },
+  captured: {} as { handler?: (job: { name: string; id: string; queueName?: string; opts?: { removeOnFail?: boolean }; data: Record<string, unknown> | null }) => Promise<void> },
   snapshotExtract: vi.fn(async () => undefined)
 }))
 
@@ -60,6 +60,13 @@ describe('extract worker unknown job guard', () => {
     await expect(captured.handler!({ name, id: '3', queueName: 'extract-1', data: {}, opts: {} })).rejects.toThrow(`unknown extract job ${name}`)
     expect(mq.quarantine).toHaveBeenCalledWith({ name, id: '3', queueName: 'extract-1', data: {}, opts: {} })
   })
+  it('quarantines a null payload before reading dispatch metadata', async () => {
+    await new Extract().up()
+    const job = { name: 'unexpected-null', id: 'null', queueName: 'extract', data: null }
+    await expect(captured.handler!(job)).rejects.toThrow('unknown extract job unexpected-null')
+    expect(mq.quarantine).toHaveBeenCalledWith(job)
+  })
+
   it('preserves the unknown-job error and separately reports quarantine storage failure', async () => {
     await new Extract().up()
     vi.mocked(mq.quarantine).mockRejectedValueOnce(new Error('redis unavailable'))
