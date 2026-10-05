@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { Queue, Worker } from 'bullmq'
 import chains from './chains'
 import { captureException, countMetric, flush as flushSentry } from './sentry'
@@ -170,4 +171,30 @@ export function computeConcurrency(jobs: number, options: ConcurrencyOptions) {
 export async function down() {
   if (MQ_INVENTORY) await flushSentry(5000)
   return Promise.all(Object.values(queues).map(async queue => queue.close()))
+}
+
+// Independent Redis keys keep repair admission separate from BullMQ retention.
+export async function reserveDiscoveryRepair(chainId: number, address: string) {
+  if (!queues[q.fanout]) queues[q.fanout] = connect(q.fanout)
+  const client = await queues[q.fanout].client
+  const token = randomUUID()
+  const status = await client.eval(`
+    if redis.call('EXISTS', KEYS[1]) == 1 then return 'cooldown' end
+    if redis.call('EXISTS', KEYS[2]) == 1 then return 'budget' end
+    redis.call('SET', KEYS[1], ARGV[1], 'EX', 900)
+    redis.call('SET', KEYS[2], '1', 'EX', 900)
+    return 'granted'
+  `, 2, `kong:discovery-repair:${chainId}:${address.toLowerCase()}`, 'kong:discovery-repair:global-budget', token) as 'granted' | 'cooldown' | 'budget'
+  return { status, token }
+}
+
+export async function finishDiscoveryRepair(chainId: number, address: string, token: string, successful: boolean) {
+  if (!queues[q.fanout]) queues[q.fanout] = connect(q.fanout)
+  const client = await queues[q.fanout].client
+  await client.eval(`
+    if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+    if ARGV[2] == 'success' then redis.call('SET', KEYS[1], 'done', 'EX', 86400)
+    else redis.call('DEL', KEYS[1]) end
+    return 1
+  `, 1, `kong:discovery-repair:${chainId}:${address.toLowerCase()}`, token, successful ? 'success' : 'failure')
 }

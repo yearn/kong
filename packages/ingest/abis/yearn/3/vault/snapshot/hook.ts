@@ -245,8 +245,8 @@ async function repairDiscoveryGap(chainId: number, vault: `0x${string}`, strateg
   })
 
   await mq.add(mq.job.fanout.events, {
-    chainId, abi, source: { chainId, address: vault, inceptBlock }, ignoreStrides: true
-  }, { jobId: `fanout-events-repair-${chainId}-${vault}`, removeOnComplete: { age: 24 * 60 * 60 }, removeOnFail: true, attempts: 3, backoff: { type: 'exponential', delay: 60_000 } })
+    chainId, abi, source: { chainId, address: vault, inceptBlock }, ignoreStrides: true, discoveryRepair: true
+  }, { jobId: `fanout-events-repair-${chainId}-${vault}`, removeOnComplete: true, removeOnFail: true, attempts: 1 })
 }
 
 export async function projectDebtAllocator(chainId: number, vault: `0x${string}`) {

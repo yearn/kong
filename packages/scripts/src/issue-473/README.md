@@ -41,7 +41,7 @@ Endorsed vaults are safe: registry sets `yearn: true` (`yearn/3/registry/event/h
 | Fixes vault/erc4626 | Yes | Yes | Yes, self-heals on next snapshot |
 | Fixes vault/strategy same address | No | Yes | Alert only |
 | Preserves erc4626 timeseries | No | Yes | Yes |
-| Cost | Low, but breaks a requirement | High: schema, backfill, rollback | Low |
+| Cost | Low, but breaks a requirement | High: schema, backfill, rollback | One extract per matching ABI reader; paced full-history repairs |
 
 Rejected A: removes erc4626 timeseries from unendorsed vaults; cannot cover the strategy case.
 Rejected B: correct by construction, but migration + backfill cost is more than the problem needs.
@@ -66,8 +66,8 @@ Overlap metric, in `AbisFanout.fanout` (`fanout/abis.ts:26-59`):
 - Probe monitor counters are deferred; the diagnostics above use Sentry metrics and logs.
 
 Limits:
-- Loop guard is the deterministic job ID only. Failed repair fanout jobs retry three times with exponential backoff from one minute and are removed after final failure, allowing a later snapshot cycle to retry. Successful repair fanout jobs retain their ID for 24 hours; the gap alert remains independent of this deduplication.
-- Autofix re-reads full vault history from `inceptBlock`. Accepted: rare, bounded by `LOG_STRIDE` paging.
+- Loop guard is the deterministic job ID only. Redis admission keys permit at most one automatic full-history repair globally every 15 minutes and one per vault every 24 hours after successful fanout. These keys are independent of BullMQ completed-job cleanup. An in-flight reservation lasts 15 minutes and success extends the vault cooldown to 24 hours. A failed fanout releases its reservation; the global 15-minute budget still applies, and later snapshots may retry. Repair job records are removed on completion/failure; alert timing is independent of admission.
+- Autofix re-reads full vault history from `inceptBlock`. Each admitted repair is bounded by `LOG_STRIDE` paging; rollout may have many eligible vaults, so global admission paces that backlog.
 - Residual risk: strategy-reader events (`Reported`...) on tokenized strategies have alert only, no oracle.
   Follow-up if investigation of the overlap baseline shows real loss: compare snapshot `lastReport` with latest `Reported` row.
 - Residual risk: `snapshot` PK is `(chain_id, address)`; last reader wins. Not changed here.
@@ -107,3 +107,16 @@ initial-load and lagging-ingestion suppression, mixed-case addresses, and unrela
 overlap metric counts distinct ABI paths, so a source and thing using the same ABI
 do not produce a false overlap. Probe counters remain a follow-up; the current
 implementation emits Sentry metrics and diagnostic logs, with warning alerts reserved for confirmed discovery gaps.
+
+
+## Extraction cost
+
+Including `abiPath` in the extract job ID deliberately changes overlapping addresses
+from one deduplicated extract to one extract per distinct reader per cycle. An
+address with two readers can enqueue two RPC extract jobs, with three readers
+three. This preserves each reader's events but permanently increases work.
+`abi_reader_overlap.addresses` records the affected-address count; the logged
+baseline sample records reader lists. Actual deployment counts and backfill
+duration have not been measured by this PR. Automatic repairs are separately
+limited to one full-history fanout every 15 minutes across all chains; the normal
+fanout busy guard can still defer cycles while that single backfill drains.

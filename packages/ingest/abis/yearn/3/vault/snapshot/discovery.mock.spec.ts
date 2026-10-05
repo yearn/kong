@@ -31,7 +31,7 @@ describe('vault discovery repair', () => {
     expect(captureMessage).toHaveBeenCalledWith('DISCOVERY_GAP', expect.any(Object))
     expect(add).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({
       ignoreStrides: true, source: { chainId: 1, address: vault, inceptBlock: '1' }
-    }), expect.objectContaining({ jobId: `fanout-events-repair-1-${vault}`, removeOnFail: true, attempts: 3 }))
+    }), expect.objectContaining({ jobId: `fanout-events-repair-1-${vault}`, removeOnComplete: true, removeOnFail: true, attempts: 1 }))
   })
 
   it('does not repair a contract whose initial logs have not loaded', async () => {
