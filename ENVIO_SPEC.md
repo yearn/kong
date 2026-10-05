@@ -53,7 +53,7 @@ coverage. No external repository or indexer deployment is changed here.
 ## Validation and rollout
 
 Automated mock tests cover source gating, missing mappings, malformed responses,
-argument validation, schema/ABI contract drift, fallback extraction, source revocation, and failure before persistence. CI also runs a Redis-backed revocation spec, checking no expiry and persistence after reconnect. Run:
+argument validation, repo-local mapping ↔ committed contract ↔ ABI consistency (not live schema drift), fallback extraction, source revocation, and failure before persistence. CI also runs a Redis-backed revocation spec, checking no expiry and persistence after reconnect. Run:
 
 ```sh
 bun --filter ingest test -- --project mocks

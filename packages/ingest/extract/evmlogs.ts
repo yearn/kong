@@ -63,6 +63,9 @@ export class EvmLogsExtractor {
         if (emptyMapped.length && rpcLogs.some(log => log.topics[0] !== undefined && emptySignatures.has(log.topics[0]))) {
           await invalidateEnvioSource(chainId, address, abiPath)
           console.warn('ENVIO_EMPTY_RPC_MISMATCH', { chainId, address, abiPath, from: String(from), to: String(to) })
+          // Once parity is disproven, no rows from this source can credit the
+          // current chunk. Persist revocation first, then rebuild entirely by RPC.
+          return await rpcs.next(chainId, from).getLogs({ address, events, fromBlock: from, toBlock: to })
         }
         return [...envioLogs, ...rpcLogs].sort((a, b) =>
           Number((a.blockNumber ?? 0n) - (b.blockNumber ?? 0n)) || (a.logIndex ?? 0) - (b.logIndex ?? 0))
