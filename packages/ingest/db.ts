@@ -77,7 +77,7 @@ export async function getTravelledStrides(chainId: number, address: `0x${string}
   return travelled
 }
 
-export async function adoptLegacyStrides(chainId: number, address: `0x${string}`, signatures: string[]) {
+export async function adoptLegacyStrides(chainId: number, address: `0x${string}`, signatures: string[], ambiguous = false) {
   await db.query(`
     WITH legacy AS (
       DELETE FROM evmlog_strides
@@ -86,13 +86,13 @@ export async function adoptLegacyStrides(chainId: number, address: `0x${string}`
     )
     INSERT INTO evmlog_strides(chain_id, address, signature, strides)
     SELECT $1, $2, unnest($3::text[]), strides FROM legacy
-    WHERE NOT EXISTS (
+    WHERE NOT $4::boolean AND NOT EXISTS (
       SELECT 1 FROM thing
-      WHERE chain_id = $1 AND address = $2
+      WHERE chain_id = $1 AND lower(address) = lower($2)
       HAVING bool_or(defaults->>'erc4626' = 'true') OR count(DISTINCT label) > 1
     )
     ON CONFLICT DO NOTHING`,
-  [chainId, address, signatures])
+  [chainId, address, signatures, ambiguous])
 }
 
 export async function getSparkline(chainId: number, address: string, label: string, component?: string) {

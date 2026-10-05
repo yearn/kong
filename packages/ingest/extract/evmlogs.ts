@@ -36,7 +36,10 @@ export class EvmLogsExtractor {
         if (!bySignature.has(signature)) bySignature.set(signature, event)
       }
     }
-    const requested = signatures ?? [...bySignature.keys()]
+    const requested = [...new Set(signatures ?? [...bySignature.keys()])]
+    if (requested.some(signature => !bySignature.has(signature))) {
+      throw new Error('Requested event signature is not present in the job ABIs')
+    }
     const union = requested.map(signature => bySignature.get(signature)).filter(Boolean)
 
     const defaultStartBlockNumber = await getDefaultStartBlockNumber(chainId)
@@ -102,7 +105,7 @@ export class EvmLogsExtractor {
 
     try {
       await mq.add(mq.job.load.evmlog, {
-        chainId, address, from, to, replay, signatures: requested,
+        chainId, address, from, to, replay, signatures: signatures ? requested : undefined,
         batch: EvmLogSchema.array().parse(processedLogs)
       }, {
         priority: mq.LOWEST_PRIORITY

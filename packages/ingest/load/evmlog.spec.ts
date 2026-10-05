@@ -62,7 +62,7 @@ describe('load/evmlog strides', () => {
       upsertEvmLog({ signatures: [SIG_A], chainId: CHAIN_ID, address: ADDRESS, from: 100n, to: 200n, batch: [] }),
       upsertEvmLog({ signatures: [SIG_A], chainId: CHAIN_ID, address: ADDRESS, from: 300n, to: 400n, batch: [] })
     ])
-    while (await firstValue<number>('SELECT count(*)::int FROM pg_stat_activity WHERE wait_event_type = \'Lock\' AND datname = current_database()') < 2) {
+    while ((await firstValue<number>('SELECT count(*)::int FROM pg_stat_activity WHERE wait_event_type = \'Lock\' AND datname = current_database()') ?? 0) < 2) {
       await setTimeout(10)
     }
     await gate.query('COMMIT')
@@ -115,5 +115,24 @@ describe('load/evmlog strides', () => {
     await adoptLegacyStrides(CHAIN_ID, ADDRESS, [SIG_A])
 
     expect(await getTravelledStrides(CHAIN_ID, ADDRESS, [SIG_A])).to.deep.equal({})
+  })
+
+  it('retires ambiguous legacy coverage even if a later fanout has only one reader', async () => {
+    await seedLegacy()
+    await adoptLegacyStrides(CHAIN_ID, ADDRESS, [SIG_A], true)
+    await adoptLegacyStrides(CHAIN_ID, ADDRESS, [SIG_A, SIG_B])
+    expect(await getTravelledStrides(CHAIN_ID, ADDRESS, [SIG_A, SIG_B])).to.deep.equal({})
+  })
+
+  it('recognizes erc4626 things stored with different address casing', async () => {
+    await seedLegacy()
+    await db.query('INSERT INTO thing(chain_id, address, label, defaults) VALUES ($1, $2, $3, $4)',
+      [CHAIN_ID, ADDRESS.toLowerCase(), 'vault', { erc4626: true }])
+    try {
+      await adoptLegacyStrides(CHAIN_ID, ADDRESS, [SIG_A])
+      expect(await getTravelledStrides(CHAIN_ID, ADDRESS, [SIG_A])).to.deep.equal({})
+    } finally {
+      await db.query('DELETE FROM thing WHERE chain_id = $1 AND address = $2', [CHAIN_ID, ADDRESS.toLowerCase()])
+    }
   })
 })

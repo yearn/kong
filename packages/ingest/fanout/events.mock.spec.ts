@@ -52,6 +52,6 @@ describe('EventsFanout', () => {
     expect(job.to).toBe(999n)
     expect(job.signatures).toContain(strategyChanged)
     for (const signature of erc4626) expect(job.signatures).not.toContain(signature)
-    expect(adoptLegacyStrides).not.toHaveBeenCalled()
+    expect(adoptLegacyStrides).toHaveBeenCalledWith(CHAIN_ID, ADDRESS, expect.any(Array), true)
   })
 })

@@ -58,4 +58,17 @@ describe('EvmLogsExtractor multi-abi', () => {
 
     expect(loaded().map(l => l.signature)).toEqual([STRATEGY_CHANGED])
   })
+
+  it('does not credit signature coverage for an old queued payload', async () => {
+    getLogs.mockResolvedValueOnce([])
+    await new EvmLogsExtractor().extract({ abiPath: 'erc4626', chainId: 1, address: ADDRESS, from: 0n, to: 9n })
+    expect((mqAdd.mock.calls.at(-1) as unknown[])[1]).toMatchObject({ signatures: undefined })
+  })
+
+  it('rejects obsolete requested signatures instead of marking them covered', async () => {
+    mqAdd.mockClear()
+    await expect(new EvmLogsExtractor().extract({ ...job, signatures: ['0xunknown'] }))
+      .rejects.toThrow('Requested event signature')
+    expect(mqAdd).not.toHaveBeenCalled()
+  })
 })
