@@ -195,8 +195,9 @@ Fixing an error passes immediately; remove its baseline entry afterward. Do not
 refresh the baseline to accept a regression. Terminal remains a zero-error gate.
 
 Web typecheck uses checked-in `next-types.d.ts` for Next ambient declarations.
-Generated `next-env.d.ts` and `.next` files are excluded so local builds do not
-change the gate's input files.
+The separate `tsconfig.typecheck.json` excludes generated `next-env.d.ts` and
+`.next` files so local builds do not change the gate's input files. The base
+`tsconfig.json` still includes those files for Next's production route-type checks.
 
 `packages/scripts` is deliberately outside this initial gate: its operational
 scripts still have an unaudited diagnostic backlog and require a separate baseline
@@ -210,3 +211,9 @@ verify runtime compiler compatibility. Validate that path before deployment.
 `load.output` accepts current `{ batch }` payloads and wraps legacy single-output
 payloads as a one-element batch before validation, preserving queued work across
 upgrades. Invalid payloads still fail schema validation.
+
+A nonempty diagnostic baseline must match at least one compiler diagnostic.
+A silent zero-diagnostic result fails and lists the unmatched entries, guarding
+against lost compiler coverage. When fixing the last known error in a workspace,
+remove its now-resolved baseline entries in the same commit. Resolving some entries
+while others still match remains allowed.
