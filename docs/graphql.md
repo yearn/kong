@@ -1102,13 +1102,13 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 | `morphoBaseAPY` | `Float` | Katana publisher vault-asset-weighted Morpho base APY contribution, as an annual fractional rate (0.0204 means 2.04%); served unchanged |
 | `morphoRewardsAPR` | `Float` | Katana publisher vault-asset-weighted non-KAT Morpho rewards APR contribution, as an annual fractional rate (0.01 means 1%); served unchanged |
 
-The Katana component spellings and units are confirmed in the publisher's
+The three Morpho component spellings and units (`estimatedDebtCoverage`, `morphoBaseAPY`, `morphoRewardsAPR`) are confirmed in the publisher's
 [`buildMorphoUnderlyingOutputs`](https://github.com/yearn/katana-apr-service/blob/92de31effb2b18563d8175b6343bfdc042ea932a/src/app/api/webhook/route.ts#L193) and
 [`buildVaultMorphoUnderlyingAPR`](https://github.com/yearn/katana-apr-service/blob/92de31effb2b18563d8175b6343bfdc042ea932a/src/app/services/dataCache.ts#L395).
-`coveredDebtRatio` divides covered debt by total active debt; the rate contributions
+The publisher's internal `coveredDebtRatio`, emitted as `estimatedDebtCoverage`, divides covered debt by total active debt; the rate contributions
 are multiplied by each strategy's vault-asset debt share. The committed publisher
-response contract is copied into `packages/web/app/api/gql/typeDefs/fixtures/katana-publisher.json`
-with source provenance. It is a publisher test fixture, not a live payload capture.
+response contract is adapted into `packages/web/app/api/gql/typeDefs/fixtures/katana-publisher.json`
+with source provenance. Its label uses Kong's configured `katana-estimated-apr`: the publisher echoes `subscription.labels[0]` from the request, while its test uses the synthetic label `katana`. It is an adapted publisher test fixture, not a live payload capture. `katRewardsAPR` is outside this Morpho units attestation; Kong relays that publisher value unchanged.
 
 ### Historical
 
