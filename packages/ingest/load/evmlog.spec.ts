@@ -66,7 +66,7 @@ describe('load/evmlog strides', () => {
       upsertEvmLog({ signatures: [SIG_A], chainId: CHAIN_ID, address: ADDRESS, from: 100n, to: 200n, batch: [] })
     ])
     try {
-      while ((await firstValue<number>("SELECT count(*)::int FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND datname = current_database()") ?? 0) < 2) await setTimeout(10)
+      while ((await firstValue<number>('SELECT count(*)::int FROM pg_stat_activity WHERE wait_event_type = \'Lock\' AND datname = current_database()') ?? 0) < 2) await setTimeout(10)
     } finally {
       await gate.query('COMMIT')
       gate.release()

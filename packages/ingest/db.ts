@@ -78,13 +78,13 @@ export async function getTravelledStrides(chainId: number, address: `0x${string}
 }
 
 export async function adoptLegacyStrides(chainId: number, address: `0x${string}`, signatures: string[], ambiguous = false) {
-  const legacy = await db.query("SELECT 1 FROM evmlog_strides WHERE chain_id = $1 AND lower(address) = lower($2) AND signature = '' LIMIT 1", [chainId, address])
+  const legacy = await db.query('SELECT 1 FROM evmlog_strides WHERE chain_id = $1 AND lower(address) = lower($2) AND signature = \'\' LIMIT 1', [chainId, address])
   if (!legacy.rows.length) return
   const client = await db.connect()
   try {
     await client.query('BEGIN')
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`evmlog_strides/${chainId}/${address}`])
-    const rows = await client.query("DELETE FROM evmlog_strides WHERE chain_id = $1 AND lower(address) = lower($2) AND signature = '' RETURNING strides", [chainId, address])
+    const rows = await client.query('DELETE FROM evmlog_strides WHERE chain_id = $1 AND lower(address) = lower($2) AND signature = \'\' RETURNING strides', [chainId, address])
     const things = await client.query(`SELECT bool_or(defaults->>'erc4626' = 'true') OR count(DISTINCT label) > 1 AS ambiguous
       FROM thing WHERE chain_id = $1 AND lower(address) = lower($2)`, [chainId, address])
     if (!ambiguous && !things.rows[0]?.ambiguous && rows.rows.length && signatures.length) {
