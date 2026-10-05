@@ -88,6 +88,7 @@ export async function add(job: Job, data: any, options?: any) {
 // Quarantine has no worker and no automatic cleanup. Operators can inspect and
 // replay these payloads after correcting a producer/consumer version mismatch.
 export async function quarantine(original: { queueName: string, id?: string, name: string, data: unknown }) {
+  if (!original.queueName) throw new Error('Cannot quarantine a job without an originating queue')
   if (!original.id) throw new Error('Cannot quarantine a job without an ID')
   const jobId = Buffer.from(JSON.stringify([original.queueName, original.id])).toString('base64url')
   return add({ queue: 'quarantine', name: original.name }, {

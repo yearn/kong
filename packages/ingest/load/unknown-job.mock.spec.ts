@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const { captureMessage, workerMock, captured } = vi.hoisted(() => ({
+const { captureException, captureMessage, workerMock, captured } = vi.hoisted(() => ({
   captureMessage: vi.fn(),
+  captureException: vi.fn(),
   workerMock: vi.fn(),
-  captured: {} as { handler?: (job: { name: string; id: string; data: unknown }) => Promise<void> }
+  captured: {} as { handler?: (job: { name: string; id: string; queueName?: string; opts?: { removeOnFail?: boolean }; data: unknown }) => Promise<void> }
 }))
 
 vi.mock('../db', () => ({
@@ -33,7 +34,7 @@ vi.mock('lib', () => ({
       return { close: vi.fn() }
     })
   },
-  sentry: { captureMessage },
+  sentry: { captureMessage, captureException },
   strider: {},
   types: {}
 }))
@@ -62,7 +63,15 @@ describe('load worker unknown job guard', () => {
 
   it.each(['new-job', 'toString'])('quarantines unexpected job %s before failing', async name => {
     await new Load().up()
-    await expect(captured.handler!({ name, id: '3', data: {} })).rejects.toThrow(`unknown load job ${name}`)
-    expect(mq.quarantine).toHaveBeenCalledWith({ name, id: '3', data: {} })
+    await expect(captured.handler!({ name, id: '3', queueName: 'load', data: {}, opts: {} })).rejects.toThrow(`unknown load job ${name}`)
+    expect(mq.quarantine).toHaveBeenCalledWith({ name, id: '3', queueName: 'load', data: {}, opts: {} })
+  })
+  it('retains the original failure when quarantine storage fails', async () => {
+    await new Load().up()
+    vi.mocked(mq.quarantine).mockRejectedValueOnce(new Error('redis unavailable'))
+    const job = { name: 'new-job', id: 'failed-copy', queueName: 'load', data: {}, opts: { removeOnFail: true } }
+    await expect(captured.handler!(job)).rejects.toThrow('unknown load job new-job')
+    expect(job.opts.removeOnFail).toBe(false)
+    expect(captureException).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ tags: expect.objectContaining({ phase: 'quarantine_write' }) }))
   })
 })

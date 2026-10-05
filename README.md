@@ -526,5 +526,7 @@ Unexpected extract/load job names are copied to the Redis `quarantine` queue
 before the original job fails. This queue has no worker or automatic cleanup;
 inspect its original queue/name/data and replay explicitly after fixing the
 producer/consumer mismatch. Original failures retain the existing bounded failed
-job policy. Retired `waveydb`/`price` payloads are drained, logged individually,
+job policy. If the quarantine write fails, a separate `quarantine_write` Sentry
+event is reported and the original failed job is retained without automatic cleanup
+for manual recovery. Retired `waveydb`/`price` payloads are drained, logged individually,
 and reported to Sentry once per job name per process.

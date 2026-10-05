@@ -53,33 +53,24 @@ async function start() {
 
   const crons = cronsConfig.default
     .filter(cron => cron.start)
-    .map(cron => new Promise((resolve, reject) => {
+    .map(async cron => {
       const job = mq.job[cron.queue][cron.job]
-      if (job.bychain) {
-        for (const chain of chains) {
-          mq.add(job, { id: camelToSnake(cron.name), chainId: chain.id }, {
-            repeat: { pattern: cron.schedule }
-          }).then(() => {
-            console.log('⬆', 'cron up', cron.name, chain.id)
-          })
-        }
-
-      } else {
-        mq.add(job, { id: camelToSnake(cron.name) }, {
+      const register = async (chainId?: number) => {
+        await mq.add(job, { id: camelToSnake(cron.name), ...(chainId === undefined ? {} : { chainId }) }, {
           repeat: { pattern: cron.schedule }
-        }).then(() => {
-          console.log('⬆', 'cron up', cron.name)
         })
-
+        console.log('⬆', 'cron up', cron.name, ...(chainId === undefined ? [] : [chainId]))
       }
-    }))
+      if (job.bychain) await Promise.all(chains.map(chain => register(chain.id)))
+      else await register()
+    })
 
   const abis = abisConfig.cron.start
     ? mq.add(mq.job.fanout.abis, { id: 'mq.job.fanout.abis' }, {
       repeat: { pattern: abisConfig.cron.schedule }
     }).then(() => {
       console.log('⬆', 'abis up')
-    }) : Promise<null>
+    }) : Promise.resolve(null)
 
 
   function up() {
