@@ -118,7 +118,8 @@ async function gql(query: string, variables?: Record<string, unknown>): Promise<
 export async function envioProgressBlock(chainId: number): Promise<bigint> {
   const result = await cache.wrap(`envioProgressBlock:${chainId}`, async () => {
     const response = await gql('query ($chainId: Int!) { chain_metadata(where: { chain_id: { _eq: $chainId } }) { chain_id latest_processed_block } }', { chainId })
-    const entries = Array.isArray(response.data?.chain_metadata) ? response.data._meta : [response.data?.chain_metadata]
+    const entries = response.data?.chain_metadata
+    if (!Array.isArray(entries)) throw new Error('Envio response missing chain_metadata')
     const entry = entries.find((value: any) => Number(value?.chain_id) === chainId)
     if (!entry || entry.latest_processed_block === undefined || entry.latest_processed_block === null) {
       throw new Error(`Envio progress block missing for chain ${chainId}`)
