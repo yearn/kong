@@ -25,9 +25,10 @@ packages set `rootDir` to the workspace parent so ts-node can compile their
 cross-workspace imports with the 6.x API. Next.js continues to transpile browser
 code using its own build pipeline.
 
-Typecheck remains blocking for terminal. The other three jobs report existing
-test/config typing errors with `continue-on-error`; a green workflow does not
-mean those packages have no diagnostics.
+Typecheck remains blocking for terminal. Ingest, lib and web compare diagnostics against
+`scripts/typecheck-baseline.json`; new diagnostic identities or additional
+occurrences fail CI. Known errors remain visible in that file and must be fixed
+and removed as follow-up work. A green workflow means no new errors, not zero errors.
 
 ## Unit tests
 
@@ -174,3 +175,19 @@ describe('e2e: ingest → web snapshot', () => {
   })
 })
 ```
+
+## Local end-to-end tests
+
+`bun --filter ingest test:containers` is local-only: configure the guarded
+`HTTP_ARCHIVE_1` / `HTTP_ARCHIVE_747474` RPC endpoints and start the required
+Docker/Timescale/Redis services. CI has no archive credentials and does not run
+this command; a green test job does not establish end-to-end RPC coverage.
+
+## Known typecheck diagnostics
+
+Run `node scripts/check-typecheck-baseline.mjs` after installing dependencies.
+The checked-in baseline records the TypeScript 7 audit's existing ingest (17),
+lib (40), and web (2) diagnostics. It compares file, code, message and occurrence
+count, ignoring line/column so unrelated edits can move existing diagnostics.
+Fixing an error passes immediately; remove its baseline entry afterward. Do not
+refresh the baseline to accept a regression. Terminal remains a zero-error gate.
