@@ -29,11 +29,11 @@ export default class Extract implements Processor {
         : `🛸 ${job.name} ${job.id} ${job.data.chainId}`
       const extractor = Object.prototype.hasOwnProperty.call(this.extractors, job.name) ? this.extractors[job.name] : undefined
       if (!extractor) {
-        if (job.name !== 'waveydb') {
-          await quarantineUnknownJob('extract', job)
+        if (job.name === 'waveydb') {
+          reportRetiredJob('extract', job.name)
+          return
         }
-        reportRetiredJob('extract', job.name)
-        return
+        return quarantineUnknownJob('extract', job)
       }
       console.time(label)
       await extractor.extract(job.data)

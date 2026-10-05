@@ -9,7 +9,8 @@ export const q = {
   fanout: 'fanout',
   extract: 'extract',
   load: 'load',
-  probe: 'probe'
+  probe: 'probe',
+  quarantine: 'quarantine'
 }
 
 export const job: { [queue: string]: { [job: string]: Job } } = {
@@ -91,7 +92,7 @@ export async function quarantine(original: { queueName: string, id?: string, nam
   if (!original.queueName) throw new Error('Cannot quarantine a job without an originating queue')
   if (!original.id) throw new Error('Cannot quarantine a job without an ID')
   const jobId = Buffer.from(JSON.stringify([original.queueName, original.id])).toString('base64url')
-  return add({ queue: 'quarantine', name: original.name }, {
+  return add({ queue: q.quarantine, name: original.name }, {
     queue: original.queueName, id: original.id, name: original.name, data: original.data
   }, { jobId, removeOnComplete: false, removeOnFail: false })
 }

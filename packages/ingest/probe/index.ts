@@ -72,6 +72,7 @@ export default class Probe implements Processor {
       this.queues[`${mq.q.extract}-${chain.id}`] = mq.connect(`${mq.q.extract}-${chain.id}`)
     }
     this.queues[mq.q.load] = mq.connect(mq.q.load)
+    this.queues[mq.q.quarantine] = mq.connect(mq.q.quarantine)
 
     this.worker = mq.worker(mq.q.probe, async job => {
       const label = `👽 ${job.name} ${job.id}`
