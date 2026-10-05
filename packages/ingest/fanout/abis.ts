@@ -64,7 +64,8 @@ export default class AbisFanout {
       }
     }
 
-    const overlaps = [...readers].filter(([, abiPaths]) => abiPaths.length > 1)
+    const overlaps = [...readers].map(([key, abiPaths]) => [key, [...new Set(abiPaths)]] as const)
+      .filter(([, abiPaths]) => abiPaths.length > 1)
     if (overlaps.length > 0) {
       console.warn(`🚨 ABI_READER_OVERLAP: ${overlaps.length} addresses match more than one reader`)
       sentry.captureMessage('ABI_READER_OVERLAP', {

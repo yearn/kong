@@ -195,14 +195,16 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   [chainId, vault, topic, blockNumber])
   const result: `0x${string}`[] = []
   for (const event of events.rows) {
+    const strategy = EvmAddressSchema.parse(event.strategy)
     if (changeType[event.change_type] === 'add') {
-      result.push(zhexstring.parse(event.strategy))
-    } else {
-      result.splice(result.indexOf(zhexstring.parse(event.strategy)), 1)
+      if (!result.includes(strategy)) result.push(strategy)
+    } else if (changeType[event.change_type] === 'revoke') {
+      const index = result.indexOf(strategy)
+      if (index >= 0) result.splice(index, 1)
     }
   }
 
-  const gaps = [...new Set((snapshot?.get_default_queue ?? []).filter(strategy => !result.includes(strategy)))]
+  const gaps = [...new Set((snapshot?.get_default_queue ?? []).map(strategy => EvmAddressSchema.parse(strategy)).filter(strategy => !result.includes(strategy)))]
   result.push(...gaps)
   if (gaps.length > 0) {
     try {
@@ -228,7 +230,7 @@ async function repairDiscoveryGap(chainId: number, vault: `0x${string}`, strateg
 
   const abi = abisConfig.abis.find(a => a.abiPath === 'yearn/3/vault')
   const thing = await db.query(
-    `SELECT defaults->>'inceptBlock' AS "inceptBlock" FROM thing WHERE chain_id = $1 AND address = $2 AND label = 'vault'`,
+    'SELECT defaults->>\'inceptBlock\' AS "inceptBlock" FROM thing WHERE chain_id = $1 AND address = $2 AND label = \'vault\'',
     [chainId, vault]
   )
   const inceptBlock = thing.rows[0]?.inceptBlock

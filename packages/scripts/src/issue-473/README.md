@@ -1,7 +1,9 @@
 # Spec: event-discovery gaps on multi-reader contracts (issue #473)
 
-Deliverable: this spec, saved as `packages/scripts/src/issue-473/README.md` (repo convention, see `issue-225/README.md`).
-Implementation is out of scope. Recovery of the 3 known peers is tracked separately.
+This branch implements the no-migration recovery option described below.
+PR #483 supersedes the coverage design with per-signature accounting and is the
+preferred general solution. This branch remains an alternative for deployments
+that cannot migrate yet; it does not repair every multi-reader event gap.
 
 Direction (user decision): detect the gap when it happens and auto-fix it. No schema change. No historical repair step.
 
@@ -49,7 +51,7 @@ Note: job-ID change alone does not help; shared coverage still blocks the second
 
 Detect, in `packages/ingest/abis/yearn/3/vault/snapshot/hook.ts` `projectStrategies` (`:185-210`):
 - The hook already merges on-chain `get_default_queue` with `StrategyChanged` evmlog rows.
-- Queue strategy with no `StrategyChanged` row = gap. On-chain state is the oracle. No logs, no DB replay needed.
+- Queue strategy absent from the event projection = gap (addresses are checksummed; unknown revokes cannot remove another strategy). On-chain state is the oracle. No logs, no DB replay needed.
 - On gap: `sentry.captureMessage('DISCOVERY_GAP')` with chainId, vault, strategy (pattern: `fanout/abis.ts:12`).
 
 Autofix, same place:
@@ -70,7 +72,7 @@ Limits:
   Follow-up if the overlap alert shows real loss: compare snapshot `lastReport` with latest `Reported` row.
 - Residual risk: `snapshot` PK is `(chain_id, address)`; last reader wins. Not changed here.
 
-## 5. Tests (mocha + chai, `docs/testing.md`)
+## 5. Tests (Vitest, `docs/testing.md`)
 
 - Unit: `projectStrategies` with a queue strategy and no evmlog row → alert + one `fanout.events` add with `ignoreStrides`. No gap → none.
 - Unit: `EventsFanout` with `ignoreStrides` plans full range despite covering strides; job ID contains `abiPath`.
@@ -97,3 +99,11 @@ Rollback: code-only revert.
 ## Verification of this ticket
 
 Spec file exists at `packages/scripts/src/issue-473/README.md`, every claim pinned to `file:line`, reviewed on the issue.
+
+## Audit validation
+
+Mock regressions cover forced fanout, covered-history skipping, repair enqueue,
+initial-load suppression, mixed-case addresses, and unrelated revocations. The
+overlap alert counts distinct ABI paths, so a source and thing using the same ABI
+do not produce a false overlap. Probe counters remain a follow-up; the current
+implementation emits Sentry diagnostics only.
