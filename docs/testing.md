@@ -221,3 +221,10 @@ remove its now-resolved baseline entries in the same commit. Resolving some entr
 while others still match remains allowed.
 
 Ingest startup removes obsolete root-`extract` repeatable `block` jobs before starting workers. Per-chain crons keep their `chainId` payload; verify root repeatables are empty for `block` after rollout. Pool errors report to Sentry without crashing on an idle-client error. Concurrency probe errors report on the first failure and at most once per minute until recovery.
+
+The baseline gate invokes each workspace's declared `typecheck` command. The
+native wrapper emits a completion record only to the gate; abnormal exits,
+signals, unexpected compiler stderr or missing records fail even when earlier
+diagnostics matched the baseline. A normal completed diagnostic run can still
+resolve some baseline entries. Failure headlines distinguish execution/coverage
+failures, unparsable output and new diagnostics.
