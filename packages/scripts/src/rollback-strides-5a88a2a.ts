@@ -9,6 +9,7 @@
 import 'lib/global'
 import { Pool } from 'pg'
 import { rollback } from 'lib/strider'
+import { StrideSchema } from 'lib/types'
 
 // Target blocks for each chain at the rollback timestamp
 const ROLLBACK_TARGETS = {
@@ -78,7 +79,7 @@ async function main() {
     const affected: Array<{ address: string, signature: string, strides: Stride[], rolledback: Stride[] }> = []
 
     for (const row of result.rows) {
-      const strides: Stride[] = JSON.parse(row.strides)
+      const strides = StrideSchema.array().parse(JSON.parse(row.strides))
       const rolledback = rollback(strides, targetBlock)
 
       // Only include if rollback changes something
@@ -129,7 +130,7 @@ async function main() {
           console.warn(`  ↷ Skipped vanished coverage row: ${chain}/${address}/${signature}`)
           continue
         }
-        const current: Stride[] = JSON.parse(latest.rows[0].strides)
+        const current = StrideSchema.array().parse(JSON.parse(latest.rows[0].strides))
         const next = rollback(current, ROLLBACK_TARGETS[chain]).map(stride => ({ from: stride.from.toString(), to: stride.to.toString() }))
         await client.query(
           'UPDATE evmlog_strides SET strides = $1 WHERE chain_id = $2 AND address = $3 AND signature = $4',
