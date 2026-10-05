@@ -84,9 +84,10 @@ describe('blocks', function() {
     }
   })
 
-  it.each(['clean', 'empty', 'throw'] as const)('stores the actual Redis TTL after a %s creation search', async mode => {
+  it.each(['clean', 'empty', 'throw', 'fallback'] as const)('stores the actual Redis TTL after a %s creation search', async mode => {
     const originalNext = rpcs.next
-    const chainId = { clean: 31341, empty: 31342, throw: 31343 }[mode]
+    const chainId = { clean: 31341, empty: 31342, throw: 31343, fallback: 31344 }[mode]
+    const archive = vi.spyOn(rpcs, 'hasArchiveEndpoint').mockReturnValue(mode !== 'fallback')
     const address = '0x0000000000000000000000000000000000000009'
     const key = `estimateCreationBlock:${chainId}:${address}`
     const queue = new Queue('creation-ttl-spec', { connection: { host: process.env.REDIS_HOST || 'localhost', port: Number(process.env.REDIS_PORT || 6379) } })
@@ -94,11 +95,12 @@ describe('blocks', function() {
     await cache.del(key)
     await cache.del(`getBlock:${chainId}:undefined`)
     await cache.del(`getBlock:${chainId}:2`)
-    rpcs.next = (() => ({
+    rpcs.next = ((_chainId: number, archive = true) => ({
       getBlockNumber: async () => 2n,
       getBytecode: async () => {
+        expect(archive).to.equal(true)
         if (mode === 'throw') throw new Error('pruned')
-        return mode === 'clean' ? '0x6000' : '0x'
+        return mode === 'clean' || mode === 'fallback' ? '0x6000' : '0x'
       },
       getBlock: async ({ blockNumber }: { blockNumber?: bigint } = {}) => ({ number: blockNumber ?? 2n, timestamp: 1n })
     })) as unknown as typeof rpcs.next
@@ -114,6 +116,7 @@ describe('blocks', function() {
       await cache.del(`getBlock:${chainId}:1`)
       await cache.del(`getBlock:${chainId}:2`)
       await queue.close()
+      archive.mockRestore()
     }
   })
 
@@ -131,6 +134,7 @@ describe('blocks', function() {
     }
 
     it('caches the creation block for 30 days', async function() {
+      vi.spyOn(rpcs, 'hasArchiveEndpoint').mockReturnValue(true)
       const wrap = spyOnWrap({ chainId: 1, number: 1n, timestamp: 2n })
       await estimateCreationBlock(1, '0x0000000000000000000000000000000000000001')
       const ttl = (wrap.mock.calls[0] as unknown[])[2] as () => number

@@ -96,15 +96,19 @@ async function estimateHeightManual(chainId: number, timestamp: bigint) {
 }
 
 export async function estimateCreationBlock(chainId: number, contract: `0x${string}`): Promise<Block> {
-  let failed = false
+  let failed = !rpcs.hasArchiveEndpoint(chainId)
   const result = cache.wrap(`estimateCreationBlock:${chainId}:${contract}`, async () => {
     const search = await searchCreationBlock(chainId, contract)
-    failed = search.failed
+    failed ||= search.failed
     return search.block
   }, () => failed ? 10_000 : 30 * 24 * 60 * 60 * 1000)
   return BlockSchema.parse(await result)
 }
 
+// Probe every historical bytecode value through the archive pool. Public RPC
+// defaults and failed/empty searches receive only a 10s cache entry. Explicit
+// archive endpoints remain an operator contract; pruning responses cannot be
+// distinguished from legitimately absent code by eth_getCode alone.
 // use bin search to estimate contract creat block
 // doesn't account for CREATE2 or SELFDESTRUCT
 // adapted from https://github.com/BobTheBuidler/ypricemagic/blob/5ba16b25302b47539b4e5a996554ba4c0a70e7c7/y/contracts.py#L68
@@ -118,7 +122,7 @@ async function searchCreationBlock(chainId: number, contract: `0x${string}`): Pr
   let lo = 0n, hi = height, mid = lo + (hi - lo) / 2n
   while (hi - lo > 1n) {
     try {
-      const bytecode = await rpcs.next(chainId, useArchiveNode(height, mid)).getBytecode({ address: contract, blockNumber: mid })
+      const bytecode = await rpcs.next(chainId, true).getBytecode({ address: contract, blockNumber: mid })
       if (!bytecode || bytecode === '0x') { lo = mid } else { foundBytecode = true; hi = mid }
 
     } catch (error) {

@@ -8,6 +8,7 @@ class pool {
   private recycling: ReturnType<typeof setInterval> | undefined
   private rpcs = {} as { [key: string]: {
     clients: PublicClient[],
+    explicitEndpoints: boolean[],
     pointers: { next: number, recycle: number }
   }}
 
@@ -37,6 +38,7 @@ class pool {
               batch: batchSize > 0 ? { batchSize } : false
             })
           })),
+          explicitEndpoints: Array(this.size).fill(Boolean(this.http(chain, archive)?.trim())),
           pointers: { next: 0, recycle: 0 }
         }
       }
@@ -55,6 +57,7 @@ class pool {
         clients[pointer] = createPublicClient({
           chain: to_recycle.chain, transport: http(this.http(to_recycle.chain as Chain, archive))
         })
+        rpcsForKey.explicitEndpoints[pointer] = Boolean(this.http(to_recycle.chain as Chain, archive)?.trim())
         rpcsForKey.pointers.recycle = (pointer + 1) % clients.length
       })
     }, this.recycleMs)
@@ -70,9 +73,15 @@ class pool {
     clearInterval(this.recycling)
     for(const pool of Object.values(this.rpcs)) {
       pool.clients.length = 0
+      pool.explicitEndpoints.length = 0
       pool.pointers.next = 0
       pool.pointers.recycle = 0
     }
+  }
+
+  hasArchiveEndpoint(chainId: number): boolean {
+    const endpoints = this.rpcs[`${chainId}-true`]?.explicitEndpoints
+    return Boolean(endpoints?.length && endpoints.every(Boolean))
   }
 
   next(chainId: number, archive = true): PublicClient {
