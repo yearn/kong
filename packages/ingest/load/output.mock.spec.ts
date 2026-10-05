@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-const { query, release } = vi.hoisted(() => ({ query: vi.fn(async () => ({ rows: [] })), release: vi.fn() }))
+const { query, release } = vi.hoisted(() => ({ query: vi.fn(async (_sql?: string) => ({ rows: [] })), release: vi.fn() }))
 vi.mock('../db', () => ({
   default: { connect: async () => ({ query, release }) },
+  toBulkUpsertSql: vi.fn(() => 'INSERT output'),
+  withTransaction: async (work: (client: never) => Promise<unknown>) => {
+    await work({ query, release } as never)
+    await query('COMMIT')
+  },
   firstRow: vi.fn(), getTravelledStrides: vi.fn(), toUpsertSql: vi.fn(() => 'INSERT output'), upsertThingDefaults: vi.fn()
 }))
 import Load from './index'
