@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { setTimeout } from 'timers/promises'
 import { mq, strider } from 'lib'
 import { AbiConfig, AbiConfigSchema, SourceConfig, SourceConfigSchema } from 'lib/abis'
@@ -19,13 +20,14 @@ function getLogStride(chainId: number) {
 }
 
 export default class EventsFanout {
-  async fanout(data: { abi: AbiConfig, source: SourceConfig, replay?: { enabled: boolean, since?: bigint }, ignoreStrides?: boolean, discoveryRepair?: boolean }) {
+  async fanout(data: { abi: AbiConfig, source: SourceConfig, replay?: { enabled: boolean, since?: bigint }, ignoreStrides?: boolean, discoveryRepair?: boolean, repairBlock?: bigint | string }) {
     const { chainId, address, inceptBlock, startBlock, endBlock } = SourceConfigSchema.parse(data.source)
     const { abiPath } = AbiConfigSchema.parse(data.abi)
     const { replay, ignoreStrides } = data
     let repairToken: string | undefined
     if (data.discoveryRepair) {
-      const admission = await mq.reserveDiscoveryRepair(chainId, address)
+      const minimumBlock = data.repairBlock === undefined ? undefined : z.bigint({ coerce: true }).nonnegative().parse(data.repairBlock)
+      const admission = await mq.reserveDiscoveryRepair(chainId, address, minimumBlock)
       if (admission.status !== 'granted') {
         console.info('DISCOVERY_REPAIR_DEFERRED', { chainId, address, reason: admission.status })
         return

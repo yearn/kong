@@ -26,8 +26,9 @@ describe('event discovery repair fanout', () => {
     expect(add).not.toHaveBeenCalled()
     expect(finish).not.toHaveBeenCalled()
   })
-  it('records successful admission independently of completed job retention', async () => {
-    await new EventsFanout().fanout({ ...job, ignoreStrides: true, discoveryRepair: true } as never)
+  it('marks enqueue completion while retaining the repair comparison block', async () => {
+    await new EventsFanout().fanout({ ...job, ignoreStrides: true, discoveryRepair: true, repairBlock: '90' } as never)
+    expect(reserve).toHaveBeenCalledWith(1, '0x01', 90n)
     expect(finish).toHaveBeenCalledWith(1, '0x01', 'lease', true)
   })
   it('releases the vault lease after failed fanout', async () => {

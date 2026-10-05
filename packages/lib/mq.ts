@@ -174,10 +174,10 @@ export async function down() {
 }
 
 // Independent Redis keys keep repair admission separate from BullMQ retention.
-export async function reserveDiscoveryRepair(chainId: number, address: string) {
+export async function reserveDiscoveryRepair(chainId: number, address: string, minimumBlock = 0n) {
   if (!queues[q.fanout]) queues[q.fanout] = connect(q.fanout)
   const client = await queues[q.fanout].client
-  const token = randomUUID()
+  const token = `${randomUUID()}:${minimumBlock}`
   const status = await client.eval(`
     if redis.call('EXISTS', KEYS[1]) == 1 then return 'cooldown' end
     if redis.call('EXISTS', KEYS[2]) == 1 then return 'budget' end
@@ -193,8 +193,25 @@ export async function finishDiscoveryRepair(chainId: number, address: string, to
   const client = await queues[q.fanout].client
   await client.eval(`
     if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
-    if ARGV[2] == 'success' then redis.call('SET', KEYS[1], 'done', 'EX', 86400)
+    if ARGV[2] == 'success' then redis.call('SET', KEYS[1], 'enqueued:' .. ARGV[1], 'EX', 900)
     else redis.call('DEL', KEYS[1]) end
     return 1
   `, 1, `kong:discovery-repair:${chainId}:${address.toLowerCase()}`, token, successful ? 'success' : 'failure')
+}
+
+// Only a later pinned snapshot whose queue agrees with loaded events can grant
+// the long cooldown. Older snapshots cannot confirm a newer discovery gap.
+export async function confirmDiscoveryRepair(chainId: number, address: string, blockNumber: bigint) {
+  if (!queues[q.fanout]) queues[q.fanout] = connect(q.fanout)
+  const client = await queues[q.fanout].client
+  return await client.eval(`
+    local value = redis.call('GET', KEYS[1])
+    if not value then return 0 end
+    local minimum = string.match(value, '^enqueued:.*:(%d+)$')
+    if not minimum or minimum == '0' then return 0 end
+    local observed = ARGV[1]
+    if #observed < #minimum or (#observed == #minimum and observed < minimum) then return 0 end
+    redis.call('SET', KEYS[1], 'done', 'EX', 86400)
+    return 1
+  `, 1, `kong:discovery-repair:${chainId}:${address.toLowerCase()}`, blockNumber.toString())
 }

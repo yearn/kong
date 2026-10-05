@@ -13,14 +13,16 @@ One address can match more than one ABI reader. All readers share one job ID and
 The first reader marks blocks covered. Later readers plan zero strides. Their events are never fetched.
 For unendorsed Yearn v3 vaults, `erc4626` runs first, so `StrategyChanged` is never read and strategies are never discovered.
 
-## 1. Failure mechanism (confirmed in code)
+## 1. Failure mechanism before this change
 
-- Job ID has no reader: `evmlog-${chainId}-${address}-${from}-${to}` (`packages/ingest/fanout/events.ts:40`). BullMQ drops the second add.
-- Coverage key has no reader: `evmlog_strides` PK `(chain_id, address)` (`packages/db/migrations/sqls/20240214020032-eventsource-up.sql:21`).
-  Written at `packages/ingest/load/index.ts:69-77`, read at `fanout/events.ts:34-35`.
-- `getLogs` is filtered by the reader's ABI events (`packages/ingest/extract/evmlogs.ts:29-44`). `erc4626` ABI has only Deposit/Withdraw.
-- Config order decides the winner: `erc4626` is first (`config/abis.yaml:9`), `yearn/3/vault` at `:120`.
-- `fanout replays` is DB-only: `replay` reads `evmlog`, not RPC (`extract/evmlogs.ts:38-40,145`). It cannot recover unfetched logs.
+This describes the main base `86de16d1`; paths and named symbols identify the modules without pinning changing line numbers.
+
+- Job ID has no reader: `evmlog-${chainId}-${address}-${from}-${to}` (`packages/ingest/fanout/events.ts`). BullMQ drops the second add.
+- Coverage key has no reader: `evmlog_strides` PK `(chain_id, address)` (`packages/db/migrations/sqls/20240214020032-eventsource-up.sql`).
+  Written at `packages/ingest/load/index.ts`, read at `fanout/events.ts`.
+- `getLogs` is filtered by the reader's ABI events (`packages/ingest/extract/evmlogs.ts`). `erc4626` ABI has only Deposit/Withdraw.
+- Config order decides the winner: `erc4626` is first (`config/abis.yaml`), `yearn/3/vault` in the Yearn v3 vault entry.
+- `fanout replays` is DB-only: `replay` reads `evmlog`, not RPC (`extract/evmlogs.ts`). It cannot recover unfetched logs.
 
 Limit: production worker logs are gone. The per-vault cause stays inferred; the mechanism reproduces locally.
 
@@ -28,10 +30,10 @@ Limit: production worker logs are gone. The per-vault cause stays inferred; the 
 
 | Address class | Readers that collide | Source |
 | --- | --- | --- |
-| Unendorsed v3 vault (`erc4626=true`, no `yearn`, `apiVersion>=3`) | `erc4626` + `yearn/3/vault` | `StrategyChanged/hook.ts:47-73`, filters `abis.yaml:12-15,123-126` |
-| Tokenized strategy (gets label `vault` AND `strategy`) | `erc4626` + `yearn/3/vault` + `yearn/3/strategy` | `StrategyChanged/hook.ts:48-73` |
+| Unendorsed v3 vault (`erc4626=true`, no `yearn`, `apiVersion>=3`) | `erc4626` + `yearn/3/vault` | `StrategyChanged/hook.ts`, filters `abis.yaml` |
+| Tokenized strategy (gets label `vault` AND `strategy`) | `erc4626` + `yearn/3/vault` + `yearn/3/strategy` | `StrategyChanged/hook.ts` |
 
-Endorsed vaults are safe: registry sets `yearn: true` (`yearn/3/registry/event/hook.ts:34-51`).
+Endorsed vaults are safe: registry sets `yearn: true` (`yearn/3/registry/event/hook.ts`).
 
 ## 3. Options compared
 
@@ -49,24 +51,24 @@ Note: job-ID change alone does not help; shared coverage still blocks the second
 
 ## 4. Design (C)
 
-Detect, in `packages/ingest/abis/yearn/3/vault/snapshot/hook.ts` `projectStrategies` (`:185-210`):
+Detect, in `packages/ingest/abis/yearn/3/vault/snapshot/hook.ts` `projectStrategies`:
 - The hook already merges on-chain `get_default_queue` with `StrategyChanged` evmlog rows.
 - At the last block continuously covered from inception (capped at the pinned snapshot block), queue strategy absent from the event projection at that same block = gap (addresses are checksummed; unknown revokes cannot remove another strategy). On-chain state is the oracle. No logs, no DB replay needed.
-- On gap: `sentry.captureMessage('DISCOVERY_GAP')` with chainId, vault, strategy (pattern: `fanout/abis.ts:12`).
+- On gap: `sentry.captureMessage('DISCOVERY_GAP')` with chainId, vault, strategy (pattern: `fanout/abis.ts`).
 
 Autofix, same place:
 - `mq.add(mq.job.fanout.events, { abi: <yearn/3/vault config>, source: { chainId, address, inceptBlock }, ignoreStrides: true })`.
-- `EventsFanout.fanout` (`fanout/events.ts:22-45`): when `ignoreStrides`, set `travelled = undefined` (same line as replay, `:34`)
-  and prefix the job ID with `abiPath` so it cannot collide with the erc4626 job (`:40`).
+- `EventsFanout.fanout` (`fanout/events.ts`): when `ignoreStrides`, set `travelled = undefined` (the `replay`/`ignoreStrides` branch)
+  and prefix the job ID with `abiPath` so it cannot collide with the erc4626 job.
 - Extract runs the normal RPC path (`replay` stays false). `StrategyChanged` hook creates the strategy things. Upserts are idempotent.
 - A peer becomes eligible once any prefix from inception is continuously covered. When ingestion trails the snapshot, an archival RPC queue read and a DB projection both use the last covered block; head-only additions are deferred. Deferred checks emit `DISCOVERY_GAP_DEFERRED` and a reason metric; the first post-deploy snapshot is not guaranteed to qualify.
 
-Overlap metric, in `AbisFanout.fanout` (`fanout/abis.ts:26-59`):
-- Count readers per `(chainId, address)`. Every fanout records `abi_reader_overlap.addresses`, including zero, and logs `ABI_READER_OVERLAP_BASELINE` with the count and a sample. Overlaps are expected with this configuration and do not emit warning alerts.
-- Probe monitor counters are deferred; the diagnostics above use Sentry metrics and logs.
+Overlap gauge, in `AbisFanout.fanout` (`fanout/abis.ts`):
+- Count readers per `(chainId, address)`. Every invocation records the current `abi_reader_overlap.addresses` gauge, including zero and busy-skipped invocations, and logs `ABI_READER_OVERLAP_BASELINE` with the count and a sample. Overlaps are expected with this configuration and do not emit warning alerts.
+- Probe monitor counters are deferred; the diagnostics above use Sentry gauges and logs.
 
 Limits:
-- Loop guard is the deterministic job ID only. Redis admission keys permit at most one automatic full-history repair globally every 15 minutes and one per vault every 24 hours after successful fanout. These keys are independent of BullMQ completed-job cleanup. An in-flight reservation lasts 15 minutes and success extends the vault cooldown to 24 hours. A failed fanout releases its reservation; the global 15-minute budget still applies, and later snapshots may retry. Repair job records are removed on completion/failure; alert timing is independent of admission.
+- Loop guard is the deterministic job ID only. Redis admission keys permit at most one automatic full-history repair globally every 15 minutes and one per vault every 24 hours after a pinned snapshot confirms queue/event parity. These keys are independent of BullMQ completed-job cleanup. An in-flight reservation lasts 15 minutes. Successful enqueue retains a short 15-minute verification window; it cannot grant the 24-hour cooldown. Only a snapshot at or above the repair comparison block with no discovery gap grants the long cooldown. If extraction fails or the gap persists, later snapshots can retry after the short window. A failed fanout releases its reservation; the global 15-minute budget still applies, and later snapshots may retry. Repair job records are removed on completion/failure; alert timing is independent of admission.
 - Autofix re-reads full vault history from `inceptBlock`. Each admitted repair is bounded by `LOG_STRIDE` paging; rollout may have many eligible vaults, so global admission paces that backlog.
 - Residual risk: strategy-reader events (`Reported`...) on tokenized strategies have alert only, no oracle.
   Follow-up if investigation of the overlap baseline shows real loss: compare snapshot `lastReport` with latest `Reported` row.
@@ -78,14 +80,14 @@ Limits:
 - Unit: `EventsFanout` with `ignoreStrides` plans full range despite covering strides; job ID contains `abiPath`.
 - Not implemented: integration regression (`containers.spec.ts` pattern). It needs a configured RPC plus Redis/Timescale containers, unavailable during the audit. Intended scenario: thing matching `erc4626` + `yearn/3/vault`, erc4626 covers all blocks,
   snapshot runs, assert `StrategyChanged` extract job is queued. End-to-end recovery remains unverified.
-- Redis-backed admission: grant/global budget, successful 24-hour cooldown, failure release with retained global budget, and stale-token fencing. CI runs this suite against the container Redis. Detector errors emit `DISCOVERY_GAP_CHECK_FAILED` without aborting snapshots, including archival contract errors filtered by generic exception reporting.
-- Unit: overlap metric records one for a 2-reader address and zero for a 1-reader address.
+- Redis-backed admission: grant/global budget, snapshot-confirmed 24-hour cooldown, retry after an unconfirmed enqueue, failure release with retained global budget, and stale-token fencing. CI runs this suite against the container Redis. Detector errors emit `DISCOVERY_GAP_CHECK_FAILED` without aborting snapshots, including archival contract errors filtered by generic exception reporting.
+- Unit: overlap gauge records one for a 2-reader address and zero for a 1-reader address.
 
 ## 6. Tasks and rollout
 
 1. `ignoreStrides` flag + job ID prefix in `fanout/events.ts`.
 2. Gap check + alert + autofix in the vault snapshot hook.
-3. Overlap metric in `fanout/abis.ts`. Probe counters remain out of scope.
+3. Overlap gauge in `fanout/abis.ts`. Probe counters remain out of scope.
 4. Tests above.
 5. Deploy. Run `fanout abis` twice (detect, then drain).
 
@@ -99,13 +101,13 @@ Rollback: code-only revert.
 
 ## Verification of this ticket
 
-Spec file exists at `packages/scripts/src/issue-473/README.md`, every claim pinned to `file:line`, reviewed on the issue.
+Spec file exists at `packages/scripts/src/issue-473/README.md`, claims linked by file path and named symbol, reviewed on the issue.
 
 ## Audit validation
 
 Mock regressions cover forced fanout, covered-history skipping, repair enqueue,
 initial-load and head-only addition suppression, permanent-gap repair under ingestion lag, mixed-case addresses, and unrelated revocations. The
-overlap metric counts distinct ABI paths, so a source and thing using the same ABI
+overlap gauge counts distinct ABI paths, so a source and thing using the same ABI
 do not produce a false overlap. Probe counters remain a follow-up; the current
 implementation emits Sentry metrics and diagnostic logs, with warning alerts reserved for confirmed discovery gaps.
 

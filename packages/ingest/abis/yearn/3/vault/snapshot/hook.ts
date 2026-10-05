@@ -208,6 +208,13 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
 
   const gaps = [...new Set((snapshot?.get_default_queue ?? []).map(strategy => EvmAddressSchema.parse(strategy)).filter(strategy => !result.includes(strategy)))]
   result.push(...gaps)
+  const pinnedBlock = blockNumber ?? snapshot?.blockNumber
+  if (snapshot?.get_default_queue !== undefined && gaps.length === 0 && pinnedBlock !== undefined) {
+    try { await mq.confirmDiscoveryRepair(chainId, vault, pinnedBlock) }
+    catch (error) {
+      sentry.captureMessage('DISCOVERY_REPAIR_CONFIRM_FAILED', { level: 'error', extra: { chainId, vault, error: String(error) } })
+    }
+  }
   if (gaps.length > 0) {
     try {
       await repairDiscoveryGap(chainId, vault, gaps, blockNumber ?? snapshot?.blockNumber)
@@ -267,7 +274,7 @@ async function repairDiscoveryGap(chainId: number, vault: `0x${string}`, strateg
   })
 
   await mq.add(mq.job.fanout.events, {
-    chainId, abi, source: { chainId, address: vault, inceptBlock }, ignoreStrides: true, discoveryRepair: true
+    chainId, abi, source: { chainId, address: vault, inceptBlock }, ignoreStrides: true, discoveryRepair: true, repairBlock: coveredBlock
   }, { jobId: `fanout-events-repair-${chainId}-${vault}`, removeOnComplete: true, removeOnFail: true, attempts: 1 })
 }
 

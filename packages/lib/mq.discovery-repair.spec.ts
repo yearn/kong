@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { connect, q, reserveDiscoveryRepair, finishDiscoveryRepair, down } from './mq'
+import { connect, q, reserveDiscoveryRepair, finishDiscoveryRepair, confirmDiscoveryRepair, down } from './mq'
 
 const chainId = 31337
 const addresses = ['0xAa', '0xBb']
@@ -15,14 +15,27 @@ describe('discovery repair Lua admission', () => {
   afterAll(async () => { await queue.close(); await down() })
 
   it('admits one vault and budgets the next, then persists a successful cooldown', async () => {
-    const first = await reserveDiscoveryRepair(chainId, addresses[0])
+    const first = await reserveDiscoveryRepair(chainId, addresses[0], 100n)
     expect(first.status).toBe('granted')
     expect((await reserveDiscoveryRepair(chainId, addresses[1])).status).toBe('budget')
     expect(await client.ttl(budget)).toBeGreaterThan(890)
     await finishDiscoveryRepair(chainId, addresses[0], first.token, true)
+    expect(await client.get(key(addresses[0]))).toBe(`enqueued:${first.token}`)
+    expect(await client.ttl(key(addresses[0]))).toBeLessThanOrEqual(900)
+    expect(await confirmDiscoveryRepair(chainId, addresses[0], 99n)).toBe(0)
+    expect(await confirmDiscoveryRepair(chainId, addresses[0], 100n)).toBe(1)
     expect(await client.get(key(addresses[0]))).toBe('done')
     expect(await client.ttl(key(addresses[0]))).toBeGreaterThan(86_390)
     expect((await reserveDiscoveryRepair(chainId, addresses[0])).status).toBe('cooldown')
+  })
+
+  it('retries an unconfirmed enqueue after the short window instead of locking it for a day', async () => {
+    const first = await reserveDiscoveryRepair(chainId, addresses[0], 100n)
+    await finishDiscoveryRepair(chainId, addresses[0], first.token, true)
+    expect(await client.ttl(key(addresses[0]))).toBeLessThanOrEqual(900)
+    await client.expire(key(addresses[0]), 0)
+    await client.expire(budget, 0)
+    expect((await reserveDiscoveryRepair(chainId, addresses[0], 100n)).status).toBe('granted')
   })
 
   it('releases a failed vault while keeping the global budget', async () => {

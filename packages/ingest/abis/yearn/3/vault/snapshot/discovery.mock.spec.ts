@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAddress } from 'viem'
 
-const { query, travelled, add, countMetric, captureMessage, next, readContract } = vi.hoisted(() => ({
-  query: vi.fn(), travelled: vi.fn(), add: vi.fn(), captureMessage: vi.fn(), countMetric: vi.fn(), next: vi.fn(), readContract: vi.fn()
+const { query, travelled, add, countMetric, captureMessage, next, readContract, confirm } = vi.hoisted(() => ({
+  query: vi.fn(), travelled: vi.fn(), add: vi.fn(), captureMessage: vi.fn(), countMetric: vi.fn(), next: vi.fn(), readContract: vi.fn(), confirm: vi.fn()
 }))
 vi.mock('../../../../../db', () => ({ default: { query }, getSparkline: vi.fn(), getTravelledStrides: travelled }))
 vi.mock('../../../../../rpcs', () => ({ rpcs: { next } }))
 vi.mock('../../../../../prices', () => ({ fetchErc20PriceUsd: vi.fn() }))
 vi.mock('lib', async importOriginal => ({
   ...await importOriginal<typeof import('lib')>(),
-  mq: { add, job: { fanout: { events: { name: 'events', queue: 'fanout' } } } },
+  mq: { add, confirmDiscoveryRepair: confirm, job: { fanout: { events: { name: 'events', queue: 'fanout' } } } },
   sentry: { captureMessage, countMetric }, abisConfig: { abis: [{ abiPath: 'yearn/3/vault' }] }
 }))
 import { projectStrategies, SnapshotSchema } from './hook'
@@ -92,5 +92,6 @@ describe('vault discovery repair', () => {
     expect(await projectStrategies(1, vault, undefined, snapshot)).toEqual([getAddress(strategy)])
     expect(add).not.toHaveBeenCalled()
     expect(travelled).not.toHaveBeenCalled()
+    expect(confirm).toHaveBeenCalledWith(1, vault, 100n)
   })
 })

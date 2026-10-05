@@ -57,6 +57,13 @@ export function countMetric(
   })
 }
 
+export function gaugeMetric(name: string, value: number, attributes: Record<string, string>) {
+  void getSentry().then(Sentry => {
+    if (!Sentry) return
+    Sentry.metrics.gauge(name, value, { attributes })
+  })
+}
+
 export async function flush(timeout?: number) {
   if (!sentryPromise) return
 

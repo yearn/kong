@@ -6,6 +6,24 @@ import { findBusyMatch } from './isBusy'
 
 export default class AbisFanout {
   async fanout(data: object) {
+    const chainIds = new Set<number>(chains.map(chain => chain.id))
+    const planned = await Promise.all(abisConfig.abis.map(async abi => ({
+      abi,
+      sources: [...abi.sources, ...(abi.things ? (await things.get(abi.things)).filter(thing => chainIds.has(thing.chainId)).map(thing => ({
+        chainId: thing.chainId, address: thing.address, inceptBlock: thing.defaults.inceptBlock,
+        inceptTime: thing.defaults.inceptTime, skip: false, only: false
+      })) : [])]
+    })))
+    const readers = new Map<string, Set<string>>()
+    for (const { abi, sources } of planned) for (const source of sources) {
+      const key = `${source.chainId}-${source.address.toLowerCase()}`
+      if (!readers.has(key)) readers.set(key, new Set())
+      readers.get(key)!.add(abi.abiPath)
+    }
+    const overlaps = [...readers].filter(([, paths]) => paths.size > 1)
+    sentry.gaugeMetric('abi_reader_overlap.addresses', overlaps.length, { component: 'ingest' })
+    console.info('ABI_READER_OVERLAP_BASELINE', { count: overlaps.length, sample: Object.fromEntries(overlaps.slice(0, 10).map(([key, paths]) => [key, [...paths]])) })
+
     const match = await findBusyMatch()
     if (match) {
       console.error(`🚨 ABI_FANOUT_SKIPPED_BUSY: previous ingestion work is still active or queued, queue=${match.queue} job=${match.jobName} status=${match.status}`)
@@ -21,55 +39,17 @@ export default class AbisFanout {
 
     const webhookCollector = new WebhookCollector()
 
-    const readers = new Map<string, string[]>()
-
     await mq.add(mq.job.extract.manuals, data)
-
-    for (const abi of abisConfig.abis) {
-      for (const source of abi.sources) {
+    for (const { abi, sources } of planned) {
+      for (const source of sources) {
         console.info('🤝', 'source', 'abiPath', abi.abiPath, source.chainId, source.address)
-        const key = `${source.chainId}-${source.address.toLowerCase()}`
-        readers.set(key, [...(readers.get(key) ?? []), abi.abiPath])
         const _data = { ...data, chainId: source.chainId, abi, source }
         await mq.add(mq.job.fanout.events, _data)
         await mq.add(mq.job.extract.snapshot, _data)
         await mq.add(mq.job.fanout.timeseries, _data)
         webhookCollector.collect(abi, source)
       }
-
-      if (abi.things) {
-        const chainIds = chains.map(chain => chain.id) as number[]
-        const _things = (await things.get(abi.things)).filter(thing => chainIds.includes(thing.chainId))
-        for (const _thing of _things) {
-          console.info('🤝', 'thing', 'abiPath', abi.abiPath, _thing.chainId, _thing.address)
-          const key = `${_thing.chainId}-${_thing.address.toLowerCase()}`
-          readers.set(key, [...(readers.get(key) ?? []), abi.abiPath])
-          const _data = {
-            ...data,
-            chainId: _thing.chainId,
-            abi,
-            source: {
-              chainId: _thing.chainId,
-              address: _thing.address,
-              inceptBlock: _thing.defaults.inceptBlock,
-              inceptTime: _thing.defaults.inceptTime,
-              skip: false,
-              only: false
-            } }
-          await mq.add(mq.job.fanout.events, _data)
-          await mq.add(mq.job.extract.snapshot, _data)
-          await mq.add(mq.job.fanout.timeseries, _data)
-          webhookCollector.collect(abi, _data.source)
-        }
-      }
     }
-
-    const overlaps = [...readers].map(([key, abiPaths]) => [key, [...new Set(abiPaths)]] as const)
-      .filter(([, abiPaths]) => abiPaths.length > 1)
-    // Reader overlap is an expected steady-state property of the configuration.
-    // Record every cycle, including zero, without emitting a warning alert.
-    sentry.countMetric('abi_reader_overlap.addresses', overlaps.length, { component: 'ingest' })
-    console.info('ABI_READER_OVERLAP_BASELINE', { count: overlaps.length, sample: Object.fromEntries(overlaps.slice(0, 10)) })
 
     await webhookCollector.flush()
   }

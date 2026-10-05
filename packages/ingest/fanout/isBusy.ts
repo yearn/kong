@@ -1,6 +1,6 @@
 import { chains, mq } from 'lib'
 
-export type BusyMatch = { queue: string; jobName: string; status: 'waiting' | 'active' }
+export type BusyMatch = { queue: string; jobName: string; status: 'waiting' | 'prioritized' | 'active' }
 
 type QueueSpec = { queueName: string; includedNames: Set<string> }
 
@@ -53,7 +53,7 @@ export async function findBusyMatch(): Promise<BusyMatch | null> {
   for (const spec of specs) {
     const queue = mq.connect(spec.queueName)
     try {
-      for (const status of ['waiting', 'active'] as const) {
+      for (const status of ['waiting', 'prioritized', 'active'] as const) {
         const PAGE = 100
         let start = 0
         while (true) {
