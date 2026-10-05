@@ -37,8 +37,9 @@ export default class Load implements Processor {
   async up() {
     this.worker = mq.worker(mq.q.load, async job => {
       const label = `📀 ${job.name} ${job.id}`
-      const handler = this.handlers[job.name]
+      const handler = Object.prototype.hasOwnProperty.call(this.handlers, job.name) ? this.handlers[job.name] : undefined
       if (!handler) {
+        if (job.name !== 'price') throw new Error(`unknown load job ${job.name}`)
         console.warn('🚨', 'unknown load job', job.name)
         sentry.captureMessage(`unknown load job ${job.name}`, { level: 'warning', tags: { component: 'load' } })
         return

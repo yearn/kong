@@ -13,6 +13,9 @@ import db from './db'
 import { camelToSnake } from 'lib/strings'
 import { assertPriceSourceConfig } from './prices'
 
+// Validate before constructing pools or scheduling any repeatable jobs.
+assertPriceSourceConfig()
+
 const exportsProcessor = (filePath: string): boolean => {
   const fileContent = fs.readFileSync(filePath, 'utf8')
   const regex = /export default class \S+ implements Processor/
@@ -72,13 +75,6 @@ async function fatal(phase: string, error: unknown) {
 }
 
 function up() {
-  try {
-    assertPriceSourceConfig()
-  } catch (error) {
-    fatal('price_source_config', error)
-    return
-  }
-
   Promise.all([
     rpcs.up(),
     cache.up(),
