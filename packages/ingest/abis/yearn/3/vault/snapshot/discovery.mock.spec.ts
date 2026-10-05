@@ -67,6 +67,17 @@ describe('vault discovery repair', () => {
     expect(add).toHaveBeenCalledTimes(1)
   })
 
+  it('reports an archival detector error while preserving the snapshot strategy list', async () => {
+    travelled.mockResolvedValue([{ from: 1n, to: 99n }])
+    const error = new Error('archive unavailable')
+    error.name = 'ContractFunctionExecutionError'
+    readContract.mockRejectedValueOnce(error)
+    query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ inceptBlock: '1' }] })
+    expect(await projectStrategies(1, vault, undefined, snapshot)).toEqual([getAddress(strategy)])
+    expect(captureMessage).toHaveBeenCalledWith('DISCOVERY_GAP_CHECK_FAILED', expect.objectContaining({ level: 'error', extra: expect.objectContaining({ error: 'ContractFunctionExecutionError: archive unavailable' }) }))
+    expect(add).not.toHaveBeenCalled()
+  })
+
   it('does not alert without a pinned snapshot block', async () => {
     await projectStrategies(1, vault, undefined, { get_default_queue: [getAddress(strategy)] })
     expect(add).not.toHaveBeenCalled()

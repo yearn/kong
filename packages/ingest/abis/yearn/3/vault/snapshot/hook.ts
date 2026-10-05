@@ -213,6 +213,12 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
       await repairDiscoveryGap(chainId, vault, gaps, blockNumber ?? snapshot?.blockNumber)
     } catch (error) {
       console.error('🚨 DISCOVERY_GAP repair failed', chainId, vault, error)
+      // captureMessage remains visible for ContractFunctionExecutionError, which
+      // the generic exception helper deliberately suppresses for ordinary reads.
+      sentry.captureMessage('DISCOVERY_GAP_CHECK_FAILED', {
+        level: 'error', tags: { component: 'ingest', hook: 'vault.snapshot.projectStrategies' },
+        extra: { chainId, vault, snapshotBlock: (blockNumber ?? snapshot?.blockNumber)?.toString(), error: error instanceof Error ? `${error.name}: ${error.message}` : String(error) }
+      })
     }
   }
 

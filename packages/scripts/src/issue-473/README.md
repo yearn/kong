@@ -78,6 +78,7 @@ Limits:
 - Unit: `EventsFanout` with `ignoreStrides` plans full range despite covering strides; job ID contains `abiPath`.
 - Not implemented: integration regression (`containers.spec.ts` pattern). It needs a configured RPC plus Redis/Timescale containers, unavailable during the audit. Intended scenario: thing matching `erc4626` + `yearn/3/vault`, erc4626 covers all blocks,
   snapshot runs, assert `StrategyChanged` extract job is queued. End-to-end recovery remains unverified.
+- Redis-backed admission: grant/global budget, successful 24-hour cooldown, failure release with retained global budget, and stale-token fencing. CI runs this suite against the container Redis. Detector errors emit `DISCOVERY_GAP_CHECK_FAILED` without aborting snapshots, including archival contract errors filtered by generic exception reporting.
 - Unit: overlap metric records one for a 2-reader address and zero for a 1-reader address.
 
 ## 6. Tasks and rollout
