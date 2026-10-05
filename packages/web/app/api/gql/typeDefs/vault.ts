@@ -118,7 +118,6 @@ type EstimatedAprComponents {
   cvxAPR: Float
   keepCRV: Float
   keepVelo: Float
-  grossAPR: Float @deprecated(reason: "Promoted to EstimatedApr.grossAPR")
   baseNetAPR: Float
   baseNetAPY: Float
   lockerBonusAPR: Float

@@ -9,7 +9,7 @@ row for each component. Each row has a `chain_id`, an `address`, a `label`, a
 `component` name and a numeric `value`. Kong writes the rows into the `output` table.
 
 The label tells which publisher sent the row. Kong finds vault-level estimates with a
-label that ends in `-estimated-apr` (`packages/lib/estimated-apr.ts:83`).
+label that ends in `-estimated-apr` (`packages/lib/estimated-apr.ts`).
 
 One group of rows with the same chain, address, label and `block_time` is one emission.
 Kong reads the most recent emission and makes one `estimated` object from it.
@@ -29,24 +29,31 @@ other components stay in `components`.
 | `isStrategy` | stays in `components` | scope marker, see below |
 | `debtRatio` | stays in `components` | not an APR, legacy scope marker |
 
+## Breaking API change
+
+`EstimatedAprComponents.grossAPR` is removed from GraphQL, rather than deprecated.
+Clients must select `performance.estimated.grossAPR` and `grossAPY` at the top
+level. Re-ingestion removes promoted values from stored `components`; there is
+no compatibility field that changes to null as individual vaults refresh.
+
 ## Promotion rules
 
-`promoteEstimatedApr` does the promotion (`packages/ingest/helpers/apy-apr.ts:9`). Both
-the vault path (`packages/ingest/helpers/apy-apr.ts:34`) and the strategy composition
-path (`packages/ingest/abis/yearn/3/vault/snapshot/hook.ts:469`) use it.
+`promoteEstimatedApr` does the promotion (`packages/ingest/helpers/apy-apr.ts`). Both
+the vault path (`packages/ingest/helpers/apy-apr.ts`) and the strategy composition
+path (`packages/ingest/abis/yearn/3/vault/snapshot/hook.ts`) use it.
 
 - `apr` and `apy` come from `netAPR` and `netAPY` only. Kong never puts a gross value
   into `apr` or `apy`.
 - If the publisher sends no `netAPR`, `apr` is absent. Kong does not write a zero, on the
   v3 path. The legacy v2 path does not follow this rule (see "Legacy v2 read path" below).
 - A promoted component is removed from `components`
-  (`packages/ingest/helpers/apy-apr.ts:10`).
+  (`packages/ingest/helpers/apy-apr.ts`).
 - A row with a null value is not promoted and does not go into `components`.
 
 The schema `EstimatedAprSchema` holds the promoted shape
-(`packages/lib/types.ts:444`). The REST list schema
-(`packages/web/app/api/rest/list/db.ts:48`) and the GraphQL type
-(`packages/web/app/api/gql/typeDefs/vault.ts:132`) hold the same fields.
+(`packages/lib/types.ts`). The REST list schema
+(`packages/web/app/api/rest/list/db.ts`) and the GraphQL type
+(`packages/web/app/api/gql/typeDefs/vault.ts`) hold the same fields.
 
 ## Scope resolution
 
@@ -56,7 +63,7 @@ vault at the same time (issue #409). Only the publisher knows the scope of each
 emission.
 
 Kong finds the scope from the emission itself
-(`packages/lib/estimated-apr.ts:91`):
+(`packages/lib/estimated-apr.ts`):
 
 1. If the emission has a non-zero `isStrategy` component, the emission is
    strategy-scoped.
@@ -69,15 +76,15 @@ of the parent vault `performance.estimated` (issue #409, issue #410).
 
 The vault composition path does not use these lookups. It reads the estimate rows with
 its own query in `fetchStrategyPerformance`
-(`packages/ingest/abis/yearn/3/vault/snapshot/hook.ts:424`), which filters by label only
+(`packages/ingest/abis/yearn/3/vault/snapshot/hook.ts`), which filters by label only
 and applies no scope rule, so a strategy estimate stays available for the composition
 entry.
 
 The composition path gets its label from the vault-scoped lookup. When that lookup
 returns nothing, for example when the vault address has only a strategy-scoped emission
 (issue #409), the hook falls back to the label of the latest emission without a scope
-rule (`packages/ingest/abis/yearn/3/vault/snapshot/hook.ts:111`,
-`packages/ingest/helpers/apy-apr.ts:37`). Thus the composition does not lose the
+rule (`packages/ingest/abis/yearn/3/vault/snapshot/hook.ts`,
+`packages/ingest/helpers/apy-apr.ts`). Thus the composition does not lose the
 strategy estimates when a publisher starts to send the `isStrategy` marker.
 
 An emission that has neither marker is vault-scoped. Thus a net-only emission keeps its
@@ -104,20 +111,20 @@ Kong does not correct these values. Kong promotes what the publisher sends.
 
 ## Legacy v2 read path
 
-`getLatestEstimatedApr` (`packages/ingest/helpers/apy-apr.ts:51`) is a second, older read
-path. `packages/ingest/abis/yearn/2/vault/snapshot/hook.ts:95` and
-`packages/ingest/abis/yearn/2/strategy/snapshot/hook.ts:58` call it.
+`getLatestEstimatedApr` (`packages/ingest/helpers/apy-apr.ts`) is a second, older read
+path. `packages/ingest/abis/yearn/2/vault/snapshot/hook.ts` and
+`packages/ingest/abis/yearn/2/strategy/snapshot/hook.ts` call it.
 
 This path does not use `promoteEstimatedApr`. It has its own rules:
 
 - It reads only the labels `crv-estimated-apr`, `velo-estimated-apr`, `aero-estimated-apr`,
-  hard-coded (`packages/ingest/helpers/apy-apr.ts:78,84`).
+  hard-coded (`packages/ingest/helpers/apy-apr.ts`).
 - It whitelists only Curve-era components: `boost`, `poolAPY`, `boostedAPR`, `baseAPR`,
   `rewardsAPR`, `rewardsAPY`, `cvxAPR`, `keepCRV`, `keepVelo`
-  (`packages/ingest/helpers/apy-apr.ts:59-67,100-108`). It never reads or surfaces
+  (`packages/ingest/helpers/apy-apr.ts`). It never reads or surfaces
   `grossAPR`, `grossAPY`, or `compoundingPeriodsPerYear`.
 - If `netAPR` or `netAPY` is absent, it writes `apr: 0` or `apy: 0`
-  (`packages/ingest/helpers/apy-apr.ts:96-97`, `result.apr || 0`). This is the opposite of
+  (`packages/ingest/helpers/apy-apr.ts`, `result.apr || 0`). This is the opposite of
   the v3 rule above.
 
 Scope decision: the "no gross value, no zero write" contract in this document applies to
