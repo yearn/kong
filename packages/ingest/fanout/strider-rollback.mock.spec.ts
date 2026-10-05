@@ -3,6 +3,13 @@ import { rollback } from 'lib/strider'
 
 describe('fragmented coverage rollback', () => {
   const coverage = [{ from: 19_000_000n, to: 23_000_000n }, { from: 23_700_000n, to: 23_900_000n }]
+  it.each([
+    { coverage: [{ from: '18097341', to: '150000000' }], target: 142915777n, from: 18097341n },
+    { coverage: [{ from: '4841854', to: '400000000' }], target: 393385831n, from: 4841854n },
+    { coverage: [{ from: '9000000', to: '120000000' }], target: 117399886n, from: 9000000n }
+  ])('coerces persisted string endpoints before numeric truncation: %j', ({ coverage, target, from }) => {
+    expect(rollback(JSON.parse(JSON.stringify(coverage)), target)).toEqual([{ from, to: target }])
+  })
   it('drops coverage starting beyond a target in a gap', () => {
     expect(rollback(coverage, 23_657_375n)).toEqual([coverage[0]])
   })

@@ -1,5 +1,5 @@
 import { math } from '.'
-import { Stride } from './types'
+import { Stride, StrideSchema } from './types'
 
 export function plan(from: bigint, to: bigint, travelled: Stride[] | undefined): Stride[] {
   if(!travelled) return [{ from, to }]
@@ -107,7 +107,7 @@ export function contains(a: Stride, b: Stride) {
 }
 
 export function rollback(strides: Stride[], endBlock: bigint): Stride[] {
-  return (strides ?? [])
+  return StrideSchema.array().parse(strides ?? [])
     .filter(stride => stride.from <= endBlock && stride.from <= stride.to)
     .map(stride => ({ from: stride.from, to: stride.to > endBlock ? endBlock : stride.to }))
     .sort((a, b) => a.from < b.from ? -1 : a.from > b.from ? 1 : 0)
