@@ -101,7 +101,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const roles = await projectRoles(chainId, address)
   if (snapshot.role_manager) appendRoleManagerPseudoRole(roles, snapshot.role_manager)
 
-  const allocator = await projectDebtAllocator(chainId, address, new Map())
+  const allocator = await projectDebtAllocator(chainId, address)
 
   const debts = await extractDebts(chainId, address, strategies, allocator, data)
   const estimatedApr = await getLatestEstimatedAprV3(chainId, address)
@@ -210,18 +210,7 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   return result
 }
 
-// Callers may share this memo within a single snapshot, never between snapshots.
-type AllocatorMemo = Map<string, Promise<`0x${string}` | undefined>>
-
-export async function projectDebtAllocator(chainId: number, vault: `0x${string}`, memo?: AllocatorMemo) {
-  const key = `${chainId}:${vault.toLowerCase()}`
-  if (memo?.has(key)) return memo.get(key)
-  const pending = readDebtAllocator(chainId, vault)
-  memo?.set(key, pending)
-  return pending
-}
-
-async function readDebtAllocator(chainId: number, vault: `0x${string}`) {
+export async function projectDebtAllocator(chainId: number, vault: `0x${string}`) {
   const topic = toEventSelector('event NewDebtAllocator(address indexed allocator, address indexed vault)')
   const events = await db.query(`
   SELECT args->>'allocator' AS allocator
