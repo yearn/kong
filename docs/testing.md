@@ -204,9 +204,11 @@ scripts still have an unaudited diagnostic backlog and require a separate baseli
 audit. The gate currently covers terminal, ingest, lib and web; it does not claim
 type safety for the scripts workspace.
 
-CI does not execute the production ts-node entrypoint. Its TypeScript 6 compatibility
-API was checked locally in the prepared package, but a green CI gate does not
-verify runtime compiler compatibility. Validate that path before deployment.
+CI initializes the installed compiler through the workspace's actual `production`
+command (`ts-node --transpile-only index.ts`) with `KONG_COMPILER_SMOKE=true`.
+The entrypoint validates the compatibility API and exits before loading external
+services or enqueuing jobs. This gates ts-node compiler initialization, not a full
+container boot, service connectivity or production Next build.
 
 `load.output` accepts current `{ batch }` payloads and wraps legacy single-output
 payloads as a one-element batch before validation, preserving queued work across

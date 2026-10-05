@@ -1,3 +1,13 @@
+// CI boots the same ts-node production command and exits before external services.
+if (process.env.KONG_COMPILER_SMOKE === 'true') {
+  const compiler = require('typescript') as typeof import('typescript')
+  for (const name of ['transpileModule', 'parseJsonConfigFileContent'] as const) {
+    if (typeof compiler[name] !== 'function') throw new Error(`Missing compiler API: ${name}`)
+  }
+  console.info('Production ts-node compiler initialized', compiler.version)
+  process.exit(0)
+}
+
 import 'lib/global'
 
 import path from 'path'
