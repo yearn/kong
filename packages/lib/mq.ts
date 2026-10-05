@@ -143,8 +143,11 @@ export function worker(queueName: string, handler: (job: any) => Promise<any>, c
     }
   })
 
-  let lastConcurrencyAlert = 0
+  let lastConcurrencyAlert: number | undefined
+  let concurrencyProbeRunning = false
   const timer = setInterval(async () => {
+    if (concurrencyProbeRunning) return
+    concurrencyProbeRunning = true
     try {
       const MQ_CONCURRENCY_MAX_PER_PROCESSOR_ENVAR = chainId ? `MQ_CONCURRENCY_MAX_PER_PROCESSOR_${chainId}` : 'MQ_CONCURRENCY_MAX_PER_PROCESSOR'
       const MQ_CONCURRENCY_THRESHOLD_ENVAR = chainId ? `MQ_CONCURRENCY_THRESHOLD_${chainId}` : 'MQ_CONCURRENCY_THRESHOLD'
@@ -152,7 +155,6 @@ export function worker(queueName: string, handler: (job: any) => Promise<any>, c
       const MQ_CONCURRENCY_THRESHOLD = (process.env[MQ_CONCURRENCY_THRESHOLD_ENVAR] || 200) as number
 
       const jobs = await queue.count()
-      lastConcurrencyAlert = 0
       const targetConcurrency = computeConcurrency(jobs, {
         min: 1, max: MQ_CONCURRENCY_MAX_PER_PROCESSOR,
         threshold: MQ_CONCURRENCY_THRESHOLD
@@ -171,10 +173,12 @@ export function worker(queueName: string, handler: (job: any) => Promise<any>, c
       }
     } catch (error) {
       console.error('🤬', 'concurrency', queueName, error)
-      if (!lastConcurrencyAlert || Date.now() - lastConcurrencyAlert >= 60_000) {
+      if (lastConcurrencyAlert === undefined || Date.now() - lastConcurrencyAlert >= 60_000) {
         captureException(error, { tags: { component: 'ingest', operation: 'mq.concurrency', queue: queueName } })
         lastConcurrencyAlert = Date.now()
       }
+    } finally {
+      concurrencyProbeRunning = false
     }
   }, 5000)
 
