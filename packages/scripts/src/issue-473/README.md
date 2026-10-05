@@ -61,7 +61,7 @@ Autofix, same place:
 - Extract runs the normal RPC path (`replay` stays false). `StrategyChanged` hook creates the strategy things. Upserts are idempotent.
 - A peer becomes eligible for repair once coverage reaches its pinned snapshot block continuously from inception. Deferred checks emit `DISCOVERY_GAP_DEFERRED` and a reason metric; the first post-deploy snapshot is not guaranteed to qualify.
 
-Overlap alert, in `AbisFanout.fanout` (`fanout/abis.ts:26-59`):
+Overlap metric, in `AbisFanout.fanout` (`fanout/abis.ts:26-59`):
 - Count readers per `(chainId, address)`. Every fanout records `abi_reader_overlap.addresses`, including zero, and logs `ABI_READER_OVERLAP_BASELINE` with the count and a sample. Overlaps are expected with this configuration and do not emit warning alerts.
 - Probe monitor counters are deferred; the diagnostics above use Sentry metrics and logs.
 
@@ -69,7 +69,7 @@ Limits:
 - Loop guard is the deterministic job ID only. Failed repair fanout jobs retry three times with exponential backoff from one minute and are removed after final failure, allowing a later snapshot cycle to retry. Successful repair fanout jobs retain their ID for 24 hours; the gap alert remains independent of this deduplication.
 - Autofix re-reads full vault history from `inceptBlock`. Accepted: rare, bounded by `LOG_STRIDE` paging.
 - Residual risk: strategy-reader events (`Reported`...) on tokenized strategies have alert only, no oracle.
-  Follow-up if the overlap alert shows real loss: compare snapshot `lastReport` with latest `Reported` row.
+  Follow-up if investigation of the overlap baseline shows real loss: compare snapshot `lastReport` with latest `Reported` row.
 - Residual risk: `snapshot` PK is `(chain_id, address)`; last reader wins. Not changed here.
 
 ## 5. Tests (Vitest, `docs/testing.md`)
@@ -84,7 +84,7 @@ Limits:
 
 1. `ignoreStrides` flag + job ID prefix in `fanout/events.ts`.
 2. Gap check + alert + autofix in the vault snapshot hook.
-3. Overlap alert in `fanout/abis.ts`. Probe counters remain out of scope.
+3. Overlap metric in `fanout/abis.ts`. Probe counters remain out of scope.
 4. Tests above.
 5. Deploy. Run `fanout abis` twice (detect, then drain).
 
@@ -104,6 +104,6 @@ Spec file exists at `packages/scripts/src/issue-473/README.md`, every claim pinn
 
 Mock regressions cover forced fanout, covered-history skipping, repair enqueue,
 initial-load and lagging-ingestion suppression, mixed-case addresses, and unrelated revocations. The
-overlap alert counts distinct ABI paths, so a source and thing using the same ABI
+overlap metric counts distinct ABI paths, so a source and thing using the same ABI
 do not produce a false overlap. Probe counters remain a follow-up; the current
-implementation emits Sentry diagnostics only.
+implementation emits Sentry metrics and diagnostic logs, with warning alerts reserved for confirmed discovery gaps.
