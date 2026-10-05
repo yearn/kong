@@ -7,7 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const baseline = JSON.parse(readFileSync(path.join(root, 'scripts/typecheck-baseline.json'), 'utf8'))
 let failed = false
 for (const [workspace, allowed] of Object.entries(baseline)) {
-  const result = spawnSync(path.join(root, 'node_modules/.bin/tsc'), ['--noEmit', '--pretty', 'false'], {
+  const result = spawnSync(process.execPath, [path.join(root, 'scripts/typecheck.mjs')], {
     cwd: path.join(root, 'packages', workspace), encoding: 'utf8'
   })
   const output = (result.stdout ?? '') + (result.stderr ?? '')

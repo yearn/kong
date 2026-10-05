@@ -7,7 +7,7 @@
     "test": "vitest run",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node ../../scripts/typecheck.mjs"
   },
   "dependencies": {
     "@sentry/node": "10.42.0",
