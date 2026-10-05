@@ -105,6 +105,7 @@ async function main() {
   console.log('\n🔄 Starting rollback...\n')
 
   let totalUpdated = 0
+  let totalSkipped = 0
 
   for (const [chainId] of Object.entries(ROLLBACK_TARGETS)) {
     const chain = Number(chainId) as ChainId
@@ -112,6 +113,9 @@ async function main() {
 
     if (affected.length === 0) continue
 
+    let updated = 0
+    let skipped = 0
+    const updatedAddresses = new Set<string>()
     for (const { address, signature } of affected) {
       const client = await pool.connect()
       let committedCounts: { before: number, after: number } | undefined
@@ -119,7 +123,12 @@ async function main() {
         await client.query('BEGIN')
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`evmlog_strides/${chain}/${address}`])
         const latest = await client.query('SELECT strides FROM evmlog_strides WHERE chain_id = $1 AND address = $2 AND signature = $3 FOR UPDATE', [chain, address, signature])
-        if (!latest.rows.length) throw new Error(`Coverage row disappeared: ${chain}/${address}/${signature}`)
+        if (!latest.rows.length) {
+          await client.query('COMMIT')
+          skipped++
+          console.warn(`  ↷ Skipped vanished coverage row: ${chain}/${address}/${signature}`)
+          continue
+        }
         const current: Stride[] = JSON.parse(latest.rows[0].strides)
         const next = rollback(current, ROLLBACK_TARGETS[chain]).map(stride => ({ from: stride.from.toString(), to: stride.to.toString() }))
         await client.query(
@@ -135,14 +144,17 @@ async function main() {
         client.release()
       }
 
+      updated++
+      updatedAddresses.add(address)
       console.log(`  ✓ ${CHAIN_NAMES[chain]}: ${address} ${signature} (${committedCounts?.before} → ${committedCounts?.after} strides)`)
     }
 
-    console.log(`\n✅ ${CHAIN_NAMES[chain]}: Updated ${affected.length} signature rows across ${new Set(affected.map(row => row.address)).size} addresses\n`)
-    totalUpdated += affected.length
+    console.log(`\n✅ ${CHAIN_NAMES[chain]}: Updated ${updated} signature rows across ${updatedAddresses.size} addresses; skipped ${skipped} vanished rows\n`)
+    totalUpdated += updated
+    totalSkipped += skipped
   }
 
-  console.log(`\n🎉 Rollback complete! Updated ${totalUpdated} total signature rows.`)
+  console.log(`\n🎉 Rollback complete! Updated ${totalUpdated} total signature rows; skipped ${totalSkipped} vanished rows.`)
 
   await pool.end()
 }

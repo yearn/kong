@@ -432,7 +432,7 @@ The strides table records which blocks have been queried for logs for all of the
 |-------------|-----------|-------------|----------------|
 | chain_id    | integer   | NO          |                |
 | address     | text      | NO          |                |
-| signature   | text      | NO          | `''`           |
+| signature   | text      | NO          |                |
 | strides     | text      | NO          |                |
 
 The primary key is `(chain_id, address, signature)`. The empty signature marks
