@@ -1,0 +1,38 @@
+{
+  "provenance": {
+    "kind": "publisher response contract fixture, copied from its committed route.test.ts expected response; not a live production capture",
+    "commit": "92de31effb2b18563d8175b6343bfdc042ea932a",
+    "responseSource": "https://github.com/yearn/katana-apr-service/blob/92de31effb2b18563d8175b6343bfdc042ea932a/src/app/api/webhook/route.test.ts",
+    "emitterSource": "https://github.com/yearn/katana-apr-service/blob/92de31effb2b18563d8175b6343bfdc042ea932a/src/app/api/webhook/route.ts",
+    "unitsSource": "https://github.com/yearn/katana-apr-service/blob/92de31effb2b18563d8175b6343bfdc042ea932a/src/app/services/dataCache.ts"
+  },
+  "outputs": [
+    {
+      "chainId": 747474,
+      "address": "0x00000000000000000000000000000000000000Aa",
+      "label": "katana",
+      "component": "estimatedDebtCoverage",
+      "value": 0.5,
+      "blockNumber": "123",
+      "blockTime": "456"
+    },
+    {
+      "chainId": 747474,
+      "address": "0x00000000000000000000000000000000000000Aa",
+      "label": "katana",
+      "component": "morphoBaseAPY",
+      "value": 0.0204,
+      "blockNumber": "123",
+      "blockTime": "456"
+    },
+    {
+      "chainId": 747474,
+      "address": "0x00000000000000000000000000000000000000Aa",
+      "label": "katana",
+      "component": "morphoRewardsAPR",
+      "value": 0.01,
+      "blockNumber": "123",
+      "blockTime": "456"
+    }
+  ]
+}

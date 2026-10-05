@@ -230,7 +230,7 @@ describe('getLatestEstimatedAprV3', function() {
 
     await insertOutput(VAULT_ADDR, KATANA_LABEL, 'netAPR', 0.062, t)
     await insertOutput(VAULT_ADDR, KATANA_LABEL, 'netAPY', 0.064, t)
-    await insertOutput(VAULT_ADDR, KATANA_LABEL, 'estimatedDebtCoverage', 0.75, t)
+    await insertOutput(VAULT_ADDR, KATANA_LABEL, 'estimatedDebtCoverage', 0.5, t)
     await insertOutput(VAULT_ADDR, KATANA_LABEL, 'morphoBaseAPY', 0.041, t)
     await insertOutput(VAULT_ADDR, KATANA_LABEL, 'morphoRewardsAPR', 0.019, t)
 
@@ -240,7 +240,7 @@ describe('getLatestEstimatedAprV3', function() {
     expect(result!.apr).to.equal(0.062)
     expect(result!.apy).to.equal(0.064)
     expect(result!.components).to.deep.equal({
-      estimatedDebtCoverage: 0.75,
+      estimatedDebtCoverage: 0.5,
       morphoBaseAPY: 0.041,
       morphoRewardsAPR: 0.019
     })

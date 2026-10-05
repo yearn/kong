@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildASTSchema, concatAST, graphql } from 'graphql'
 import typeDefs from './index'
+import publisher from './fixtures/katana-publisher.json'
 
 const schema = buildASTSchema(concatAST(typeDefs))
 const source = '{ vault { performance { estimated { components { katRewardsAPR estimatedDebtCoverage morphoBaseAPY morphoRewardsAPR } } } } }'
@@ -14,8 +15,8 @@ describe('Katana diagnostic fields', () => {
     expect(result.data).toEqual({ vault: { performance: { estimated: { components } } } })
   })
 
-  it('preserves publisher coverage without enforcing a scale', async () => {
-    const components = { katRewardsAPR: null, estimatedDebtCoverage: 7500, morphoBaseAPY: null, morphoRewardsAPR: null }
+  it('serializes the independently recorded publisher response contract', async () => {
+    const components = { katRewardsAPR: null, ...Object.fromEntries(publisher.outputs.map(row => [row.component, row.value])) }
     const result = await graphql({ schema, source,
       rootValue: { vault: { performance: { estimated: { type: 'katana-estimated-apr', components } } } } })
     expect(result.errors).toBeUndefined()

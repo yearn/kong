@@ -1098,9 +1098,17 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 | `lockerBonusAPR` | `Float` | Publisher locker bonus APR component |
 | `lockerBonusAPY` | `Float` | Publisher locker bonus APY component |
 | `katRewardsAPR` | `Float` | Publisher Katana rewards APR component |
-| `estimatedDebtCoverage` | `Float` | Publisher diagnostic for active debt backed by a live Morpho estimate; magnitude and unit are publisher-defined, so consumers must not assume a fixed scale; Kong serves the value unchanged and enforces no range |
-| `morphoBaseAPY` | `Float` | Publisher Morpho base APY component; served unchanged, with publisher-defined aggregation and scale |
-| `morphoRewardsAPR` | `Float` | Publisher Morpho rewards APR component; served unchanged, with publisher-defined aggregation and scale |
+| `estimatedDebtCoverage` | `Float` | Katana publisher fraction of active strategy debt backed by Morpho/Merkl estimates (0–1; 0.5 means 50%); Kong serves it unchanged and does not enforce the range |
+| `morphoBaseAPY` | `Float` | Katana publisher vault-asset-weighted Morpho base APY contribution, as an annual fractional rate (0.0204 means 2.04%); served unchanged |
+| `morphoRewardsAPR` | `Float` | Katana publisher vault-asset-weighted non-KAT Morpho rewards APR contribution, as an annual fractional rate (0.01 means 1%); served unchanged |
+
+The Katana component spellings and units are confirmed in the publisher's
+[`buildMorphoUnderlyingOutputs`](https://github.com/yearn/katana-apr-service/blob/92de31effb2b18563d8175b6343bfdc042ea932a/src/app/api/webhook/route.ts#L193) and
+[`buildVaultMorphoUnderlyingAPR`](https://github.com/yearn/katana-apr-service/blob/92de31effb2b18563d8175b6343bfdc042ea932a/src/app/services/dataCache.ts#L395).
+`coveredDebtRatio` divides covered debt by total active debt; the rate contributions
+are multiplied by each strategy's vault-asset debt share. The committed publisher
+response contract is copied into `packages/web/app/api/gql/typeDefs/fixtures/katana-publisher.json`
+with source provenance. It is a publisher test fixture, not a live payload capture.
 
 ### Historical
 
