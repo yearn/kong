@@ -9,7 +9,7 @@
     "test": "vitest run",
     "clean": "rm -rf .next && rm -rf node_modules",
     "lint": "next lint",
-    "typecheck": "node ../../scripts/typecheck.mjs"
+    "typecheck": "node ../../scripts/typecheck.mjs --project tsconfig.typecheck.json"
   },
   "dependencies": {
     "@apollo/server": "4.11.3",
