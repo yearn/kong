@@ -185,6 +185,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
 }
 
 export async function projectStrategies(chainId: number, vault: `0x${string}`, blockNumber?: bigint, snapshot?: Snapshot) {
+  blockNumber ??= snapshot?.blockNumber
   const changeType = { [2 ** 0]: 'add', [2 ** 1]: 'revoke' }
   const topic = toEventSelector('event StrategyChanged(address indexed strategy, uint256 change_type)')
   const events = await db.query(`
