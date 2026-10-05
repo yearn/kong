@@ -74,6 +74,22 @@ describe('extract/evmlogs', () => {
     expect(inflight.max).toBe(8)
   })
 
+  it('stops claiming new blocks after the first lookup failure', async () => {
+    const releases: (() => void)[] = []
+    const failure = new Error('archive unavailable')
+    getBlockTime.mockImplementation((_chainId: number, block: bigint) => block === 1n
+      ? Promise.reject(failure)
+      : new Promise<bigint>(resolve => releases.push(() => resolve(block * 10n))))
+    await expect(run(Array.from({ length: 40 }, (_, i) => logRow(i + 1, i)))).rejects.toBe(failure)
+    const calls = getBlockTime.mock.calls.length
+    for (const release of releases) release()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(calls).toBe(8)
+    expect(getBlockTime).toHaveBeenCalledTimes(8)
+    expect(mqAdd).not.toHaveBeenCalled()
+  })
+
   it('skips block lookups for dropped logs', async () => {
     await run([logRow(1, 0), { ...logRow(2, 1), args: { value: '1' } }])
     expect(getBlockTime).toHaveBeenCalledTimes(1)

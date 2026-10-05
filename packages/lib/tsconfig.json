@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "rootDir": "..",
+    "types": ["node", "vitest/globals"],
     /* Visit https://aka.ms/tsconfig to read more about this file */
 
     /* Projects */
