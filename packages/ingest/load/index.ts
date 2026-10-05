@@ -40,11 +40,11 @@ export default class Load implements Processor {
       const label = `📀 ${job.name} ${job.id}`
       const handler = Object.prototype.hasOwnProperty.call(this.handlers, job.name) ? this.handlers[job.name] : undefined
       if (!handler) {
-        if (job.name !== 'price') {
-          await quarantineUnknownJob('load', job)
+        if (job.name === 'price') {
+          reportRetiredJob('load', job.name)
+          return
         }
-        reportRetiredJob('load', job.name)
-        return
+        return quarantineUnknownJob('load', job)
       }
       console.time(label)
       await handler(job.data)

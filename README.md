@@ -523,10 +523,27 @@ There are some tickets related to this, that's why we preferred to still have ya
 ### Unexpected ingestion jobs
 
 Unexpected extract/load job names are copied to the Redis `quarantine` queue
-before the original job fails. This queue has no worker or automatic cleanup;
+before the original job fails. This queue has no worker or automatic cleanup; its depth is exposed in the probe
+queue monitor. Use the archive-and-drain command below to reclaim Redis space;
 inspect its original queue/name/data and replay explicitly after fixing the
 producer/consumer mismatch. Original failures retain the existing bounded failed
 job policy. If the quarantine write fails, a separate `quarantine_write` Sentry
 event is reported and the original failed job is retained without automatic cleanup
 for manual recovery. Retired `waveydb`/`price` payloads are drained, logged individually,
 and reported to Sentry once per job name per process.
+
+
+Quarantine retention in Redis lasts until operator archive-and-drain (no automatic
+age deletion). During a version mismatch, stop or correct the incompatible
+producer and drain the backlog promptly; do not leave quarantine accumulating.
+
+```sh
+bun packages/scripts/src/archive-quarantine.ts /secure/archive/quarantine-2026-10-05.jsonl
+```
+
+This command archives and removes up to 1000 waiting/prioritized jobs per run.
+It creates a new private JSONL file, syncs each payload to disk before removing
+its Redis job, and stops on the first archive error without removing that job.
+Repeat with a new filename until the monitored depth reaches zero. Retain the
+files until all archived jobs have been inspected/replayed; automatic deletion
+would discard the very payloads quarantine is meant to preserve.
