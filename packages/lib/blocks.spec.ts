@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { afterEach, vi } from 'vitest'
+import { afterEach, describe, it, vi } from 'vitest'
 import { cache } from './cache'
 import { __estimateHeight, estimateCreationBlock, getBlock, getDefaultStartBlockNumber } from './blocks'
 import { rpcs } from './rpcs'

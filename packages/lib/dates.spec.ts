@@ -1,4 +1,5 @@
 import { expect } from 'chai'
+import { describe, it } from 'vitest'
 import { endOfDayMs, endOfStringDay, epoch, makeTimeline, startOfDayMs } from './dates'
 
 describe('dates', function() {
