@@ -20,7 +20,6 @@ describe('vault typeDefs', () => {
     for (const key of ['isStrategy', 'debtRatio', 'katRewardsAPR', 'compoundingPeriodsPerYear']) {
       assert.ok(components[key], key)
     }
-    const deprecated = components.grossAPR.directives?.find(d => d.name.value === 'deprecated')
-    assert.ok(deprecated, 'components.grossAPR should be @deprecated')
+    assert.equal(components.grossAPR, undefined, 'grossAPR is exposed only on EstimatedApr')
   })
 })
