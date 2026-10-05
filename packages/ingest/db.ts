@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { z } from 'zod'
-import { strings } from 'lib'
+import { strings, sentry } from 'lib'
 import { StrideSchema, Thing } from 'lib/types'
 import { Pool, PoolClient, types as pgTypes } from 'pg'
 import { snakeToCamelCols } from 'lib/strings'
@@ -30,7 +30,10 @@ const db = new Pool({
   connectionTimeoutMillis: 60_000,
 })
 
-db.on('error', error => console.error('pg pool', error))
+db.on('error', error => {
+  console.error('pg pool', error)
+  sentry.captureException(error, { tags: { component: 'ingest', operation: 'pg.pool' } })
+})
 
 export default db
 
@@ -167,6 +170,8 @@ export function toBulkUpsertSql(table: string, pk: string, fields: string[], row
   const updates = fields.filter(field => !pkColumns.includes(field)).map(field =>
     `${field} = EXCLUDED.${field}`
   ).join(', ')
+
+  if (!updates && where) throw new Error('A conflict guard requires at least one non-primary-key field')
 
   return `
     INSERT INTO ${table} (${fields.join(', ')})
