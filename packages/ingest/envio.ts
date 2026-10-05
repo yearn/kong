@@ -1,6 +1,7 @@
 import { cache } from 'lib/cache'
 import { EvmLog, EvmLogSchema } from 'lib/types'
 import { encodeEventTopics, getAddress } from 'viem'
+import { z } from 'zod'
 
 const ENVIO_ENTITIES: Record<string, { entity: string, address: string, has?: string, lacks?: string }> = {
   'yearn/2/registry:NewVault': { entity: 'V2RegistryNewVault', address: 'registryAddress' },
@@ -37,12 +38,44 @@ const ENVIO_ENTITIES: Record<string, { entity: string, address: string, has?: st
 
 const ENVIO_PAGE_SIZE = 1000
 
+function mappingFor(abiPath: string, event: any) {
+  return Object.entries(ENVIO_ENTITIES).find(([key, { has, lacks }]) => {
+    const [path, eventName] = key.split(':')
+    return path === abiPath && eventName === event.name
+      && (!has || event.inputs.some((input: any) => input.name === has))
+      && (!lacks || !event.inputs.some((input: any) => input.name === lacks))
+  })?.[1]
+}
+
+export function partitionEnvioEvents(abiPath: string, events: readonly any[]) {
+  return {
+    mapped: events.filter(event => mappingFor(abiPath, event)),
+    unmapped: events.filter(event => !mappingFor(abiPath, event))
+  }
+}
+
 export function useEnvio(chainId: number): boolean {
   if ((process.env.USE_ENVIO || '').trim().toLowerCase() !== 'true') return false
   return (process.env.ENVIO_CHAINS || '')
     .split(',')
     .map(value => Number(value.trim()))
     .includes(chainId)
+}
+
+const CoverageSchema = z.object({
+  chainId: z.number().int().positive(),
+  address: z.string().transform(value => getAddress(value)),
+  abiPath: z.string(),
+  fromBlock: z.bigint({ coerce: true }).nonnegative()
+}).array()
+
+// Chain progress alone does not prove that a dynamically discovered contract
+// was indexed from inception. Unverified sources continue using RPC.
+export function isEnvioSourceCovered(chainId: number, address: `0x${string}`, abiPath: string, from: bigint) {
+  if (!useEnvio(chainId)) return false
+  const coverage = CoverageSchema.parse(JSON.parse(process.env.ENVIO_CONFIRMED_SOURCES || '[]'))
+  return coverage.some(source => source.chainId === chainId && source.address === getAddress(address)
+    && source.abiPath === abiPath && source.fromBlock <= from)
 }
 
 async function gql(query: string, variables?: Record<string, unknown>): Promise<any> {
@@ -84,6 +117,9 @@ export async function fetchEnvioLogs(
   events: readonly any[],
   abiPath: string
 ): Promise<EvmLog[]> {
+  const { unmapped } = partitionEnvioEvents(abiPath, events)
+  if (unmapped.length) throw new Error(`Unmapped Envio events: ${abiPath} ${unmapped.map(event => event.name).join(', ')}`)
+  if (!events.length) return []
   const progress = await envioProgressBlock(chainId)
   if (to > progress) throw new Error(`Envio behind for chain ${chainId}: to ${to} > progress ${progress}`)
 
@@ -118,7 +154,8 @@ export async function fetchEnvioLogs(
     let cursor = { block: Number(from), logIndex: -1 }
     for (;;) {
       const response = await gql(query, { chainId, address: getAddress(address), to: Number(to), ...cursor })
-      const page: any[] = response.data?.[entity] || []
+      const page = response.data?.[entity]
+      if (!Array.isArray(page)) throw new Error(`Envio response missing entity: ${entity}`)
       logs.push(...page.map(row => mapEnvioRow(row, event, chainId, address)))
       if (page.length < ENVIO_PAGE_SIZE) break
       const last = page[page.length - 1]
@@ -129,6 +166,9 @@ export async function fetchEnvioLogs(
 }
 
 export function mapEnvioRow(row: any, event: any, chainId: number, address: `0x${string}`): EvmLog {
+  if (row.blockNumber == null || row.blockTimestamp == null) {
+    throw new Error(`Envio row missing block fields: ${event.name} ${chainId} ${address}`)
+  }
   if (!row.transactionHash || row.transactionIndex === undefined || row.transactionIndex === null) {
     throw new Error(`Envio row missing tx fields: ${event.name} ${chainId} ${address} ${row.blockNumber}:${row.logIndex}`)
   }
@@ -155,10 +195,12 @@ export function mapEnvioRow(row: any, event: any, chainId: number, address: `0x$
 }
 
 function coerceValue(value: any, type: string): any {
+  if (value === null || value === undefined) throw new Error(`Envio row missing ${type} argument`)
   const array = type.endsWith(']')
   const elementType = array ? type.slice(0, type.lastIndexOf('[')) : type
   if (array) return value.map((item: any) => coerceValue(item, elementType))
-  if (/^u?int/.test(type)) return BigInt(value)
+  const integer = /^u?int(\d*)$/.exec(type)
+  if (integer) return Number(integer[1] || 256) <= 48 ? Number(value) : BigInt(value)
   if (type === 'address') return getAddress(value)
   return value
 }

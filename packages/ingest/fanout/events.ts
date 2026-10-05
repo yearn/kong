@@ -5,7 +5,7 @@ import { estimateHeight, getBlockNumber } from 'lib/blocks'
 import { getTravelledStrides } from '../db'
 import { StrideSchema } from 'lib/types'
 import { gnosis, polygon, fantom } from 'viem/chains'
-import { envioProgressBlock, useEnvio } from '../envio'
+import { envioProgressBlock, isEnvioSourceCovered } from '../envio'
 
 const LOG_STRIDES: {
   [key: number]: number
@@ -30,8 +30,8 @@ export default class EventsFanout {
       : startBlock ?? inceptBlock
 
     const head = await getBlockNumber(chainId)
-    const capped = !replay?.enabled && useEnvio(chainId)
-    const to = capped ? math.min(endBlock ?? head, await envioProgressBlock(chainId)) : endBlock ?? head
+    const capped = !replay?.enabled && isEnvioSourceCovered(chainId, address, abiPath, from)
+    const to = capped ? math.min(math.min(endBlock ?? head, head), await envioProgressBlock(chainId)) : endBlock ?? head
     if (capped && to < from) {
       console.log('⏳', 'envio behind', chainId, address, from, to)
       return

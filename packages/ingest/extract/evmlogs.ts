@@ -10,7 +10,7 @@ import { requireHooks } from '../abis'
 import abiutil from '../abiutil'
 import blacklist from 'lib/blacklist'
 import { safeFetchOrExtractDecimals } from '../abis/yearn/lib'
-import { fetchEnvioLogs, useEnvio } from '../envio'
+import { fetchEnvioLogs, isEnvioSourceCovered, partitionEnvioEvents } from '../envio'
 
 export class EvmLogsExtractor {
   resolveHooks: ResolveHooks|undefined
@@ -38,8 +38,17 @@ export class EvmLogsExtractor {
     const logs = await (async () => {
       if (replay) {
         return await fetchLogs(chainId, address, from, to)
-      } else if (useEnvio(chainId)) {
-        return await fetchEnvioLogs(chainId, address, from, to, events, abiPath)
+      } else if (isEnvioSourceCovered(chainId, address, abiPath, from)) {
+        const { mapped, unmapped } = partitionEnvioEvents(abiPath, events)
+        const envioLogs = await fetchEnvioLogs(chainId, address, from, to, mapped, abiPath)
+        // Entity coverage is narrower than an ABI. Never credit missing events
+        // as fetched, and verify empty entity results against RPC.
+        const rpcEvents = envioLogs.length ? unmapped : events
+        const rpcLogs = rpcEvents.length ? await rpcs.next(chainId, from).getLogs({
+          address, events: rpcEvents, fromBlock: from, toBlock: to
+        }) : []
+        return [...envioLogs, ...rpcLogs].sort((a, b) =>
+          Number((a.blockNumber ?? 0n) - (b.blockNumber ?? 0n)) || (a.logIndex ?? 0) - (b.logIndex ?? 0))
       } else {
         return await rpcs.next(chainId, from).getLogs({
           address,

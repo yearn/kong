@@ -1,10 +1,54 @@
 import { expect } from 'chai'
-import { getAddress, pad, toEventSelector } from 'viem'
+import { beforeEach, afterEach, expect as vexpect, vi } from 'vitest'
+import { getAddress, pad, parseAbi, toEventSelector } from 'viem'
 import { EvmLogSchema } from 'lib/types'
 import abi from './abis/yearn/2/vault/abi'
-import { mapEnvioRow, useEnvio } from './envio'
+import { fetchEnvioLogs, isEnvioSourceCovered, mapEnvioRow, partitionEnvioEvents, useEnvio } from './envio'
+
+vi.mock('lib/cache', () => ({ cache: { wrap: async (_key: string, fn: () => Promise<unknown>) => fn() } }))
 
 describe('envio', function() {
+  beforeEach(() => vi.stubEnv('ENVIO_CONFIRMED_SOURCES', '[]'))
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
+
+  it('requires confirmed source history, including its earliest indexed block', () => {
+    vi.stubEnv('USE_ENVIO', 'true')
+    vi.stubEnv('ENVIO_CHAINS', '1')
+    const address = '0x0000000000000000000000000000000000000002'
+    expect(isEnvioSourceCovered(1, address, 'yearn/2/vault', 100n)).to.equal(false)
+    vi.stubEnv('ENVIO_CONFIRMED_SOURCES', JSON.stringify([{ chainId: 1, address, abiPath: 'yearn/2/vault', fromBlock: '100' }]))
+    expect(isEnvioSourceCovered(1, address, 'yearn/2/vault', 100n)).to.equal(true)
+    expect(isEnvioSourceCovered(1, address, 'yearn/2/vault', 99n)).to.equal(false)
+    expect(isEnvioSourceCovered(1, address, 'yearn/3/vault', 100n)).to.equal(false)
+  })
+
+  it('keeps unmapped events for RPC instead of silently discarding them', () => {
+    const events = parseAbi(['event StrategyChanged(address indexed strategy, uint256 change_type)', 'event UpdateRoleManager(address indexed role_manager)'])
+    const { mapped, unmapped } = partitionEnvioEvents('yearn/3/vault', events)
+    expect(mapped.map(event => event.name)).to.deep.equal(['StrategyChanged'])
+    expect(unmapped.map(event => event.name)).to.deep.equal(['UpdateRoleManager'])
+  })
+
+  it('rejects malformed entity responses instead of treating them as empty coverage', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { _meta: [{ chainId: 1, progressBlock: 100 }] } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: {} }) }))
+    const events = parseAbi(['event StrategyChanged(address indexed strategy, uint256 change_type)'])
+    await vexpect(fetchEnvioLogs(1, '0x0000000000000000000000000000000000000002', 1n, 100n, events, 'yearn/3/vault'))
+      .rejects.toThrow('Envio response missing entity: StrategyChanged')
+  })
+
+  it('rejects a missing numeric argument rather than converting null to zero', () => {
+    const event = parseAbi(['event Changed(uint256 value)'])[0]
+    expect(() => mapEnvioRow({ blockNumber: 1, blockTimestamp: 1, transactionHash: '0x01', transactionIndex: 0, value: null }, event, 1,
+      '0x0000000000000000000000000000000000000002')).to.throw('missing uint256 argument')
+  })
+
+  it('rejects missing block metadata rather than converting null to zero', () => {
+    const event = parseAbi(['event Changed(uint256 value)'])[0]
+    expect(() => mapEnvioRow({ blockNumber: null, blockTimestamp: null, value: 1 }, event, 1,
+      '0x0000000000000000000000000000000000000002')).to.throw('missing block fields')
+  })
   it('maps an entity row to an EvmLog', function() {
     const strategy = '0x0000000000000000000000000000000000000001'
     const vault = '0x0000000000000000000000000000000000000002'
@@ -29,7 +73,7 @@ describe('envio', function() {
 
   it('names the row when tx fields are missing', function() {
     const event = abi.find((e: any) => e.name === 'Transfer')
-    expect(() => mapEnvioRow({ blockNumber: 100, logIndex: 0 }, event, 1, '0x0000000000000000000000000000000000000002'))
+    expect(() => mapEnvioRow({ blockNumber: 100, blockTimestamp: 200, logIndex: 0 }, event, 1, '0x0000000000000000000000000000000000000002'))
       .to.throw('Envio row missing tx fields: Transfer')
   })
 
