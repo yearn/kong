@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 const { add, getJobCounts, captureMessage } = vi.hoisted(() => ({
   add: vi.fn(), getJobCounts: vi.fn(), captureMessage: vi.fn()
 }))
-vi.mock('lib/chains', () => ({ default: [] }))
+vi.mock('lib/chains', async importOriginal => ({ ...await importOriginal<typeof import('lib/chains')>(), default: [] }))
 vi.mock('lib/sentry', () => ({ captureException: vi.fn(), countMetric: vi.fn(), captureMessage, flush: vi.fn() }))
 vi.mock('../db', () => ({ default: {} }))
 vi.mock('bullmq', async importOriginal => ({
