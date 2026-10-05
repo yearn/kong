@@ -110,15 +110,17 @@ describe('abis/yearn/3/vault/snapshot/hook', () => {
     expect(query).toHaveBeenCalledTimes(2)
   })
 
-  it('projectDebtAllocator queries once per (chain, vault)', async () => {
+  it('projectDebtAllocator queries once per snapshot memo and refreshes on the next snapshot', async () => {
     query.mockResolvedValue({ rows: [{ allocator: ALLOCATOR }] })
     const vault = '0x4000000000000000000000000000000000000004' as const
 
-    expect(await projectDebtAllocator(1, vault)).toBe(ALLOCATOR)
-    expect(await projectDebtAllocator(1, vault)).toBe(ALLOCATOR)
+    const memo = new Map()
+    expect(await projectDebtAllocator(1, vault, memo)).toBe(ALLOCATOR)
+    expect(await projectDebtAllocator(1, vault, memo)).toBe(ALLOCATOR)
     expect(query).toHaveBeenCalledTimes(1)
 
-    await projectDebtAllocator(10, vault)
+    query.mockResolvedValueOnce({ rows: [{ allocator: B }] })
+    expect(await projectDebtAllocator(1, vault, new Map())).toBe(B)
     expect(query).toHaveBeenCalledTimes(2)
   })
 
