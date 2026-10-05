@@ -14,7 +14,7 @@ describe('unknown-job quarantine', () => {
         jobId: Buffer.from(JSON.stringify(['extract-1', '42'])).toString('base64url'),
         removeOnComplete: false, removeOnFail: false
       }))
-      expect((add.mock.instances[0] as Queue).name).toBe('quarantine')
+      expect(add.mock.contexts[0]).toHaveProperty('name', 'quarantine')
     } finally {
       add.mockRestore()
       await down()
