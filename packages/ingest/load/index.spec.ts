@@ -35,6 +35,7 @@ describe('load/upsertBatch', () => {
       const inserts = spy.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO output'))
       expect(inserts).to.have.length(3)
     } finally {
+      spy.mockRestore()
       client.release()
     }
     expect(await rows()).to.have.length(1201)
