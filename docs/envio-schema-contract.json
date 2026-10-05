@@ -56,40 +56,12 @@
       ]
     },
     {
-      "key": "yearn/2/vault:StrategyAdded",
-      "entity": "V2StrategyAdded",
-      "address": "vaultAddress",
-      "inputs": [
-        "strategy",
-        "debtRatio",
-        "minDebtPerHarvest",
-        "maxDebtPerHarvest",
-        "performanceFee"
-      ]
-    },
-    {
       "key": "yearn/2/vault:StrategyMigrated",
       "entity": "V2StrategyMigrated",
       "address": "vaultAddress",
       "inputs": [
         "oldVersion",
         "newVersion"
-      ]
-    },
-    {
-      "key": "yearn/2/vault:StrategyReported",
-      "entity": "V2StrategyReported",
-      "address": "vaultAddress",
-      "inputs": [
-        "strategy",
-        "gain",
-        "loss",
-        "debtPaid",
-        "totalGain",
-        "totalLoss",
-        "totalDebt",
-        "debtAdded",
-        "debtRatio"
       ]
     },
     {
@@ -298,5 +270,32 @@
       ]
     }
   ],
-  "addressEncoding": "EIP-55 via viem.getAddress; exact filter validated against the target schema"
+  "addressEncoding": "EIP-55 via viem.getAddress; exact filter validated against the target schema",
+  "overloadEvidence": [
+    {
+      "key": "yearn/2/vault:StrategyAdded",
+      "entity": "V2StrategyAdded",
+      "column": "minDebtPerHarvest",
+      "nullable": false,
+      "entityIncludesOtherOverload": false,
+      "writers": [
+        "StrategyAdded modern only"
+      ],
+      "writerSource": "https://github.com/yearn/yearn-envio/blob/e33d600fb22c15bd36082456136b7ae6e1e0faad/src/EventHandlers.ts#L1155",
+      "handling": "Both Kong overloads stay on RPC; no SQL nullability filter is trusted."
+    },
+    {
+      "key": "yearn/2/vault:StrategyReported",
+      "entity": "V2StrategyReported",
+      "column": "debtPaid",
+      "nullable": false,
+      "entityIncludesOtherOverload": true,
+      "writers": [
+        "StrategyReported modern",
+        "StrategyReportedLegacy with debtPaid=0"
+      ],
+      "writerSource": "https://github.com/yearn/yearn-envio/blob/e33d600fb22c15bd36082456136b7ae6e1e0faad/src/EventHandlers.ts#L1078",
+      "handling": "Both overloads stay on RPC because original selector is absent."
+    }
+  ]
 }

@@ -12,6 +12,8 @@ class __Cache {
   } | undefined
   private __cache: Cache | undefined
 
+  get ready() { return this.__cache !== undefined }
+
   get del() {
     return (this.__cache as Cache).del.bind(this.__cache)
   }
@@ -63,6 +65,8 @@ class __Cache {
 
   async down() {
     await this.__store?.client.quit()
+    this.__cache = undefined
+    this.__store = undefined
   }
 }
 

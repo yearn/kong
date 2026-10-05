@@ -3,14 +3,12 @@ import { EvmLog, EvmLogSchema } from 'lib/types'
 import { encodeEventTopics, getAddress } from 'viem'
 import { z } from 'zod'
 
-const ENVIO_ENTITIES: Record<string, { entity: string, address: string, has?: string, lacks?: string }> = {
+export const ENVIO_ENTITIES: Record<string, { entity: string, address: string }> = {
   'yearn/2/registry:NewVault': { entity: 'V2RegistryNewVault', address: 'registryAddress' },
   'yearn/2/registry:NewExperimentalVault': { entity: 'V2RegistryNewExperimentalVault', address: 'registryAddress' },
   'yearn/2/registry2:NewVault': { entity: 'V2Registry2NewVault', address: 'registryAddress' },
   'yearn/2/strategy:Harvested': { entity: 'V2StrategyHarvested', address: 'strategyAddress' },
-  'yearn/2/vault:StrategyAdded': { entity: 'V2StrategyAdded', address: 'vaultAddress', has: 'minDebtPerHarvest' },
   'yearn/2/vault:StrategyMigrated': { entity: 'V2StrategyMigrated', address: 'vaultAddress' },
-  'yearn/2/vault:StrategyReported': { entity: 'V2StrategyReported', address: 'vaultAddress', has: 'debtPaid' },
   'yearn/2/vault:StrategyRevoked': { entity: 'V2StrategyRevoked', address: 'vaultAddress' },
   'yearn/2/vault:Transfer': { entity: 'Transfer', address: 'vaultAddress' },
   'yearn/3/debtManagerFactory:NewDebtAllocator': { entity: 'NewDebtAllocator', address: 'factoryAddress' },
@@ -36,12 +34,7 @@ const ENVIO_ENTITIES: Record<string, { entity: string, address: string, has?: st
 const ENVIO_PAGE_SIZE = 1000
 
 function mappingFor(abiPath: string, event: any) {
-  return Object.entries(ENVIO_ENTITIES).find(([key, { has, lacks }]) => {
-    const [path, eventName] = key.split(':')
-    return path === abiPath && eventName === event.name
-      && (!has || event.inputs.some((input: any) => input.name === has))
-      && (!lacks || !event.inputs.some((input: any) => input.name === lacks))
-  })?.[1]
+  return ENVIO_ENTITIES[`${abiPath}:${event.name}`]
 }
 
 export function partitionEnvioEvents(abiPath: string, events: readonly any[]) {
@@ -63,11 +56,12 @@ const CoverageSchema = z.object({
   chainId: z.number().int().positive(),
   address: z.string().transform(value => getAddress(value)),
   abiPath: z.string(),
-  fromBlock: z.bigint({ coerce: true }).nonnegative()
+  fromBlock: z.bigint({ coerce: true }).nonnegative(),
+  confirmationId: z.string().min(1).default('initial')
 }).array()
 
 let coverageConfig: string | undefined
-let coverageBySource = new Map<string, bigint>()
+let coverageBySource = new Map<string, { fromBlock: bigint, confirmationId: string }>()
 
 function sourceKey(chainId: number, address: string, abiPath: string) {
   return `${chainId}:${address.toLowerCase()}:${abiPath}`
@@ -79,22 +73,41 @@ export function envioSourceStart(chainId: number, address: `0x${string}`, abiPat
   const config = process.env.ENVIO_CONFIRMED_SOURCES || '[]'
   if (config !== coverageConfig) {
     const coverage = CoverageSchema.parse(JSON.parse(config))
-    const next = new Map<string, bigint>()
+    const next = new Map<string, { fromBlock: bigint, confirmationId: string }>()
     for (const source of coverage) {
       const key = sourceKey(source.chainId, source.address, source.abiPath)
       const previous = next.get(key)
-      next.set(key, previous === undefined || source.fromBlock > previous ? source.fromBlock : previous)
+      if (previous && previous.confirmationId !== source.confirmationId) throw new Error(`Conflicting Envio confirmation ids: ${key}`)
+      next.set(key, previous === undefined || source.fromBlock > previous.fromBlock ? source : previous)
     }
     coverageBySource = next
     coverageConfig = config
   }
-  return coverageBySource.get(sourceKey(chainId, address, abiPath))
+  return coverageBySource.get(sourceKey(chainId, address, abiPath))?.fromBlock
 }
 
 // Chain progress alone does not prove a contract's historical coverage.
 export function isEnvioSourceCovered(chainId: number, address: `0x${string}`, abiPath: string, from: bigint) {
   const start = envioSourceStart(chainId, address, abiPath)
   return start !== undefined && start <= from
+}
+
+function revocationKey(chainId: number, address: `0x${string}`, abiPath: string) {
+  envioSourceStart(chainId, address, abiPath)
+  const source = coverageBySource.get(sourceKey(chainId, address, abiPath))
+  if (!source) throw new Error('Cannot revoke an unconfirmed Envio source')
+  return `envioSourceInvalid:${sourceKey(chainId, address, abiPath)}:${source.confirmationId}`
+}
+
+export async function isEnvioSourceTrusted(chainId: number, address: `0x${string}`, abiPath: string, from: bigint) {
+  if (!isEnvioSourceCovered(chainId, address, abiPath, from) || !cache.ready) return false
+  return !await cache.get(revocationKey(chainId, address, abiPath))
+}
+
+export async function invalidateEnvioSource(chainId: number, address: `0x${string}`, abiPath: string) {
+  if (!cache.ready) throw new Error('Envio revocation cache unavailable')
+  // TTL 0 persists in Redis until independently reconfirmed with a new id.
+  await cache.set(revocationKey(chainId, address, abiPath), true, 0)
 }
 
 async function gql(query: string, variables?: Record<string, unknown>): Promise<any> {
@@ -151,12 +164,10 @@ export async function fetchEnvioLogs(
   if (to > progress) throw new EnvioLagError(chainId, to, progress)
 
   const logs: EvmLog[] = []
-  for (const [key, { entity, address: addressField, has, lacks }] of Object.entries(ENVIO_ENTITIES)) {
+  for (const [key, { entity, address: addressField }] of Object.entries(ENVIO_ENTITIES)) {
     const [path, eventName] = key.split(':')
     if (path !== abiPath) continue
-    const event = events.find(e => e.name === eventName
-      && (!has || e.inputs.some((input: any) => input.name === has))
-      && (!lacks || !e.inputs.some((input: any) => input.name === lacks)))
+    const event = events.find(e => e.name === eventName)
     if (!event) continue
 
     const query = `query ($chainId: Int!, $address: String!, $to: Int!, $block: Int!, $logIndex: Int!) {
@@ -165,8 +176,6 @@ export async function fetchEnvioLogs(
           chainId: { _eq: $chainId }
           ${addressField}: { _eq: $address }
           blockNumber: { _lte: $to }
-          ${has ? `${has}: { _is_null: false }` : ''}
-          ${lacks ? `${lacks}: { _is_null: true }` : ''}
           _or: [
             { blockNumber: { _gt: $block } }
             { blockNumber: { _eq: $block }, logIndex: { _gt: $logIndex } }

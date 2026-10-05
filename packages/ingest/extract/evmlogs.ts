@@ -10,7 +10,7 @@ import { requireHooks } from '../abis'
 import abiutil from '../abiutil'
 import blacklist from 'lib/blacklist'
 import { safeFetchOrExtractDecimals } from '../abis/yearn/lib'
-import { EnvioLagError, fetchEnvioLogs, isEnvioSourceCovered, partitionEnvioEvents } from '../envio'
+import { EnvioLagError, fetchEnvioLogs, invalidateEnvioSource, isEnvioSourceTrusted, partitionEnvioEvents } from '../envio'
 
 export class EvmLogsExtractor {
   resolveHooks: ResolveHooks|undefined
@@ -38,7 +38,7 @@ export class EvmLogsExtractor {
     const logs = await (async () => {
       if (replay) {
         return await fetchLogs(chainId, address, from, to)
-      } else if (isEnvioSourceCovered(chainId, address, abiPath, from)) {
+      } else if (await isEnvioSourceTrusted(chainId, address, abiPath, from)) {
         const { mapped, unmapped } = partitionEnvioEvents(abiPath, events)
         let envioLogs: Awaited<ReturnType<typeof fetchEnvioLogs>>
         try {
@@ -53,12 +53,15 @@ export class EvmLogsExtractor {
         }
         // Entity coverage is narrower than an ABI. Never credit missing events
         // as fetched, and verify empty entity results against RPC.
-        const emptyMapped = mapped.filter(event => !envioLogs.some(log => log.topics[0] === toEventSelector(event)))
-        const rpcEvents = [...unmapped, ...emptyMapped]
+        const present = new Set(envioLogs.map(log => log.topics[0]))
+        const emptyMapped = mapped.map(event => ({ event, signature: toEventSelector(event) })).filter(({ signature }) => !present.has(signature))
+        const emptySignatures = new Set(emptyMapped.map(({ signature }) => signature))
+        const rpcEvents = [...unmapped, ...emptyMapped.map(({ event }) => event)]
         const rpcLogs = rpcEvents.length ? await rpcs.next(chainId, from).getLogs({
           address, events: rpcEvents, fromBlock: from, toBlock: to
         }) : []
-        if (emptyMapped.length && rpcLogs.some(log => emptyMapped.some(event => toEventSelector(event) === log.topics[0]))) {
+        if (emptyMapped.length && rpcLogs.some(log => log.topics[0] !== undefined && emptySignatures.has(log.topics[0]))) {
+          await invalidateEnvioSource(chainId, address, abiPath)
           console.warn('ENVIO_EMPTY_RPC_MISMATCH', { chainId, address, abiPath, from: String(from), to: String(to) })
         }
         return [...envioLogs, ...rpcLogs].sort((a, b) =>

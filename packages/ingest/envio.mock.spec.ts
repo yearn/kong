@@ -1,15 +1,49 @@
 import { expect } from 'chai'
 import { beforeEach, afterEach, expect as vexpect, vi } from 'vitest'
 import { getAddress, pad, parseAbi, toEventSelector } from 'viem'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import abiutil from './abiutil'
 import { EvmLogSchema } from 'lib/types'
 import abi from './abis/yearn/2/vault/abi'
-import { fetchEnvioLogs, isEnvioSourceCovered, mapEnvioRow, partitionEnvioEvents, useEnvio } from './envio'
+import { fetchEnvioLogs, isEnvioSourceCovered, mapEnvioRow, partitionEnvioEvents, useEnvio, ENVIO_ENTITIES, isEnvioSourceTrusted, invalidateEnvioSource } from './envio'
 
-vi.mock('lib/cache', () => ({ cache: { wrap: async (_key: string, fn: () => Promise<unknown>) => fn() } }))
+const { revoked } = vi.hoisted(() => ({ revoked: new Map<string, unknown>() }))
+vi.mock('lib/cache', () => ({ cache: {
+  ready: true, wrap: async (_key: string, fn: () => Promise<unknown>) => fn(),
+  get: async (key: string) => revoked.get(key), set: async (key: string, value: unknown) => { revoked.set(key, value) }
+} }))
 
 describe('envio', function() {
-  beforeEach(() => vi.stubEnv('ENVIO_CONFIRMED_SOURCES', '[]'))
+  beforeEach(() => { revoked.clear(); vi.stubEnv('ENVIO_CONFIRMED_SOURCES', '[]') })
   afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
+
+  it('matches every mapping and ABI input against the verified schema contract', async () => {
+    const contract = JSON.parse(readFileSync(path.resolve(__dirname, '../../docs/envio-schema-contract.json'), 'utf8'))
+    expect(Object.keys(ENVIO_ENTITIES).sort()).to.deep.equal(contract.mappings.map((entry: { key: string }) => entry.key).sort())
+    for (const entry of contract.mappings) {
+      expect(ENVIO_ENTITIES[entry.key]).to.deep.equal({ entity: entry.entity, address: entry.address })
+      const [abiPath, eventName] = entry.key.split(':')
+      const event = abiutil.events(await abiutil.load(abiPath)).find(event => event.name === eventName)!
+      expect(event.inputs.map(input => input.name)).to.deep.equal(entry.inputs)
+    }
+    const unsupported = partitionEnvioEvents('yearn/2/vault', abi.filter(event => ['StrategyAdded', 'StrategyReported'].includes('name' in event ? event.name : '')))
+    expect(unsupported.mapped).to.have.length(0)
+    expect(contract.overloadEvidence.every((entry: { nullable: boolean, handling: string }) => !entry.nullable && entry.handling.includes('RPC'))).to.equal(true)
+  })
+
+  it('retains revocation until the same source is independently reconfirmed', async () => {
+    vi.stubEnv('USE_ENVIO', 'true'); vi.stubEnv('ENVIO_CHAINS', '1')
+    const source = { chainId: 1, address: '0x0000000000000000000000000000000000000002', abiPath: 'yearn/3/vault', fromBlock: '1', confirmationId: 'first' }
+    vi.stubEnv('ENVIO_CONFIRMED_SOURCES', JSON.stringify([source]))
+    expect(await isEnvioSourceTrusted(1, source.address as `0x${string}`, source.abiPath, 1n)).to.equal(true)
+    await invalidateEnvioSource(1, source.address as `0x${string}`, source.abiPath)
+    expect(await isEnvioSourceTrusted(1, source.address as `0x${string}`, source.abiPath, 2n)).to.equal(false)
+    vi.stubEnv('ENVIO_CONFIRMED_SOURCES', JSON.stringify([source, { ...source, address: '0x0000000000000000000000000000000000000003' }]))
+    expect(await isEnvioSourceTrusted(1, source.address as `0x${string}`, source.abiPath, 2n)).to.equal(false)
+    vi.stubEnv('ENVIO_CONFIRMED_SOURCES', JSON.stringify([{ ...source, confirmationId: 'revalidated' }]))
+    expect(await isEnvioSourceTrusted(1, source.address as `0x${string}`, source.abiPath, 2n)).to.equal(true)
+  })
 
   it('requires confirmed source history, including its earliest indexed block', () => {
     vi.stubEnv('USE_ENVIO', 'true')
