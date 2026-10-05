@@ -15,6 +15,7 @@ vi.mock('./webhook', () => ({ WebhookExtractor: class { extract = vi.fn() } }))
 
 vi.mock('lib', () => ({
   mq: {
+    quarantine: vi.fn(async () => undefined),
     q: { extract: 'extract' },
     job: {
       extract: {
@@ -36,11 +37,14 @@ vi.mock('lib', () => ({
 }))
 
 import Extract from './index'
+import { mq } from 'lib'
 
 describe('extract worker unknown job guard', () => {
   it('drops an unregistered job name with a sentry warning instead of throwing', async () => {
     await new Extract().up()
     await expect(captured.handler!({ name: 'waveydb', id: '1', data: { chainId: 1 } })).resolves.toBeUndefined()
+    await captured.handler!({ name: 'waveydb', id: 'legacy-2', data: {} })
+    expect(captureMessage).toHaveBeenCalledTimes(1)
     expect(captureMessage).toHaveBeenCalledWith('unknown extract job waveydb', { level: 'warning', tags: { component: 'extract' } })
   })
 
@@ -50,8 +54,9 @@ describe('extract worker unknown job guard', () => {
     expect(snapshotExtract).toHaveBeenCalledWith({ chainId: 1 })
   })
 
-  it.each(['new-job', 'toString'])('fails unexpected job %s so its payload is not lost', async name => {
+  it.each(['new-job', 'toString'])('quarantines unexpected job %s before failing', async name => {
     await new Extract().up()
     await expect(captured.handler!({ name, id: '3', data: {} })).rejects.toThrow(`unknown extract job ${name}`)
+    expect(mq.quarantine).toHaveBeenCalledWith({ name, id: '3', data: {} })
   })
 })

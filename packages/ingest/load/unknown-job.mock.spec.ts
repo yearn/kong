@@ -16,6 +16,7 @@ vi.mock('../db', () => ({
 
 vi.mock('lib', () => ({
   mq: {
+    quarantine: vi.fn(async () => undefined),
     q: { load: 'load' },
     job: {
       load: {
@@ -38,12 +39,15 @@ vi.mock('lib', () => ({
 }))
 
 import Load from './index'
+import { mq } from 'lib'
 
 describe('load worker unknown job guard', () => {
   it('drops an unregistered job name with a sentry warning instead of throwing', async () => {
     const load = new Load()
     await load.up()
     await expect(captured.handler!({ name: 'price', id: '1', data: {} })).resolves.toBeUndefined()
+    await captured.handler!({ name: 'price', id: 'legacy-2', data: {} })
+    expect(captureMessage).toHaveBeenCalledTimes(1)
     expect(captureMessage).toHaveBeenCalledWith('unknown load job price', { level: 'warning', tags: { component: 'load' } })
   })
 
@@ -56,8 +60,9 @@ describe('load worker unknown job guard', () => {
     expect(monitor).toHaveBeenCalledWith({ ok: true })
   })
 
-  it.each(['new-job', 'toString'])('fails unexpected job %s so its payload is not lost', async name => {
+  it.each(['new-job', 'toString'])('quarantines unexpected job %s before failing', async name => {
     await new Load().up()
     await expect(captured.handler!({ name, id: '3', data: {} })).rejects.toThrow(`unknown load job ${name}`)
+    expect(mq.quarantine).toHaveBeenCalledWith({ name, id: '3', data: {} })
   })
 })

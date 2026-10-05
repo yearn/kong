@@ -1,7 +1,8 @@
 import { z } from 'zod'
-import { mq, sentry, strider, types } from 'lib'
+import { mq, strider, types } from 'lib'
 import db, { firstRow, getTravelledStrides, toUpsertSql, upsertThingDefaults } from '../db'
 import { Processor } from 'lib/processor'
+import { reportRetiredJob } from '../retired-jobs'
 import { PoolClient } from 'pg'
 import { OutputSchema, SnapshotSchema, ThingSchema, zhexstring } from 'lib/types'
 import { Worker } from 'bullmq'
@@ -39,9 +40,11 @@ export default class Load implements Processor {
       const label = `📀 ${job.name} ${job.id}`
       const handler = Object.prototype.hasOwnProperty.call(this.handlers, job.name) ? this.handlers[job.name] : undefined
       if (!handler) {
-        if (job.name !== 'price') throw new Error(`unknown load job ${job.name}`)
-        console.warn('🚨', 'unknown load job', job.name)
-        sentry.captureMessage(`unknown load job ${job.name}`, { level: 'warning', tags: { component: 'load' } })
+        if (job.name !== 'price') {
+          await mq.quarantine(job)
+          throw new Error(`unknown load job ${job.name}`)
+        }
+        reportRetiredJob('load', job.name)
         return
       }
       console.time(label)

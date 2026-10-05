@@ -519,3 +519,12 @@ There are some tickets related to this, that's why we preferred to still have ya
 | GraphQL    | [vercel.com](vercel.com)   |
 | Cache    | [turso.com](turso.com)   |
 
+
+### Unexpected ingestion jobs
+
+Unexpected extract/load job names are copied to the Redis `quarantine` queue
+before the original job fails. This queue has no worker or automatic cleanup;
+inspect its original queue/name/data and replay explicitly after fixing the
+producer/consumer mismatch. Original failures retain the existing bounded failed
+job policy. Retired `waveydb`/`price` payloads are drained, logged individually,
+and reported to Sentry once per job name per process.
