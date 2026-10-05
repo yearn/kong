@@ -3,7 +3,7 @@ import { createHash } from 'crypto'
 import { getAddress, toEventSelector } from 'viem'
 import { mq, strider } from 'lib'
 import { AbiConfig, AbiConfigSchema, SourceConfig, SourceConfigSchema } from 'lib/abis'
-import { estimateHeight, getBlockNumber } from 'lib/blocks'
+import { estimateHeight, getBlockNumber, getDefaultStartBlockNumber } from 'lib/blocks'
 import { Stride } from 'lib/types'
 import blacklist from 'lib/blacklist'
 import { adoptLegacyStrides, getTravelledStrides } from '../db'
@@ -29,7 +29,12 @@ export default class EventsFanout {
     const readers = data.readers ?? [{ abi: data.abi!, source: data.source! }]
     const { chainId, address: rawAddress } = SourceConfigSchema.parse(readers[0].source)
     const address = getAddress(rawAddress)
+    if (readers.some(reader => reader.source.chainId !== chainId || getAddress(reader.source.address) !== address)) {
+      throw new Error('Every reader must share the same chainId and address')
+    }
     const { replay } = data
+    const defaultStart = replay?.enabled ? 0n : await getDefaultStartBlockNumber(chainId)
+    const limited = new Set<string>()
 
     const abiPaths = new Set<string>()
     const ranges: Record<string, Stride> = {}
@@ -46,15 +51,19 @@ export default class EventsFanout {
       const events = abiutil.exclude(blacklist.events.ignore, abiutil.events(await abiutil.load(abiPath)))
       for (const event of events) {
         const signature = toEventSelector(event)
+        const isLimited = blacklist.events.limit.includes(event.name)
+        if (isLimited) limited.add(signature)
+        const selectorFrom = !replay?.enabled && isLimited && from < defaultStart ? defaultStart : from
+        if (selectorFrom > to) continue
         const range = ranges[signature]
         ranges[signature] = range
-          ? { from: range.from < from ? range.from : from, to: range.to > to ? range.to : to }
-          : { from, to }
+          ? { from: range.from < selectorFrom ? range.from : selectorFrom, to: range.to > to ? range.to : to }
+          : { from: selectorFrom, to }
       }
     }
 
     const signatures = Object.keys(ranges)
-    if (!replay?.enabled) await adoptLegacyStrides(chainId, address, signatures, abiPaths.size > 1)
+    if (!replay?.enabled) await adoptLegacyStrides(chainId, address, signatures.filter(signature => !limited.has(signature)), abiPaths.size > 1)
     const travelled = replay?.enabled ? {} : await getTravelledStrides(chainId, address, signatures)
 
     const missing = Object.fromEntries(signatures.map(signature => [
@@ -65,14 +74,19 @@ export default class EventsFanout {
     for (const stride of union) {
       console.log('📤', 'stride', chainId, address, stride.from, stride.to)
       await walklog({ ...stride, logStride: getLogStride(chainId) }, async (from, to) => {
-        const chunkSignatures = signatures.filter(signature =>
-          missing[signature].some(m => m.from <= to && m.to >= from))
-        if (chunkSignatures.length === 0) return
-        const hash = createHash('sha1').update([...[...abiPaths].sort(), ...chunkSignatures.sort()].join()).digest('hex').slice(0, 12)
-        const jobId = `evmlog-${chainId}-${address}-${from}-${to}-${hash}`
-        await mq.add(mq.job.extract.evmlog, {
-          abiPaths: [...abiPaths], signatures: chunkSignatures, chainId, address, from, to, replay: replay?.enabled
-        }, { jobId })
+        const boundaries = [...new Set([from, to + 1n, ...Object.values(missing).flat().flatMap(range => [range.from, range.to + 1n])])]
+          .filter(block => block >= from && block <= to + 1n).sort((a, b) => a < b ? -1 : a > b ? 1 : 0)
+        for (let index = 0; index < boundaries.length - 1; index++) {
+          const chunkFrom = boundaries[index]
+          const chunkTo = boundaries[index + 1] - 1n
+          const chunkSignatures = signatures.filter(signature => missing[signature].some(range => range.from <= chunkFrom && range.to >= chunkTo))
+          if (chunkSignatures.length === 0) continue
+          const hash = createHash('sha1').update([...[...abiPaths].sort(), ...chunkSignatures.sort()].join()).digest('hex').slice(0, 12)
+          const jobId = `evmlog-${chainId}-${address}-${chunkFrom}-${chunkTo}-${hash}`
+          await mq.add(mq.job.extract.evmlog, {
+            abiPaths: [...abiPaths], signatures: chunkSignatures, chainId, address, from: chunkFrom, to: chunkTo, replay: replay?.enabled
+          }, { jobId })
+        }
       })
     }
   }

@@ -9,4 +9,7 @@ END
 $$;
 ALTER TABLE evmlog_strides DROP CONSTRAINT evmlog_strides_pkey;
 ALTER TABLE evmlog_strides ADD CONSTRAINT evmlog_strides_pkey PRIMARY KEY (chain_id, address);
+DROP INDEX IF EXISTS evmlog_strides_legacy_address_idx;
 ALTER TABLE evmlog_strides DROP COLUMN signature;
+
+DROP INDEX IF EXISTS thing_lower_address_idx;

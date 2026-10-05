@@ -42,7 +42,7 @@ describe('load/evmlog strides', () => {
     expect(rows.rowCount).to.equal(0)
   })
 
-  it('adopts legacy coverage for unambiguous addresses without overwriting', async () => {
+  it('merges legacy coverage for unambiguous addresses without losing concurrent loads', async () => {
     await seedLegacy()
     await seedThing('accountant', {})
     await upsertEvmLog({ signatures: [SIG_A], chainId: CHAIN_ID, address: ADDRESS, from: 100n, to: 200n, batch: [] })
@@ -50,9 +50,29 @@ describe('load/evmlog strides', () => {
     await adoptLegacyStrides(CHAIN_ID, ADDRESS, [SIG_A, SIG_B])
 
     expect(await getTravelledStrides(CHAIN_ID, ADDRESS, [SIG_A, SIG_B])).to.deep.equal({
-      [SIG_A]: [{ from: 100n, to: 200n }],
+      [SIG_A]: [{ from: 1n, to: 50n }, { from: 100n, to: 200n }],
       [SIG_B]: [{ from: 1n, to: 50n }]
     })
+  })
+
+
+  it('serializes adoption with a concurrent load using the same address lock', async () => {
+    await seedLegacy()
+    const gate = await db.connect()
+    await gate.query('BEGIN')
+    await gate.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`evmlog_strides/${CHAIN_ID}/${ADDRESS}`])
+    const work = Promise.all([
+      adoptLegacyStrides(CHAIN_ID, ADDRESS, [SIG_A]),
+      upsertEvmLog({ signatures: [SIG_A], chainId: CHAIN_ID, address: ADDRESS, from: 100n, to: 200n, batch: [] })
+    ])
+    try {
+      while ((await firstValue<number>("SELECT count(*)::int FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND datname = current_database()") ?? 0) < 2) await setTimeout(10)
+    } finally {
+      await gate.query('COMMIT')
+      gate.release()
+    }
+    await work
+    expect(await getTravelledStrides(CHAIN_ID, ADDRESS, [SIG_A])).to.deep.equal({ [SIG_A]: [{ from: 1n, to: 50n }, { from: 100n, to: 200n }] })
   })
 
   it('keeps both ranges when concurrent first loads race', async () => {

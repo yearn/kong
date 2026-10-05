@@ -43,8 +43,7 @@ export class EvmLogsExtractor {
     const union = requested.map(signature => bySignature.get(signature)).filter(Boolean)
 
     const defaultStartBlockNumber = await getDefaultStartBlockNumber(chainId)
-    // Signature-aware backfill must query every planned selector, even for old blocks.
-    const excludeLimitlist = !signatures && from < defaultStartBlockNumber
+    const excludeLimitlist = from < defaultStartBlockNumber
 
     const events = excludeLimitlist
       ? abiutil.exclude([...blacklist.events.ignore, ...blacklist.events.limit], union)

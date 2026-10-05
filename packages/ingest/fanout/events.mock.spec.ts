@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { toEventSelector } from 'viem'
 
-const { mqAdd, travelled } = vi.hoisted(() => ({
+const { mqAdd, defaultStart, travelled } = vi.hoisted(() => ({
   mqAdd: vi.fn(async () => undefined),
+  defaultStart: vi.fn(async () => 0n),
   travelled: {} as Record<string, { from: bigint, to: bigint }[]>
 }))
 
@@ -13,7 +14,7 @@ vi.mock('lib', async () => ({
 
 vi.mock('lib/blocks', () => ({
   estimateHeight: vi.fn(),
-  getBlockNumber: vi.fn(async () => 999n)
+  getBlockNumber: vi.fn(async () => 999n), getDefaultStartBlockNumber: defaultStart
 }))
 
 vi.mock('../db', () => ({
@@ -58,5 +59,21 @@ describe('EventsFanout', () => {
     await new EventsFanout().fanout({ abi: { abiPath: 'erc4626' }, source: { ...source, address: ADDRESS.toLowerCase() } } as never)
     expect(adoptLegacyStrides).toHaveBeenLastCalledWith(CHAIN_ID, ADDRESS, expect.any(Array), false)
     expect(getTravelledStrides).toHaveBeenLastCalledWith(CHAIN_ID, ADDRESS, expect.any(Array))
+  })
+  it('starts limited selectors at the recent-history floor', async () => {
+    mqAdd.mockClear()
+    for (const key of Object.keys(travelled)) delete travelled[key]
+    defaultStart.mockResolvedValueOnce(500n)
+    await new EventsFanout().fanout({ readers: [{ abi: { abiPath: 'yearn/3/vault' }, source }] } as never)
+    const deposit = toEventSelector('event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)')
+    const jobs = mqAdd.mock.calls.map(call => (call as unknown[])[1] as { from: bigint, to: bigint, signatures: string[] })
+    expect(jobs.find(job => job.from === 0n)?.signatures).not.toContain(deposit)
+    expect(jobs.find(job => job.from === 500n)?.signatures).toContain(deposit)
+  })
+  it('rejects inconsistent reader source keys', async () => {
+    await expect(new EventsFanout().fanout({ readers: [
+      { abi: { abiPath: 'erc4626' }, source },
+      { abi: { abiPath: 'yearn/3/vault' }, source: { ...source, chainId: 10 } }
+    ] } as never)).rejects.toThrow('Every reader must share')
   })
 })

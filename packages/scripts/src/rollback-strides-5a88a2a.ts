@@ -90,8 +90,8 @@ async function main() {
     affectedByChain.set(chain, affected)
 
     if (affected.length > 0) {
-      console.log(`📌 ${CHAIN_NAMES[chain]} (${chain}): ${affected.length} addresses will be rolled back to block ${targetBlock}`)
-      console.log(`   First few: ${affected.slice(0, 3).map(a => a.address).join(', ')}${affected.length > 3 ? '...' : ''}`)
+      console.log(`📌 ${CHAIN_NAMES[chain]} (${chain}): ${new Set(affected.map(row => row.address)).size} addresses (${affected.length} signature rows) will be rolled back to block ${targetBlock}`)
+      console.log(`   First few: ${[...new Set(affected.map(a => a.address))].slice(0, 3).join(', ')}${affected.length > 3 ? '...' : ''}`)
     } else {
       console.log(`✅ ${CHAIN_NAMES[chain]} (${chain}): No addresses need rollback`)
     }
@@ -113,24 +113,34 @@ async function main() {
     if (affected.length === 0) continue
 
     for (const { address, signature, strides, rolledback } of affected) {
-      const rolledbackStridesJson = rolledback.map(s => ({
-        from: s.from.toString(),
-        to: s.to.toString()
-      }))
-
-      await pool.query(
-        'UPDATE evmlog_strides SET strides = $1 WHERE chain_id = $2 AND address = $3 AND signature = $4',
-        [JSON.stringify(rolledbackStridesJson), chain, address, signature]
-      )
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`evmlog_strides/${chain}/${address}`])
+        const latest = await client.query('SELECT strides FROM evmlog_strides WHERE chain_id = $1 AND address = $2 AND signature = $3 FOR UPDATE', [chain, address, signature])
+        if (!latest.rows.length) throw new Error(`Coverage row disappeared: ${chain}/${address}/${signature}`)
+        const current: Stride[] = JSON.parse(latest.rows[0].strides)
+        const next = rollback(current, ROLLBACK_TARGETS[chain]).map(stride => ({ from: stride.from.toString(), to: stride.to.toString() }))
+        await client.query(
+          'UPDATE evmlog_strides SET strides = $1 WHERE chain_id = $2 AND address = $3 AND signature = $4',
+          [JSON.stringify(next), chain, address, signature]
+        )
+        await client.query('COMMIT')
+      } catch (error) {
+        await client.query('ROLLBACK')
+        throw error
+      } finally {
+        client.release()
+      }
 
       console.log(`  ✓ ${CHAIN_NAMES[chain]}: ${address} ${signature} (${strides.length} → ${rolledback.length} strides)`)
     }
 
-    console.log(`\n✅ ${CHAIN_NAMES[chain]}: Updated ${affected.length} addresses\n`)
+    console.log(`\n✅ ${CHAIN_NAMES[chain]}: Updated ${affected.length} signature rows across ${new Set(affected.map(row => row.address)).size} addresses\n`)
     totalUpdated += affected.length
   }
 
-  console.log(`\n🎉 Rollback complete! Updated ${totalUpdated} total addresses.`)
+  console.log(`\n🎉 Rollback complete! Updated ${totalUpdated} total signature rows.`)
 
   await pool.end()
 }

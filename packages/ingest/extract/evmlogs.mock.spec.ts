@@ -66,13 +66,12 @@ describe('EvmLogsExtractor multi-abi', () => {
     expect((mqAdd.mock.calls.at(-1) as unknown[])[1]).toMatchObject({ signatures: undefined })
   })
 
-  it('queries and credits erc4626 selectors below the default start block', async () => {
+  it('does not query or credit limited selectors below the default start block', async () => {
     defaultStart.mockResolvedValueOnce(100n)
-    getLogs.mockResolvedValueOnce([])
+    getLogs.mockClear()
     await new EvmLogsExtractor().extract({ abiPaths: ['erc4626'], signatures: [DEPOSIT], chainId: 1, address: ADDRESS, from: 0n, to: 9n })
-    const { events } = (getLogs.mock.calls.at(-1) as unknown[])[0] as { events: object[] }
-    expect(events.map(event => toEventSelector(event as never))).toEqual([DEPOSIT])
-    expect((mqAdd.mock.calls.at(-1) as unknown[])[1]).toMatchObject({ signatures: [DEPOSIT] })
+    expect(getLogs).not.toHaveBeenCalled()
+    expect((mqAdd.mock.calls.at(-1) as unknown[])[1]).toMatchObject({ signatures: [] })
   })
 
   it('rejects obsolete requested signatures instead of marking them covered', async () => {

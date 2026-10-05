@@ -158,3 +158,17 @@ The signature down migration refuses to run once nonempty signature rows exist.
 Stop workers and restore a reviewed conservative address-level coverage snapshot
 before rolling back. It never silently discards adopted coverage or combines
 histories with different completeness.
+
+The signature up migration requires stopping all old ingest workers and draining
+queued/active work first; their `(chain_id, address)` conflict target cannot run
+against the new primary key. The migration refuses to proceed until the migration
+connection explicitly sets `kong.signature_migration_workers_stopped=on` (for
+example via `PGOPTIONS='-c kong.signature_migration_workers_stopped=on'`). This is
+an operator acknowledgment after stopping workers, not automatic worker detection.
+Start only the new workers after migration succeeds. Never use a rolling upgrade
+across this schema boundary.
+
+Limit-listed Transfer/Deposit/Withdraw selectors are planned from the default
+recent-history start block. Older blocks are neither queried nor credited for
+those selectors; low-volume discovery selectors retain their full history.
+Legacy address-level coverage is adopted only for non-limit-listed selectors.
