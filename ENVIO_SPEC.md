@@ -18,19 +18,23 @@ address is a placeholder. Confirm each entry only after checking that Envio inde
 that contract and every mapped event from `fromBlock`, including legacy overloads.
 A chain's progress block alone does not prove per-contract historical coverage.
 Newly discovered contracts and ranges before a confirmed start block use RPC.
-Malformed coverage configuration fails the job before any coverage write.
+Malformed coverage configuration fails the job before any coverage write. Duplicate
+entries use the latest `fromBlock`, preserving the most restrictive trust boundary.
 
 ## Extraction and coverage
 
 - Mapped entities are selected by ABI path, event name, and overload fields.
 - Unmapped events are fetched using RPC and merged in block/log order before hooks run.
 - Empty Envio results are checked against the complete requested RPC event set.
+  If RPC finds mapped events, `ENVIO_EMPTY_RPC_MISMATCH` reports the source/range.
 - Fanout is capped at the minimum of RPC head, configured end, and Envio progress
   for confirmed sources. Extraction also checks progress, protecting queued jobs.
-- Hasura errors, absent entity response fields, and missing event arguments fail
-  the job. They cannot become successful empty intervals.
+- Hasura errors, absent entity response fields, and missing event arguments trigger
+  a full RPC fetch with `ENVIO_RPC_FALLBACK`. Coverage advances only after that
+  fetch succeeds. Progress-query failures leave fanout at its normal RPC range.
 - Pagination uses block number and log index. Integer/address arguments follow
-  viem's decoded types; supplied block timestamps avoid another RPC read.
+  viem's decoded types; supplied block timestamps avoid another RPC read. RPC timestamps are attached
+  before hooks too, giving both paths the same timestamp-bearing log shape.
 
 Partial nonempty histories cannot be detected from entity rows alone. That is why
 confirmed-source configuration is mandatory. Revalidate it after changing Envio
@@ -61,3 +65,22 @@ strides and refetch; changing the flag alone cannot recover skipped history.
 
 Use #483's per-signature coverage as the long-term indexing model. Both PRs touch
 the extractor and fanout and require an explicit integration review when combined.
+
+## Verified schema target
+
+The public deployment `https://indexer.hyperindex.xyz/5a089e4/v1/graphql` was
+introspected on 2026-10-05. `docs/envio-schema-contract.json` records the endpoint,
+introspection digest, indexer checkout revision and 27 supported mapping contracts.
+Every retained entity's selected fields and `_ilike` address filter were accepted
+by live GraphQL queries with `limit: 0`. A live `StrategyChanged` row uses an
+EIP-55 address; `_ilike` also supports deployments storing lowercase addresses.
+Metadata is `chain_metadata.chain_id/latest_processed_block`, not `_meta`.
+The schema itself exposes no version identifier; the endpoint, digest and observed
+contract identify this target. Revalidate it before configuring a different deployment.
+
+The V2 `StrategyAdded(rateLimit)` and legacy `StrategyReported` variants are
+RPC-only: this deployment has no `rateLimit` column and its `debtPaid` column is
+non-nullable. `yearn/3/registry2` has no `NewEndorsedVault` in Kong's ABI and is
+also excluded from that mapping. These removals preserve the RPC event path.
+Schema verification establishes field compatibility, not per-source historical
+completeness; `ENVIO_CONFIRMED_SOURCES` still requires independent parity checks.

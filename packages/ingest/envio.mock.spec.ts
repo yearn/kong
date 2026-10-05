@@ -36,6 +36,15 @@ describe('envio', function() {
     }
   })
 
+  it('uses the latest start block for duplicate coverage entries', () => {
+    vi.stubEnv('USE_ENVIO', 'true')
+    vi.stubEnv('ENVIO_CHAINS', '1')
+    const source = { chainId: 1, address: '0x0000000000000000000000000000000000000004', abiPath: 'yearn/2/vault' }
+    vi.stubEnv('ENVIO_CONFIRMED_SOURCES', JSON.stringify([{ ...source, fromBlock: '1' }, { ...source, fromBlock: '100' }]))
+    expect(isEnvioSourceCovered(1, source.address as `0x${string}`, source.abiPath, 99n)).to.equal(false)
+    expect(isEnvioSourceCovered(1, source.address as `0x${string}`, source.abiPath, 100n)).to.equal(true)
+  })
+
   it('continues rejecting malformed coverage after a valid list was cached', () => {
     vi.stubEnv('USE_ENVIO', 'true')
     vi.stubEnv('ENVIO_CHAINS', '1')
@@ -52,11 +61,24 @@ describe('envio', function() {
 
   it('rejects malformed entity responses instead of treating them as empty coverage', async () => {
     vi.stubGlobal('fetch', vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { _meta: [{ chainId: 1, progressBlock: 100 }] } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { chain_metadata: [{ chain_id: 1, latest_processed_block: 100 }] } }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: {} }) }))
     const events = parseAbi(['event StrategyChanged(address indexed strategy, uint256 change_type)'])
     await vexpect(fetchEnvioLogs(1, '0x0000000000000000000000000000000000000002', 1n, 100n, events, 'yearn/3/vault'))
       .rejects.toThrow('Envio response missing entity: StrategyChanged')
+  })
+
+  it('uses verified metadata fields and a case-insensitive address filter', async () => {
+    const request = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({ data: { chain_metadata: [{ chain_id: 1, latest_processed_block: 100 }] } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { StrategyChanged: [] } }) })
+    vi.stubGlobal('fetch', request)
+    const events = parseAbi(['event StrategyChanged(address indexed strategy, uint256 change_type)'])
+    await fetchEnvioLogs(1, '0x0eD92e4225126578791303BF579F2853e7Fdca6B', 1n, 100n, events, 'yearn/3/vault')
+    const metadata = JSON.parse(request.mock.calls[0][1].body)
+    const entity = JSON.parse(request.mock.calls[1][1].body)
+    expect(metadata.query).to.include('chain_metadata')
+    expect(metadata.query).to.include('latest_processed_block')
+    expect(entity.query).to.include('vaultAddress: { _ilike: $address }')
   })
 
   it('rejects a missing numeric argument rather than converting null to zero', () => {

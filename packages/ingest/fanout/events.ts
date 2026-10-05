@@ -30,8 +30,16 @@ export default class EventsFanout {
       : startBlock ?? inceptBlock
 
     const head = await getBlockNumber(chainId)
-    const capped = !replay?.enabled && envioSourceStart(chainId, address, abiPath) !== undefined
-    const to = capped ? math.min(math.min(endBlock ?? head, head), await envioProgressBlock(chainId)) : endBlock ?? head
+    let capped = !replay?.enabled && envioSourceStart(chainId, address, abiPath) !== undefined
+    let to = endBlock ?? head
+    if (capped) {
+      try {
+        to = math.min(math.min(to, head), await envioProgressBlock(chainId))
+      } catch (error) {
+        capped = false
+        console.warn('ENVIO_RPC_FALLBACK', { chainId, address, abiPath, phase: 'progress', error })
+      }
+    }
     if (capped && to < from) {
       console.log('⏳', 'envio behind', chainId, address, from, to)
       return

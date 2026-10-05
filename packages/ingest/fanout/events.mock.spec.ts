@@ -30,6 +30,14 @@ describe('Envio fanout watermark', () => {
     expect(isEnvioSourceCovered(1, address, 'yearn/2/vault', jobs[0].from)).toBe(false)
     expect(isEnvioSourceCovered(1, address, 'yearn/2/vault', jobs[2].from)).toBe(true)
   })
+  it('uses the full RPC range when metadata is unavailable', async () => {
+    vi.stubEnv('USE_ENVIO', 'true')
+    vi.stubEnv('ENVIO_CHAINS', '1')
+    vi.stubEnv('ENVIO_CONFIRMED_SOURCES', JSON.stringify([{ chainId: 1, address, abiPath: 'yearn/2/vault', fromBlock: '1' }]))
+    progress.mockRejectedValueOnce(new Error('metadata unavailable'))
+    await new EventsFanout().fanout(job as never)
+    expect(add.mock.calls.at(-1)?.[1]).toMatchObject({ to: 200n })
+  })
   it('does not enqueue a range beyond a lagging watermark', async () => {
     vi.stubEnv('USE_ENVIO', 'true')
     vi.stubEnv('ENVIO_CHAINS', '1')

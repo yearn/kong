@@ -1,0 +1,301 @@
+{
+  "endpoint": "https://indexer.hyperindex.xyz/5a089e4/v1/graphql",
+  "verifiedAt": "2026-10-05",
+  "indexerCommit": "e33d600fb22c15bd36082456136b7ae6e1e0faad",
+  "introspectionSha256": "059633dba2cfd69052566c98aaf18c774209056a2ae8e172565bc85f3c4781f6",
+  "metadata": {
+    "entity": "chain_metadata",
+    "chainId": "chain_id",
+    "progress": "latest_processed_block"
+  },
+  "addressComparison": "_ilike",
+  "mappings": [
+    {
+      "key": "yearn/2/registry:NewVault",
+      "entity": "V2RegistryNewVault",
+      "address": "registryAddress",
+      "inputs": [
+        "token",
+        "deployment_id",
+        "vault",
+        "api_version"
+      ]
+    },
+    {
+      "key": "yearn/2/registry:NewExperimentalVault",
+      "entity": "V2RegistryNewExperimentalVault",
+      "address": "registryAddress",
+      "inputs": [
+        "token",
+        "deployer",
+        "vault",
+        "api_version"
+      ]
+    },
+    {
+      "key": "yearn/2/registry2:NewVault",
+      "entity": "V2Registry2NewVault",
+      "address": "registryAddress",
+      "inputs": [
+        "token",
+        "vaultId",
+        "vaultType",
+        "vault",
+        "apiVersion"
+      ]
+    },
+    {
+      "key": "yearn/2/strategy:Harvested",
+      "entity": "V2StrategyHarvested",
+      "address": "strategyAddress",
+      "inputs": [
+        "profit",
+        "loss",
+        "debtPayment",
+        "debtOutstanding"
+      ]
+    },
+    {
+      "key": "yearn/2/vault:StrategyAdded",
+      "entity": "V2StrategyAdded",
+      "address": "vaultAddress",
+      "inputs": [
+        "strategy",
+        "debtRatio",
+        "minDebtPerHarvest",
+        "maxDebtPerHarvest",
+        "performanceFee"
+      ]
+    },
+    {
+      "key": "yearn/2/vault:StrategyMigrated",
+      "entity": "V2StrategyMigrated",
+      "address": "vaultAddress",
+      "inputs": [
+        "oldVersion",
+        "newVersion"
+      ]
+    },
+    {
+      "key": "yearn/2/vault:StrategyReported",
+      "entity": "V2StrategyReported",
+      "address": "vaultAddress",
+      "inputs": [
+        "strategy",
+        "gain",
+        "loss",
+        "debtPaid",
+        "totalGain",
+        "totalLoss",
+        "totalDebt",
+        "debtAdded",
+        "debtRatio"
+      ]
+    },
+    {
+      "key": "yearn/2/vault:StrategyRevoked",
+      "entity": "V2StrategyRevoked",
+      "address": "vaultAddress",
+      "inputs": [
+        "strategy"
+      ]
+    },
+    {
+      "key": "yearn/2/vault:Transfer",
+      "entity": "Transfer",
+      "address": "vaultAddress",
+      "inputs": [
+        "sender",
+        "receiver",
+        "value"
+      ]
+    },
+    {
+      "key": "yearn/3/debtManagerFactory:NewDebtAllocator",
+      "entity": "NewDebtAllocator",
+      "address": "factoryAddress",
+      "inputs": [
+        "allocator",
+        "vault"
+      ]
+    },
+    {
+      "key": "yearn/3/registry:NewEndorsedVault",
+      "entity": "V3RegistryNewEndorsedVault",
+      "address": "registryAddress",
+      "inputs": [
+        "vault",
+        "asset",
+        "releaseVersion",
+        "vaultType"
+      ]
+    },
+    {
+      "key": "yearn/3/registry3:NewEndorsedVault",
+      "entity": "V3RegistryNewEndorsedVault",
+      "address": "registryAddress",
+      "inputs": [
+        "vault",
+        "asset",
+        "releaseVersion",
+        "vaultType"
+      ]
+    },
+    {
+      "key": "yearn/3/roleManager:AddedNewVault",
+      "entity": "V3RoleManagerAddedNewVault",
+      "address": "roleManagerAddress",
+      "inputs": [
+        "vault",
+        "debtAllocator",
+        "category"
+      ]
+    },
+    {
+      "key": "yearn/3/roleManagerFactory:NewProject",
+      "entity": "V3RoleManagerFactoryNewProject",
+      "address": "factoryAddress",
+      "inputs": [
+        "projectId",
+        "roleManager"
+      ]
+    },
+    {
+      "key": "yearn/3/splitter/factory:NewSplitter",
+      "entity": "V3SplitterNewSplitter",
+      "address": "factoryAddress",
+      "inputs": [
+        "splitter",
+        "manager",
+        "manager_recipient",
+        "splitee"
+      ]
+    },
+    {
+      "key": "yearn/3/yieldSplitter/factory:NewYieldSplitter",
+      "entity": "V3YieldSplitterNewYieldSplitter",
+      "address": "factoryAddress",
+      "inputs": [
+        "strategy",
+        "vault",
+        "want"
+      ]
+    },
+    {
+      "key": "yearn/3/strategy:Reported",
+      "entity": "V3StrategyReported",
+      "address": "strategyAddress",
+      "inputs": [
+        "profit",
+        "loss",
+        "protocolFees",
+        "performanceFees"
+      ]
+    },
+    {
+      "key": "yearn/3/vault:StrategyChanged",
+      "entity": "StrategyChanged",
+      "address": "vaultAddress",
+      "inputs": [
+        "strategy",
+        "change_type"
+      ]
+    },
+    {
+      "key": "yearn/3/vault:StrategyReported",
+      "entity": "StrategyReported",
+      "address": "vaultAddress",
+      "inputs": [
+        "strategy",
+        "gain",
+        "loss",
+        "current_debt",
+        "protocol_fees",
+        "total_fees",
+        "total_refunds"
+      ]
+    },
+    {
+      "key": "yearn/3/vault:Transfer",
+      "entity": "Transfer",
+      "address": "vaultAddress",
+      "inputs": [
+        "sender",
+        "receiver",
+        "value"
+      ]
+    },
+    {
+      "key": "yearn/3/vault:Deposit",
+      "entity": "Deposit",
+      "address": "vaultAddress",
+      "inputs": [
+        "sender",
+        "owner",
+        "assets",
+        "shares"
+      ]
+    },
+    {
+      "key": "yearn/3/vaultFactory:NewVault",
+      "entity": "V3VaultFactoryNewVault",
+      "address": "factoryAddress",
+      "inputs": [
+        "vault_address",
+        "asset"
+      ]
+    },
+    {
+      "key": "yearn/governance/votingEscrow:VestingEscrowCreated",
+      "entity": "VotingEscrowCreated",
+      "address": "factoryAddress",
+      "inputs": [
+        "funder",
+        "token",
+        "recipient",
+        "escrow",
+        "amount",
+        "vesting_start",
+        "vesting_duration",
+        "cliff_length",
+        "open_claim"
+      ]
+    },
+    {
+      "key": "yearn/staking/registry/juiced:StakingPoolAdded",
+      "entity": "StakingPoolAdded",
+      "address": "registryAddress",
+      "inputs": [
+        "token",
+        "stakingPool"
+      ]
+    },
+    {
+      "key": "yearn/staking/registry/opboost:StakingPoolAdded",
+      "entity": "StakingPoolAdded",
+      "address": "registryAddress",
+      "inputs": [
+        "token",
+        "stakingPool"
+      ]
+    },
+    {
+      "key": "yearn/staking/registry/v3:StakingPoolAdded",
+      "entity": "StakingPoolAdded",
+      "address": "registryAddress",
+      "inputs": [
+        "token",
+        "stakingPool"
+      ]
+    },
+    {
+      "key": "yearn/staking/registry/veyfi:Register",
+      "entity": "VeyfiGaugeRegistered",
+      "address": "registryAddress",
+      "inputs": [
+        "gauge",
+        "idx"
+      ]
+    }
+  ]
+}

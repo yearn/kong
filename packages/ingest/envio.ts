@@ -9,15 +9,12 @@ const ENVIO_ENTITIES: Record<string, { entity: string, address: string, has?: st
   'yearn/2/registry2:NewVault': { entity: 'V2Registry2NewVault', address: 'registryAddress' },
   'yearn/2/strategy:Harvested': { entity: 'V2StrategyHarvested', address: 'strategyAddress' },
   'yearn/2/vault:StrategyAdded': { entity: 'V2StrategyAdded', address: 'vaultAddress', has: 'minDebtPerHarvest' },
-  'yearn/2/vault:StrategyAdded:legacy': { entity: 'V2StrategyAdded', address: 'vaultAddress', has: 'rateLimit' },
   'yearn/2/vault:StrategyMigrated': { entity: 'V2StrategyMigrated', address: 'vaultAddress' },
   'yearn/2/vault:StrategyReported': { entity: 'V2StrategyReported', address: 'vaultAddress', has: 'debtPaid' },
-  'yearn/2/vault:StrategyReported:legacy': { entity: 'V2StrategyReported', address: 'vaultAddress', lacks: 'debtPaid' },
   'yearn/2/vault:StrategyRevoked': { entity: 'V2StrategyRevoked', address: 'vaultAddress' },
   'yearn/2/vault:Transfer': { entity: 'Transfer', address: 'vaultAddress' },
   'yearn/3/debtManagerFactory:NewDebtAllocator': { entity: 'NewDebtAllocator', address: 'factoryAddress' },
   'yearn/3/registry:NewEndorsedVault': { entity: 'V3RegistryNewEndorsedVault', address: 'registryAddress' },
-  'yearn/3/registry2:NewEndorsedVault': { entity: 'V3RegistryNewEndorsedVault', address: 'registryAddress' },
   'yearn/3/registry3:NewEndorsedVault': { entity: 'V3RegistryNewEndorsedVault', address: 'registryAddress' },
   'yearn/3/roleManager:AddedNewVault': { entity: 'V3RoleManagerAddedNewVault', address: 'roleManagerAddress' },
   'yearn/3/roleManagerFactory:NewProject': { entity: 'V3RoleManagerFactoryNewProject', address: 'factoryAddress' },
@@ -86,7 +83,7 @@ export function envioSourceStart(chainId: number, address: `0x${string}`, abiPat
     for (const source of coverage) {
       const key = sourceKey(source.chainId, source.address, source.abiPath)
       const previous = next.get(key)
-      next.set(key, previous === undefined || source.fromBlock < previous ? source.fromBlock : previous)
+      next.set(key, previous === undefined || source.fromBlock > previous ? source.fromBlock : previous)
     }
     coverageBySource = next
     coverageConfig = config
@@ -120,13 +117,13 @@ async function gql(query: string, variables?: Record<string, unknown>): Promise<
 
 export async function envioProgressBlock(chainId: number): Promise<bigint> {
   const result = await cache.wrap(`envioProgressBlock:${chainId}`, async () => {
-    const response = await gql('{ _meta { chainId progressBlock } }')
-    const entries = Array.isArray(response.data?._meta) ? response.data._meta : [response.data?._meta]
-    const entry = entries.find((value: any) => Number(value?.chainId) === chainId)
-    if (!entry || entry.progressBlock === undefined || entry.progressBlock === null) {
+    const response = await gql('query ($chainId: Int!) { chain_metadata(where: { chain_id: { _eq: $chainId } }) { chain_id latest_processed_block } }', { chainId })
+    const entries = Array.isArray(response.data?.chain_metadata) ? response.data._meta : [response.data?.chain_metadata]
+    const entry = entries.find((value: any) => Number(value?.chain_id) === chainId)
+    if (!entry || entry.latest_processed_block === undefined || entry.latest_processed_block === null) {
       throw new Error(`Envio progress block missing for chain ${chainId}`)
     }
-    return String(entry.progressBlock)
+    return String(entry.latest_processed_block)
   }, 30_000)
   return BigInt(result)
 }
@@ -158,7 +155,7 @@ export async function fetchEnvioLogs(
       ${entity}(
         where: {
           chainId: { _eq: $chainId }
-          ${addressField}: { _eq: $address }
+          ${addressField}: { _ilike: $address }
           blockNumber: { _lte: $to }
           ${has ? `${has}: { _is_null: false }` : ''}
           ${lacks ? `${lacks}: { _is_null: true }` : ''}
