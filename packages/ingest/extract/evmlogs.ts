@@ -15,8 +15,16 @@ const BLOCK_TIME_CONCURRENCY = 8
 
 async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
   let next = 0
+  let stopped = false
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) await fn(items[next++])
+    while (!stopped && next < items.length) {
+      try {
+        await fn(items[next++])
+      } catch (error) {
+        stopped = true
+        throw error
+      }
+    }
   }))
 }
 
