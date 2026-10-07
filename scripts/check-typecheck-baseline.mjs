@@ -1,12 +1,21 @@
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const baseline = JSON.parse(readFileSync(path.join(root, 'scripts/typecheck-baseline.json'), 'utf8'))
 let failed = false
-for (const [workspace, allowed] of Object.entries(baseline)) {
+const workspaces = readdirSync(path.join(root, 'packages')).filter(workspace => {
+  try { return Boolean(JSON.parse(readFileSync(path.join(root, 'packages', workspace, 'package.json'), 'utf8')).scripts?.typecheck) }
+  catch { return false }
+})
+for (const workspace of Object.keys(baseline)) if (!workspaces.includes(workspace)) {
+  failed = true
+  console.error(`${workspace}: baseline entry has no workspace typecheck script`)
+}
+for (const workspace of workspaces) {
+  const allowed = baseline[workspace] ?? []
   const cwd = path.join(root, 'packages', workspace)
   const { scripts } = JSON.parse(readFileSync(path.join(cwd, 'package.json'), 'utf8'))
   const result = spawnSync(scripts.typecheck, {
