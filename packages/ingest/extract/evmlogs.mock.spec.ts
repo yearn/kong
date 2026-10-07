@@ -68,6 +68,15 @@ describe('extract/evmlogs', () => {
     expect(mqAdd).toHaveBeenCalledTimes(1)
   })
 
+  it('retries decimals after a failure so later logs are still filtered', async () => {
+    decimals.mockResolvedValueOnce({ success: false, error: new Error('rpc'), decimals: undefined } as any)
+    const small = { ...logRow(2, 1), args: { value: '1' } }
+    await run([logRow(1, 0), small])
+    expect(decimals).toHaveBeenCalledTimes(2)
+    const batch = (mqAdd.mock.calls[0] as any)[1].batch
+    expect(batch.map((l: any) => l.logIndex)).toEqual([0])
+  })
+
   it('looks up each block once, at most 8 in flight', async () => {
     await run(Array.from({ length: 40 }, (_, i) => logRow(1 + (i % 20), i)))
     expect(getBlockTime).toHaveBeenCalledTimes(20)

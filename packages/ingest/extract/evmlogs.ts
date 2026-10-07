@@ -66,7 +66,12 @@ export class EvmLogsExtractor {
 
     const hooks = this.resolveHooks(abiPath, 'event')
     let decimals: ReturnType<typeof safeFetchOrExtractDecimals> | undefined
-    const getDecimals = () => decimals ??= safeFetchOrExtractDecimals(chainId, address)
+    const getDecimals = async () => {
+      const pending = decimals ??= safeFetchOrExtractDecimals(chainId, address)
+      const result = await pending
+      if (!result.success && decimals === pending) decimals = undefined
+      return result
+    }
 
     const kept: { log: (typeof logs)[number], args: any, hook: object }[] = []
     for (const log of logs) {
