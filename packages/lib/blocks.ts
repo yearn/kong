@@ -54,7 +54,7 @@ async function __getBlock(chainId: number, blockNumber?: bigint) {
 export async function getDefaultStartBlockNumber(chainId: number): Promise<bigint> {
   const result = cache.wrap(`getDefaultStartBlock:${chainId}`, async () => {
     return await estimateHeight(chainId, dates.DEFAULT_START())
-  }, 10_000)
+  }, 60 * 60 * 1000)
   return BigInt(await result)
 }
 
@@ -96,27 +96,37 @@ async function estimateHeightManual(chainId: number, timestamp: bigint) {
 }
 
 export async function estimateCreationBlock(chainId: number, contract: `0x${string}`): Promise<Block> {
+  let failed = !rpcs.hasArchiveEndpoint(chainId)
   const result = cache.wrap(`estimateCreationBlock:${chainId}:${contract}`, async () => {
-    return await __estimateCreationBlock(chainId, contract)
-  }, 10_000)
+    const search = await searchCreationBlock(chainId, contract)
+    failed ||= search.failed
+    return search.block
+  }, () => failed ? 10_000 : 30 * 24 * 60 * 60 * 1000)
   return BlockSchema.parse(await result)
 }
 
+// Probe every historical bytecode value through the archive pool. Public RPC
+// defaults and failed/empty searches receive only a 10s cache entry. Explicit
+// archive endpoints remain an operator contract; pruning responses cannot be
+// distinguished from legitimately absent code by eth_getCode alone.
 // use bin search to estimate contract creat block
 // doesn't account for CREATE2 or SELFDESTRUCT
 // adapted from https://github.com/BobTheBuidler/ypricemagic/blob/5ba16b25302b47539b4e5a996554ba4c0a70e7c7/y/contracts.py#L68
-export async function __estimateCreationBlock(chainId: number, contract: `0x${string}`): Promise<Block> {
+async function searchCreationBlock(chainId: number, contract: `0x${string}`): Promise<{ block: Block, failed: boolean }> {
   let counter = 0
-  const label = `🕊 __estimateCreationBlock ${chainId} ${contract}`
+  let failed = false
+  let foundBytecode = false
+  const label = `🕊 estimateCreationBlock ${chainId} ${contract}`
   console.time(label)
   const height = await rpcs.next(chainId).getBlockNumber()
   let lo = 0n, hi = height, mid = lo + (hi - lo) / 2n
   while (hi - lo > 1n) {
     try {
-      const bytecode = await rpcs.next(chainId, useArchiveNode(height, mid)).getBytecode({ address: contract, blockNumber: mid })
-      if(!bytecode || bytecode.length === 0) { lo = mid } else { hi = mid }
+      const bytecode = await rpcs.next(chainId, true).getBytecode({ address: contract, blockNumber: mid })
+      if (!bytecode || bytecode === '0x') { lo = mid } else { foundBytecode = true; hi = mid }
 
     } catch (error) {
+      failed = true
       lo = mid
 
     } finally {
@@ -127,7 +137,7 @@ export async function __estimateCreationBlock(chainId: number, contract: `0x${st
   }
   console.log('💥', 'estimateCreationBlock', chainId, contract, counter, hi)
   console.timeEnd(label)
-  return await getBlock(chainId, hi)
+  return { block: await getBlock(chainId, hi), failed: failed || !foundBytecode }
 }
 
 const FULL_NODE_DEPTH = BigInt(process.env.FULL_NODE_DEPTH || 400)

@@ -12,6 +12,7 @@ import db, { firstRow } from '../../../../../db'
 import { getStrategyMeta, getVaultMeta } from '../../../lib/meta'
 import { mapStrategyParams, strategiesAbi } from '../../vault/snapshot/hook'
 import { getLatestEstimatedApr } from '../../../../../helpers/apy-apr'
+import { topics as strategyEventTopics } from '../event/hook'
 
 const borkedVaults = [
   '0x718AbE90777F5B778B52D553a5aBaa148DD0dc5D'
@@ -201,13 +202,13 @@ async function extractBalances(chainId: number, strategy: `0x${string}`, tradeab
 
 async function fetchLastReportDetail(chainId: number, address: `0x${string}`) {
   const row = await firstRow(`
-  SELECT *
+  SELECT chain_id, address, block_number, block_time, transaction_hash, args, hook
   FROM evmlog
   WHERE chain_id = $1
     AND address = $2
-    AND event_name = 'Harvested'
+    AND signature = $3
   ORDER BY block_number DESC, log_index DESC
-  LIMIT 1;`, [chainId, address])
+  LIMIT 1;`, [chainId, address, strategyEventTopics[0]])
 
   if (!row) return undefined
 

@@ -32,15 +32,24 @@ export async function getTokenMeta(chainId: number, address: `0x${string}`) {
   }
 }
 
+const memo = new Map<string, { value: unknown, expires: number }>()
+
 async function getMetas<T>(schema: z.ZodType<T>, chainId: number, type: 'tokens' | 'vaults' | 'strategies'): Promise<Metas<T>> {
-  return cache.wrap(`abis/yearn/lib/meta/${type}/${chainId}`, async () => {
-    return await extractMetas<T>(schema, chainId, type)
+  const key = `abis/yearn/lib/meta/v2/${type}/${chainId}`
+  const hit = memo.get(key)
+  if (hit && hit.expires > Date.now()) return hit.value as Metas<T>
+
+  const entry = await cache.wrap(key, async () => {
+    return { value: await extractMetas<T>(schema, chainId, type), at: Date.now() }
   }, 5 * 60 * 1000)
+  memo.set(key, { value: entry.value, expires: entry.at + 5 * 60 * 1000 })
+  return entry.value
 }
 
 async function extractMetas<T>(schema: z.ZodType<T>, chainId: number, type: 'tokens' | 'vaults' | 'strategies'): Promise<Metas<T>> {
   const json = await (await fetch(
-    `https://cms.yearn.fi/cdn/${type}/${chainId}.json`
+    `https://cms.yearn.fi/cdn/${type}/${chainId}.json`,
+    { signal: AbortSignal.timeout(10_000) }
   )).json()
 
   const results: { [address: `0x${string}`]: T } = {}

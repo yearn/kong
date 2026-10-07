@@ -13,13 +13,13 @@ export function daysAgoMs(days: number): number {
 
 export function startOfDayMs(milliseconds: number): number {
   const date = new Date(milliseconds)
-  date.setHours(0, 0, 0, 0)
+  date.setUTCHours(0, 0, 0, 0)
   return date.getTime()
 }
 
 export function endOfDayMs(milliseconds: number): number {
   const date = new Date(milliseconds)
-  date.setHours(23, 59, 59, 999)
+  date.setUTCHours(23, 59, 59, 999)
   return date.getTime()
 }
 

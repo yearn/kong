@@ -280,7 +280,8 @@ async function fetchPriceServiceExactResult(request: {
   const url = `${baseUrl}/api/prices/historical/${Number(blockTime)}/${coinId}`
 
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` }
+    headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` },
+    signal: AbortSignal.timeout(30_000)
   })
   if (!response.ok) {
     warn('http', response.status)
@@ -345,7 +346,8 @@ async function sendPriceServiceBatch(entries: PriceServiceBatchEntry[]) {
     const url = `${baseUrl}/api/prices/batchHistorical?coins=${encodeURIComponent(JSON.stringify(coins))}`
 
     const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` }
+      headers: { Authorization: `Bearer ${process.env.PRICE_SERVICE_API_KEY}` },
+      signal: AbortSignal.timeout(30_000)
     })
     if (!response.ok) throw new Error(`batchHistorical ${response.status} ${url}`)
 
@@ -374,7 +376,8 @@ async function fetchYPriceUsd(chainId: number, token: `0x${string}`, blockNumber
       headers: {
         'X-Signature': process.env.YPRICE_API_X_SIGNATURE || '',
         'X-Signer': process.env.YPRICE_API_X_SIGNER || ''
-      }
+      },
+      signal: AbortSignal.timeout(10_000)
     })
 
     const priceUsd = Number(await result.json())
@@ -444,7 +447,7 @@ async function fetchAllYDaemonPrices() {
   if (!process.env.YDAEMON_API) throw new Error('!YDAEMON_API')
   return cache.wrap('fetchAllYDaemonPrices', async () => {
     const url = `${process.env.YDAEMON_API}/prices/all?humanized=true`
-    const result = await fetch(url)
+    const result = await fetch(url, { signal: AbortSignal.timeout(10_000) })
     const json = await result.json()
     return lowercaseAddresses(json)
   }, 60_000)

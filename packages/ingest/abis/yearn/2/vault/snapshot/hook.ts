@@ -8,7 +8,7 @@ import db, { getSparkline } from '../../../../../db'
 import { getLatestApy, getLatestEstimatedApr } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
-import { fetchOrExtractErc20, throwOnMulticallError } from '../../../lib'
+import { extractErc20, fetchErc20, throwOnMulticallError } from '../../../lib'
 import { getStrategyMeta, getTokenMeta, getVaultMeta } from '../../../lib/meta'
 import { getRiskScore } from '../../../lib/risk'
 
@@ -81,10 +81,13 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const meta = await getVaultMeta(chainId, address)
   const token = await getTokenMeta(chainId, data.token)
 
-  const erc20 = await fetchOrExtractErc20(chainId, data.token)
-  await mq.add(mq.job.load.thing, ThingSchema.parse({
-    chainId, address: data.token, label: 'erc20', defaults: erc20
-  }))
+  let erc20 = await fetchErc20(chainId, data.token)
+  if (!erc20) {
+    erc20 = await extractErc20(chainId, data.token)
+    await mq.add(mq.job.load.thing, ThingSchema.parse({
+      chainId, address: data.token, label: 'erc20', defaults: erc20
+    }))
+  }
 
   const sparklines = {
     tvl: await getSparkline(chainId, address, 'tvl-c', 'tvl'),

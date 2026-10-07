@@ -17,9 +17,11 @@ vi.mock('../../../rpcs', () => ({
   }
 }))
 
+const { height } = vi.hoisted(() => ({ height: { value: 100n } }))
+
 vi.mock('lib/blocks', () => ({
-  estimateHeight: vi.fn(async () => 100n),
-  getBlock: vi.fn(async () => ({ number: 100n, timestamp: 1700000000n }))
+  estimateHeight: vi.fn(async () => height.value),
+  getBlock: vi.fn(async () => ({ number: height.value, timestamp: 1700000000n }))
 }))
 
 vi.mock('../../../db', () => ({
@@ -49,8 +51,11 @@ import { endOfDay } from 'lib/dates'
 const VAULT = '0xdA816459F1AB5631232FE5e97a05BBBb94970c95' as const
 const data = { outputLabel: 'tvl', blockTime: 1600000000n } as Data
 
+let tests = 0
+
 describe('tvl hook on price service unavailable', () => {
   beforeEach(() => {
+    height.value = 100n + BigInt(++tests)
     vi.mocked(fetchErc20PriceUsd).mockResolvedValue({ priceUsd: 0, priceSource: 'unavailable' })
     someMock.mockReset()
     someMock.mockResolvedValue(false)

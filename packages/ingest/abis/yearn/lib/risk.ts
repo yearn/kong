@@ -11,7 +11,7 @@ async function fetchRiskScore(chainId: number, address: `0x${string}`): Promise<
   try {
     const baseUrl = process.env.RISK_CDN_URL || 'https://curation.yearn.fi'
     const url = `${baseUrl}/cdn/vaults/${chainId}/${address.toLowerCase()}.json`
-    const response = await fetch(url)
+    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) })
 
     if (!response.ok) {
       console.warn('⚠️', '!risk, status code', response.status, chainId, address)

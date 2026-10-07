@@ -36,7 +36,8 @@ export async function projectVaults(chainId: number, accountant: `0x${string}`, 
     if (changeType[event.args.change] === 'add') {
       result.push(EvmAddressSchema.parse(event.args.vault))
     } else if (changeType[event.args.change] === 'remove') {
-      result.splice(result.indexOf(EvmAddressSchema.parse(event.args.vault)), 1)
+      const index = result.indexOf(EvmAddressSchema.parse(event.args.vault))
+      if (index >= 0) result.splice(index, 1)
     }
   }
 

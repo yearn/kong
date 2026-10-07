@@ -1,4 +1,5 @@
 import { expect } from 'chai'
+import { describe, it } from 'vitest'
 import { endOfDayMs, endOfStringDay, epoch, makeTimeline, startOfDayMs } from './dates'
 
 describe('dates', function() {
@@ -28,5 +29,18 @@ describe('dates', function() {
     ])
 
     expect(makeTimeline(epoch('2024-01-05'), epoch('2024-01-01'))).to.deep.equal([])
+  })
+
+  it('buckets days in UTC regardless of the process timezone', async function() {
+    const original = process.env.TZ
+    process.env.TZ = 'America/Los_Angeles'
+    try {
+      const instant = new Date('2021-01-01T03:00:00.000Z').getTime()
+      expect(startOfDayMs(instant)).to.eq(new Date('2021-01-01T00:00:00.000Z').getTime())
+      expect(endOfDayMs(instant)).to.eq(new Date('2021-01-01T23:59:59.999Z').getTime())
+    } finally {
+      if (original === undefined) delete process.env.TZ
+      else process.env.TZ = original
+    }
   })
 })
