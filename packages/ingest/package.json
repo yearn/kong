@@ -15,10 +15,10 @@
   "dependencies": {
     "@types/node": "20.17.17",
     "@types/pg": "8.11.11",
-    "bullmq": "4.18.2",
+    "bullmq": "5.81.5",
     "compare-versions": "6.1.1",
     "dotenv": "16.4.7",
-    "js-yaml": "4.1.0",
+    "js-yaml": "4.3.2",
     "lib": "workspace:*",
     "pg": "8.13.1",
     "redis-info": "3.1.0",
@@ -38,7 +38,7 @@
     "@typescript-eslint/parser": "8.69.0",
     "chai": "4.5.0",
     "chai-almost": "1.0.1",
-    "eslint": "9.19.0",
-    "vitest": "3.2.6"
+    "eslint": "9.39.5",
+    "vitest": "4.1.11"
   }
 }

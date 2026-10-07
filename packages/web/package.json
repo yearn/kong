@@ -12,12 +12,12 @@
     "typecheck": "node ../../scripts/typecheck.mjs --project tsconfig.typecheck.json"
   },
   "dependencies": {
-    "@apollo/server": "4.11.3",
+    "@apollo/server": "5.5.1",
     "@apollo/utils.keyvadapter": "4.0.1",
-    "@as-integrations/next": "3.2.0",
+    "@as-integrations/next": "4.1.0",
     "@keyv/redis": "5.1.6",
     "autoprefixer": "10.4.15",
-    "bullmq": "4.18.2",
+    "bullmq": "5.81.5",
     "chart.js": "4.4.7",
     "compare-versions": "6.1.1",
     "encoding": "0.1.13",
@@ -26,9 +26,9 @@
     "graphql-tag": "2.12.6",
     "keyv": "5.5.5",
     "lib": "workspace:*",
-    "next": "15.5.18",
+    "next": "15.5.24",
     "pg": "8.13.1",
-    "postcss": "8.4.28",
+    "postcss": "8.5.23",
     "pretty-bytes": "6.1.1",
     "react": "18.2.0",
     "react-chartjs-2": "5.3.0",
@@ -51,10 +51,10 @@
     "@types/react-timeago": "4.1.7",
     "@typescript-eslint/eslint-plugin": "8.69.0",
     "@typescript-eslint/parser": "8.69.0",
-    "eslint": "9.19.0",
+    "eslint": "9.39.5",
     "eslint-config-next": "15.1.6",
-    "tailwindcss": "3.3.3",
+    "tailwindcss": "3.4.19",
     "typescript": "npm:@typescript/typescript6@6.0.2",
-    "vitest": "3.2.6"
+    "vitest": "4.1.11"
   }
 }
