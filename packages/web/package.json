@@ -16,7 +16,6 @@
     "@apollo/utils.keyvadapter": "4.0.1",
     "@as-integrations/next": "4.1.0",
     "@keyv/redis": "5.1.6",
-    "autoprefixer": "10.4.15",
     "bullmq": "5.81.5",
     "chart.js": "4.4.7",
     "compare-versions": "6.1.1",
@@ -36,13 +35,14 @@
     "react-responsive": "9.0.2",
     "react-timeago": "7.2.0",
     "swr": "2.3.2",
-    "tailwind-scrollbar": "3.1.0",
+    "tailwind-scrollbar": "4.0.2",
     "viem": "2.5.0",
     "zod": "3.22.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.2.0",
     "@eslint/js": "9.19.0",
+    "@tailwindcss/postcss": "4.3.3",
     "@types/figlet": "1.7.0",
     "@types/node": "20.17.17",
     "@types/pg": "8.11.11",
@@ -52,8 +52,7 @@
     "@typescript-eslint/eslint-plugin": "8.69.0",
     "@typescript-eslint/parser": "8.69.0",
     "eslint": "9.39.5",
-    "eslint-config-next": "15.1.6",
-    "tailwindcss": "3.4.19",
+    "tailwindcss": "4.3.3",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "4.1.11"
   }

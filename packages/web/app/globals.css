@@ -1,6 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@plugin "tailwind-scrollbar";
+@source inline("h-[{0..100}%]");
 
 body {
   @apply bg-zinc-950 text-yellow-300;

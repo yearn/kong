@@ -24,9 +24,10 @@
   "devDependencies": {
     "@testcontainers/postgresql": "11.14.0",
     "@testcontainers/redis": "11.14.0",
+    "@typescript/native": "npm:typescript@7.0.2",
     "bun-types": "1.2.2",
-    "vitest": "4.1.11",
-    "@typescript/native": "npm:typescript@7.0.2"
+    "eslint-plugin-react": "7.37.5",
+    "vitest": "4.1.11"
   },
   "dependencies": {
     "@types/bun": "1.2.2"
