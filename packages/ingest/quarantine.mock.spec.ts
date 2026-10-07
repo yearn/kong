@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const { add } = vi.hoisted(() => ({ add: vi.fn(async () => ({})) }))
+const { add, count, getJobs } = vi.hoisted(() => ({ add: vi.fn(async () => ({})), count: vi.fn(async () => 0), getJobs: vi.fn(async () => [] as { remove: () => void }[]) }))
 vi.mock('lib/chains', () => ({ default: [] }))
 vi.mock('lib/sentry', () => ({ captureException: vi.fn(), countMetric: vi.fn(), flush: vi.fn() }))
 vi.mock('bullmq', async importOriginal => {
@@ -8,6 +8,8 @@ vi.mock('bullmq', async importOriginal => {
   return { ...original, Queue: class {
     constructor(public name: string) {}
     add = add
+    count = count
+    getJobs = getJobs
     close = vi.fn()
   } }
 })
@@ -31,5 +33,14 @@ describe('durable quarantine in the CI mocks project', () => {
       })])
     }
     expect(calls[0][2].jobId).not.toEqual(calls[1][2].jobId)
+  })
+
+  it('drops the oldest jobs beyond the cap', async () => {
+    const remove = vi.fn()
+    count.mockResolvedValueOnce(10_002)
+    getJobs.mockResolvedValueOnce([{ remove }, { remove }])
+    await quarantine({ queueName: 'load', id: '9', name: 'x', data: {} })
+    expect(getJobs).toHaveBeenCalledWith(['waiting', 'prioritized'], 0, 1, true)
+    expect(remove).toHaveBeenCalledTimes(2)
   })
 })

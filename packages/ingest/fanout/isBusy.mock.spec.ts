@@ -41,6 +41,11 @@ describe('isBusy', () => {
     expect(await isBusy()).toBe(false)
   })
 
+  it('ignores queued probe monitor jobs', async () => {
+    queued.load = [{ name: 'monitor', status: 'prioritized' }]
+    expect(await isBusy()).toBe(false)
+  })
+
   it('reports a counted job', async () => {
     queued.load = [{ name: 'output', status: 'prioritized' }]
     expect(await findBusyMatch()).toEqual({ queue: 'load', jobName: 'output', status: 'prioritized' })

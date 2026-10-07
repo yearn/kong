@@ -52,7 +52,8 @@ export const job: { [queue: string]: { [job: string]: Job } } = {
 // where n is the number of prioritized jobs in the queue
 // (ie, total jobs - non-prioritized jobs)
 export const LOWEST_PRIORITY = 2 ** 21
-const DEFAULT_PRIORITY = 100
+export const DEFAULT_PRIORITY = 100
+const QUARANTINE_MAX = 10_000
 
 const bull = { connection: {
   host: process.env.REDIS_HOST || 'localhost',
@@ -86,15 +87,20 @@ export async function add(job: Job, data: any, options?: any) {
   return await queues[queue].add(job.name, data, { priority: DEFAULT_PRIORITY, attempts: 1, ...options })
 }
 
-// Quarantine has no worker and no automatic cleanup. Operators can inspect and
+// Quarantine has no worker. It keeps at most QUARANTINE_MAX jobs, dropping the oldest. Operators can inspect and
 // replay these payloads after correcting a producer/consumer version mismatch.
 export async function quarantine(original: { queueName: string, id?: string, name: string, data: unknown }) {
   if (!original.queueName) throw new Error('Cannot quarantine a job without an originating queue')
   if (!original.id) throw new Error('Cannot quarantine a job without an ID')
   const jobId = Buffer.from(JSON.stringify([original.queueName, original.id])).toString('base64url')
-  return add({ queue: q.quarantine, name: original.name }, {
+  const added = await add({ queue: q.quarantine, name: original.name }, {
     queue: original.queueName, id: original.id, name: original.name, data: original.data
   }, { jobId, removeOnComplete: false, removeOnFail: false })
+  const excess = await queues[q.quarantine].count() - QUARANTINE_MAX
+  if (excess > 0) {
+    for (const old of await queues[q.quarantine].getJobs(['waiting', 'prioritized'], 0, excess - 1, true)) await old.remove()
+  }
+  return added
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
