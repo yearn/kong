@@ -23,7 +23,7 @@ describe('abis/yearn/lib/meta', () => {
   it('misses on another chain', async () => {
     await getVaultMeta(10, VAULT)
     expect(wrap).toHaveBeenCalledTimes(1)
-    expect(wrap.mock.calls[0][0]).toBe('abis/yearn/lib/meta/vaults/10')
+    expect(wrap.mock.calls[0][0]).toBe('abis/yearn/lib/meta/v2/vaults/10')
   })
 
   it('refetches after the TTL', async () => {

@@ -35,7 +35,7 @@ export async function getTokenMeta(chainId: number, address: `0x${string}`) {
 const memo = new Map<string, { value: unknown, expires: number }>()
 
 async function getMetas<T>(schema: z.ZodType<T>, chainId: number, type: 'tokens' | 'vaults' | 'strategies'): Promise<Metas<T>> {
-  const key = `abis/yearn/lib/meta/${type}/${chainId}`
+  const key = `abis/yearn/lib/meta/v2/${type}/${chainId}`
   const hit = memo.get(key)
   if (hit && hit.expires > Date.now()) return hit.value as Metas<T>
 
