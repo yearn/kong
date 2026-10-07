@@ -1,11 +1,11 @@
-import { chains } from 'lib'
+import { chains } from './chains'
 import { PublicClient, createPublicClient, http } from 'viem'
 import { Chain } from 'viem/chains'
 
 export interface RpcClients { [chaindId: number]: PublicClient }
 
 class pool {
-  private recycling: NodeJS.Timer | undefined
+  private recycling: ReturnType<typeof setInterval> | undefined
   private rpcs = {} as { [key: string]: {
     clients: PublicClient[],
     pointers: { next: number, recycle: number }
@@ -74,7 +74,7 @@ class pool {
     }
   }
 
-  next(chainId: number, archive = true) {
+  next(chainId: number, archive = true): PublicClient {
     const chain = chains.find(chain => chain.id === chainId)
     if(!chain) throw new Error(`!chain, ${chainId}`)
     const key = this.key(chain, archive)

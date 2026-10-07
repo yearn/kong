@@ -29,9 +29,8 @@ export default class Load implements Processor {
     [mq.job.load.thing.name]: async data =>
       await upsertThing(data),
 
-    [mq.job.load.output.name]: async data => data.batch
-      ? await upsertBatchOutput(data.batch)
-      : await upsertOutput(data),
+    [mq.job.load.output.name]: async data =>
+      await upsertBatchOutput(data.batch === undefined ? [data] : data.batch),
 
     [mq.job.load.price.name]: async data => data.batch
       ? await upsertBatch(data.batch, 'price', 'chain_id, address, block_number')
@@ -122,15 +121,6 @@ export async function upsertSnapshot(data: object) {
 export async function upsertThing(data: object) {
   const thing = ThingSchema.parse(data)
   await upsertThingDefaults(thing)
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function upsertOutput(data: any) {
-  const output = {
-    ...OutputSchema.parse(data),
-    series_time: endOfDay(data.block_time)
-  }
-  await upsert(output, 'output', 'chain_id, address, label, component, series_time')
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

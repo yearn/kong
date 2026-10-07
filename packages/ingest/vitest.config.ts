@@ -23,18 +23,18 @@ export default defineConfig({
           setupFiles: ['./vitest.setup.ts'],
           // one shared set of testcontainers + sequential execution: several specs
           // share the same tables, so they must not run in parallel.
-          pool: 'forks',
-          poolOptions: { forks: { singleFork: true } },
+          maxWorkers: 1,
           fileParallelism: false,
           isolate: false,
         },
       },
       {
-        // Module-mocking specs: no containers, no shared setup — the `lib` barrel
-        // re-exports ./prices, so they need a registry of their own.
+        // Module-mocking specs: no containers, no shared setup. The ingest project
+        // runs with isolate: false in one fork, so their vi.mock calls would leak.
         test: {
           ...shared,
           name: 'mocks',
+          sequence: { groupOrder: 1 },
           include: ['**/*.mock.spec.ts'],
           exclude: ['**/node_modules/**'],
           setupFiles: ['./vitest.mocks.setup.ts'],

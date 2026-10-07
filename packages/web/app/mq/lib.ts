@@ -74,7 +74,7 @@ export async function getQueueJobs(name: string, status: JobStatus, start = 0, e
     finishedOn: job.finishedOn,
     attemptsMade: job.attemptsMade,
     failedReason: job.failedReason,
-    stacktrace: job.stacktrace,
+    stacktrace: job.stacktrace ?? undefined,
     returnvalue: job.returnvalue
   }))
 }
@@ -92,7 +92,7 @@ export async function getJobById(queueName: string, jobId: string): Promise<JobI
     finishedOn: job.finishedOn,
     attemptsMade: job.attemptsMade,
     failedReason: job.failedReason,
-    stacktrace: job.stacktrace,
+    stacktrace: job.stacktrace ?? undefined,
     returnvalue: job.returnvalue
   }
 }
