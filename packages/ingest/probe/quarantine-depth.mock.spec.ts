@@ -11,6 +11,7 @@ vi.mock('bullmq', async importOriginal => ({
     constructor(public name: string) {}
     add = add
     getJobCounts = getJobCounts
+    count = async () => 1
     close = vi.fn()
   }
 }))
