@@ -35,6 +35,7 @@ export class EvmLogsExtractor {
       ? abiutil.exclude([...blacklist.events.ignore, ...blacklist.events.limit], abiutil.events(abi))
       : abiutil.exclude(blacklist.events.ignore, abiutil.events(abi))
 
+    let source = 'rpc'
     const logs = await (async () => {
       if (replay) {
         return await fetchLogs(chainId, address, from, to)
@@ -67,6 +68,7 @@ export class EvmLogsExtractor {
           // current chunk. Persist revocation first, then rebuild entirely by RPC.
           return await rpcs.next(chainId, from).getLogs({ address, events, fromBlock: from, toBlock: to })
         }
+        source = 'envio'
         return [...envioLogs, ...rpcLogs].sort((a, b) =>
           Number((a.blockNumber ?? 0n) - (b.blockNumber ?? 0n)) || (a.logIndex ?? 0) - (b.logIndex ?? 0))
       } else {
@@ -78,6 +80,7 @@ export class EvmLogsExtractor {
         })
       }
     })()
+    console.info('EVMLOG_SOURCE', { source, chainId, address, abiPath, from: String(from), to: String(to) })
 
     const hooks = this.resolveHooks(abiPath, 'event')
     const processedLogs: any[] = []
