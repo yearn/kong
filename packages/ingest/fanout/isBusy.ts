@@ -1,6 +1,6 @@
 import { chains, mq } from 'lib'
 
-export type BusyMatch = { queue: string; jobName: string; status: 'waiting' | 'active' }
+export type BusyMatch = { queue: string; jobName: string; status: 'waiting' | 'active' | 'prioritized' }
 
 type QueueSpec = { queueName: string; includedNames: Set<string> }
 
@@ -29,7 +29,7 @@ function buildQueueSpecs(): QueueSpec[] {
     specs.push({ queueName: `${mq.q.extract}-${chain.id}`, includedNames: perChainNames })
   }
 
-  // load queue: include evmlog, snapshot, thing, output, price, monitor (exclude block)
+  // load queue: include evmlog, snapshot, thing, output, price (exclude block, monitor)
   specs.push({
     queueName: mq.q.load,
     includedNames: new Set([
@@ -37,8 +37,7 @@ function buildQueueSpecs(): QueueSpec[] {
       mq.job.load.snapshot.name,
       mq.job.load.thing.name,
       mq.job.load.output.name,
-      mq.job.load.price.name,
-      mq.job.load.monitor.name
+      mq.job.load.price.name
     ])
   })
 
@@ -53,7 +52,7 @@ export async function findBusyMatch(): Promise<BusyMatch | null> {
   for (const spec of specs) {
     const queue = mq.connect(spec.queueName)
     try {
-      for (const status of ['waiting', 'active'] as const) {
+      for (const status of ['waiting', 'active', 'prioritized'] as const) {
         const PAGE = 100
         let start = 0
         while (true) {

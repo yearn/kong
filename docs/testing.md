@@ -220,6 +220,8 @@ against lost compiler coverage. When fixing the last known error in a workspace,
 remove its now-resolved baseline entries in the same commit. Resolving some entries
 while others still match remains allowed.
 
+Ingest startup removes obsolete root-`extract` repeatable `block` jobs before starting workers. Per-chain crons keep their `chainId` payload; verify root repeatables are empty for `block` after rollout. Pool errors report to Sentry without crashing on an idle-client error. Concurrency probes do not overlap. Errors report on the first failure and at most once per minute per worker, including when failed probes alternate with successful probes.
+
 The baseline gate invokes each workspace's declared `typecheck` command. The
 native wrapper emits a completion record only to the gate; abnormal exits,
 signals, unexpected compiler stderr or missing records fail even when earlier

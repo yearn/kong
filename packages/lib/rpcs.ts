@@ -28,12 +28,13 @@ class pool {
   }
 
   private setupRpcs() {
+    const batchSize = Number(process.env['RPC_BATCH_SIZE'] || 0)
     for(const chain of chains) {
       for(const archive of [true, false]) {
         this.rpcs[this.key(chain, archive)] = {
           clients: Array(this.size).fill(createPublicClient({
             chain, transport: http(this.http(chain, archive), {
-              batch: { batchSize: Number(process.env['RPC_BATCH_SIZE'] || 0) }
+              batch: batchSize > 0 ? { batchSize } : false
             })
           })),
           pointers: { next: 0, recycle: 0 }

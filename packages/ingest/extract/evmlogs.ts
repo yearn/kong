@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { rpcs } from '../rpcs'
 import { math, mq } from 'lib'
-import { EvmAddress, EvmAddressSchema, EvmLogSchema, zhexstring } from 'lib/types'
+import { EvmAddressSchema, EvmLogSchema, zhexstring } from 'lib/types'
 import { getBlockTime, getDefaultStartBlockNumber } from 'lib/blocks'
 import { getAddress } from 'viem'
 import db from '../db'
@@ -10,6 +10,23 @@ import { requireHooks } from '../abis'
 import abiutil from '../abiutil'
 import blacklist from 'lib/blacklist'
 import { safeFetchOrExtractDecimals } from '../abis/yearn/lib'
+
+const BLOCK_TIME_CONCURRENCY = 8
+
+async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
+  let next = 0
+  let stopped = false
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (!stopped && next < items.length) {
+      try {
+        await fn(items[next++])
+      } catch (error) {
+        stopped = true
+        throw error
+      }
+    }
+  }))
+}
 
 export class EvmLogsExtractor {
   resolveHooks: ResolveHooks|undefined
@@ -48,12 +65,20 @@ export class EvmLogsExtractor {
     })()
 
     const hooks = this.resolveHooks(abiPath, 'event')
-    const processedLogs: any[] = []
+    let decimals: ReturnType<typeof safeFetchOrExtractDecimals> | undefined
+    const getDecimals = async () => {
+      const pending = decimals ??= safeFetchOrExtractDecimals(chainId, address)
+      const result = await pending
+      if (!result.success && decimals === pending) decimals = undefined
+      return result
+    }
+
+    const kept: { log: (typeof logs)[number], args: any, hook: object }[] = []
     for (const log of logs) {
       if(!log.topics[0]) { throw new Error('!log.topics[0]') }
 
       const args = extractLogArgs(log)
-      if (await tooSmall(chainId, address, args)) {
+      if (await tooSmall(args, getDecimals)) {
         console.log('❌', 'too small', chainId, log.transactionHash)
         continue
       }
@@ -75,16 +100,24 @@ export class EvmLogsExtractor {
         }
       }
 
-      processedLogs.push({
-        ...log,
-        chainId,
-        address: getAddress(log.address),
-        signature: log.topics[0],
-        args,
-        hook: hookResult,
-        blockTime: await getBlockTime(chainId, log.blockNumber || undefined)
-      })
+      kept.push({ log, args, hook: hookResult })
     }
+
+    const blockTimes = new Map<bigint | undefined, bigint>()
+    const blockNumbers = [...new Set(kept.map(({ log }) => log.blockNumber || undefined))]
+    await mapLimit(blockNumbers, BLOCK_TIME_CONCURRENCY, async blockNumber => {
+      blockTimes.set(blockNumber, await getBlockTime(chainId, blockNumber))
+    })
+
+    const processedLogs = kept.map(({ log, args, hook }) => ({
+      ...log,
+      chainId,
+      address: getAddress(log.address),
+      signature: log.topics[0],
+      args,
+      hook,
+      blockTime: blockTimes.get(log.blockNumber || undefined)
+    }))
 
     try {
       await mq.add(mq.job.load.evmlog, {
@@ -119,11 +152,11 @@ export function containsBlacklistedAddress(chainId: number, args: any) {
   return { result: false, address: undefined }
 }
 
-export async function tooSmall(chainId: number, address: EvmAddress, args: any) {
-  const { success, decimals } = await safeFetchOrExtractDecimals(chainId, address)
-  if (!success) return false
+export async function tooSmall(args: any, getDecimals: () => ReturnType<typeof safeFetchOrExtractDecimals>) {
   const amount =  args.value ?? args.assets ?? args.amount
   if (amount === undefined) return false
+  const { success, decimals } = await getDecimals()
+  if (!success) return false
   return math.div(BigInt(amount), 10n ** BigInt(decimals)) < 0.1
 }
 

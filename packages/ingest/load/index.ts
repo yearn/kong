@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { mq, strider, types } from 'lib'
-import db, { firstRow, getTravelledStrides, toUpsertSql, upsertThingDefaults } from '../db'
+import { mq, strider, strings, types } from 'lib'
+import db, { firstRow, getTravelledStrides, toBulkUpsertSql, toUpsertSql, upsertThingDefaults, withTransaction } from '../db'
 import { Processor } from 'lib/processor'
 import { PoolClient } from 'pg'
 import { OutputSchema, SnapshotSchema, ThingSchema, zhexstring } from 'lib/types'
@@ -60,9 +60,7 @@ export async function upsertEvmLog(data: object) {
     batch: z.array(types.EvmLogSchema)
   }).parse(data)
 
-  const client = await db.connect()
-  try {
-    await client.query('BEGIN')
+  await withTransaction(async client => {
     await upsertBatch(batch, 'evmlog', 'chain_id, address, signature, block_number, log_index, transaction_hash', undefined, client)
 
     const current = await getTravelledStrides(chainId, address, client)
@@ -74,24 +72,14 @@ export async function upsertEvmLog(data: object) {
       DO UPDATE SET strides = $3`,
     [chainId, address, JSON.stringify(next)]
     )
-
-    await client.query('COMMIT')
-  } catch(error) {
-    await client.query('ROLLBACK')
-    throw error
-
-  } finally {
-    client.release()
-  }
+  })
 }
 
 
 export async function upsertSnapshot(data: object) {
   const snapshot = SnapshotSchema.parse(data)
-  const client = await db.connect()
 
-  try {
-    await client.query('BEGIN')
+  await withTransaction(async client => {
     const { snapshot: currentSnapshot, hook: currentHook } = (await firstRow(
       'SELECT snapshot, hook FROM snapshot WHERE chain_id = $1 AND address = $2 FOR UPDATE',
       [snapshot.chainId, snapshot.address],
@@ -106,16 +94,7 @@ export async function upsertSnapshot(data: object) {
       meta: snapshot.hook.meta ? { ...currentHook.meta, ...JSON.parse(JSON.stringify(snapshot.hook.meta)) } : currentHook.meta
     }
     await upsert(snapshot, 'snapshot', 'chain_id, address', undefined, client)
-
-    await client.query('COMMIT')
-
-  } catch(error) {
-    await client.query('ROLLBACK')
-    throw error
-
-  } finally {
-    client.release()
-  }
+  })
 }
 
 export async function upsertThing(data: object) {
@@ -139,22 +118,40 @@ export async function upsert(data: object, table: string, pk: string, where?: st
   )
 }
 
+const UPSERT_CHUNK = 500
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function upsertBatch(batch: any[], table: string, pk: string, where?: string, _client?: PoolClient) {
-  const client = _client ?? await db.connect()
-  try {
-    if(!_client) await client.query('BEGIN')
-    for(const object of batch) {
-      await client.query(
-        toUpsertSql(table, pk, object, where),
-        Object.values(object)
-      )
-    }
-    if(!_client) await client.query('COMMIT')
-  } catch (error) {
-    if(!_client) await client.query('ROLLBACK')
-    throw error
-  } finally {
-    if(!_client) client.release()
+  const pkColumns = pk.split(',').map(column => column.trim())
+  const rows = new Map<string, Record<string, unknown>>()
+  for (const object of batch) {
+    const row: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(object)) row[strings.camelToSnake(key)] = value
+    const key = pkColumns.map(column => String(row[column])).join('\u0000')
+    rows.set(key, { ...rows.get(key), ...row })
   }
+
+  const groups = new Map<string, Record<string, unknown>[]>()
+  for (const row of rows.values()) {
+    const fields = Object.keys(row).sort().join(',')
+    const group = groups.get(fields)
+    if (group) group.push(row)
+    else groups.set(fields, [row])
+  }
+
+  const run = async (client: PoolClient) => {
+    for (const [fieldList, group] of groups) {
+      const fields = fieldList.split(',')
+      for (let i = 0; i < group.length; i += UPSERT_CHUNK) {
+        const chunk = group.slice(i, i + UPSERT_CHUNK)
+        await client.query(
+          toBulkUpsertSql(table, pk, fields, chunk.length, where),
+          chunk.flatMap(row => fields.map(field => row[field]))
+        )
+      }
+    }
+  }
+
+  if (_client) await run(_client)
+  else await withTransaction(run)
 }
