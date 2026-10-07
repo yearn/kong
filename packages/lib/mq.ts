@@ -196,25 +196,12 @@ export async function reserveDiscoveryRepair(chainId: number, address: string, m
   const token = `${randomUUID()}:${minimumBlock}`
   const status = await client.eval(`
     if redis.call('EXISTS', KEYS[1]) == 1 then return 'cooldown' end
-    local now = tonumber(ARGV[3])
-    redis.call('ZREMRANGEBYSCORE', KEYS[3], '-inf', now - 2000 * tonumber(ARGV[2]))
-    redis.call('ZREMRANGEBYSCORE', KEYS[4], '-inf', now - 2000 * tonumber(ARGV[2]))
-    local pending = KEYS[3]
-    if redis.call('SISMEMBER', KEYS[5], ARGV[4]) == 1 then pending = KEYS[4] end
-    redis.call('ZADD', pending, 'NX', now, ARGV[4])
     if redis.call('EXISTS', KEYS[2]) == 1 then return 'budget' end
-    local first = redis.call('ZRANGE', KEYS[3], 0, 0)
-    if #first == 0 then first = redis.call('ZRANGE', KEYS[4], 0, 0) end
-    if first[1] ~= ARGV[4] then return 'fairness' end
     redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
     redis.call('SET', KEYS[2], '1', 'EX', 900)
-    redis.call('SADD', KEYS[5], ARGV[4])
-    redis.call('ZREM', KEYS[3], ARGV[4])
-    redis.call('ZREM', KEYS[4], ARGV[4])
     return 'granted'
-  `, 5, `kong:discovery-repair:${chainId}:${address.toLowerCase()}`, 'kong:discovery-repair:global-budget',
-  'kong:discovery-repair:first-pending', 'kong:discovery-repair:retry-pending', 'kong:discovery-repair:admitted',
-  token, DISCOVERY_REPAIR_RETRY_SECONDS, Date.now(), `${chainId}:${address.toLowerCase()}`) as 'granted' | 'cooldown' | 'budget' | 'fairness'
+  `, 2, `kong:discovery-repair:${chainId}:${address.toLowerCase()}`, 'kong:discovery-repair:global-budget',
+  token, DISCOVERY_REPAIR_RETRY_SECONDS) as 'granted' | 'cooldown' | 'budget'
   return { status, token }
 }
 
