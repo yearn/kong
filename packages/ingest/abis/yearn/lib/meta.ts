@@ -39,11 +39,11 @@ async function getMetas<T>(schema: z.ZodType<T>, chainId: number, type: 'tokens'
   const hit = memo.get(key)
   if (hit && hit.expires > Date.now()) return hit.value as Metas<T>
 
-  const value = await cache.wrap(key, async () => {
-    return await extractMetas<T>(schema, chainId, type)
+  const entry = await cache.wrap(key, async () => {
+    return { value: await extractMetas<T>(schema, chainId, type), at: Date.now() }
   }, 5 * 60 * 1000)
-  memo.set(key, { value, expires: Date.now() + 5 * 60 * 1000 })
-  return value
+  memo.set(key, { value: entry.value, expires: entry.at + 5 * 60 * 1000 })
+  return entry.value
 }
 
 async function extractMetas<T>(schema: z.ZodType<T>, chainId: number, type: 'tokens' | 'vaults' | 'strategies'): Promise<Metas<T>> {

@@ -8,7 +8,7 @@ vi.mock('../../../../../prices', () => ({
   fetchErc20PriceUsd: vi.fn(async () => ({ priceUsd: 2, priceSource: 'test' }))
 }))
 
-import { extractDebts, projectDebtAllocator, projectStrategies } from './hook'
+import { extractDebts, projectStrategies } from './hook'
 import { toEventSelector } from 'viem'
 
 const VAULT = '0x1000000000000000000000000000000000000001' as const
@@ -99,27 +99,6 @@ describe('abis/yearn/3/vault/snapshot/hook', () => {
     query.mockClear()
     await extractDebts(1, VAULT, [A], undefined, { asset: ASSET, decimals: 6 })
     expect(query).not.toHaveBeenCalled()
-  })
-
-  it('projectDebtAllocator does not cache an absent allocator', async () => {
-    const vault = '0x6000000000000000000000000000000000000006' as const
-    query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ allocator: ALLOCATOR }] })
-
-    expect(await projectDebtAllocator(1, vault)).toBeUndefined()
-    expect(await projectDebtAllocator(1, vault)).toBe(ALLOCATOR)
-    expect(query).toHaveBeenCalledTimes(2)
-  })
-
-  it('projectDebtAllocator refreshes newly stored allocators on every snapshot', async () => {
-    query.mockResolvedValue({ rows: [{ allocator: ALLOCATOR }] })
-    const vault = '0x4000000000000000000000000000000000000004' as const
-
-    expect(await projectDebtAllocator(1, vault)).toBe(ALLOCATOR)
-    expect(query).toHaveBeenCalledTimes(1)
-
-    query.mockResolvedValueOnce({ rows: [{ allocator: B }] })
-    expect(await projectDebtAllocator(1, vault)).toBe(B)
-    expect(query).toHaveBeenCalledTimes(2)
   })
 
   it('projectStrategies ignores revoke of an unknown strategy', async () => {

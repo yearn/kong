@@ -11,7 +11,7 @@ const VAULT = '0xdA816459F1AB5631232FE5e97a05BBBb94970c95' as const
 describe('abis/yearn/lib/meta', () => {
   beforeEach(() => {
     wrap.mockReset()
-    wrap.mockResolvedValue({ [VAULT]: { displayName: 'yvTest' } })
+    wrap.mockImplementation(async () => ({ value: { [VAULT]: { displayName: 'yvTest' } }, at: Date.now() }))
   })
 
   it('serves repeat lookups from memory, one cache.wrap per (type, chain)', async () => {
@@ -32,6 +32,19 @@ describe('abis/yearn/lib/meta', () => {
       await getVaultMeta(137, VAULT)
       vi.advanceTimersByTime(5 * 60 * 1000 + 1)
       await getVaultMeta(137, VAULT)
+      expect(wrap).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not outlive the Redis entry it was read from', async () => {
+    vi.useFakeTimers()
+    try {
+      wrap.mockImplementation(async () => ({ value: { [VAULT]: { displayName: 'yvTest' } }, at: Date.now() - 4 * 60 * 1000 }))
+      await getVaultMeta(8453, VAULT)
+      vi.advanceTimersByTime(60 * 1000 + 1)
+      await getVaultMeta(8453, VAULT)
       expect(wrap).toHaveBeenCalledTimes(2)
     } finally {
       vi.useRealTimers()

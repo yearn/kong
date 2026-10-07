@@ -220,8 +220,7 @@ export async function projectDebtAllocator(chainId: number, vault: `0x${string}`
   LIMIT 1`,
   [chainId, topic, vault])
   if (events.rows.length === 0) return undefined
-  const value = zhexstring.parse(events.rows[0].allocator)
-  return value
+  return zhexstring.parse(events.rows[0].allocator)
 }
 
 export async function projectRoles(chainId: number, vault: `0x${string}`) {
