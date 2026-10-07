@@ -523,7 +523,7 @@ There are some tickets related to this, that's why we preferred to still have ya
 ### Unexpected ingestion jobs
 
 Unexpected extract/load job names are copied to the Redis `quarantine` queue
-before the original job fails. This queue has no worker or automatic cleanup; its depth is exposed in the probe
+before the original job fails. This queue has no worker and keeps at most 10,000 jobs (`QUARANTINE_MAX` in `packages/lib/mq.ts`); its depth is exposed in the probe
 queue monitor. Use the archive-and-drain command below to reclaim Redis space;
 inspect its original queue/name/data and replay explicitly after fixing the
 producer/consumer mismatch. Original failures retain the existing bounded failed
@@ -535,9 +535,11 @@ retention guarantee. Retired `waveydb`/`price` payloads are drained, logged indi
 and reported to Sentry once per job name per process.
 
 
-Quarantine retention in Redis lasts until operator archive-and-drain (no automatic
-age deletion). During a version mismatch, stop or correct the incompatible
-producer and drain the backlog promptly; do not leave quarantine accumulating.
+Quarantine retention in Redis lasts until operator archive-and-drain, with no age
+deletion, but the queue is capped at 10,000 jobs: each new quarantine write past
+the cap removes the oldest waiting jobs. Removed payloads are not archived and
+cannot be recovered. During a version mismatch, stop or correct the incompatible
+producer and drain the backlog before it reaches the cap.
 
 ```sh
 bun packages/scripts/src/archive-quarantine.ts /secure/archive/quarantine-2026-10-05.jsonl
@@ -554,9 +556,9 @@ would discard the very payloads quarantine is meant to preserve.
 The probe reports `QUARANTINE_BACKLOG` as a Sentry error on the first nonzero depth
 and at most once per minute while the backlog remains. Treat this as an operational
 alert: stop incompatible producers and archive/drain promptly. The queue is also
-listed in `/mq`. Automatic deletion/caps are deliberately absent to preserve the
-payloads; unattended backlog remains a Redis capacity risk, so the alert must be
-routed to an operator before enabling this behavior in production.
+listed in `/mq`. The 10,000-job cap bounds Redis use under `noeviction`, at the cost
+of losing the oldest payloads when the backlog is left unattended, so the alert must
+be routed to an operator before enabling this behavior in production.
 
 After inspecting the archive and fixing the producer/consumer mismatch, replay it:
 
