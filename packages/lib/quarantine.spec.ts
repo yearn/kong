@@ -5,6 +5,7 @@ import { down, quarantine } from './mq'
 describe('unknown-job quarantine', () => {
   it('uses a separate durable queue with a stable ID and original payload', async () => {
     const add = vi.spyOn(Queue.prototype, 'add').mockResolvedValue({} as never)
+    const count = vi.spyOn(Queue.prototype, 'count').mockResolvedValue(0)
     try {
       const original = { queueName: 'extract-1', id: '42', name: 'new-job', data: { chainId: 1, value: 'payload' } }
       await quarantine(original)
@@ -17,6 +18,7 @@ describe('unknown-job quarantine', () => {
       expect(add.mock.contexts[0]).toHaveProperty('name', 'quarantine')
     } finally {
       add.mockRestore()
+      count.mockRestore()
       await down()
     }
   })

@@ -10,6 +10,7 @@ if (!archive) throw new Error('Usage: bun packages/scripts/src/replay-quarantine
 const queues = new Map<string, ReturnType<typeof mq.connect>>()
 const lines = createInterface({ input: createReadStream(archive), crlfDelay: Infinity })
 let count = 0
+let deduplicated = 0
 let lineNumber = 0
 try {
   for await (const line of lines) {
@@ -17,13 +18,16 @@ try {
     if (!line.trim()) continue
     await replayQuarantine(JSON.parse(line), async (name, jobName, data, jobId) => {
       if (!queues.has(name)) queues.set(name, mq.connect(name))
-      return queues.get(name)!.add(jobName, data, { jobId, priority: 100, attempts: 1 })
+      const queue = queues.get(name)!
+      if (await queue.getJob(jobId)) { deduplicated++; return }
+      const added = await queue.add(jobName, data, { jobId, priority: mq.DEFAULT_PRIORITY, attempts: 1 })
+      count++
+      return added
     })
-    count++
   }
-  console.log(`Re-enqueued ${count} archived quarantine records`)
+  console.log(`Re-enqueued ${count} archived quarantine records, ${deduplicated} already present`)
 } catch (error) {
-  console.error(`Replay aborted at line ${lineNumber}; ${count} records re-enqueued from ${archive}`)
+  console.error(`Replay aborted at line ${lineNumber}; ${count} records re-enqueued, ${deduplicated} already present, from ${archive}`)
   throw error
 } finally {
   lines.close()

@@ -29,15 +29,14 @@ function buildQueueSpecs(): QueueSpec[] {
     specs.push({ queueName: `${mq.q.extract}-${chain.id}`, includedNames: perChainNames })
   }
 
-  // load queue: include evmlog, snapshot, thing, output, monitor (exclude block)
+  // load queue: include evmlog, snapshot, thing, output (exclude block, monitor)
   specs.push({
     queueName: mq.q.load,
     includedNames: new Set([
       mq.job.load.evmlog.name,
       mq.job.load.snapshot.name,
       mq.job.load.thing.name,
-      mq.job.load.output.name,
-      mq.job.load.monitor.name
+      mq.job.load.output.name
     ])
   })
 
