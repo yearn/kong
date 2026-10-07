@@ -30,14 +30,10 @@ export default class EventsFanout {
     const to = endBlock ?? await getBlockNumber(chainId)
     const logStride = getLogStride(chainId)
     if (!Number.isSafeInteger(logStride) || logStride <= 0) throw new Error('invalid log stride')
-    // One minute per full-history chunk plus a 15-minute loading margin.
-    // Large backfills must not be re-admitted on every cron tick.
-    const chunks = to >= from ? Number((to - from) / BigInt(logStride) + 1n) : 0
-    const repairWindowSeconds = 900 + chunks * 60
     let repairToken: string | undefined
     if (data.discoveryRepair) {
       const minimumBlock = data.repairBlock === undefined ? undefined : z.bigint({ coerce: true }).nonnegative().parse(data.repairBlock)
-      const admission = await mq.reserveDiscoveryRepair(chainId, address, minimumBlock, repairWindowSeconds)
+      const admission = await mq.reserveDiscoveryRepair(chainId, address, minimumBlock)
       if (admission.status !== 'granted') {
         console.info('DISCOVERY_REPAIR_DEFERRED', { chainId, address, reason: admission.status })
         return
@@ -59,10 +55,10 @@ export default class EventsFanout {
           }, { jobId })
         })
       }
-      if (repairToken) await mq.finishDiscoveryRepair(chainId, address, repairToken, true, repairWindowSeconds)
+      if (repairToken) await mq.finishDiscoveryRepair(chainId, address, repairToken, true)
     } catch (error) {
       if (repairToken) {
-        try { await mq.finishDiscoveryRepair(chainId, address, repairToken, false, repairWindowSeconds) }
+        try { await mq.finishDiscoveryRepair(chainId, address, repairToken, false) }
         catch (releaseError) { console.error('DISCOVERY_REPAIR_RELEASE_FAILED', releaseError) }
       }
       throw error

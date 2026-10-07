@@ -257,6 +257,7 @@ async function repairDiscoveryGap(chainId: number, vault: `0x${string}`, strateg
   }
   if (coveredBlock < BigInt(inceptBlock)) { deferred('incomplete_coverage'); return }
   if (coveredBlock > blockNumber) coveredBlock = blockNumber
+  if (!await mq.claimDiscoveryGapCheck(chainId, vault)) { deferred('repair_pending'); return }
   if (coveredBlock < blockNumber) {
     // Compare both sides at the last continuously loaded block, not at RPC head.
     const queue = EvmAddressSchema.array().parse(await rpcs.next(chainId, coveredBlock).readContract({

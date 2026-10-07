@@ -173,17 +173,32 @@ export async function down() {
   return Promise.all(Object.values(queues).map(async queue => queue.close()))
 }
 
-// Independent Redis keys keep repair admission separate from BullMQ retention.
-export async function reserveDiscoveryRepair(chainId: number, address: string, minimumBlock = 0n, windowSeconds = 900) {
+// Four 15-minute snapshot cycles: an enqueued repair that did not close the gap is re-admitted
+// after this bound, independent of chain height. Deterministic evmlog job IDs drop chunks still queued.
+export const DISCOVERY_REPAIR_RETRY_SECONDS = 3600
+
+// One gap probe and alert per vault per retry window, skipped while a repair is in flight or cooling down.
+export async function claimDiscoveryGapCheck(chainId: number, address: string) {
   if (!queues[q.fanout]) queues[q.fanout] = connect(q.fanout)
   const client = await queues[q.fanout].client
-  if (!Number.isSafeInteger(windowSeconds) || windowSeconds < 900) throw new Error('invalid discovery repair window')
+  return await client.eval(`
+    if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
+    if redis.call('SET', KEYS[2], '1', 'NX', 'EX', ARGV[1]) then return 1 end
+    return 0
+  `, 2, `kong:discovery-repair:${chainId}:${address.toLowerCase()}`, `kong:discovery-gap:${chainId}:${address.toLowerCase()}`,
+  DISCOVERY_REPAIR_RETRY_SECONDS) === 1
+}
+
+// Independent Redis keys keep repair admission separate from BullMQ retention.
+export async function reserveDiscoveryRepair(chainId: number, address: string, minimumBlock = 0n) {
+  if (!queues[q.fanout]) queues[q.fanout] = connect(q.fanout)
+  const client = await queues[q.fanout].client
   const token = `${randomUUID()}:${minimumBlock}`
   const status = await client.eval(`
     if redis.call('EXISTS', KEYS[1]) == 1 then return 'cooldown' end
     local now = tonumber(ARGV[3])
-    redis.call('ZREMRANGEBYSCORE', KEYS[3], '-inf', now - 1800000)
-    redis.call('ZREMRANGEBYSCORE', KEYS[4], '-inf', now - 1800000)
+    redis.call('ZREMRANGEBYSCORE', KEYS[3], '-inf', now - 2000 * tonumber(ARGV[2]))
+    redis.call('ZREMRANGEBYSCORE', KEYS[4], '-inf', now - 2000 * tonumber(ARGV[2]))
     local pending = KEYS[3]
     if redis.call('SISMEMBER', KEYS[5], ARGV[4]) == 1 then pending = KEYS[4] end
     redis.call('ZADD', pending, 'NX', now, ARGV[4])
@@ -199,11 +214,11 @@ export async function reserveDiscoveryRepair(chainId: number, address: string, m
     return 'granted'
   `, 5, `kong:discovery-repair:${chainId}:${address.toLowerCase()}`, 'kong:discovery-repair:global-budget',
   'kong:discovery-repair:first-pending', 'kong:discovery-repair:retry-pending', 'kong:discovery-repair:admitted',
-  token, windowSeconds, Date.now(), `${chainId}:${address.toLowerCase()}`) as 'granted' | 'cooldown' | 'budget' | 'fairness'
+  token, DISCOVERY_REPAIR_RETRY_SECONDS, Date.now(), `${chainId}:${address.toLowerCase()}`) as 'granted' | 'cooldown' | 'budget' | 'fairness'
   return { status, token }
 }
 
-export async function finishDiscoveryRepair(chainId: number, address: string, token: string, successful: boolean, windowSeconds = 900) {
+export async function finishDiscoveryRepair(chainId: number, address: string, token: string, successful: boolean) {
   if (!queues[q.fanout]) queues[q.fanout] = connect(q.fanout)
   const client = await queues[q.fanout].client
   await client.eval(`
@@ -211,7 +226,7 @@ export async function finishDiscoveryRepair(chainId: number, address: string, to
     if ARGV[2] == 'success' then redis.call('SET', KEYS[1], 'enqueued:' .. ARGV[1], 'EX', ARGV[3])
     else redis.call('DEL', KEYS[1]) end
     return 1
-  `, 1, `kong:discovery-repair:${chainId}:${address.toLowerCase()}`, token, successful ? 'success' : 'failure', windowSeconds)
+  `, 1, `kong:discovery-repair:${chainId}:${address.toLowerCase()}`, token, successful ? 'success' : 'failure', DISCOVERY_REPAIR_RETRY_SECONDS)
 }
 
 // Only a later pinned snapshot whose queue agrees with loaded events can grant

@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAddress } from 'viem'
 
-const { query, travelled, add, countMetric, captureMessage, next, readContract, confirm } = vi.hoisted(() => ({
-  query: vi.fn(), travelled: vi.fn(), add: vi.fn(), captureMessage: vi.fn(), countMetric: vi.fn(), next: vi.fn(), readContract: vi.fn(), confirm: vi.fn()
+const { query, travelled, add, countMetric, captureMessage, next, readContract, confirm, claim } = vi.hoisted(() => ({
+  query: vi.fn(), travelled: vi.fn(), add: vi.fn(), captureMessage: vi.fn(), countMetric: vi.fn(), next: vi.fn(), readContract: vi.fn(), confirm: vi.fn(), claim: vi.fn()
 }))
 vi.mock('../../../../../db', () => ({ default: { query }, getSparkline: vi.fn(), getTravelledStrides: travelled }))
 vi.mock('../../../../../rpcs', () => ({ rpcs: { next } }))
 vi.mock('../../../../../prices', () => ({ fetchErc20PriceUsd: vi.fn() }))
 vi.mock('lib', async importOriginal => ({
   ...await importOriginal<typeof import('lib')>(),
-  mq: { add, confirmDiscoveryRepair: confirm, job: { fanout: { events: { name: 'events', queue: 'fanout' } } } },
+  mq: { add, confirmDiscoveryRepair: confirm, claimDiscoveryGapCheck: claim, job: { fanout: { events: { name: 'events', queue: 'fanout' } } } },
   sentry: { captureMessage, countMetric }, abisConfig: { abis: [{ abiPath: 'yearn/3/vault' }] }
 }))
 import { projectStrategies, SnapshotSchema } from './hook'
@@ -25,6 +25,21 @@ describe('vault discovery repair', () => {
     readContract.mockResolvedValue([])
     travelled.mockResolvedValue([{ from: 1n, to: 100n }])
     query.mockResolvedValue({ rows: [] })
+    claim.mockResolvedValue(true)
+  })
+
+  it('probes and alerts once while the gap check is claimed', async () => {
+    travelled.mockResolvedValue([{ from: 1n, to: 99n }])
+    readContract.mockResolvedValue([strategy])
+    claim.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ inceptBlock: '1' }] }).mockResolvedValueOnce({ rows: [] })
+    await projectStrategies(1, vault, undefined, snapshot)
+    query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ inceptBlock: '1' }] })
+    await projectStrategies(1, vault, undefined, snapshot)
+    expect(readContract).toHaveBeenCalledTimes(1)
+    expect(captureMessage.mock.calls.filter(([name]) => name === 'DISCOVERY_GAP')).toHaveLength(1)
+    expect(add).toHaveBeenCalledTimes(1)
+    expect(countMetric).toHaveBeenCalledWith('discovery_gap.deferred', 1, { chainId: '1', reason: 'repair_pending' })
   })
 
   it('refetches real logs from inception when covered history is missing a queued strategy', async () => {
