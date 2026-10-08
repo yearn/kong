@@ -12,7 +12,7 @@ See [`src/quality-assurance/README.md`](./src/quality-assurance/README.md).
 
 ### compare-rest-prod-fork (issue #439 Phase 2)
 
-Compares **prod Kong REST** (`https://kong.yearn.fi` by default) against a **fork** REST base (Neon branch / `USE_PRICE_SERVICE` trial).
+Compares **prod Kong REST** (`https://kong.yearn.fi` by default) against a **fork** REST base (Neon branch trial).
 
 ```bash
 # required: --fork is your trial deployment; prod is always the baseline

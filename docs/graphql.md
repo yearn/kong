@@ -1098,6 +1098,15 @@ Returns [`[RiskScoreLegacy]`](#riskscorelegacy).
 | `cvxAPR` | `Float` | Convex APR |
 | `keepCRV` | `Float` | Keep CRV |
 | `keepVelo` | `Float` | Keep VELO |
+| `grossAPR` | `Float` | Publisher gross APR component |
+| `baseNetAPR` | `Float` | Publisher base net APR component |
+| `baseNetAPY` | `Float` | Publisher base net APY component |
+| `lockerBonusAPR` | `Float` | Publisher locker bonus APR component |
+| `lockerBonusAPY` | `Float` | Publisher locker bonus APY component |
+| `katRewardsAPR` | `Float` | Publisher Katana rewards APR component |
+| `estimatedDebtCoverage` | `Float` | Katana publisher fraction of active strategy debt backed by Morpho/Merkl estimates (0–1; 0.5 means 50%); Kong serves it unchanged and does not enforce the range |
+| `morphoBaseAPY` | `Float` | Katana publisher vault-asset-weighted Morpho base APY contribution, as an annual fractional rate (0.0204 means 2.04%); served unchanged |
+| `morphoRewardsAPR` | `Float` | Katana publisher vault-asset-weighted non-KAT Morpho rewards APR contribution, as an annual fractional rate (0.01 means 1%); served unchanged |
 
 ### Historical
 
