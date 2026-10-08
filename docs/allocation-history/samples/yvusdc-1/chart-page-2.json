@@ -1,0 +1,3930 @@
+{
+  "schemaVersion": 2,
+  "projection": "chart",
+  "generatedAt": 1789069544,
+  "direction": "desc",
+  "dataQuality": {
+    "certification": "provisional",
+    "limitations": [
+      "Envio coverage metadata is unavailable; event replay begins at block 0",
+      "Envio accounting checkpoints are unavailable; unallocated values are omitted",
+      "Envio checkpoint-failure records are unavailable",
+      "Provisional state reconstruction begins at the first indexed transition block 19419991"
+    ]
+  },
+  "vault": {
+    "chainId": 1,
+    "address": "0xbe53a109b494e5c9f97b9cd39fe969be68bf6204",
+    "name": "USDC-1 yVault"
+  },
+  "strategies": {
+    "0x074134a2784f4f66b6ced6f68849382990ff3215": "Morpho Steakhouse USDC Compounder",
+    "0x25f893276544d86a82b1ce407182836f45cb6673": "Spark USDC Lender",
+    "0x39c0aec5738ed939876245224afc7e09c8480a52": "USDC to USDS Depositor",
+    "0x7130570bcefcedbe9d15b5b11a33006156460f8f": "USDC to sUSDS Lender",
+    "0x694e47afd14a64661a04eee674fb331bcdef3737": "Morpho Gauntlet USDC Prime Compounder",
+    "0x888239ffa9a0613f9142c808aa9f7d1948a14f75": "Morpho OEV-boosted USDC Compounder",
+    "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf": "USDC Fluid Lender"
+  },
+  "boundaryStates": {
+    "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24658099-24658147": {
+      "totalIdle": "0",
+      "allocations": [
+        {
+          "currentDebt": "0",
+          "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+        },
+        {
+          "currentDebt": "28608301365726",
+          "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+        },
+        {
+          "currentDebt": "3178700151747",
+          "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+        }
+      ],
+      "blockNumber": 24658147,
+      "totalAssets": "31787001517473",
+      "blockTimestamp": 1773520547
+    }
+  },
+  "currentSnapshot": null,
+  "entries": [
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24903160-24903375",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "6436464456869",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "18781013388224",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "2815903935696",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          }
+        ],
+        "blockNumber": 24903375,
+        "totalAssets": "28033381780789",
+        "blockTimestamp": 1776474647
+      },
+      "endBlock": 24903375,
+      "interval": {
+        "flows": [
+          {
+            "kind": "reported_gain",
+            "amount": "235648753",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "deposit",
+            "amount": "2726337412",
+            "source": {
+              "type": "external"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "140028562932",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "120540631584",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "904316851659",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "reported_loss",
+            "amount": "1",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "accounting"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "1039103608232",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "123056100531",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1239287472031",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "13361134568396",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24903160-24903375",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24894847-24895063",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24903160-24903375?runId=89",
+      "endTimestamp": 1776474647,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1776471426",
+        "deltaAprBps": 5,
+        "publishedAt": 1776471426,
+        "relationship": "governing_policy",
+        "baselineAprBps": 396,
+        "proposedAprBps": 401,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24894847-24895063",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "5076400704501",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "5554665576402",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "17539382076654",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          }
+        ],
+        "blockNumber": 24895063,
+        "totalAssets": "28170448357557",
+        "blockTimestamp": 1776374651
+      },
+      "endBlock": 24895063,
+      "interval": {
+        "flows": [
+          {
+            "kind": "reported_gain",
+            "amount": "29488079689",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "deposit",
+            "amount": "4595541440497",
+            "source": {
+              "type": "external"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "8360580422435",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "2588721941784",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "957179977794",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "5396580945928",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "5076400704501",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "5554665576402",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24894847-24895063",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24817051-24817090",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24894847-24895063?runId=89",
+      "endTimestamp": 1776374651,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1776370602",
+        "deltaAprBps": 20,
+        "publishedAt": 1776370602,
+        "relationship": "governing_policy",
+        "baselineAprBps": 375,
+        "proposedAprBps": 395,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24817051-24817090",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "957179977794",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "30948819282012",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          }
+        ],
+        "blockNumber": 24817090,
+        "totalAssets": "31905999259806",
+        "blockTimestamp": 1775435795
+      },
+      "endBlock": 24817090,
+      "interval": {
+        "flows": [
+          {
+            "kind": "reported_gain",
+            "amount": "535510813",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "deposit",
+            "amount": "1079411862714",
+            "source": {
+              "type": "external"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "855188249228",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "1077446323898",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "853222710412",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "959357369741",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24817051-24817090",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24809627-24809628",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24817051-24817090?runId=89",
+      "endTimestamp": 1775435795,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1775434948",
+        "deltaAprBps": 4,
+        "publishedAt": 1775434948,
+        "relationship": "governing_policy",
+        "baselineAprBps": 366,
+        "proposedAprBps": 370,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24809627-24809628",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "1691778223236",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "29989461912271",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24809628,
+        "totalAssets": "31681240135507",
+        "blockTimestamp": 1775345963
+      },
+      "endBlock": 24809628,
+      "interval": {
+        "flows": [
+          {
+            "kind": "deposit",
+            "amount": "436575226377",
+            "source": {
+              "type": "external"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "14236401819",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "435410650321",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "13069816813",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1639751200420",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24809627-24809628",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24800979-24800979",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24809627-24809628?runId=89",
+      "endTimestamp": 1775345963,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1775240620",
+        "deltaAprBps": 24,
+        "publishedAt": 1775240620,
+        "relationship": "governing_policy",
+        "baselineAprBps": 328,
+        "proposedAprBps": 352,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24800979-24800979",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "2008950",
+        "allocations": [
+          {
+            "currentDebt": "3344599240469",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "27914300061530",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24800979,
+        "totalAssets": "31258901310949",
+        "blockTimestamp": 1775241911
+      },
+      "endBlock": 24800979,
+      "interval": {
+        "flows": [
+          {
+            "kind": "reported_gain",
+            "amount": "923533750",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "reported_gain",
+            "amount": "40950383",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "3526818807814",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "2008950",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "2363138965538",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24800979-24800979",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24800708-24800764",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "unknown",
+        "targetStatus": "unavailable"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24800979-24800979?runId=89",
+      "endTimestamp": 1775241911,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1775240620",
+        "deltaAprBps": 24,
+        "publishedAt": 1775240620,
+        "relationship": "governing_policy",
+        "baselineAprBps": 328,
+        "proposedAprBps": 352,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24800708-24800764",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "3344599240469",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "3525895274064",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "22024342288178",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "2363100024105",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24800764,
+        "totalAssets": "31257936826816",
+        "blockTimestamp": 1775239319
+      },
+      "endBlock": 24800764,
+      "interval": {
+        "flows": [
+          {
+            "kind": "strategy_reallocation",
+            "amount": "3347725034152",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "3528579019301",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "2366225817791",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24800708-24800764",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24800115-24800153",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24800708-24800764?runId=89",
+      "endTimestamp": 1775239319,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1775236901",
+        "deltaAprBps": 47,
+        "publishedAt": 1775236901,
+        "relationship": "governing_policy",
+        "baselineAprBps": 281,
+        "proposedAprBps": 328,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24800115-24800153",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "6692324274621",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "7054474293365",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "12781812416934",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "4729325841896",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24800153,
+        "totalAssets": "31257936826816",
+        "blockTimestamp": 1775231903
+      },
+      "endBlock": 24800153,
+      "interval": {
+        "flows": [
+          {
+            "kind": "withdrawal",
+            "amount": "26670897213",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "1",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1344691449682",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "26670897214",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "948830460015",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24800115-24800153",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24799725-24799911",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24800115-24800153?runId=89",
+      "endTimestamp": 1775231903,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1775226161",
+        "deltaAprBps": 51,
+        "publishedAt": 1775226161,
+        "relationship": "governing_policy",
+        "baselineAprBps": 383,
+        "proposedAprBps": 434,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24799725-24799911",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "8037015724303",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "4787623280881",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "12781812416934",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "5678156301911",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24799911,
+        "totalAssets": "31284607724029",
+        "blockTimestamp": 1775228999
+      },
+      "endBlock": 24799911,
+      "interval": {
+        "flows": [
+          {
+            "kind": "reported_gain",
+            "amount": "29876844890",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "20368223483",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "22685365",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "20345538118",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "7331481746899",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "4227821692310",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "5678156301911",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24799725-24799911",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24795816-24795817",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24799725-24799911?runId=89",
+      "endTimestamp": 1775228999,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1775226161",
+        "deltaAprBps": 51,
+        "publishedAt": 1775226161,
+        "relationship": "governing_policy",
+        "baselineAprBps": 383,
+        "proposedAprBps": 434,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24795816-24795817",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "705533977404",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "559824273936",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "30009740851282",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          }
+        ],
+        "blockNumber": 24795817,
+        "totalAssets": "31275099102622",
+        "blockTimestamp": 1775179775
+      },
+      "endBlock": 24795817,
+      "interval": {
+        "flows": [
+          {
+            "kind": "deposit",
+            "amount": "3999999",
+            "source": {
+              "type": "external"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "81970559783",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "629838830752",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "711805390536",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "565894383344",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24795816-24795817",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24793990-24794047",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24795816-24795817?runId=89",
+      "endTimestamp": 1775179775,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1775175725",
+        "deltaAprBps": 7,
+        "publishedAt": 1775175725,
+        "relationship": "governing_policy",
+        "baselineAprBps": 362,
+        "proposedAprBps": 369,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24793990-24794047",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "1417339367940",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "1125718657280",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "28814007637186",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          }
+        ],
+        "blockNumber": 24794047,
+        "totalAssets": "31357065662406",
+        "blockTimestamp": 1775158475
+      },
+      "endBlock": 24794047,
+      "interval": {
+        "flows": [
+          {
+            "kind": "reported_gain",
+            "amount": "907127791",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "reported_gain",
+            "amount": "12619002493",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "reported_gain",
+            "amount": "1642783145",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "reported_gain",
+            "amount": "18268032110",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "reported_gain",
+            "amount": "940377077",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "deposit",
+            "amount": "6474000123203",
+            "source": {
+              "type": "external"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "6639670605182",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "5879807263754",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "4259871171373",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "7098433715778",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "10369244965467",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "548239254190",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "4055627408418",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1418523933365",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "5949392284291",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "6690298087678",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1129912821075",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "9952635030950",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "1673314041204",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24793990-24794047",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24704586-24704645",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24793990-24794047?runId=89",
+      "endTimestamp": 1775158475,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1775157749",
+        "deltaAprBps": 14,
+        "publishedAt": 1775157749,
+        "relationship": "governing_policy",
+        "baselineAprBps": 348,
+        "proposedAprBps": 362,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24704586-24704645",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "1010776318178",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "1676902110425",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "1845853067110",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "25830692916119",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "1124134409937",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24704645,
+        "totalAssets": "31488358821769",
+        "blockTimestamp": 1774081211
+      },
+      "endBlock": 24704645,
+      "interval": {
+        "flows": [
+          {
+            "kind": "deposit",
+            "amount": "510392504809",
+            "source": {
+              "type": "external"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "27155687509",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "217038866311",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "50656503052",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "1569",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "464388152349",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "201526964476",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "25279087620",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "223567618361",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "223568979610",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24704586-24704645",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24692120-24692286",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24704586-24704645?runId=89",
+      "endTimestamp": 1774081211,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773930018",
+        "deltaAprBps": 9,
+        "publishedAt": 1773930018,
+        "relationship": "governing_policy",
+        "baselineAprBps": 359,
+        "proposedAprBps": 368,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24692120-24692286",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "995264416343",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "1702181198045",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "1795196564058",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "25405596970464",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "1106882855559",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24692286,
+        "totalAssets": "31005122004469",
+        "blockTimestamp": 1773932375
+      },
+      "endBlock": 24692286,
+      "interval": {
+        "flows": [
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1001465440743",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1143995775353",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1798302724414",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1109983367759",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24692120-24692286",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24691873-24691928",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24692120-24692286?runId=89",
+      "endTimestamp": 1773932375,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773930018",
+        "deltaAprBps": 9,
+        "publishedAt": 1773930018,
+        "relationship": "governing_policy",
+        "baselineAprBps": 359,
+        "proposedAprBps": 368,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24691873-24691928",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+          },
+          {
+            "currentDebt": "1996729857086",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "2846176973398",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "3593499288472",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "20351849662195",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "2216866223318",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24691928,
+        "totalAssets": "31005122004469",
+        "blockTimestamp": 1773928055
+      },
+      "endBlock": 24691928,
+      "interval": {
+        "flows": [
+          {
+            "kind": "reported_gain",
+            "amount": "53916689",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "deposit",
+            "amount": "998000000",
+            "source": {
+              "type": "external"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "19189860563",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "396870347807",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "474384064877",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "9342169512907",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "443378567598",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "468505141908",
+            "source": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "2002165211852",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "396873486214",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "2377868189570",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "3600794693548",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "2225661116874",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "443382052008",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24691873-24691928",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24686819-24686981",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24691873-24691928?runId=89",
+      "endTimestamp": 1773928055,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773897618",
+        "deltaAprBps": 22,
+        "publishedAt": 1773897618,
+        "relationship": "governing_policy",
+        "baselineAprBps": 350,
+        "proposedAprBps": 372,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24686819-24686981",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "468451225219",
+            "strategyAddress": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+          },
+          {
+            "currentDebt": "3998898207345",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "4749661098091",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "7194293982020",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "10169424611066",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "4442530824602",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24686981,
+        "totalAssets": "31023259948343",
+        "blockTimestamp": 1773868403
+      },
+      "endBlock": 24686981,
+      "interval": {
+        "flows": [
+          {
+            "kind": "deposit",
+            "amount": "200032232",
+            "source": {
+              "type": "external"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "462653924090",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "1681332048107",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "462446672588",
+            "source": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "397692692223",
+            "source": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "1586882004527",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "2064702679721",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1123182654321",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "4748711346411",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "3967096666945",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "94457262850",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24686819-24686981",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24680197-24680354",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24686819-24686981?runId=89",
+      "endTimestamp": 1773868403,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773865169",
+        "deltaAprBps": 34,
+        "publishedAt": 1773865169,
+        "relationship": "governing_policy",
+        "baselineAprBps": 391,
+        "proposedAprBps": 425,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24680197-24680354",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "1328590590030",
+            "strategyAddress": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+          },
+          {
+            "currentDebt": "1536502835401",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "9524428436660",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "1322399981288",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "17203900576315",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "569891420507",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24680354,
+        "totalAssets": "31485713840201",
+        "blockTimestamp": 1773788459
+      },
+      "endBlock": 24680354,
+      "interval": {
+        "flows": [
+          {
+            "kind": "withdrawal",
+            "amount": "111227841",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "111227841",
+            "source": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "305417931079",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "33646422",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "264485602141",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "2013224",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24680197-24680354",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24679836-24680004",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24680197-24680354?runId=89",
+      "endTimestamp": 1773788459,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773782131",
+        "deltaAprBps": 9,
+        "publishedAt": 1773782131,
+        "relationship": "governing_policy",
+        "baselineAprBps": 357,
+        "proposedAprBps": 366,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24679836-24680004",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "1328701817871",
+            "strategyAddress": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+          },
+          {
+            "currentDebt": "1841920766480",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "9524462083082",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "1586885583429",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "16633961383449",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "569893433731",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24680004,
+        "totalAssets": "31485825068042",
+        "blockTimestamp": 1773784259
+      },
+      "endBlock": 24680004,
+      "interval": {
+        "flows": [
+          {
+            "kind": "deposit",
+            "amount": "480968281545",
+            "source": {
+              "type": "external"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "1000000000",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "479968281545",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "857211085577",
+            "source": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "847573916986",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "339777524574",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1020706972315",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "370232136854",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24679836-24680004",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24678557-24678793",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24679836-24680004?runId=89",
+      "endTimestamp": 1773784259,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773782131",
+        "deltaAprBps": 9,
+        "publishedAt": 1773782131,
+        "relationship": "governing_policy",
+        "baselineAprBps": 357,
+        "proposedAprBps": 366,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24678557-24678793",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "2185912903448",
+            "strategyAddress": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+          },
+          {
+            "currentDebt": "3029272208040",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "7819677080519",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "2607592555744",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "14423276468161",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "940125570585",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24678793,
+        "totalAssets": "31005856786497",
+        "blockTimestamp": 1773769619
+      },
+      "endBlock": 24678793,
+      "interval": {
+        "flows": [
+          {
+            "kind": "deposit",
+            "amount": "3015017169",
+            "source": {
+              "type": "external"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "21389767464",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1838441510236",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1197523547164",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "2908502184908",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "2613785611898",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "18374750295",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "924670533402",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24678557-24678793",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24677225-24677278",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24678557-24678793?runId=89",
+      "endTimestamp": 1773769619,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773764454",
+        "deltaAprBps": 12,
+        "publishedAt": 1773764454,
+        "relationship": "governing_policy",
+        "baselineAprBps": 351,
+        "proposedAprBps": 363,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24677225-24677278",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "347471393212",
+            "strategyAddress": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+          },
+          {
+            "currentDebt": "6065237265440",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "10728179265427",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "5221378167642",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "6778794590789",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "1883170854282",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24677278,
+        "totalAssets": "31024231536792",
+        "blockTimestamp": 1773751211
+      },
+      "endBlock": 24677278,
+      "interval": {
+        "flows": [
+          {
+            "kind": "strategy_reallocation",
+            "amount": "347471393212",
+            "source": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "763196095804",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1123077181633",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24677225-24677278",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24676916-24676978",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24677225-24677278?runId=89",
+      "endTimestamp": 1773751211,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773750089",
+        "deltaAprBps": 14,
+        "publishedAt": 1773750089,
+        "relationship": "governing_policy",
+        "baselineAprBps": 413,
+        "proposedAprBps": 427,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24676916-24676978",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "694942786424",
+            "strategyAddress": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+          },
+          {
+            "currentDebt": "4954569776424",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "10728179265427",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "4098300986009",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "6778794590789",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "3769444131719",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24676978,
+        "totalAssets": "31024231536792",
+        "blockTimestamp": 1773747599
+      },
+      "endBlock": 24676978,
+      "interval": {
+        "flows": [
+          {
+            "kind": "strategy_reallocation",
+            "amount": "694942786424",
+            "source": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1452188842505",
+            "source": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1917297508973",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "105227581187",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "3667057751681",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24676916-24676978",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24676240-24676292",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24676916-24676978?runId=89",
+      "endTimestamp": 1773747599,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773746525",
+        "deltaAprBps": 19,
+        "publishedAt": 1773746525,
+        "relationship": "governing_policy",
+        "baselineAprBps": 394,
+        "proposedAprBps": 413,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24676240-24676292",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "1389885572848",
+            "strategyAddress": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+          },
+          {
+            "currentDebt": "6406758618929",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "6558522546338",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "6015598494982",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "3111736839108",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "7541729464587",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24676292,
+        "totalAssets": "31024231536792",
+        "blockTimestamp": 1773739331
+      },
+      "endBlock": 24676292,
+      "interval": {
+        "flows": [
+          {
+            "kind": "withdrawal",
+            "amount": "63967775",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "63967775",
+            "source": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "229640888753",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1079597904867",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1200652639380",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24676240-24676292",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24675803-24676142",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24676240-24676292?runId=89",
+      "endTimestamp": 1773739331,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773731935",
+        "deltaAprBps": 12,
+        "publishedAt": 1773731935,
+        "relationship": "governing_policy",
+        "baselineAprBps": 438,
+        "proposedAprBps": 450,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24675803-24676142",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "1160308651870",
+            "strategyAddress": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+          },
+          {
+            "currentDebt": "4126508074682",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "7867761339958",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "7216251134362",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "3111736839108",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "7541729464587",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24676142,
+        "totalAssets": "31024295504567",
+        "blockTimestamp": 1773737519
+      },
+      "endBlock": 24676142,
+      "interval": {
+        "flows": [
+          {
+            "kind": "reported_gain",
+            "amount": "373107083",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "reported_gain",
+            "amount": "17080281",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "reported_gain",
+            "amount": "5507354",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "reported_gain",
+            "amount": "154854",
+            "source": {
+              "type": "accounting"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "deposit",
+            "amount": "11946173",
+            "source": {
+              "type": "external"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "575412466",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "563466293",
+            "source": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1165904775147",
+            "source": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "31067241749",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "2153596519285",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "3769126306168",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24675803-24676142",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24674165-24674309",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24675803-24676142?runId=89",
+      "endTimestamp": 1773737519,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773731935",
+        "deltaAprBps": 12,
+        "publishedAt": 1773731935,
+        "relationship": "governing_policy",
+        "baselineAprBps": 438,
+        "proposedAprBps": 450,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24674165-24674309",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "2326403786227",
+            "strategyAddress": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+          },
+          {
+            "currentDebt": "4126490994401",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "7898828581707",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "3865677090827",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "9034459664561",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "3772603003565",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24674309,
+        "totalAssets": "31024463121288",
+        "blockTimestamp": 1773715403
+      },
+      "endBlock": 24674309,
+      "interval": {
+        "flows": [
+          {
+            "kind": "withdrawal",
+            "amount": "232631738",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "231562541",
+            "source": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "1069197",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1579214901645",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24674165-24674309",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24673423-24673639",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24674165-24674309?runId=89",
+      "endTimestamp": 1773715403,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773688866",
+        "deltaAprBps": 28,
+        "publishedAt": 1773688866,
+        "relationship": "governing_policy",
+        "baselineAprBps": 373,
+        "proposedAprBps": 401,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24673423-24673639",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "2326635348768",
+            "strategyAddress": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+          },
+          {
+            "currentDebt": "2547276092756",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "9478044552549",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "3865677090827",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "9034459664561",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "3772603003565",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24673639,
+        "totalAssets": "31024695753026",
+        "blockTimestamp": 1773707315
+      },
+      "endBlock": 24673639,
+      "interval": {
+        "flows": [
+          {
+            "kind": "withdrawal",
+            "amount": "234413739",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "234413739",
+            "source": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "71613397",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "772549969104",
+            "source": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "753934307766",
+            "source": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24673423-24673639",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24672236-24672449",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24673423-24673639?runId=89",
+      "endTimestamp": 1773707315,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773688866",
+        "deltaAprBps": 28,
+        "publishedAt": 1773688866,
+        "relationship": "governing_policy",
+        "baselineAprBps": 373,
+        "proposedAprBps": 401,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24672236-24672449",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "2326869762507",
+            "strategyAddress": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+          },
+          {
+            "currentDebt": "1020720202489",
+            "strategyAddress": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+          },
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "9478116165946",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "4638227059931",
+            "strategyAddress": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+          },
+          {
+            "currentDebt": "9034459664561",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          },
+          {
+            "currentDebt": "4526537311331",
+            "strategyAddress": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+          }
+        ],
+        "blockNumber": 24672449,
+        "totalAssets": "31024930166765",
+        "blockTimestamp": 1773692903
+      },
+      "endBlock": 24672449,
+      "interval": {
+        "flows": [
+          {
+            "kind": "deposit",
+            "amount": "875263939768",
+            "source": {
+              "type": "external"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "1011270729837",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "875035977027",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "101840484",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "1011144607580",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "2326869762507",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x00c8a649c9837523ebb406ceb17a6378ab5c74cf"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1020720202489",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x074134a2784f4f66b6ced6f68849382990ff3215"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "2977590843385",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "1660636216546",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x694e47afd14a64661a04eee674fb331bcdef3737"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "4526435470847",
+            "source": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x888239ffa9a0613f9142c808aa9f7d1948a14f75"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24672236-24672449",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24666537-24666733",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24672236-24672449?runId=89",
+      "endTimestamp": 1773692903,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773688866",
+        "deltaAprBps": 28,
+        "publishedAt": 1773688866,
+        "relationship": "governing_policy",
+        "baselineAprBps": 373,
+        "proposedAprBps": 401,
+        "applicationStatus": "confirmed"
+      }
+    },
+    {
+      "id": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24666537-24666733",
+      "kind": "strategy_reallocation",
+      "after": {
+        "totalIdle": "0",
+        "allocations": [
+          {
+            "currentDebt": "0",
+            "strategyAddress": "0x25f893276544d86a82b1ce407182836f45cb6673"
+          },
+          {
+            "currentDebt": "16814441581907",
+            "strategyAddress": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+          },
+          {
+            "currentDebt": "14346495374927",
+            "strategyAddress": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+          }
+        ],
+        "blockNumber": 24666733,
+        "totalAssets": "31160936956834",
+        "blockTimestamp": 1773623951
+      },
+      "endBlock": 24666733,
+      "interval": {
+        "flows": [
+          {
+            "kind": "deposit",
+            "amount": "406147576153",
+            "source": {
+              "type": "external"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "withdrawal",
+            "amount": "1032212136792",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "external"
+            },
+            "attribution": "observed_event"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "406147576711",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deployment",
+            "amount": "3377",
+            "source": {
+              "type": "idle"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "idle_deallocation",
+            "amount": "1032212140727",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "idle"
+            },
+            "attribution": "derived_from_debt_updates"
+          },
+          {
+            "kind": "strategy_reallocation",
+            "amount": "11167795219803",
+            "source": {
+              "type": "strategy",
+              "address": "0x39c0aec5738ed939876245224afc7e09c8480a52"
+            },
+            "target": {
+              "type": "strategy",
+              "address": "0x7130570bcefcedbe9d15b5b11a33006156460f8f"
+            },
+            "attribution": "derived_from_debt_updates"
+          }
+        ],
+        "endKind": "allocation_entry",
+        "toEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24666537-24666733",
+        "fromEntryId": "allocation-entry:1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204:24658099-24658147",
+        "reconciliation": {
+          "balanceStatus": "reconciled",
+          "attributionStatus": "complete",
+          "unattributedAmount": "0"
+        }
+      },
+      "execution": {
+        "mechanism": "allocator_keeper",
+        "automation": "automatic",
+        "targetStatus": "matched"
+      },
+      "detailsHref": "/api/rest/views/allocation-history/1/0xbe53a109b494e5c9f97b9cd39fe969be68bf6204/entries/allocation-entry%3A1%3A0xbe53a109b494e5c9f97b9cd39fe969be68bf6204%3A24666537-24666733?runId=89",
+      "endTimestamp": 1773623951,
+      "expectedAprImpact": {
+        "scope": "proposal",
+        "source": "doa",
+        "status": "available",
+        "policyId": "allocation-policy:doa:optimizations:1:1773620788",
+        "deltaAprBps": 8,
+        "publishedAt": 1773620788,
+        "relationship": "governing_policy",
+        "baselineAprBps": 366,
+        "proposedAprBps": 374,
+        "applicationStatus": "confirmed"
+      }
+    }
+  ],
+  "pagination": {
+    "nextCursor": "eyJ2ZXJzaW9uIjoyLCJwcm9qZWN0aW9uSWQiOiIxIiwicnVuSWQiOiI4OSIsInByb2plY3Rpb24iOiJjaGFydCIsImRpcmVjdGlvbiI6ImRlc2MiLCJlbmRCbG9jayI6MjQ2NjY3MzMsImVudHJ5SWQiOiJhbGxvY2F0aW9uLWVudHJ5OjE6MHhiZTUzYTEwOWI0OTRlNWM5Zjk3YjljZDM5ZmU5NjliZTY4YmY2MjA0OjI0NjY2NTM3LTI0NjY2NzMzIn0"
+  }
+}
