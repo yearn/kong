@@ -5,8 +5,8 @@ import { fetchErc20PriceUsd } from './prices'
 const block = 18166519n
 const ypriceEnabled = JSON.parse(process.env.YPRICE_ENABLED || 'false')
 
-describe('prices', () => {
-  it('returns ydaemon price for latest WETH', async () => {
+describe.skipIf(!process.env.HTTP_ARCHIVE_1)('prices', () => {
+  it.skipIf(!process.env.YDAEMON_API)('returns ydaemon price for latest WETH', async () => {
     const doesntMatterWhichBlock = 13n
     const { priceSource, priceUsd } = await fetchErc20PriceUsd(mainnet.id, '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', doesntMatterWhichBlock, true)
     expect(priceSource).to.equal('ydaemon')

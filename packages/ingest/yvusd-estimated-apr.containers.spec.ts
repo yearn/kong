@@ -159,7 +159,7 @@ const COMPOSITION_ASSEMBLED_SQL = `
     )
 `
 
-describe('e2e: yvusd-estimated-apr scoping (issue #409)', () => {
+describe.skipIf(!process.env.HTTP_ARCHIVE_1)('e2e: yvusd-estimated-apr scoping (issue #409)', () => {
   let env: TestEnvironment
   let webUrl: string
   let pool: Pool
@@ -285,7 +285,7 @@ const FRESH_PPS = '1021955'
 
 const ASSET_ERC20 = { chainId: CHAIN_ID, address: ASSET, name: 'USD Coin', symbol: 'USDC', decimals: 6 }
 
-describe('e2e: contract state wins over stale hook keys', () => {
+describe.skipIf(!process.env.HTTP_ARCHIVE_1)('e2e: contract state wins over stale hook keys', () => {
   let env: TestEnvironment
   let webUrl: string
   let pool: Pool

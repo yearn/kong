@@ -1,10 +1,12 @@
 import { expect } from 'chai'
+import { vi, expect as vexpect } from 'vitest'
+import { rpcs } from '../../../../../rpcs'
 import { polygon } from 'viem/chains'
 import { chains } from 'lib'
 import { HarvestSchema, computeApr, totalAssets } from './hook'
 import { addresses } from '../../../../../test-addresses'
 
-const hasPolygon = chains.some(chain => chain.id === polygon.id)
+const hasPolygon = chains.some(chain => chain.id === polygon.id) && !!process.env.HTTP_ARCHIVE_137
 
 function mock() {
   return HarvestSchema.parse({
@@ -28,15 +30,25 @@ describe('abis/yearn/3/strategy/event/hook', function() {
   })
 
   it('extracts zero totalDebt', async function() {
-    const debt = await totalAssets({...mock(), address: addresses.rando })
-    expect(debt).to.equal(0n)
+    const readContract = vi.fn().mockResolvedValue(0n)
+    const next = vi.spyOn(rpcs, 'next').mockReturnValue({ readContract } as never)
+    try {
+      const debt = await totalAssets({...mock(), address: addresses.rando })
+      expect(debt).to.equal(0n)
+      vexpect(readContract).toHaveBeenCalledOnce()
+    } finally { next.mockRestore() }
   })
 
   it('zeros apr on zero debt', async function() {
-    const zeroDebt = {...mock(), address: addresses.rando }
-    const apr = await computeApr(zeroDebt, zeroDebt)
-    expect(apr.gross).to.equal(0)
-    expect(apr.net).to.equal(0)
+    const readContract = vi.fn().mockResolvedValue(0n)
+    const next = vi.spyOn(rpcs, 'next').mockReturnValue({ readContract } as never)
+    try {
+      const zeroDebt = {...mock(), address: addresses.rando }
+      const apr = await computeApr(zeroDebt, zeroDebt)
+      expect(apr.gross).to.equal(0)
+      expect(apr.net).to.equal(0)
+      vexpect(readContract).toHaveBeenCalledTimes(2)
+    } finally { next.mockRestore() }
   })
 
   it.skipIf(!hasPolygon)('computes gross and net apr on profit', async function() {

@@ -40,7 +40,7 @@ Kong comes configured with an index over Yearn Finance's v2 and v3 vault ecosyst
 - [Production](#production)
 
 ## Requirements
-- node, yarn, bun, make, tmux, docker, docker compose, postgresql-client
+- node, bun, make, tmux, docker, docker compose, postgresql-client
 - ♥ for zoo animals
 
 
@@ -328,7 +328,7 @@ Kong resources are managed monorepo style using a workspace.
 
 `NextJS\Graphql` - Raw x enriched data are made available over graphql running in a serverless nextjs function call.
 
-`Testing` - Kong uses mocha\chai for testing. Tests are co-located with the code they test.
+`Testing` - Kong uses vitest for testing. Tests are co-located with the code they test.
 
 `yaml config` - Kong's indexing set is defined by yaml file.
 
@@ -506,7 +506,7 @@ Kong uses viem to interface with rpcs. Because viem is new and changing often, a
 
 ### bun
 Bun has a built in flag on their cli which collapses the texts called [ellide](https://bun.sh/blog/bun-v1.1.43#elide-lines-n-controls-filter-output-line-length), you can use `--elide-lines 0` on each cli command, but it has a lot of bugs.
-There are some tickets related to this, that's why we preferred to still have yarn for our command running on `Makefile`
+There are some tickets related to this, that's why `--elide-lines 0` is only used on the root `lint` scripts and the Makefile `test` target
 
 
 ## Production
