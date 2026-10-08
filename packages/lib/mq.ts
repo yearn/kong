@@ -98,7 +98,9 @@ export async function quarantine(original: { queueName: string, id?: string, nam
   }, { jobId, removeOnComplete: false, removeOnFail: false })
   const excess = await queues[q.quarantine].count() - QUARANTINE_MAX
   if (excess > 0) {
-    for (const old of await queues[q.quarantine].getJobs(['waiting', 'prioritized'], 0, excess - 1, true)) await old.remove()
+    for (const old of await queues[q.quarantine].getJobs(['waiting', 'prioritized'], 0, excess - 1, true)) {
+      if (old) await old.remove()
+    }
   }
   return added
 }

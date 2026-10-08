@@ -16,7 +16,7 @@ vi.mock('bullmq', async importOriginal => ({
   }
 }))
 import { quarantine } from 'lib/mq'
-import Probe from './index'
+import Probe, { queuedDepth } from './index'
 
 describe('quarantine backlog probe', () => {
   it('alerts for the prioritized state produced by quarantine admission', async () => {
@@ -29,7 +29,14 @@ describe('quarantine backlog probe', () => {
       name: 'quarantine', getJobCounts, getJobs: async () => [], client: Promise.resolve({ info: async () => '' })
     } }
     await probe.probeQueues()
-    expect(getJobCounts).toHaveBeenCalledWith('waiting', 'prioritized')
+    expect(getJobCounts).toHaveBeenCalledWith('waiting', 'paused', 'delayed', 'prioritized', 'waiting-children')
     expect(captureMessage).toHaveBeenCalledWith('QUARANTINE_BACKLOG', expect.objectContaining({ extra: expect.objectContaining({ depth: 1 }) }))
+  })
+
+  it('counts the same sets as BullMQ queue.count', async () => {
+    const depth = await queuedDepth({
+      getJobCounts: async () => ({ waiting: 1, paused: 2, delayed: 4, prioritized: 8, 'waiting-children': 16 })
+    } as never)
+    expect(depth).toBe(31)
   })
 })

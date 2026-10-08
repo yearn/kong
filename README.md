@@ -537,7 +537,7 @@ and reported to Sentry once per job name per process.
 
 Quarantine retention in Redis lasts until operator archive-and-drain, with no age
 deletion, but the queue is capped at 10,000 jobs: each new quarantine write past
-the cap removes the oldest waiting jobs. Removed payloads are not archived and
+the cap removes the oldest queued jobs. Removed payloads are not archived and
 cannot be recovered. During a version mismatch, stop or correct the incompatible
 producer and drain the backlog before it reaches the cap.
 

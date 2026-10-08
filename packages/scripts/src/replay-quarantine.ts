@@ -3,7 +3,7 @@ import 'dotenv/config'
 import { createReadStream } from 'node:fs'
 import { createInterface } from 'node:readline'
 import * as mq from 'lib/mq'
-import { replayQuarantine } from 'lib/quarantine'
+import { publishReplay, replayQuarantine } from 'lib/quarantine'
 
 const archive = process.argv[2]
 if (!archive) throw new Error('Usage: bun packages/scripts/src/replay-quarantine.ts <archive.jsonl>')
@@ -19,10 +19,8 @@ try {
     await replayQuarantine(JSON.parse(line), async (name, jobName, data, jobId) => {
       if (!queues.has(name)) queues.set(name, mq.connect(name))
       const queue = queues.get(name)!
-      if (await queue.getJob(jobId)) { deduplicated++; return }
-      const added = await queue.add(jobName, data, { jobId, priority: mq.DEFAULT_PRIORITY, attempts: 1 })
-      count++
-      return added
+      if (await publishReplay(queue, jobName, data, jobId)) count++
+      else deduplicated++
     })
   }
   console.log(`Re-enqueued ${count} archived quarantine records, ${deduplicated} already present`)
