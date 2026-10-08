@@ -3,13 +3,14 @@ import { rpcs } from '../rpcs'
 import { math, mq } from 'lib'
 import { EvmAddress, EvmAddressSchema, EvmLogSchema, zhexstring } from 'lib/types'
 import { getBlockTime, getDefaultStartBlockNumber } from 'lib/blocks'
-import { getAddress } from 'viem'
+import { getAddress, toEventSelector } from 'viem'
 import db from '../db'
 import { ResolveHooks } from '../abis/types'
 import { requireHooks } from '../abis'
 import abiutil from '../abiutil'
 import blacklist from 'lib/blacklist'
 import { safeFetchOrExtractDecimals } from '../abis/yearn/lib'
+import { EnvioLagError, fetchEnvioLogs, invalidateEnvioSource, isEnvioSourceTrusted, partitionEnvioEvents } from '../envio'
 
 export class EvmLogsExtractor {
   resolveHooks: ResolveHooks|undefined
@@ -34,9 +35,42 @@ export class EvmLogsExtractor {
       ? abiutil.exclude([...blacklist.events.ignore, ...blacklist.events.limit], abiutil.events(abi))
       : abiutil.exclude(blacklist.events.ignore, abiutil.events(abi))
 
+    let source = 'rpc'
     const logs = await (async () => {
       if (replay) {
         return await fetchLogs(chainId, address, from, to)
+      } else if (await isEnvioSourceTrusted(chainId, address, abiPath, from)) {
+        const { mapped, unmapped } = partitionEnvioEvents(abiPath, events)
+        let envioLogs: Awaited<ReturnType<typeof fetchEnvioLogs>>
+        try {
+          envioLogs = await fetchEnvioLogs(chainId, address, from, to, mapped, abiPath)
+        } catch (error) {
+          if (error instanceof EnvioLagError) {
+            console.info('ENVIO_LAG_RPC', { chainId, address, abiPath, from: String(from), to: String(to), progress: String(error.progress) })
+          } else {
+            console.warn('ENVIO_RPC_FALLBACK', { chainId, address, abiPath, from: String(from), to: String(to), phase: 'extract', error })
+          }
+          return await rpcs.next(chainId, from).getLogs({ address, events, fromBlock: from, toBlock: to })
+        }
+        // Entity coverage is narrower than an ABI. Never credit missing events
+        // as fetched, and verify empty entity results against RPC.
+        const present = new Set(envioLogs.map(log => log.topics[0]))
+        const emptyMapped = mapped.map(event => ({ event, signature: toEventSelector(event) })).filter(({ signature }) => !present.has(signature))
+        const emptySignatures = new Set(emptyMapped.map(({ signature }) => signature))
+        const rpcEvents = [...unmapped, ...emptyMapped.map(({ event }) => event)]
+        const rpcLogs = rpcEvents.length ? await rpcs.next(chainId, from).getLogs({
+          address, events: rpcEvents, fromBlock: from, toBlock: to
+        }) : []
+        if (emptyMapped.length && rpcLogs.some(log => log.topics[0] !== undefined && emptySignatures.has(log.topics[0]))) {
+          await invalidateEnvioSource(chainId, address, abiPath)
+          console.warn('ENVIO_EMPTY_RPC_MISMATCH', { chainId, address, abiPath, from: String(from), to: String(to) })
+          // Once parity is disproven, no rows from this source can credit the
+          // current chunk. Persist revocation first, then rebuild entirely by RPC.
+          return await rpcs.next(chainId, from).getLogs({ address, events, fromBlock: from, toBlock: to })
+        }
+        source = 'envio'
+        return [...envioLogs, ...rpcLogs].sort((a, b) =>
+          Number((a.blockNumber ?? 0n) - (b.blockNumber ?? 0n)) || (a.logIndex ?? 0) - (b.logIndex ?? 0))
       } else {
         return await rpcs.next(chainId, from).getLogs({
           address,
@@ -46,6 +80,7 @@ export class EvmLogsExtractor {
         })
       }
     })()
+    console.info('EVMLOG_SOURCE', { source, chainId, address, abiPath, from: String(from), to: String(to) })
 
     const hooks = this.resolveHooks(abiPath, 'event')
     const processedLogs: any[] = []
@@ -64,6 +99,8 @@ export class EvmLogsExtractor {
         continue
       }
 
+      const blockTime = ('blockTime' in log ? log.blockTime : undefined) ?? await getBlockTime(chainId, log.blockNumber || undefined)
+      const hookLog = { ...log, blockTime }
       const topic = log.topics[0]
       const topical = hooks.filter(h => h.module.topics && h.module.topics.includes(topic))
 
@@ -71,7 +108,7 @@ export class EvmLogsExtractor {
       for (const hook of topical) {
         hookResult = {
           ...hookResult,
-          ...await hook.module.default(chainId, address, log)
+          ...await hook.module.default(chainId, address, hookLog)
         }
       }
 
@@ -82,7 +119,7 @@ export class EvmLogsExtractor {
         signature: log.topics[0],
         args,
         hook: hookResult,
-        blockTime: await getBlockTime(chainId, log.blockNumber || undefined)
+        blockTime
       })
     }
 
