@@ -147,3 +147,33 @@ describe('e2e: ingest → web snapshot', function() {
   })
 })
 ```
+
+## Signature coverage recovery
+
+The time-based stride rollback tool updates each `(chain_id, address, signature)`
+row separately. Issue-473 inspection and apply paths checksum the stored thing
+address before reading logs/coverage or enqueuing fanout.
+
+The signature down migration refuses to run once nonempty signature rows exist.
+Stop workers and restore a reviewed conservative address-level coverage snapshot
+before rolling back. It never silently discards adopted coverage or combines
+histories with different completeness.
+
+The signature up migration requires stopping all old ingest workers and draining
+queued/active work first; their `(chain_id, address)` conflict target cannot run
+against the new primary key. The migration refuses to proceed until the migration
+connection explicitly sets `kong.signature_migration_workers_stopped=on` (for
+example via `PGOPTIONS='-c kong.signature_migration_workers_stopped=on'`). This is
+an operator acknowledgment after stopping workers, not automatic worker detection.
+Start only the new workers after migration succeeds. Never use a rolling upgrade
+across this schema boundary.
+
+Limit-listed Transfer/Deposit/Withdraw selectors are planned from the default
+recent-history start block. Older blocks are neither queried nor credited for
+those selectors; low-volume discovery selectors retain their full history.
+Legacy address-level coverage is adopted only for non-limit-listed selectors.
+
+
+PR CI executes `load/evmlog.spec.ts` in the ingest integration project with temporary PostgreSQL and Redis containers. This covers legacy adoption/retirement, ambiguous readers, the shared advisory lock and concurrent first loads; the mock project alone does not verify these SQL guarantees.
+
+ABI fanout groups readers before enqueueing event jobs. If address normalization, the things query or a snapshot/timeseries enqueue fails midway through the walk, the grouped event jobs are not flushed for that invocation, including addresses already visited. The default queue policy allows one attempt, so the failed job is not automatically retried; the next scheduled cycle rebuilds the groups, and may wait while partially enqueued work drains through the busy guard. This deferral preserves complete reader groups rather than treating a partially walked address as an unambiguous single-reader source. Operators investigating a skipped cycle should inspect the original fanout failure and pending snapshot/timeseries jobs before refetching.

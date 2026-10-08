@@ -9,6 +9,7 @@
 import 'lib/global'
 import { Pool } from 'pg'
 import { rollback } from 'lib/strider'
+import { StrideSchema } from 'lib/types'
 
 // Target blocks for each chain at the rollback timestamp
 const ROLLBACK_TARGETS = {
@@ -41,6 +42,7 @@ interface StrideRow {
   chain_id: number
   address: string
   strides: string
+  signature: string
 }
 
 interface Stride {
@@ -65,32 +67,32 @@ async function main() {
   console.log('🔍 Checking which addresses will be affected...\n')
 
   // Compute affected addresses for all chains
-  const affectedByChain = new Map<ChainId, Array<{ address: string, strides: Stride[], rolledback: Stride[] }>>()
+  const affectedByChain = new Map<ChainId, Array<{ address: string, signature: string, strides: Stride[], rolledback: Stride[] }>>()
 
   for (const [chainId, targetBlock] of Object.entries(ROLLBACK_TARGETS)) {
     const chain = Number(chainId) as ChainId
     const result = await pool.query<StrideRow>(
-      'SELECT chain_id, address, strides FROM evmlog_strides WHERE chain_id = $1',
+      'SELECT chain_id, address, signature, strides FROM evmlog_strides WHERE chain_id = $1',
       [chain]
     )
 
-    const affected: Array<{ address: string, strides: Stride[], rolledback: Stride[] }> = []
+    const affected: Array<{ address: string, signature: string, strides: Stride[], rolledback: Stride[] }> = []
 
     for (const row of result.rows) {
-      const strides: Stride[] = JSON.parse(row.strides)
+      const strides = StrideSchema.array().parse(JSON.parse(row.strides))
       const rolledback = rollback(strides, targetBlock)
 
       // Only include if rollback changes something
       if (JSON.stringify(strides) !== JSON.stringify(rolledback)) {
-        affected.push({ address: row.address, strides, rolledback })
+        affected.push({ address: row.address, signature: row.signature, strides, rolledback })
       }
     }
 
     affectedByChain.set(chain, affected)
 
     if (affected.length > 0) {
-      console.log(`📌 ${CHAIN_NAMES[chain]} (${chain}): ${affected.length} addresses will be rolled back to block ${targetBlock}`)
-      console.log(`   First few: ${affected.slice(0, 3).map(a => a.address).join(', ')}${affected.length > 3 ? '...' : ''}`)
+      console.log(`📌 ${CHAIN_NAMES[chain]} (${chain}): ${new Set(affected.map(row => row.address)).size} addresses (${affected.length} signature rows) will be rolled back to block ${targetBlock}`)
+      console.log(`   First few: ${[...new Set(affected.map(a => a.address))].slice(0, 3).join(', ')}${affected.length > 3 ? '...' : ''}`)
     } else {
       console.log(`✅ ${CHAIN_NAMES[chain]} (${chain}): No addresses need rollback`)
     }
@@ -104,6 +106,7 @@ async function main() {
   console.log('\n🔄 Starting rollback...\n')
 
   let totalUpdated = 0
+  let totalSkipped = 0
 
   for (const [chainId] of Object.entries(ROLLBACK_TARGETS)) {
     const chain = Number(chainId) as ChainId
@@ -111,25 +114,48 @@ async function main() {
 
     if (affected.length === 0) continue
 
-    for (const { address, strides, rolledback } of affected) {
-      const rolledbackStridesJson = rolledback.map(s => ({
-        from: s.from.toString(),
-        to: s.to.toString()
-      }))
+    let updated = 0
+    let skipped = 0
+    const updatedAddresses = new Set<string>()
+    for (const { address, signature } of affected) {
+      const client = await pool.connect()
+      let committedCounts: { before: number, after: number } | undefined
+      try {
+        await client.query('BEGIN')
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`evmlog_strides/${chain}/${address}`])
+        const latest = await client.query('SELECT strides FROM evmlog_strides WHERE chain_id = $1 AND address = $2 AND signature = $3 FOR UPDATE', [chain, address, signature])
+        if (!latest.rows.length) {
+          await client.query('COMMIT')
+          skipped++
+          console.warn(`  ↷ Skipped vanished coverage row: ${chain}/${address}/${signature}`)
+          continue
+        }
+        const current = StrideSchema.array().parse(JSON.parse(latest.rows[0].strides))
+        const next = rollback(current, ROLLBACK_TARGETS[chain]).map(stride => ({ from: stride.from.toString(), to: stride.to.toString() }))
+        await client.query(
+          'UPDATE evmlog_strides SET strides = $1 WHERE chain_id = $2 AND address = $3 AND signature = $4',
+          [JSON.stringify(next), chain, address, signature]
+        )
+        await client.query('COMMIT')
+        committedCounts = { before: current.length, after: next.length }
+      } catch (error) {
+        await client.query('ROLLBACK')
+        throw error
+      } finally {
+        client.release()
+      }
 
-      await pool.query(
-        'UPDATE evmlog_strides SET strides = $1 WHERE chain_id = $2 AND address = $3',
-        [JSON.stringify(rolledbackStridesJson), chain, address]
-      )
-
-      console.log(`  ✓ ${CHAIN_NAMES[chain]}: ${address} (${strides.length} → ${rolledback.length} strides)`)
+      updated++
+      updatedAddresses.add(address)
+      console.log(`  ✓ ${CHAIN_NAMES[chain]}: ${address} ${signature} (${committedCounts?.before} → ${committedCounts?.after} strides)`)
     }
 
-    console.log(`\n✅ ${CHAIN_NAMES[chain]}: Updated ${affected.length} addresses\n`)
-    totalUpdated += affected.length
+    console.log(`\n✅ ${CHAIN_NAMES[chain]}: Updated ${updated} signature rows across ${updatedAddresses.size} addresses; skipped ${skipped} vanished rows\n`)
+    totalUpdated += updated
+    totalSkipped += skipped
   }
 
-  console.log(`\n🎉 Rollback complete! Updated ${totalUpdated} total addresses.`)
+  console.log(`\n🎉 Rollback complete! Updated ${totalUpdated} total signature rows; skipped ${totalSkipped} vanished rows.`)
 
   await pool.end()
 }

@@ -3,7 +3,7 @@ import { rpcs } from '../rpcs'
 import { math, mq } from 'lib'
 import { EvmAddress, EvmAddressSchema, EvmLogSchema, zhexstring } from 'lib/types'
 import { getBlockTime, getDefaultStartBlockNumber } from 'lib/blocks'
-import { getAddress } from 'viem'
+import { getAddress, toEventSelector } from 'viem'
 import db from '../db'
 import { ResolveHooks } from '../abis/types'
 import { requireHooks } from '../abis'
@@ -17,26 +17,44 @@ export class EvmLogsExtractor {
   async extract(data: object) {
     if (!this.resolveHooks) this.resolveHooks = await requireHooks()
 
-    const { abiPath, chainId, address, from, to, replay } = z.object({
-      abiPath: z.string(),
+    const { abiPath, abiPaths: _abiPaths, signatures, chainId, address, from, to, replay, limitStartBlock } = z.object({
+      abiPath: z.string().optional(),
+      abiPaths: z.string().array().optional(),
+      signatures: z.string().array().optional(),
       chainId: z.number(),
       address: zhexstring,
       from: z.bigint({ coerce: true }),
       to: z.bigint({ coerce: true }),
-      replay: z.boolean().optional()
+      replay: z.boolean().optional(),
+      limitStartBlock: z.bigint({ coerce: true }).optional()
     }).parse(data)
 
-    const abi = await abiutil.load(abiPath)
-    const defaultStartBlockNumber = await getDefaultStartBlockNumber(chainId)
+    const abiPaths = _abiPaths ?? [abiPath!]
+    const bySignature = new Map<string, any>()
+    for (const path of abiPaths) {
+      for (const event of abiutil.events(await abiutil.load(path))) {
+        const signature = toEventSelector(event)
+        if (!bySignature.has(signature)) bySignature.set(signature, event)
+      }
+    }
+    const requested = [...new Set(signatures ?? [...bySignature.keys()])]
+    if (requested.some(signature => !bySignature.has(signature))) {
+      throw new Error('Requested event signature is not present in the job ABIs')
+    }
+    const union = requested.map(signature => bySignature.get(signature)).filter(Boolean)
+
+    const defaultStartBlockNumber = limitStartBlock ?? await getDefaultStartBlockNumber(chainId)
     const excludeLimitlist = from < defaultStartBlockNumber
 
     const events = excludeLimitlist
-      ? abiutil.exclude([...blacklist.events.ignore, ...blacklist.events.limit], abiutil.events(abi))
-      : abiutil.exclude(blacklist.events.ignore, abiutil.events(abi))
+      ? abiutil.exclude([...blacklist.events.ignore, ...blacklist.events.limit], union)
+      : abiutil.exclude(blacklist.events.ignore, union)
 
     const logs = await (async () => {
       if (replay) {
-        return await fetchLogs(chainId, address, from, to)
+        return (await fetchLogs(chainId, address, from, to)).filter(log => requested.includes(log.signature))
+      } else if (events.length === 0) {
+        return []
       } else {
         return await rpcs.next(chainId, from).getLogs({
           address,
@@ -47,7 +65,7 @@ export class EvmLogsExtractor {
       }
     })()
 
-    const hooks = this.resolveHooks(abiPath, 'event')
+    const hooks = [...new Set(abiPaths.flatMap(path => this.resolveHooks!(path, 'event')))]
     const processedLogs: any[] = []
     for (const log of logs) {
       if(!log.topics[0]) { throw new Error('!log.topics[0]') }
@@ -88,7 +106,7 @@ export class EvmLogsExtractor {
 
     try {
       await mq.add(mq.job.load.evmlog, {
-        chainId, address, from, to,
+        chainId, address, from, to, replay, signatures: signatures ? (replay ? requested : events.map(event => toEventSelector(event))) : undefined,
         batch: EvmLogSchema.array().parse(processedLogs)
       }, {
         priority: mq.LOWEST_PRIORITY

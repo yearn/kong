@@ -53,8 +53,10 @@ export default class Load implements Processor {
 }
 
 export async function upsertEvmLog(data: object) {
-  const { chainId, address, from, to, batch } = z.object({
+  const { chainId, address, from, to, replay, signatures, batch } = z.object({
     chainId: z.number(),
+    replay: z.boolean().optional(),
+    signatures: z.string().array().optional(),
     address: zhexstring,
     from: z.bigint({ coerce: true }),
     to: z.bigint({ coerce: true }),
@@ -66,15 +68,18 @@ export async function upsertEvmLog(data: object) {
     await client.query('BEGIN')
     await upsertBatch(batch, 'evmlog', 'chain_id, address, signature, block_number, log_index, transaction_hash', undefined, client)
 
-    const current = await getTravelledStrides(chainId, address, client)
-    const next = strider.add({ from, to }, current)
-    await client.query(`
-      INSERT INTO evmlog_strides(chain_id, address, strides)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (chain_id, address)
-      DO UPDATE SET strides = $3`,
-    [chainId, address, JSON.stringify(next)]
-    )
+    if (signatures && !replay) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`evmlog_strides/${chainId}/${address}`])
+      const travelled = await getTravelledStrides(chainId, address, signatures, client)
+      const next = signatures.map(signature => JSON.stringify(strider.add({ from, to }, travelled[signature])))
+      await client.query(`
+        INSERT INTO evmlog_strides(chain_id, address, signature, strides)
+        SELECT $1, $2, s.signature, s.strides FROM unnest($3::text[], $4::text[]) AS s(signature, strides)
+        ON CONFLICT (chain_id, address, signature)
+        DO UPDATE SET strides = EXCLUDED.strides`,
+      [chainId, address, signatures, next]
+      )
+    }
 
     await client.query('COMMIT')
   } catch(error) {

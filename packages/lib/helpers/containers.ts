@@ -195,6 +195,7 @@ export class TestEnvironment {
       user: 'user',
       password: 'password',
       database: 'user',
+      workersStopped: true, // isolated fresh test DB, no old ingest workers
     })
     console.log('[test-env] ✅ database migrated')
 

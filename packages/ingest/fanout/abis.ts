@@ -1,4 +1,6 @@
 import { abisConfig, chains, mq, sentry } from 'lib'
+import { AbiConfig, SourceConfig } from 'lib/abis'
+import { getAddress } from 'viem'
 import * as things from '../things'
 import { clearNegativePriceCache } from '../prices'
 import WebhookCollector from './webhooks'
@@ -20,6 +22,12 @@ export default class AbisFanout {
     if ((data as { replay?: { enabled?: boolean } }).replay?.enabled) await clearNegativePriceCache()
 
     const webhookCollector = new WebhookCollector()
+    const readers = new Map<string, { abi: AbiConfig, source: SourceConfig }[]>()
+    const read = (abi: AbiConfig, _source: SourceConfig) => {
+      const source = { ..._source, address: getAddress(_source.address) }
+      const key = `${source.chainId}/${source.address}`
+      readers.set(key, [...(readers.get(key) ?? []), { abi, source }])
+    }
 
     await mq.add(mq.job.extract.manuals, data)
 
@@ -27,7 +35,7 @@ export default class AbisFanout {
       for (const source of abi.sources) {
         console.info('🤝', 'source', 'abiPath', abi.abiPath, source.chainId, source.address)
         const _data = { ...data, chainId: source.chainId, abi, source }
-        await mq.add(mq.job.fanout.events, _data)
+        read(abi, source)
         await mq.add(mq.job.extract.snapshot, _data)
         await mq.add(mq.job.fanout.timeseries, _data)
         webhookCollector.collect(abi, source)
@@ -50,12 +58,16 @@ export default class AbisFanout {
               skip: false,
               only: false
             } }
-          await mq.add(mq.job.fanout.events, _data)
+          read(abi, _data.source)
           await mq.add(mq.job.extract.snapshot, _data)
           await mq.add(mq.job.fanout.timeseries, _data)
           webhookCollector.collect(abi, _data.source)
         }
       }
+    }
+
+    for (const _readers of readers.values()) {
+      await mq.add(mq.job.fanout.events, { ...data, chainId: _readers[0].source.chainId, readers: _readers })
     }
 
     await webhookCollector.flush()

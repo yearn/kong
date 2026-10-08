@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { z } from 'zod'
-import { strings } from 'lib'
-import { StrideSchema, Thing } from 'lib/types'
+import { strings, strider } from 'lib'
+import { Stride, StrideSchema, Thing } from 'lib/types'
 import { Pool, PoolClient, types as pgTypes } from 'pg'
 import { snakeToCamelCols } from 'lib/strings'
 
@@ -67,13 +67,41 @@ export async function firstValue<T>(query: string, params: any[] = [], client?: 
   return result.rows[0] ? result.rows[0][Object.keys(result.rows[0])[0]] as T : undefined
 }
 
-export async function getTravelledStrides(chainId: number, address: `0x${string}`, client?: PoolClient) {
+export async function getTravelledStrides(chainId: number, address: `0x${string}`, signatures: string[], client?: PoolClient) {
   const result = await (client ?? db).query(
-    `SELECT strides FROM evmlog_strides WHERE chain_id = $1 AND address = $2 ${client ? 'FOR UPDATE' : ''};`,
-    [chainId, address]
+    `SELECT signature, strides FROM evmlog_strides WHERE chain_id = $1 AND address = $2 AND signature = ANY($3) ${client ? 'FOR UPDATE' : ''};`,
+    [chainId, address, signatures]
   )
-  const stridesJson = result.rows[0]?.strides
-  return stridesJson ? StrideSchema.array().parse(JSON.parse(stridesJson)) : undefined
+  const travelled: Record<string, Stride[]> = {}
+  for (const row of result.rows) travelled[row.signature] = StrideSchema.array().parse(JSON.parse(row.strides))
+  return travelled
+}
+
+export async function adoptLegacyStrides(chainId: number, address: `0x${string}`, signatures: string[], ambiguous = false) {
+  const legacy = await db.query('SELECT 1 FROM evmlog_strides WHERE chain_id = $1 AND lower(address) = lower($2) AND signature = \'\' LIMIT 1', [chainId, address])
+  if (!legacy.rows.length) return
+  const client = await db.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`evmlog_strides/${chainId}/${address}`])
+    const rows = await client.query('DELETE FROM evmlog_strides WHERE chain_id = $1 AND lower(address) = lower($2) AND signature = \'\' RETURNING strides', [chainId, address])
+    const things = await client.query(`SELECT bool_or(defaults->>'erc4626' = 'true') OR count(DISTINCT label) > 1 AS ambiguous
+      FROM thing WHERE chain_id = $1 AND lower(address) = lower($2)`, [chainId, address])
+    if (!ambiguous && !things.rows[0]?.ambiguous && rows.rows.length && signatures.length) {
+      const current = await getTravelledStrides(chainId, address, signatures, client)
+      const legacyStrides = rows.rows.flatMap(row => StrideSchema.array().parse(JSON.parse(row.strides)))
+      const next = signatures.map(signature => JSON.stringify(legacyStrides.reduce((strides, stride) => strider.add(stride, strides), current[signature] ?? [])))
+      await client.query(`INSERT INTO evmlog_strides(chain_id, address, signature, strides)
+        SELECT $1, $2, s.signature, s.strides FROM unnest($3::text[], $4::text[]) AS s(signature, strides)
+        ON CONFLICT (chain_id, address, signature) DO UPDATE SET strides = EXCLUDED.strides`, [chainId, address, signatures, next])
+    }
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 export async function getSparkline(chainId: number, address: string, label: string, component?: string) {

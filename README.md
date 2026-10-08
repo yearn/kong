@@ -159,7 +159,7 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 ### Postgres schema
 `evmlog` - raw evm logs + event hook data
 
-`evmlog_strides` - state of event block coverage
+`evmlog_strides` - state of event block coverage, per (chain_id, address, event signature)
 
 `snapshot` - latest snapshot of each contract + snapshot hook data
 
@@ -432,7 +432,11 @@ The strides table records which blocks have been queried for logs for all of the
 |-------------|-----------|-------------|----------------|
 | chain_id    | integer   | NO          |                |
 | address     | text      | NO          |                |
+| signature   | text      | NO          |                |
 | strides     | text      | NO          |                |
+
+The primary key is `(chain_id, address, signature)`. The empty signature marks
+legacy address-level coverage. Each nonempty signature records only that selector.
 
 The `strides` field is a json formatted string representing ranges of blocks.
 

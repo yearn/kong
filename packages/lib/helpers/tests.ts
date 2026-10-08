@@ -31,7 +31,8 @@ export const dbMigrate = async ({ postgres }: { postgres: StartedPostgreSqlConta
     port: postgres.getPort(),
     user: postgres.getUsername(),
     password: postgres.getPassword(),
-    database: postgres.getDatabase()
+    database: postgres.getDatabase(),
+    workersStopped: true
   })
 }
 
