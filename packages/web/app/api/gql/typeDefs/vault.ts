@@ -118,16 +118,21 @@ type EstimatedAprComponents {
   cvxAPR: Float
   keepCRV: Float
   keepVelo: Float
-  grossAPR: Float
   baseNetAPR: Float
   baseNetAPY: Float
   lockerBonusAPR: Float
   lockerBonusAPY: Float
+  compoundingPeriodsPerYear: Float
+  katRewardsAPR: Float
+  debtRatio: Float
+  isStrategy: Float
 }
 
 type EstimatedApr {
   apr: Float
   apy: Float
+  grossAPR: Float
+  grossAPY: Float
   type: String!
   components: EstimatedAprComponents!
 }
