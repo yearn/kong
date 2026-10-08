@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { Queue, Worker } from 'bullmq'
 import chains from './chains'
 import { captureException, countMetric, flush as flushSentry } from './sentry'
@@ -170,4 +171,64 @@ export function computeConcurrency(jobs: number, options: ConcurrencyOptions) {
 export async function down() {
   if (MQ_INVENTORY) await flushSentry(5000)
   return Promise.all(Object.values(queues).map(async queue => queue.close()))
+}
+
+// Four 15-minute snapshot cycles: an enqueued repair that did not close the gap is re-admitted
+// after this bound, independent of chain height. Deterministic evmlog job IDs drop chunks still queued.
+export const DISCOVERY_REPAIR_RETRY_SECONDS = 3600
+
+// One gap probe and alert per vault per retry window, skipped while a repair is in flight or cooling down.
+export async function claimDiscoveryGapCheck(chainId: number, address: string) {
+  if (!queues[q.fanout]) queues[q.fanout] = connect(q.fanout)
+  const client = await queues[q.fanout].client
+  return await client.eval(`
+    if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
+    if redis.call('SET', KEYS[2], '1', 'NX', 'EX', ARGV[1]) then return 1 end
+    return 0
+  `, 2, `kong:discovery-repair:${chainId}:${address.toLowerCase()}`, `kong:discovery-gap:${chainId}:${address.toLowerCase()}`,
+  DISCOVERY_REPAIR_RETRY_SECONDS) === 1
+}
+
+// Independent Redis keys keep repair admission separate from BullMQ retention.
+export async function reserveDiscoveryRepair(chainId: number, address: string, minimumBlock = 0n) {
+  if (!queues[q.fanout]) queues[q.fanout] = connect(q.fanout)
+  const client = await queues[q.fanout].client
+  const token = `${randomUUID()}:${minimumBlock}`
+  const status = await client.eval(`
+    if redis.call('EXISTS', KEYS[1]) == 1 then return 'cooldown' end
+    if redis.call('EXISTS', KEYS[2]) == 1 then return 'budget' end
+    redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
+    redis.call('SET', KEYS[2], '1', 'EX', 900)
+    return 'granted'
+  `, 2, `kong:discovery-repair:${chainId}:${address.toLowerCase()}`, 'kong:discovery-repair:global-budget',
+  token, DISCOVERY_REPAIR_RETRY_SECONDS) as 'granted' | 'cooldown' | 'budget'
+  return { status, token }
+}
+
+export async function finishDiscoveryRepair(chainId: number, address: string, token: string, successful: boolean) {
+  if (!queues[q.fanout]) queues[q.fanout] = connect(q.fanout)
+  const client = await queues[q.fanout].client
+  await client.eval(`
+    if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+    if ARGV[2] == 'success' then redis.call('SET', KEYS[1], 'enqueued:' .. ARGV[1], 'EX', ARGV[3])
+    else redis.call('DEL', KEYS[1]) end
+    return 1
+  `, 1, `kong:discovery-repair:${chainId}:${address.toLowerCase()}`, token, successful ? 'success' : 'failure', DISCOVERY_REPAIR_RETRY_SECONDS)
+}
+
+// Only a later pinned snapshot whose queue agrees with loaded events can grant
+// the long cooldown. Older snapshots cannot confirm a newer discovery gap.
+export async function confirmDiscoveryRepair(chainId: number, address: string, blockNumber: bigint) {
+  if (!queues[q.fanout]) queues[q.fanout] = connect(q.fanout)
+  const client = await queues[q.fanout].client
+  return await client.eval(`
+    local value = redis.call('GET', KEYS[1])
+    if not value then return 0 end
+    local minimum = string.match(value, '^enqueued:.*:(%d+)$')
+    if not minimum or minimum == '0' then return 0 end
+    local observed = ARGV[1]
+    if #observed < #minimum or (#observed == #minimum and observed < minimum) then return 0 end
+    redis.call('SET', KEYS[1], 'done', 'EX', 86400)
+    return 1
+  `, 1, `kong:discovery-repair:${chainId}:${address.toLowerCase()}`, blockNumber.toString())
 }

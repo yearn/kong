@@ -147,3 +147,6 @@ describe('e2e: ingest → web snapshot', function() {
   })
 })
 ```
+
+
+Discovery repair admission uses a 15-minute global budget. Each vault's enqueue/verification reservation lasts a fixed 1 hour (`DISCOVERY_REPAIR_RETRY_SECONDS` in `packages/lib/mq.ts`), independent of chain height. A vault refused by the budget keeps no waiting entry; it asks again when its 1-hour detector gate expires, so a vault whose gap heals never blocks others. Failed fanout releases its token-fenced vault reservation while retaining the global budget. A later pinned snapshot grants the 24-hour cooldown only when its default queue is non-empty and every queued strategy is present in the loaded event projection. Empty queues cannot confirm repairs.

@@ -1,11 +1,11 @@
-import { mq, sentry } from 'lib'
+import { abisConfig, mq, sentry } from 'lib'
 import { estimateCreationBlock } from 'lib/blocks'
 import { priced } from 'lib/math'
 import { snakeToCamelCols } from 'lib/strings'
 import { EstimatedAprSchema, EvmAddressSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhexstring } from 'lib/types'
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
-import db, { getSparkline } from '../../../../../db'
+import db, { getSparkline, getTravelledStrides } from '../../../../../db'
 import { getLatestApy, getLatestEstimatedAprV3, getLatestOracleApr } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
@@ -16,6 +16,7 @@ import { getStrategyMeta, getTokenMeta, getVaultMeta } from '../../../lib/meta'
 import { getRiskScore } from '../../../lib/risk'
 import { Roles } from '../../../lib/types'
 import accountantAbi from '../../accountant/abi'
+import vaultAbi from '../abi'
 
 export const CompositionSchema = z.object({
   address: zhexstring,
@@ -85,6 +86,7 @@ export const ResultSchema = z.object({
 })
 
 export const SnapshotSchema = z.object({
+  blockNumber: z.bigint({ coerce: true }).optional(),
   accountant: EvmAddressSchema.optional(),
   role_manager: EvmAddressSchema.optional(),
   use_default_queue: z.boolean().optional(),
@@ -97,7 +99,7 @@ type Snapshot = z.infer<typeof SnapshotSchema>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const snapshot = SnapshotSchema.parse(data)
-  const strategies = await projectStrategies(chainId, address, undefined, snapshot)
+  const strategies = await projectStrategies(chainId, address, snapshot.blockNumber, snapshot)
   const roles = await projectRoles(chainId, address)
   if (snapshot.role_manager) appendRoleManagerPseudoRole(roles, snapshot.role_manager)
 
@@ -183,6 +185,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
 }
 
 export async function projectStrategies(chainId: number, vault: `0x${string}`, blockNumber?: bigint, snapshot?: Snapshot) {
+  blockNumber ??= snapshot?.blockNumber
   const changeType = { [2 ** 0]: 'add', [2 ** 1]: 'revoke' }
   const topic = toEventSelector('event StrategyChanged(address indexed strategy, uint256 change_type)')
   const events = await db.query(`
@@ -195,18 +198,86 @@ export async function projectStrategies(chainId: number, vault: `0x${string}`, b
   [chainId, vault, topic, blockNumber])
   const result: `0x${string}`[] = []
   for (const event of events.rows) {
+    const strategy = EvmAddressSchema.parse(event.strategy)
     if (changeType[event.change_type] === 'add') {
-      result.push(zhexstring.parse(event.strategy))
-    } else {
-      result.splice(result.indexOf(zhexstring.parse(event.strategy)), 1)
+      if (!result.includes(strategy)) result.push(strategy)
+    } else if (changeType[event.change_type] === 'revoke') {
+      const index = result.indexOf(strategy)
+      if (index >= 0) result.splice(index, 1)
     }
   }
 
-  for (const strategy of snapshot?.get_default_queue ?? []) {
-    if (!result.includes(strategy)) { result.push(strategy) }
+  const gaps = [...new Set((snapshot?.get_default_queue ?? []).map(strategy => EvmAddressSchema.parse(strategy)).filter(strategy => !result.includes(strategy)))]
+  result.push(...gaps)
+  const pinnedBlock = blockNumber ?? snapshot?.blockNumber
+  if ((snapshot?.get_default_queue?.length ?? 0) > 0 && gaps.length === 0 && pinnedBlock !== undefined) {
+    try { await mq.confirmDiscoveryRepair(chainId, vault, pinnedBlock) }
+    catch (error) {
+      sentry.captureMessage('DISCOVERY_REPAIR_CONFIRM_FAILED', { level: 'error', extra: { chainId, vault, error: String(error) } })
+    }
+  }
+  if (gaps.length > 0) {
+    try {
+      await repairDiscoveryGap(chainId, vault, gaps, blockNumber ?? snapshot?.blockNumber)
+    } catch (error) {
+      console.error('🚨 DISCOVERY_GAP repair failed', chainId, vault, error)
+      // captureMessage remains visible for ContractFunctionExecutionError, which
+      // the generic exception helper deliberately suppresses for ordinary reads.
+      sentry.captureMessage('DISCOVERY_GAP_CHECK_FAILED', {
+        level: 'error', tags: { component: 'ingest', hook: 'vault.snapshot.projectStrategies' },
+        extra: { chainId, vault, snapshotBlock: (blockNumber ?? snapshot?.blockNumber)?.toString(), error: error instanceof Error ? `${error.name}: ${error.message}` : String(error) }
+      })
+    }
   }
 
   return result
+}
+
+async function repairDiscoveryGap(chainId: number, vault: `0x${string}`, strategies: `0x${string}`[], blockNumber?: bigint) {
+  const deferred = (reason: string) => {
+    console.info('DISCOVERY_GAP_DEFERRED', { chainId, vault, reason, snapshotBlock: blockNumber?.toString() })
+    sentry.countMetric('discovery_gap.deferred', 1, { chainId: String(chainId), reason })
+  }
+  // A head snapshot can arrive before the corresponding extract/load jobs.
+  if (blockNumber === undefined) { deferred('missing_snapshot_block'); return }
+  const travelled = await getTravelledStrides(chainId, vault)
+  if (!travelled?.length) { deferred('missing_coverage'); return }
+
+  const abi = abisConfig.abis.find(a => a.abiPath === 'yearn/3/vault')
+  const thing = await db.query(
+    'SELECT defaults->>\'inceptBlock\' AS "inceptBlock" FROM thing WHERE chain_id = $1 AND address = $2 AND label = \'vault\'',
+    [chainId, vault]
+  )
+  const inceptBlock = thing.rows[0]?.inceptBlock
+  if (!abi || inceptBlock == null) { deferred(!abi ? 'missing_reader' : 'missing_inception'); return }
+  let coveredBlock = BigInt(inceptBlock) - 1n
+  for (const stride of [...travelled].sort((a, b) => a.from < b.from ? -1 : a.from > b.from ? 1 : 0)) {
+    if (stride.from > coveredBlock + 1n) break
+    if (stride.to > coveredBlock) coveredBlock = stride.to
+  }
+  if (coveredBlock < BigInt(inceptBlock)) { deferred('incomplete_coverage'); return }
+  if (coveredBlock > blockNumber) coveredBlock = blockNumber
+  if (!await mq.claimDiscoveryGapCheck(chainId, vault)) { deferred('repair_pending'); return }
+  if (coveredBlock < blockNumber) {
+    // Compare both sides at the last continuously loaded block, not at RPC head.
+    const queue = EvmAddressSchema.array().parse(await rpcs.next(chainId, coveredBlock).readContract({
+      address: vault, abi: vaultAbi, functionName: 'get_default_queue', blockNumber: coveredBlock
+    }))
+    const projected = await projectStrategies(chainId, vault, coveredBlock)
+    strategies = [...new Set(queue.filter(strategy => !projected.includes(strategy)))]
+    if (!strategies.length) { deferred('awaiting_event_coverage'); return }
+  }
+
+  console.error(`🚨 DISCOVERY_GAP: chainId=${chainId} vault=${vault} strategies=${strategies.join(',')}`)
+  sentry.captureMessage('DISCOVERY_GAP', {
+    level: 'warning',
+    tags: { component: 'ingest', hook: 'vault.snapshot.projectStrategies' },
+    extra: { chainId, vault, strategies, snapshotBlock: String(blockNumber), comparisonBlock: String(coveredBlock) }
+  })
+
+  await mq.add(mq.job.fanout.events, {
+    chainId, abi, source: { chainId, address: vault, inceptBlock }, ignoreStrides: true, discoveryRepair: true, repairBlock: coveredBlock
+  }, { jobId: `fanout-events-repair-${chainId}-${vault}`, removeOnComplete: true, removeOnFail: true, attempts: 1 })
 }
 
 export async function projectDebtAllocator(chainId: number, vault: `0x${string}`) {
