@@ -29,4 +29,4 @@ jobs:
     concurrency:
       group: claude-review-${{ github.event.issue.number }}
       cancel-in-progress: true
-    uses: yearn/yearn-gha/.github/workflows/claude-code-review.yml@487b519e989619c4f6ab60b68fc07e3e496fd4c9
+    uses: yearn/yearn-gha/.github/workflows/claude-code-review.yml@ca8eb206d09f5d3af56c9df14c3ab7b652cfafcc
