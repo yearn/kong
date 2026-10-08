@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { queued } = vi.hoisted(() => ({
-  queued: {} as Record<string, { name: string; status: 'waiting' | 'prioritized' | 'active' }[]>
+  queued: {} as Record<string, ({ name: string; status: 'waiting' | 'prioritized' | 'active' } | undefined)[]>
 }))
 
 vi.mock('lib', () => ({
@@ -20,7 +20,7 @@ vi.mock('lib', () => ({
       }
     },
     connect: vi.fn((queueName: string) => ({
-      getJobs: vi.fn(async (statuses: string[]) => (queued[queueName] ?? []).filter(j => statuses.includes(j.status))),
+      getJobs: vi.fn(async (statuses: string[]) => (queued[queueName] ?? []).filter(j => !j || statuses.includes(j.status))),
       close: vi.fn(async () => undefined)
     }))
   }
@@ -48,6 +48,11 @@ describe('isBusy', () => {
 
   it('reports a counted job', async () => {
     queued.load = [{ name: 'output', status: 'prioritized' }]
+    expect(await findBusyMatch()).toEqual({ queue: 'load', jobName: 'output', status: 'prioritized' })
+  })
+
+  it('skips a job removed between the range read and the fetch', async () => {
+    queued.load = [undefined, { name: 'output', status: 'prioritized' }]
     expect(await findBusyMatch()).toEqual({ queue: 'load', jobName: 'output', status: 'prioritized' })
   })
 

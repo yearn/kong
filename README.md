@@ -531,15 +531,18 @@ job policy. If the quarantine write fails, a separate `quarantine_write` Sentry
 event is reported. The original failed job follows the normal shared failed-set
 policy (15 minutes / 100 failures by default); later failures may remove it. Recover
 it immediately from the original queue if needed; a failed copy has no durable
-retention guarantee. Retired `waveydb`/`price` payloads are drained, logged individually,
-and reported to Sentry once per job name per process.
+retention guarantee. Retired `waveydb`/`price` jobs are drained without processing;
+each occurrence is logged by name and reported to Sentry once per job name per process.
+Their payloads are not logged or retained.
 
 
 Quarantine retention in Redis lasts until operator archive-and-drain, with no age
 deletion, but the queue is capped at 10,000 jobs: each new quarantine write past
-the cap removes the oldest queued jobs. Removed payloads are not archived and
-cannot be recovered. During a version mismatch, stop or correct the incompatible
-producer and drain the backlog before it reaches the cap.
+the cap removes the oldest queued jobs and reports `QUARANTINE_DROPPED` (console
+error and Sentry error, `extra.dropped` = number of payloads removed) on every write
+that trims, separately from the `QUARANTINE_BACKLOG` alert. Removed payloads are not
+archived and cannot be recovered. During a version mismatch, stop or correct the
+incompatible producer and drain the backlog before it reaches the cap.
 
 ```sh
 bun packages/scripts/src/archive-quarantine.ts /secure/archive/quarantine-2026-10-05.jsonl
@@ -556,9 +559,11 @@ would discard the very payloads quarantine is meant to preserve.
 The probe reports `QUARANTINE_BACKLOG` as a Sentry error on the first nonzero depth
 and at most once per minute while the backlog remains. Treat this as an operational
 alert: stop incompatible producers and archive/drain promptly. The queue is also
-listed in `/mq`. The 10,000-job cap bounds Redis use under `noeviction`, at the cost
-of losing the oldest payloads when the backlog is left unattended, so the alert must
-be routed to an operator before enabling this behavior in production.
+listed in `/mq`. The cap bounds the job count, not bytes: each payload is stored
+verbatim, and batched `load.evmlog`/`load.output` jobs can carry whole log arrays, so
+a full quarantine can still exhaust Redis `maxmemory` under `noeviction`. The cap only
+limits how far an unattended backlog grows, at the cost of losing the oldest payloads,
+so the alert must be routed to an operator before enabling this behavior in production.
 
 After inspecting the archive and fixing the producer/consumer mismatch, replay it:
 

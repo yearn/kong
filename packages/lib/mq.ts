@@ -1,6 +1,6 @@
 import { Queue, Worker } from 'bullmq'
 import chains from './chains'
-import { captureException, countMetric, flush as flushSentry } from './sentry'
+import { captureException, captureMessage, countMetric, flush as flushSentry } from './sentry'
 import { Job } from './types'
 
 const MQ_INVENTORY = process.env.MQ_INVENTORY === 'true'
@@ -98,8 +98,15 @@ export async function quarantine(original: { queueName: string, id?: string, nam
   }, { jobId, removeOnComplete: false, removeOnFail: false })
   const excess = await queues[q.quarantine].count() - QUARANTINE_MAX
   if (excess > 0) {
+    let dropped = 0
     for (const old of await queues[q.quarantine].getJobs(['waiting', 'prioritized'], 0, excess - 1, true)) {
-      if (old) await old.remove()
+      if (!old) continue
+      await old.remove()
+      dropped++
+    }
+    if (dropped) {
+      console.error('QUARANTINE_DROPPED', { dropped })
+      captureMessage('QUARANTINE_DROPPED', { level: 'error', tags: { component: 'mq', queue: q.quarantine }, extra: { dropped } })
     }
   }
   return added

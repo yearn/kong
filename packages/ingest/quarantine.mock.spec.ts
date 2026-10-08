@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const { add, count, getJobs } = vi.hoisted(() => ({ add: vi.fn(async () => ({})), count: vi.fn(async () => 0), getJobs: vi.fn(async () => [] as { remove: () => void }[]) }))
+const { add, count, getJobs, captureMessage } = vi.hoisted(() => ({ add: vi.fn(async () => ({})), count: vi.fn(async () => 0), getJobs: vi.fn(async () => [] as { remove: () => void }[]), captureMessage: vi.fn() }))
 vi.mock('lib/chains', () => ({ default: [] }))
-vi.mock('lib/sentry', () => ({ captureException: vi.fn(), countMetric: vi.fn(), flush: vi.fn() }))
+vi.mock('lib/sentry', () => ({ captureException: vi.fn(), countMetric: vi.fn(), captureMessage, flush: vi.fn() }))
 vi.mock('bullmq', async importOriginal => {
   const original = await importOriginal<typeof import('bullmq')>()
   return { ...original, Queue: class {
@@ -42,14 +42,23 @@ describe('durable quarantine in the CI mocks project', () => {
     await quarantine({ queueName: 'load', id: '9', name: 'x', data: {} })
     expect(getJobs).toHaveBeenCalledWith(['waiting', 'prioritized'], 0, 1, true)
     expect(remove).toHaveBeenCalledTimes(2)
+    expect(captureMessage).toHaveBeenCalledWith('QUARANTINE_DROPPED', expect.objectContaining({ level: 'error', extra: { dropped: 2 } }))
   })
 
   it('skips a trim slot whose job hash is already gone', async () => {
     const remove = vi.fn()
     count.mockResolvedValueOnce(10_001)
     getJobs.mockResolvedValueOnce([undefined, { remove }])
+    captureMessage.mockClear()
     await quarantine({ queueName: 'load', id: '9', name: 'x', data: {} })
     expect(remove).toHaveBeenCalledTimes(1)
+    expect(captureMessage).toHaveBeenCalledWith('QUARANTINE_DROPPED', expect.objectContaining({ extra: { dropped: 1 } }))
+  })
+
+  it('does not report a drop when the queue is under the cap', async () => {
+    captureMessage.mockClear()
+    await quarantine({ queueName: 'load', id: '9', name: 'x', data: {} })
+    expect(captureMessage).not.toHaveBeenCalled()
   })
 
   it('refuses a job that has no queue or id', async () => {
