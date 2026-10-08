@@ -43,4 +43,19 @@ describe('durable quarantine in the CI mocks project', () => {
     expect(getJobs).toHaveBeenCalledWith(['waiting', 'prioritized'], 0, 1, true)
     expect(remove).toHaveBeenCalledTimes(2)
   })
+
+  it('skips a trim slot whose job hash is already gone', async () => {
+    const remove = vi.fn()
+    count.mockResolvedValueOnce(10_001)
+    getJobs.mockResolvedValueOnce([undefined, { remove }])
+    await quarantine({ queueName: 'load', id: '9', name: 'x', data: {} })
+    expect(remove).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses a job that has no queue or id', async () => {
+    add.mockClear()
+    await expect(quarantine({ queueName: '', id: '1', name: 'x', data: {} })).rejects.toThrow('originating queue')
+    await expect(quarantine({ queueName: 'load', name: 'x', data: {} })).rejects.toThrow('without an ID')
+    expect(add).not.toHaveBeenCalled()
+  })
 })
