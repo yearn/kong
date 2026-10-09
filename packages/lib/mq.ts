@@ -1,6 +1,6 @@
 import { Queue, Worker } from 'bullmq'
 import chains from './chains'
-import { captureException, captureMessage, countMetric, flush as flushSentry } from './sentry'
+import { captureException, countMetric, flush as flushSentry } from './sentry'
 import { Job } from './types'
 
 const MQ_INVENTORY = process.env.MQ_INVENTORY === 'true'
@@ -9,8 +9,7 @@ export const q = {
   fanout: 'fanout',
   extract: 'extract',
   load: 'load',
-  probe: 'probe',
-  quarantine: 'quarantine'
+  probe: 'probe'
 }
 
 export const job: { [queue: string]: { [job: string]: Job } } = {
@@ -52,8 +51,7 @@ export const job: { [queue: string]: { [job: string]: Job } } = {
 // where n is the number of prioritized jobs in the queue
 // (ie, total jobs - non-prioritized jobs)
 export const LOWEST_PRIORITY = 2 ** 21
-export const DEFAULT_PRIORITY = 100
-const QUARANTINE_MAX = 10_000
+const DEFAULT_PRIORITY = 100
 
 const bull = { connection: {
   host: process.env.REDIS_HOST || 'localhost',
@@ -85,31 +83,6 @@ export async function add(job: Job, data: any, options?: any) {
   }
   if (!queues[queue]) { queues[queue] = connect(queue) }
   return await queues[queue].add(job.name, data, { priority: DEFAULT_PRIORITY, attempts: 1, ...options })
-}
-
-// Quarantine has no worker. It keeps at most QUARANTINE_MAX jobs, dropping the oldest. Operators can inspect and
-// replay these payloads after correcting a producer/consumer version mismatch.
-export async function quarantine(original: { queueName: string, id?: string, name: string, data: unknown }) {
-  if (!original.queueName) throw new Error('Cannot quarantine a job without an originating queue')
-  if (!original.id) throw new Error('Cannot quarantine a job without an ID')
-  const jobId = Buffer.from(JSON.stringify([original.queueName, original.id])).toString('base64url')
-  const added = await add({ queue: q.quarantine, name: original.name }, {
-    queue: original.queueName, id: original.id, name: original.name, data: original.data
-  }, { jobId, removeOnComplete: false, removeOnFail: false })
-  const excess = await queues[q.quarantine].count() - QUARANTINE_MAX
-  if (excess > 0) {
-    let dropped = 0
-    for (const old of await queues[q.quarantine].getJobs(['waiting', 'prioritized'], 0, excess - 1, true)) {
-      if (!old) continue
-      await old.remove()
-      dropped++
-    }
-    if (dropped) {
-      console.error('QUARANTINE_DROPPED', { dropped })
-      captureMessage('QUARANTINE_DROPPED', { level: 'error', tags: { component: 'mq', queue: q.quarantine }, extra: { dropped } })
-    }
-  }
-  return added
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

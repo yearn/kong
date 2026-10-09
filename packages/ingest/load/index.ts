@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { mq, strider, types } from 'lib'
 import db, { firstRow, getTravelledStrides, toUpsertSql, upsertThingDefaults } from '../db'
 import { Processor } from 'lib/processor'
-import { quarantineUnknownJob, reportRetiredJob } from '../retired-jobs'
+import { reportRetiredJob } from '../retired-jobs'
 import { PoolClient } from 'pg'
 import { OutputSchema, SnapshotSchema, ThingSchema, zhexstring } from 'lib/types'
 import { Worker } from 'bullmq'
@@ -44,7 +44,7 @@ export default class Load implements Processor {
           reportRetiredJob('load', job.name)
           return
         }
-        return quarantineUnknownJob('load', job)
+        throw new Error(`unknown load job ${job.name}`)
       }
       console.time(label)
       await handler(job.data)
@@ -131,9 +131,10 @@ export async function upsertThing(data: object) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function upsertOutput(data: any) {
+  const parsed = OutputSchema.parse(data)
   const output = {
-    ...OutputSchema.parse(data),
-    series_time: endOfDay(data.block_time)
+    ...parsed,
+    series_time: endOfDay(parsed.blockTime)
   }
   await upsert(output, 'output', 'chain_id, address, label, component, series_time')
 }

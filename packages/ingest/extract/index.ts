@@ -1,7 +1,7 @@
 import { mq } from 'lib'
 import { Worker } from 'bullmq'
 import { Processor } from 'lib/processor'
-import { quarantineUnknownJob, reportRetiredJob } from '../retired-jobs'
+import { reportRetiredJob } from '../retired-jobs'
 import { EvmLogsExtractor } from './evmlogs'
 import { BlockExtractor } from './block'
 import { SnapshotExtractor } from './snapshot'
@@ -30,7 +30,7 @@ export default class Extract implements Processor {
           reportRetiredJob('extract', job.name)
           return
         }
-        return quarantineUnknownJob('extract', job)
+        throw new Error(`unknown extract job ${job.name}`)
       }
       const label = job.data.replay
         ? `🎭 ${job.name} ${job.id} ${job.data.chainId}`

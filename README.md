@@ -520,59 +520,9 @@ There are some tickets related to this, that's why we preferred to still have ya
 | Cache    | [turso.com](turso.com)   |
 
 
-### Unexpected ingestion jobs
+### Retired ingestion jobs
 
-Unexpected extract/load job names are copied to the Redis `quarantine` queue
-before the original job fails. This queue has no worker and keeps at most 10,000 jobs (`QUARANTINE_MAX` in `packages/lib/mq.ts`); its depth is exposed in the probe
-queue monitor. Use the archive-and-drain command below to reclaim Redis space;
-inspect its original queue/name/data and replay explicitly after fixing the
-producer/consumer mismatch. Original failures retain the existing bounded failed
-job policy. If the quarantine write fails, a separate `quarantine_write` Sentry
-event is reported. The original failed job follows the normal shared failed-set
-policy (15 minutes / 100 failures by default); later failures may remove it. Recover
-it immediately from the original queue if needed; a failed copy has no durable
-retention guarantee. Retired `waveydb`/`price` jobs are drained without processing;
-each occurrence is logged by name and reported to Sentry once per job name per process.
-Their payloads are not logged or retained.
-
-
-Quarantine retention in Redis lasts until operator archive-and-drain, with no age
-deletion, but the queue is capped at 10,000 jobs: each new quarantine write past
-the cap removes the oldest queued jobs and reports `QUARANTINE_DROPPED` (console
-error and Sentry error, `extra.dropped` = number of payloads removed) on every write
-that trims, separately from the `QUARANTINE_BACKLOG` alert. Removed payloads are not
-archived and cannot be recovered. During a version mismatch, stop or correct the
-incompatible producer and drain the backlog before it reaches the cap.
-
-```sh
-bun packages/scripts/src/archive-quarantine.ts /secure/archive/quarantine-2026-10-05.jsonl
-```
-
-This command archives and removes up to 1000 waiting/prioritized jobs per run.
-It creates a new private JSONL file, syncs each payload to disk before removing
-its Redis job, and stops on the first archive error without removing that job.
-Repeat with a new filename until the monitored depth reaches zero. Retain the
-files until all archived jobs have been inspected/replayed; automatic deletion
-would discard the very payloads quarantine is meant to preserve.
-
-
-The probe reports `QUARANTINE_BACKLOG` as a Sentry error on the first nonzero depth
-and at most once per minute while the backlog remains. Treat this as an operational
-alert: stop incompatible producers and archive/drain promptly. The queue is also
-listed in `/mq`. The cap bounds the job count, not bytes: each payload is stored
-verbatim, and batched `load.evmlog`/`load.output` jobs can carry whole log arrays, so
-a full quarantine can still exhaust Redis `maxmemory` under `noeviction`. The cap only
-limits how far an unattended backlog grows, at the cost of losing the oldest payloads,
-so the alert must be routed to an operator before enabling this behavior in production.
-
-After inspecting the archive and fixing the producer/consumer mismatch, replay it:
-
-```sh
-bun packages/scripts/src/replay-quarantine.ts /secure/archive/quarantine-2026-10-05.jsonl
-```
-
-Replay restores each payload to its recorded original queue/name with a stable
-`quarantine-replay-` job ID distinct from the failed original's ID. Keep the archive
-until the replayed jobs have completed; rerunning an archive deduplicates while its
-replay job IDs remain in Redis. Once those IDs are cleaned, another run can execute
-again, so operators must track completed archives.
+Retired `extract.waveydb` and `load.price` jobs are drained without processing.
+Each occurrence is logged by name and reported to Sentry once per job name per
+process. Unexpected extract/load job names fail and follow the existing failed-job
+retention policy (15 minutes / 100 failures by default).

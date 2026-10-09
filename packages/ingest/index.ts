@@ -20,7 +20,6 @@ async function fatal(phase: string, error: unknown) {
   process.exit(1)
 }
 
-
 async function start() {
   // Report configuration failures before constructing pools or scheduling jobs.
   try {
@@ -71,7 +70,6 @@ async function start() {
     }).then(() => {
       console.log('⬆', 'abis up')
     }) : Promise.resolve(null)
-
 
   function up() {
     Promise.all([
