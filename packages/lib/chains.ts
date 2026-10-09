@@ -117,7 +117,7 @@ interface YamlConfig { chains: string [] }
 const yamlPath = (() => {
   const local = path.join(__dirname, '../../config', 'chains.local.yaml')
   const production = path.join(__dirname, '../../config', 'chains.yaml')
-  if(fs.existsSync(local)) return local
+  if(!process.env.VITEST && fs.existsSync(local)) return local
   return production
 })()
 
