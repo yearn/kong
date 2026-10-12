@@ -15,18 +15,13 @@ describe('aggregate TVL database reads', () => {
     query.mockResolvedValue({ rows: [] })
   })
 
-  it('selects distinct chain/address vaults with the existing Yearn filter and merged snapshot fields', async () => {
+  it('selects only the vault fields the calculator reads, with the existing Yearn filter', async () => {
     query.mockResolvedValue({
       rows: [{
         chainId: '1',
         address: A,
-        _defaults: { v3: true, origin: 'yearn' },
-        _snapshot: { v3: true, pricePerShare: '42' },
-        _hook: {
-          asset: { address: B, symbol: 'yvTOKEN' },
-          tvl: { close: 100 },
-          debts: [{ strategy: STRATEGY, currentDebtUsd: 25 }],
-        },
+        hook: { tvl: { close: 100 }, debts: [{ strategy: STRATEGY, currentDebtUsd: 25 }] },
+        mergedSnapshot: { asset: { address: B, symbol: 'yvTOKEN' }, v3: true },
       }],
     })
 
@@ -34,22 +29,22 @@ describe('aggregate TVL database reads', () => {
 
     const sql = query.mock.calls[0][0] as string
     assert.doesNotMatch(sql, /DISTINCT|lower\(/)
+    assert.doesNotMatch(sql, /snapshot\.snapshot AS|snapshot\.hook AS|thing\.defaults AS/)
+    assert.match(sql, /'tvl', snapshot\.hook->'tvl'/)
+    assert.match(sql, /'debts', snapshot\.hook->'debts'/)
+    assert.match(sql, /'asset', COALESCE\(NULLIF\(snapshot\.hook->'asset'/)
+    assert.match(sql, /'v3', /)
     assert.match(sql, /thing\.label = \$1/)
-    assert.match(sql, /OR/)
     assert.match(sql, /origin.*yearn/)
     assert.match(sql, /LEFT JOIN snapshot/)
     assert.match(sql, /thing\.address = snapshot\.address/)
     assert.deepEqual(query.mock.calls[0][1], ['vault'])
-    assert.equal(vaults.length, 1)
-    assert.equal(vaults[0].chainId, 1)
-    assert.deepEqual(vaults[0].hook, {
-      asset: { address: B, symbol: 'yvTOKEN' },
-      tvl: { close: 100 },
-      debts: [{ strategy: STRATEGY, currentDebtUsd: 25 }],
-    })
-    assert.deepEqual(vaults[0].mergedSnapshot.asset, { address: B, symbol: 'yvTOKEN' })
-    assert.deepEqual(vaults[0].mergedSnapshot.debts, [{ strategy: STRATEGY, currentDebtUsd: 25 }])
-    assert.equal(vaults[0].mergedSnapshot.v3, true)
+    assert.deepEqual(vaults, [{
+      chainId: 1,
+      address: A,
+      hook: { tvl: { close: 100 }, debts: [{ strategy: STRATEGY, currentDebtUsd: 25 }] },
+      mergedSnapshot: { asset: { address: B, symbol: 'yvTOKEN' }, v3: true },
+    }])
   })
 
   it('batch-reads only unique, valid chain-scoped strategy refs', async () => {

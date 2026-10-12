@@ -1,35 +1,25 @@
 import type { Pool } from 'pg'
 import { EvmAddressSchema } from 'lib/types'
-import { mergeSnapshot } from '../../../../lib/mergeSnapshot'
+import { mergedJsonSql } from '../../../../lib/mergeSnapshot'
 import { buildVaultFilters } from '../../../../lib/vaultFilters'
 import { cronDb } from '../../db/cron'
 import type { AggregateTvlSnapshot, AggregateTvlStrategyRef, AggregateTvlStrategySnapshot } from './aggregate'
 
-type SnapshotDbRow = {
-  chainId: number | string
-  address: string
-  _defaults: Record<string, unknown> | null
-  _snapshot: Record<string, unknown> | null
-  _hook: Record<string, unknown> | null
-}
-
-function toAggregateSnapshot(row: SnapshotDbRow): AggregateTvlSnapshot {
-  return {
-    chainId: Number(row.chainId),
-    address: row.address,
-    hook: row._hook,
-    mergedSnapshot: mergeSnapshot(row._defaults, row._snapshot, row._hook),
-  }
-}
+type VaultDbRow = Omit<AggregateTvlSnapshot, 'chainId'> & { chainId: number | string }
 
 function selectVaultSnapshots(where: string): string {
   return `
     SELECT
       thing.chain_id AS "chainId",
       thing.address,
-      thing.defaults AS _defaults,
-      snapshot.snapshot AS _snapshot,
-      snapshot.hook AS _hook
+      CASE WHEN snapshot.hook IS NULL THEN NULL ELSE jsonb_build_object(
+        'tvl', snapshot.hook->'tvl',
+        'debts', snapshot.hook->'debts'
+      ) END AS hook,
+      jsonb_build_object(
+        'asset', COALESCE(NULLIF(snapshot.hook->'asset', 'null'::jsonb), ${mergedJsonSql('asset')}),
+        'v3', ${mergedJsonSql('v3')}
+      ) AS "mergedSnapshot"
     FROM thing
     LEFT JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
@@ -41,8 +31,8 @@ function selectVaultSnapshots(where: string): string {
 /** Read Yearn vault rows and their snapshots in one query. */
 export async function getAggregateVaults(pool: Pool = cronDb): Promise<AggregateTvlSnapshot[]> {
   const { where, params } = buildVaultFilters({ yearn: true })
-  const result = await pool.query<SnapshotDbRow>(selectVaultSnapshots(where), params)
-  return result.rows.map(toAggregateSnapshot)
+  const result = await pool.query<VaultDbRow>(selectVaultSnapshots(where), params)
+  return result.rows.map(row => ({ ...row, chainId: Number(row.chainId) }))
 }
 
 /**
