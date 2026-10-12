@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert'
+import { getAddress } from 'viem'
 import { getAggregateStrategies, getAggregateVaults } from './db'
 
 const query = vi.fn()
@@ -32,12 +33,12 @@ describe('aggregate TVL database reads', () => {
     const vaults = await getAggregateVaults(pool as never)
 
     const sql = query.mock.calls[0][0] as string
-    assert.match(sql, /SELECT DISTINCT ON \(thing\.chain_id, lower\(thing\.address\)\)/)
+    assert.doesNotMatch(sql, /DISTINCT|lower\(/)
     assert.match(sql, /thing\.label = \$1/)
     assert.match(sql, /OR/)
     assert.match(sql, /origin.*yearn/)
     assert.match(sql, /LEFT JOIN snapshot/)
-    assert.match(sql, /block_number DESC NULLS LAST/)
+    assert.match(sql, /thing\.address = snapshot\.address/)
     assert.deepEqual(query.mock.calls[0][1], ['vault'])
     assert.equal(vaults.length, 1)
     assert.equal(vaults[0].chainId, 1)
@@ -63,9 +64,7 @@ describe('aggregate TVL database reads', () => {
       rows: [{
         chainId: 10,
         address: STRATEGY,
-        _defaults: { kind: 'strategy' },
-        _snapshot: { asset: B },
-        _hook: { aggregateTvlExposures: [] },
+        hook: { aggregateTvlExposures: [{ attributableUsd: 20 }] },
       }],
     })
 
@@ -75,15 +74,16 @@ describe('aggregate TVL database reads', () => {
     assert.match(sql, /unnest\(\$1::int\[\], \$2::text\[\]\)/)
     assert.match(sql, /thing\.label = 'strategy'/)
     assert.match(sql, /requested\.chain_id = thing\.chain_id/)
-    assert.match(sql, /requested\.address = lower\(thing\.address\)/)
-    assert.match(sql, /LEFT JOIN snapshot/)
-    assert.match(sql, /block_number DESC NULLS LAST/)
+    assert.match(sql, /requested\.address = thing\.address/)
+    assert.match(sql, /INNER JOIN snapshot/)
+    assert.doesNotMatch(sql, /lower\(|_defaults|_snapshot/)
+    assert.match(sql, /thing\.address = snapshot\.address/)
     assert.deepEqual(query.mock.calls[0][1], [
       [1, 10],
-      [STRATEGY.toLowerCase(), STRATEGY.toLowerCase()],
+      [getAddress(STRATEGY), getAddress(STRATEGY)],
     ])
     assert.equal(strategies.length, 1)
-    assert.deepEqual(strategies[0].hook, { aggregateTvlExposures: [] })
+    assert.deepEqual(strategies[0].hook, { aggregateTvlExposures: [{ attributableUsd: 20 }] })
     assert.equal(strategies[0].chainId, 10)
   })
 

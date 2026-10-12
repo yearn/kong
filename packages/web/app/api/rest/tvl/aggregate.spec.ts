@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert'
-import { calculateAggregateTvl } from './aggregate'
+import { calculateAggregateTvl, getAggregateTvlStrategyRefs } from './aggregate'
 import type { AggregateTvlSnapshot } from './aggregate'
 
 const A = '0x0000000000000000000000000000000000000001'
@@ -191,7 +191,6 @@ describe('calculateAggregateTvl', () => {
     ], [{
       chainId: 1,
       address: STRATEGY,
-      mergedSnapshot: {},
       hook: {
         aggregateTvlExposures: [
           { parentChainId: 1, parentVaultAddress: A, targetChainId: 1, targetVaultAddress: B, attributableUsd: 30 },
@@ -225,7 +224,6 @@ describe('calculateAggregateTvl', () => {
     ], [{
       chainId: 1,
       address: B,
-      mergedSnapshot: {},
       hook: {
         // A direct vault target is a tracing boundary; this copy cannot add a
         // second, transitive A -> C deduction.
@@ -304,5 +302,27 @@ describe('calculateAggregateTvl', () => {
     assert.equal(resultFor(result, 1, A).contribution, 70)
     assert.equal(result.tvl, 170)
     assertAggregateInvariants(result)
+  })
+})
+
+
+describe('getAggregateTvlStrategyRefs', () => {
+  it('skips included vaults but retains same-address references on other chains', () => {
+    const refs = getAggregateTvlStrategyRefs([
+      vault(1, A, 100, {}, { debts: [{ strategy: B }, { strategy: STRATEGY }, { strategy: STRATEGY }] }),
+      vault(1, B, 50),
+      vault(10, A, 100, {}, { debts: [{ strategy: B }] }),
+    ])
+    assert.deepEqual(refs, [
+      { chainId: 1, address: STRATEGY },
+      { chainId: 10, address: B },
+    ])
+  })
+
+  it('retains strategies whose vault snapshot has unusable TVL', () => {
+    assert.deepEqual(getAggregateTvlStrategyRefs([
+      vault(1, A, 100, {}, { debts: [{ strategy: B }] }),
+      vault(1, B, null),
+    ]), [{ chainId: 1, address: B }])
   })
 })

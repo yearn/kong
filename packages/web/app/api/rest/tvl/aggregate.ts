@@ -5,6 +5,8 @@ export type AggregateTvlSnapshot = {
   mergedSnapshot: Record<string, unknown>
 }
 
+export type AggregateTvlStrategySnapshot = Pick<AggregateTvlSnapshot, 'chainId' | 'address' | 'hook'>
+
 export type AggregateTvlStrategyRef = {
   chainId: number
   address: string
@@ -174,8 +176,12 @@ export function getAggregateTvlStrategyRefs(
   vaultSnapshots: AggregateTvlSnapshot[],
 ): AggregateTvlStrategyRef[] {
   const refs = new Map<string, AggregateTvlStrategyRef>()
-  for (const vault of normalizedRows(vaultSnapshots)) {
-    for (const [key, ref] of strategyRefs(vault)) refs.set(key, ref)
+  const vaults = normalizedRows(vaultSnapshots)
+  const included = new Set(vaults.map(vault => vault.identity))
+  for (const vault of vaults) {
+    for (const [key, ref] of strategyRefs(vault)) {
+      if (!included.has(key)) refs.set(key, ref)
+    }
   }
   return [...refs.values()].sort((a, b) => (
     a.chainId - b.chainId || a.address.localeCompare(b.address)
@@ -197,12 +203,12 @@ function formatUpdatedAt(updatedAt: Date | string): string {
  */
 export function calculateAggregateTvl(
   vaultSnapshots: AggregateTvlSnapshot[],
-  strategySnapshots: AggregateTvlSnapshot[] = [],
+  strategySnapshots: AggregateTvlStrategySnapshot[] = [],
   updatedAt: Date | string = new Date(),
 ): AggregateTvlPayload {
   const vaults = normalizedRows(vaultSnapshots)
   const vaultByIdentity = new Map(vaults.map(vault => [vault.identity, vault]))
-  const strategyByIdentity = new Map<string, AggregateTvlSnapshot>()
+  const strategyByIdentity = new Map<string, AggregateTvlStrategySnapshot>()
 
   for (const strategy of strategySnapshots) {
     const chain = chainId(strategy?.chainId)

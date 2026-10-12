@@ -44,9 +44,7 @@ describe('aggregate TVL refresh', () => {
     await refresh()
 
     assert.deepEqual(getAggregateVaults.mock.calls, [[cronDb]])
-    assert.deepEqual(getAggregateStrategies.mock.calls, [[[
-      { chainId: 1, address: B },
-    ], cronDb]])
+    assert.deepEqual(getAggregateStrategies.mock.calls, [[[], cronDb]])
     assert.equal(cacheMSet.mock.calls.length, 1)
 
     const pairs = cacheMSet.mock.calls[0][0] as Array<[string, string]>

@@ -125,3 +125,14 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+
+### Aggregate TVL database tests
+
+The PostgreSQL integration suite uses a disposable TimescaleDB container and the
+repository's table definitions. With Docker available, run from `packages/web`:
+
+```bash
+RUN_DB_TESTS=1 bun run test app/api/rest/tvl/db.containers.spec.ts
+```
+
+These tests are opt-in; the normal web suite does not start Docker.
