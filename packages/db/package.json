@@ -4,10 +4,17 @@
   "main": "index.ts",
   "license": "MIT",
   "scripts": {
-    "migrate": "../../node_modules/db-migrate/bin/db-migrate"
+    "generate": "drizzle-kit generate",
+    "migrate": "drizzle-kit migrate",
+    "pull": "drizzle-kit pull",
+    "baseline": "bun baseline.ts"
   },
   "dependencies": {
-    "db-migrate": "0.11.14",
-    "db-migrate-pg": "1.5.2"
+    "drizzle-orm": "0.45.3",
+    "pg": "8.13.1"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.11"
   }
 }
