@@ -36,8 +36,7 @@ describe('aggregate TVL database reads', () => {
     assert.match(sql, /thing\.label = \$1/)
     assert.match(sql, /OR/)
     assert.match(sql, /origin.*yearn/)
-    assert.match(sql, /WITH latest_snapshot AS/)
-    assert.match(sql, /LEFT JOIN latest_snapshot AS snapshot/)
+    assert.match(sql, /LEFT JOIN snapshot/)
     assert.match(sql, /block_number DESC NULLS LAST/)
     assert.deepEqual(query.mock.calls[0][1], ['vault'])
     assert.equal(vaults.length, 1)
@@ -77,7 +76,7 @@ describe('aggregate TVL database reads', () => {
     assert.match(sql, /thing\.label = 'strategy'/)
     assert.match(sql, /requested\.chain_id = thing\.chain_id/)
     assert.match(sql, /requested\.address = lower\(thing\.address\)/)
-    assert.match(sql, /LEFT JOIN latest_snapshot AS snapshot/)
+    assert.match(sql, /LEFT JOIN snapshot/)
     assert.match(sql, /block_number DESC NULLS LAST/)
     assert.deepEqual(query.mock.calls[0][1], [
       [1, 10],

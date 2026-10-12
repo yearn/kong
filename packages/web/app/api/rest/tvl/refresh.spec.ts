@@ -59,15 +59,15 @@ describe('aggregate TVL refresh', () => {
     assert.deepEqual({ ...payload, updatedAt: 'generated-at-refresh' }, {
       tvl: 170,
       grossTvl: 250,
-      deduplicatedTvl: 80,
+      deductedTvl: 80,
       updatedAt: 'generated-at-refresh',
-      chains: [{ chainId: 1, tvl: 170, grossTvl: 250, deduplicatedTvl: 80 }],
+      chains: [{ chainId: 1, tvl: 170, grossTvl: 250, deductedTvl: 80 }],
       vaults: [
         {
           chainId: 1,
           address: A,
           grossTvl: 100,
-          deduplicatedTvl: 80,
+          deductedTvl: 80,
           contribution: 20,
           deductions: [{
             targetChainId: 1,
@@ -80,7 +80,7 @@ describe('aggregate TVL refresh', () => {
           chainId: 1,
           address: B,
           grossTvl: 150,
-          deduplicatedTvl: 0,
+          deductedTvl: 0,
           contribution: 150,
           deductions: [],
         },

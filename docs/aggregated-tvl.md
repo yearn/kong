@@ -97,7 +97,7 @@ Return:
 
 - `tvl`: the approximate aggregate after deductions.
 - `grossTvl`: the sum before deductions.
-- `deduplicatedTvl`: the total USD amount deducted.
+- `deductedTvl`: the total USD amount deducted.
 - `updatedAt`: the refresh timestamp.
 - Per-chain totals.
 - Per-vault gross TVL, deductions, and contribution, including the target and reason for each deduction.
@@ -153,6 +153,6 @@ During implementation, cover:
 - Indirect strategy holdings: deduct only the exposure attributable to the parent.
 - Duplicate vault and strategy labels: count each chain/address once.
 
-Verify that per-vault contributions sum to per-chain totals, per-chain totals sum to the aggregate, and `grossTvl - deduplicatedTvl = tvl`.
+Verify that per-vault contributions sum to per-chain totals, per-chain totals sum to the aggregate, and `grossTvl - deductedTvl = tvl`.
 
 Inspect representative snapshot records before adding strategy-specific enrichment. Unresolved positions remain part of the approximation rather than blocking publication.

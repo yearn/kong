@@ -14,6 +14,18 @@ const corsHeaders = {
   'access-control-allow-methods': 'GET,OPTIONS',
 }
 
+function filterByChain(payload: AggregateTvlPayload, chainId: number): AggregateTvlPayload {
+  const chains = payload.chains.filter((chain) => chain.chainId === chainId)
+  return {
+    ...payload,
+    tvl: chains.reduce((total, chain) => total + chain.tvl, 0),
+    grossTvl: chains.reduce((total, chain) => total + chain.grossTvl, 0),
+    deductedTvl: chains.reduce((total, chain) => total + chain.deductedTvl, 0),
+    chains,
+    vaults: payload.vaults.filter((vault) => vault.chainId === chainId),
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const chainIdParam = searchParams.get('chainId')
@@ -49,22 +61,9 @@ export async function GET(request: Request) {
     })
   }
 
-  const response = chainId === undefined
-    ? payload
-    : (() => {
-      const chains = payload.chains.filter((chain) => chain.chainId === chainId)
-      return {
-        ...payload,
-        tvl: chains.reduce((total, chain) => total + chain.tvl, 0),
-        grossTvl: chains.reduce((total, chain) => total + chain.grossTvl, 0),
-        deduplicatedTvl: chains.reduce((total, chain) => total + chain.deduplicatedTvl, 0),
-        chains,
-        vaults: payload.vaults.filter((vault) => vault.chainId === chainId),
-      }
-    })()
+  const response = chainId === undefined ? payload : filterByChain(payload, chainId)
 
   const payloadRefreshHeaders = {
-    ...refreshHeaders,
     'x-last-refresh': payload.updatedAt,
     'access-control-expose-headers': 'x-last-refresh',
   }

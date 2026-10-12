@@ -34,22 +34,22 @@ function resultFor(
 
 function assertAggregateInvariants(result: ReturnType<typeof calculateAggregateTvl>) {
   for (const row of result.vaults) {
-    assert.equal(row.grossTvl - row.deduplicatedTvl, row.contribution)
-    assert.equal(row.deductions.reduce((total, deduction) => total + deduction.amount, 0), row.deduplicatedTvl)
+    assert.equal(row.grossTvl - row.deductedTvl, row.contribution)
+    assert.equal(row.deductions.reduce((total, deduction) => total + deduction.amount, 0), row.deductedTvl)
   }
 
   for (const chain of result.chains) {
     const vaults = result.vaults.filter(vault => vault.chainId === chain.chainId)
     assert.equal(vaults.reduce((total, vault) => total + vault.grossTvl, 0), chain.grossTvl)
-    assert.equal(vaults.reduce((total, vault) => total + vault.deduplicatedTvl, 0), chain.deduplicatedTvl)
+    assert.equal(vaults.reduce((total, vault) => total + vault.deductedTvl, 0), chain.deductedTvl)
     assert.equal(vaults.reduce((total, vault) => total + vault.contribution, 0), chain.tvl)
-    assert.equal(chain.grossTvl - chain.deduplicatedTvl, chain.tvl)
+    assert.equal(chain.grossTvl - chain.deductedTvl, chain.tvl)
   }
 
   assert.equal(result.chains.reduce((total, chain) => total + chain.grossTvl, 0), result.grossTvl)
-  assert.equal(result.chains.reduce((total, chain) => total + chain.deduplicatedTvl, 0), result.deduplicatedTvl)
+  assert.equal(result.chains.reduce((total, chain) => total + chain.deductedTvl, 0), result.deductedTvl)
   assert.equal(result.chains.reduce((total, chain) => total + chain.tvl, 0), result.tvl)
-  assert.equal(result.grossTvl - result.deduplicatedTvl, result.tvl)
+  assert.equal(result.grossTvl - result.deductedTvl, result.tvl)
 }
 
 describe('calculateAggregateTvl', () => {
@@ -61,7 +61,7 @@ describe('calculateAggregateTvl', () => {
 
     assert.equal(result.tvl, 140)
     assert.equal(result.grossTvl, 140)
-    assert.equal(result.deduplicatedTvl, 0)
+    assert.equal(result.deductedTvl, 0)
     assert.equal(result.updatedAt, '2026-01-02T03:04:05.000Z')
     assert.deepEqual(result.chains.map(chain => chain.chainId), [1, 10])
     assertAggregateInvariants(result)
@@ -177,7 +177,7 @@ describe('calculateAggregateTvl', () => {
       vault(1, B, 150),
     ])
 
-    assert.equal(resultFor(result, 1, A).deduplicatedTvl, 25)
+    assert.equal(resultFor(result, 1, A).deductedTvl, 25)
     assert.equal(result.tvl, 225)
     assertAggregateInvariants(result)
   })
@@ -272,7 +272,7 @@ describe('calculateAggregateTvl', () => {
 
     const parent = resultFor(result, 1, A)
     assert.equal(parent.contribution, 0)
-    assert.equal(parent.deduplicatedTvl, 50)
+    assert.equal(parent.deductedTvl, 50)
     assert.equal(parent.deductions.reduce((total, deduction) => total + deduction.amount, 0), 50)
     assert.equal(result.vaults.some(row => row.address.endsWith('0004')), false)
     assert.equal(result.vaults.some(row => row.address.endsWith('0005')), false)

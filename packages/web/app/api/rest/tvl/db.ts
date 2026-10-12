@@ -21,26 +21,8 @@ function toAggregateSnapshot(row: SnapshotDbRow): AggregateTvlSnapshot {
   }
 }
 
-/** Read Yearn vault rows and their snapshots in one query. */
-export async function getAggregateVaults(pool: Pool = cronDb): Promise<AggregateTvlSnapshot[]> {
-  const { where, params } = buildVaultFilters({ yearn: true })
-  const result = await pool.query<SnapshotDbRow>(`
-    WITH latest_snapshot AS (
-      SELECT DISTINCT ON (chain_id, lower(address))
-        chain_id,
-        lower(address) AS normalized_address,
-        snapshot,
-        hook
-      FROM snapshot
-      WHERE EXISTS (
-        SELECT 1
-        FROM thing AS vault_thing
-        WHERE vault_thing.chain_id = snapshot.chain_id
-          AND lower(vault_thing.address) = lower(snapshot.address)
-          AND vault_thing.label = 'vault'
-      )
-      ORDER BY chain_id, lower(address), block_number DESC NULLS LAST, address
-    )
+function selectSnapshots(join: string, where: string): string {
+  return `
     SELECT DISTINCT ON (thing.chain_id, lower(thing.address))
       thing.chain_id AS "chainId",
       thing.address,
@@ -48,13 +30,19 @@ export async function getAggregateVaults(pool: Pool = cronDb): Promise<Aggregate
       snapshot.snapshot AS _snapshot,
       snapshot.hook AS _hook
     FROM thing
-    LEFT JOIN latest_snapshot AS snapshot
+    ${join}
+    LEFT JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
-      AND lower(thing.address) = snapshot.normalized_address
+      AND lower(thing.address) = lower(snapshot.address)
     WHERE ${where}
-    ORDER BY thing.chain_id, lower(thing.address), thing.address
-  `, params)
+    ORDER BY thing.chain_id, lower(thing.address), snapshot.block_number DESC NULLS LAST, thing.address
+  `
+}
 
+/** Read Yearn vault rows and their snapshots in one query. */
+export async function getAggregateVaults(pool: Pool = cronDb): Promise<AggregateTvlSnapshot[]> {
+  const { where, params } = buildVaultFilters({ yearn: true })
+  const result = await pool.query<SnapshotDbRow>(selectSnapshots('', where), params)
   return result.rows.map(toAggregateSnapshot)
 }
 
@@ -78,41 +66,12 @@ export async function getAggregateStrategies(
   const strategies = [...unique.values()]
   if (strategies.length === 0) return []
 
-  const result = await pool.query<SnapshotDbRow>(`
-    WITH requested AS (
-      SELECT chain_id, lower(address) AS address
-      FROM unnest($1::int[], $2::text[]) AS refs(chain_id, address)
-    ), latest_snapshot AS (
-      SELECT DISTINCT ON (chain_id, lower(address))
-        chain_id,
-        lower(address) AS normalized_address,
-        snapshot,
-        hook
-      FROM snapshot
-      WHERE EXISTS (
-        SELECT 1
-        FROM requested
-        WHERE requested.chain_id = snapshot.chain_id
-          AND requested.address = lower(snapshot.address)
-      )
-      ORDER BY chain_id, lower(address), block_number DESC NULLS LAST, address
-    )
-    SELECT DISTINCT ON (thing.chain_id, lower(thing.address))
-      thing.chain_id AS "chainId",
-      thing.address,
-      thing.defaults AS _defaults,
-      snapshot.snapshot AS _snapshot,
-      snapshot.hook AS _hook
-    FROM thing
-    INNER JOIN requested
+  const result = await pool.query<SnapshotDbRow>(selectSnapshots(`
+    INNER JOIN unnest($1::int[], $2::text[]) AS requested(chain_id, address)
       ON requested.chain_id = thing.chain_id
-      AND requested.address = lower(thing.address)
-    LEFT JOIN latest_snapshot AS snapshot
-      ON thing.chain_id = snapshot.chain_id
-      AND lower(thing.address) = snapshot.normalized_address
-    WHERE thing.label = 'strategy'
-    ORDER BY thing.chain_id, lower(thing.address), thing.address
-  `, [strategies.map(ref => ref.chainId), strategies.map(ref => ref.address)])
+      AND requested.address = lower(thing.address)`,
+  'thing.label = \'strategy\'',
+  ), [strategies.map(ref => ref.chainId), strategies.map(ref => ref.address)])
 
   return result.rows.map(toAggregateSnapshot)
 }

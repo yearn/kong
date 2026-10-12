@@ -11,11 +11,11 @@ vi.mock('../cache', () => ({
 const payload = {
   tvl: 260,
   grossTvl: 300,
-  deduplicatedTvl: 40,
+  deductedTvl: 40,
   updatedAt: '2026-01-02T03:04:05.000Z',
   chains: [
-    { chainId: 1, tvl: 100, grossTvl: 120, deduplicatedTvl: 20 },
-    { chainId: 10, tvl: 160, grossTvl: 180, deduplicatedTvl: 20 },
+    { chainId: 1, tvl: 100, grossTvl: 120, deductedTvl: 20 },
+    { chainId: 10, tvl: 160, grossTvl: 180, deductedTvl: 20 },
   ],
   vaults: [
     { chainId: 1, address: '0x0000000000000000000000000000000000000001', contribution: 100 },
@@ -65,7 +65,7 @@ describe('rest TVL route', () => {
       ...payload,
       tvl: 160,
       grossTvl: 180,
-      deduplicatedTvl: 20,
+      deductedTvl: 20,
       chains: [payload.chains[1]],
       vaults: [payload.vaults[1]],
     })

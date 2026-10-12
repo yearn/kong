@@ -40,7 +40,7 @@ export type AggregateTvlVault = {
   chainId: number
   address: string
   grossTvl: number
-  deduplicatedTvl: number
+  deductedTvl: number
   contribution: number
   deductions: AggregateTvlDeduction[]
 }
@@ -49,20 +49,19 @@ export type AggregateTvlChain = {
   chainId: number
   tvl: number
   grossTvl: number
-  deduplicatedTvl: number
+  deductedTvl: number
 }
 
 export type AggregateTvlPayload = {
   tvl: number
   grossTvl: number
-  deduplicatedTvl: number
+  deductedTvl: number
   updatedAt: string
   chains: AggregateTvlChain[]
   vaults: AggregateTvlVault[]
 }
 
 type InternalVault = AggregateTvlSnapshot & {
-  normalizedAddress: string
   grossTvl: number
   identity: string
 }
@@ -116,7 +115,6 @@ function normalizedRows(rows: AggregateTvlSnapshot[]): InternalVault[] {
         ...row,
         chainId: chain,
         address: addr,
-        normalizedAddress: addr,
         grossTvl,
         identity: key,
       })
@@ -124,7 +122,7 @@ function normalizedRows(rows: AggregateTvlSnapshot[]): InternalVault[] {
   }
 
   return [...unique.values()].sort((a, b) => (
-    a.chainId - b.chainId || a.normalizedAddress.localeCompare(b.normalizedAddress)
+    a.chainId - b.chainId || a.address.localeCompare(b.address)
   ))
 }
 
@@ -145,13 +143,31 @@ function isV3(vault: InternalVault): boolean {
   return vault.mergedSnapshot?.v3 === true
 }
 
-function strategyRefs(vault: InternalVault): Set<string> {
-  const refs = new Set<string>()
+function strategyRefs(vault: InternalVault): Map<string, AggregateTvlStrategyRef> {
+  const refs = new Map<string, AggregateTvlStrategyRef>()
   for (const debt of getDebts(vault)) {
     const addr = address(debt.strategy)
-    if (addr) refs.add(identity(vault.chainId, addr))
+    if (addr) refs.set(identity(vault.chainId, addr), { chainId: vault.chainId, address: addr })
   }
   return refs
+}
+
+function parseExposure(value: unknown): AggregateTvlExposure | null {
+  const exposure = asObject(value)
+  if (!exposure) return null
+  const parentChainId = chainId(exposure.parentChainId)
+  const parentVaultAddress = address(exposure.parentVaultAddress)
+  const targetChainId = chainId(exposure.targetChainId)
+  const targetVaultAddress = address(exposure.targetVaultAddress)
+  const attributableUsd = amount(exposure.attributableUsd)
+  if (
+    parentChainId == null ||
+    parentVaultAddress == null ||
+    targetChainId == null ||
+    targetVaultAddress == null ||
+    attributableUsd == null
+  ) return null
+  return { parentChainId, parentVaultAddress, targetChainId, targetVaultAddress, attributableUsd }
 }
 
 export function getAggregateTvlStrategyRefs(
@@ -159,10 +175,7 @@ export function getAggregateTvlStrategyRefs(
 ): AggregateTvlStrategyRef[] {
   const refs = new Map<string, AggregateTvlStrategyRef>()
   for (const vault of normalizedRows(vaultSnapshots)) {
-    for (const ref of strategyRefs(vault)) {
-      const [chain, addr] = ref.split(':', 2)
-      refs.set(ref, { chainId: Number(chain), address: addr })
-    }
+    for (const [key, ref] of strategyRefs(vault)) refs.set(key, ref)
   }
   return [...refs.values()].sort((a, b) => (
     a.chainId - b.chainId || a.address.localeCompare(b.address)
@@ -219,7 +232,7 @@ export function calculateAggregateTvl(
         chainId: vault.chainId,
         address: vault.address,
         grossTvl: vault.grossTvl,
-        deduplicatedTvl: vault.grossTvl,
+        deductedTvl: vault.grossTvl,
         contribution: 0,
         deductions,
       }
@@ -237,6 +250,7 @@ export function calculateAggregateTvl(
       const debtAmount = amount(rawDebt)
       if (debtAmount == null || debtAmount <= 0) continue
 
+      // Repeated debt rows for one strategy describe the same position; take the largest.
       const current = directByTarget.get(target.identity)
       directByTarget.set(target.identity, {
         target,
@@ -245,7 +259,7 @@ export function calculateAggregateTvl(
     }
 
     const directDeductions = [...directByTarget.values()]
-      .sort((a, b) => a.target.identity.localeCompare(b.target.identity))
+      .sort((a, b) => a.target.address.localeCompare(b.target.address))
     for (const { target, requested } of directDeductions) {
       const deducted = Math.min(requested, remaining)
       if (deducted <= 0) continue
@@ -259,16 +273,13 @@ export function calculateAggregateTvl(
     }
 
     const indirectByTarget = new Map<string, { target: InternalVault, requested: number }>()
-    for (const strategyRef of parentStrategies) {
+    for (const strategyRef of parentStrategies.keys()) {
       const strategy = strategyByIdentity.get(strategyRef)
       if (!strategy) continue
-      const strategyChain = chainId(strategy.chainId)
-      const strategyAddress = address(strategy.address)
-      if (strategyChain == null || strategyAddress == null) continue
 
       // Stop tracing once a strategy is itself an included vault. Its own
       // contribution and deductions account for holdings beyond that boundary.
-      if (vaultByIdentity.has(identity(strategyChain, strategyAddress))) continue
+      if (vaultByIdentity.has(strategyRef)) continue
 
       const hook = asObject(strategy.hook)
       const exposures = hook?.aggregateTvlExposures
@@ -276,30 +287,21 @@ export function calculateAggregateTvl(
       const perStrategyTarget = new Map<string, { target: InternalVault, requested: number }>()
 
       for (const value of exposures) {
-        const exposure = asObject(value)
-        if (!exposure) continue
-
-        const parentChain = chainId(exposure.parentChainId)
-        const parentAddress = address(exposure.parentVaultAddress)
-        const targetChain = chainId(exposure.targetChainId)
-        const targetAddress = address(exposure.targetVaultAddress)
-        const exposureAmount = amount(exposure.attributableUsd)
+        const exposure = parseExposure(value)
         if (
-          parentChain !== vault.chainId ||
-          parentAddress !== vault.normalizedAddress ||
-          targetChain == null ||
-          targetAddress == null ||
-          exposureAmount == null ||
-          exposureAmount <= 0
+          !exposure ||
+          exposure.parentChainId !== vault.chainId ||
+          exposure.parentVaultAddress !== vault.address ||
+          exposure.attributableUsd <= 0
         ) continue
 
-        const target = vaultByIdentity.get(identity(targetChain, targetAddress))
+        const target = vaultByIdentity.get(identity(exposure.targetChainId, exposure.targetVaultAddress))
         if (!target || target.identity === vault.identity) continue
 
         const current = perStrategyTarget.get(target.identity)
         perStrategyTarget.set(target.identity, {
           target,
-          requested: Math.max(current?.requested ?? 0, exposureAmount),
+          requested: Math.max(current?.requested ?? 0, exposure.attributableUsd),
         })
       }
 
@@ -317,7 +319,7 @@ export function calculateAggregateTvl(
     const indirectDeductions = [...indirectByTarget.values()]
       .sort((a, b) => (
         a.target.chainId - b.target.chainId ||
-        a.target.normalizedAddress.localeCompare(b.target.normalizedAddress)
+        a.target.address.localeCompare(b.target.address)
       ))
     for (const { target, requested } of indirectDeductions) {
       const deducted = Math.min(requested, remaining)
@@ -331,22 +333,22 @@ export function calculateAggregateTvl(
       remaining -= deducted
     }
 
-    const deduplicatedTvl = vault.grossTvl - remaining
+    const deductedTvl = vault.grossTvl - remaining
     return {
       chainId: vault.chainId,
       address: vault.address,
       grossTvl: vault.grossTvl,
-      deduplicatedTvl,
+      deductedTvl,
       contribution: remaining,
       deductions,
     }
   })
 
-  const totalsByChain = new Map<number, { grossTvl: number, deduplicatedTvl: number, tvl: number }>()
+  const totalsByChain = new Map<number, { grossTvl: number, deductedTvl: number, tvl: number }>()
   for (const vault of vaultResults) {
-    const current = totalsByChain.get(vault.chainId) ?? { grossTvl: 0, deduplicatedTvl: 0, tvl: 0 }
+    const current = totalsByChain.get(vault.chainId) ?? { grossTvl: 0, deductedTvl: 0, tvl: 0 }
     current.grossTvl += vault.grossTvl
-    current.deduplicatedTvl += vault.deduplicatedTvl
+    current.deductedTvl += vault.deductedTvl
     current.tvl += vault.contribution
     totalsByChain.set(vault.chainId, current)
   }
@@ -356,13 +358,13 @@ export function calculateAggregateTvl(
     .map(([id, totals]) => ({ chainId: id, ...totals }))
 
   const grossTvl = chains.reduce((sum, chain) => sum + chain.grossTvl, 0)
-  const deduplicatedTvl = chains.reduce((sum, chain) => sum + chain.deduplicatedTvl, 0)
+  const deductedTvl = chains.reduce((sum, chain) => sum + chain.deductedTvl, 0)
   const tvl = chains.reduce((sum, chain) => sum + chain.tvl, 0)
 
   return {
     tvl,
     grossTvl,
-    deduplicatedTvl,
+    deductedTvl,
     updatedAt: formatUpdatedAt(updatedAt),
     chains,
     vaults: vaultResults,
