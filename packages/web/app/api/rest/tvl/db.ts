@@ -66,7 +66,7 @@ export async function getAggregateStrategies(
     unique.set(`${ref.chainId}:${address}`, { chainId: ref.chainId, address })
   }
 
-  const strategies = [...unique.values()]
+  const strategies = Array.from(unique.values())
   if (strategies.length === 0) return []
 
   const result = await pool.query<AggregateTvlStrategySnapshot>(`

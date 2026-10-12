@@ -123,7 +123,7 @@ function normalizedRows(rows: AggregateTvlSnapshot[]): InternalVault[] {
     }
   }
 
-  return [...unique.values()].sort((a, b) => (
+  return Array.from(unique.values()).sort((a, b) => (
     a.chainId - b.chainId || a.address.localeCompare(b.address)
   ))
 }
@@ -179,11 +179,11 @@ export function getAggregateTvlStrategyRefs(
   const vaults = normalizedRows(vaultSnapshots)
   const included = new Set(vaults.map(vault => vault.identity))
   for (const vault of vaults) {
-    for (const [key, ref] of strategyRefs(vault)) {
+    for (const [key, ref] of Array.from(strategyRefs(vault))) {
       if (!included.has(key)) refs.set(key, ref)
     }
   }
-  return [...refs.values()].sort((a, b) => (
+  return Array.from(refs.values()).sort((a, b) => (
     a.chainId - b.chainId || a.address.localeCompare(b.address)
   ))
 }
@@ -264,7 +264,7 @@ export function calculateAggregateTvl(
       })
     }
 
-    const directDeductions = [...directByTarget.values()]
+    const directDeductions = Array.from(directByTarget.values())
       .sort((a, b) => a.target.address.localeCompare(b.target.address))
     for (const { target, requested } of directDeductions) {
       const deducted = Math.min(requested, remaining)
@@ -279,7 +279,7 @@ export function calculateAggregateTvl(
     }
 
     const indirectByTarget = new Map<string, { target: InternalVault, requested: number }>()
-    for (const strategyRef of parentStrategies.keys()) {
+    for (const strategyRef of Array.from(parentStrategies.keys())) {
       const strategy = strategyByIdentity.get(strategyRef)
       if (!strategy) continue
 
@@ -313,7 +313,7 @@ export function calculateAggregateTvl(
 
       // Repeated entries for one strategy, parent and target describe the same
       // position. Distinct intermediary strategies represent separate holdings.
-      for (const [targetIdentity, exposure] of perStrategyTarget) {
+      for (const [targetIdentity, exposure] of Array.from(perStrategyTarget)) {
         const current = indirectByTarget.get(targetIdentity)
         indirectByTarget.set(targetIdentity, {
           target: exposure.target,
@@ -322,7 +322,7 @@ export function calculateAggregateTvl(
       }
     }
 
-    const indirectDeductions = [...indirectByTarget.values()]
+    const indirectDeductions = Array.from(indirectByTarget.values())
       .sort((a, b) => (
         a.target.chainId - b.target.chainId ||
         a.target.address.localeCompare(b.target.address)
@@ -359,7 +359,7 @@ export function calculateAggregateTvl(
     totalsByChain.set(vault.chainId, current)
   }
 
-  const chains: AggregateTvlChain[] = [...totalsByChain.entries()]
+  const chains: AggregateTvlChain[] = Array.from(totalsByChain.entries())
     .sort(([a], [b]) => a - b)
     .map(([id, totals]) => ({ chainId: id, ...totals }))
 
