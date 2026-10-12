@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getKeyvClient, lastRefreshHeaders } from '../cache'
-import type { AggregateTvlPayload } from './refresh'
+import type { AggregateTvlPayload } from './aggregate'
 import { AGGREGATE_TVL_KEY } from './redis'
 
 export const runtime = 'nodejs'
