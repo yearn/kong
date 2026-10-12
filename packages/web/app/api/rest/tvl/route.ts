@@ -14,15 +14,18 @@ const corsHeaders = {
   'access-control-allow-methods': 'GET,OPTIONS',
 }
 
-function filterByChain(payload: AggregateTvlPayload, chainId: number): AggregateTvlPayload {
-  const chains = payload.chains.filter((chain) => chain.chainId === chainId)
+type TvlResponse = {
+  tvl: number
+  chains: { chainId: number, tvl: number }[]
+}
+
+function toResponse(payload: AggregateTvlPayload, chainId?: number): TvlResponse {
+  const chains = payload.chains
+    .filter((chain) => chainId === undefined || chain.chainId === chainId)
+    .map(({ chainId, tvl }) => ({ chainId, tvl }))
   return {
-    ...payload,
     tvl: chains.reduce((total, chain) => total + chain.tvl, 0),
-    grossTvl: chains.reduce((total, chain) => total + chain.grossTvl, 0),
-    deductedTvl: chains.reduce((total, chain) => total + chain.deductedTvl, 0),
     chains,
-    vaults: payload.vaults.filter((vault) => vault.chainId === chainId),
   }
 }
 
@@ -61,7 +64,7 @@ export async function GET(request: Request) {
     })
   }
 
-  const response = chainId === undefined ? payload : filterByChain(payload, chainId)
+  const response = toResponse(payload, chainId)
 
   const payloadRefreshHeaders = {
     'x-last-refresh': payload.updatedAt,

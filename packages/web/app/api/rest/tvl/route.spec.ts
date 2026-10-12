@@ -45,7 +45,10 @@ describe('rest TVL route', () => {
     const response = await call()
 
     assert.equal(response.status, 200)
-    assert.deepEqual(await response.json(), payload)
+    assert.deepEqual(await response.json(), {
+      tvl: 260,
+      chains: [{ chainId: 1, tvl: 100 }, { chainId: 10, tvl: 160 }],
+    })
     assert.equal(get.mock.calls.length, 1)
     assert.deepEqual(get.mock.calls[0], ['rest:tvl:aggregate'])
     assert.deepEqual(lastRefreshHeaders.mock.calls, [['tvl-refresh']])
@@ -55,19 +58,15 @@ describe('rest TVL route', () => {
     assert.equal(response.headers.get('access-control-expose-headers'), 'x-last-refresh')
   })
 
-  it('filters vaults and recalculates all totals for a requested chain', async () => {
+  it('filters chains and recalculates tvl for a requested chain', async () => {
     get.mockResolvedValue(payload)
 
     const response = await call('/api/rest/tvl?chainId=10')
 
     assert.equal(response.status, 200)
     assert.deepEqual(await response.json(), {
-      ...payload,
       tvl: 160,
-      grossTvl: 180,
-      deductedTvl: 20,
-      chains: [payload.chains[1]],
-      vaults: [payload.vaults[1]],
+      chains: [{ chainId: 10, tvl: 160 }],
     })
   })
 

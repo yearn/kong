@@ -241,7 +241,7 @@ Aggregated TVL across all Yearn vaults, refreshed by cron. Served from cache.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `chainId` | `number` | Optional. Restrict totals, `chains` and `vaults` to one chain |
+| `chainId` | `number` | Optional. Restrict `tvl` and `chains` to one chain |
 
 ```bash
 curl -s https://kong.yearn.fi/api/rest/tvl | jq
@@ -253,25 +253,10 @@ curl -s 'https://kong.yearn.fi/api/rest/tvl?chainId=1' | jq
 ```json
 {
   "tvl": 1234567.89,
-  "grossTvl": 1300000.00,
-  "deductedTvl": 65432.11,
-  "updatedAt": "2026-10-12T00:00:00.000Z",
-  "chains": [{ "chainId": 1, "tvl": 1234567.89, "grossTvl": 1300000.00, "deductedTvl": 65432.11 }],
-  "vaults": [
-    {
-      "chainId": 1,
-      "address": "0x...",
-      "grossTvl": 1000.00,
-      "deductedTvl": 100.00,
-      "contribution": 900.00,
-      "deductions": [
-        { "targetChainId": 1, "targetAddress": "0x...", "amount": 100.00, "reason": "v3-debt" }
-      ]
-    }
-  ]
+  "chains": [{ "chainId": 1, "tvl": 1000000.00 }, { "chainId": 10, "tvl": 234567.89 }]
 }
 ```
 
-`x-last-refresh` header carries `updatedAt`.
+`x-last-refresh` header carries the time of the last cron refresh.
 
 **Errors**: `400` invalid `chainId`, `404` cache not yet populated (before first cron refresh).

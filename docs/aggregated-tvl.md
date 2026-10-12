@@ -96,11 +96,11 @@ Add `GET /api/rest/tvl`, with optional `chainId`.
 Return:
 
 - `tvl`: the approximate aggregate after deductions.
-- `grossTvl`: the sum before deductions.
-- `deductedTvl`: the total USD amount deducted.
-- `updatedAt`: the refresh timestamp.
-- Per-chain totals.
-- Per-vault gross TVL, deductions, and contribution, including the target and reason for each deduction.
+- `chains`: per-chain `chainId` and `tvl`.
+
+The cached payload keeps the full detail (`grossTvl`, `deductedTvl`, `updatedAt`, per-vault
+contributions and deductions) for debugging. The endpoint projects it to the lean shape above
+and sends the refresh timestamp in the `x-last-refresh` header.
 
 The endpoint reads a cached payload using existing REST cache and CORS conventions. It performs no RPC calls or database aggregation on requests.
 
@@ -130,10 +130,10 @@ To populate the cache locally, run from the repository root:
 bun packages/web/app/api/rest/tvl/refresh.cli.ts
 ```
 
-The response has `chains` and `vaults` arrays. An optional `chainId` filters both
-arrays and returns totals for that chain, while preserving `updatedAt`. A chain
-with no included vaults returns zero totals and empty arrays. Before the first
-successful refresh, the endpoint returns 404.
+The response has `tvl` and a `chains` array. An optional `chainId` filters the
+array and returns the total for that chain. A chain with no included vaults
+returns zero and an empty array. Before the first successful refresh, the
+endpoint returns 404.
 
 Indirect exposure enrichment is opt-in. A relevant strategy snapshot can publish
 `hook.aggregateTvlExposures` entries with `parentChainId`, `parentVaultAddress`,
