@@ -48,6 +48,7 @@ Uptime Kuma URL named in its route file.
 | Route | Schedule | maxDuration |
 |---|---|---|
 | `/api/cron/refresh-cache` | `*/30 * * * *` | 300 |
+| `/api/cron/tvl-refresh` | `*/30 * * * *` | 300 |
 | `/api/cron/timeseries-refresh` | `0 * * * *` | 300 |
 | `/api/cron/timeseries-refresh-historical` | `15 2 * * *` | 800 |
 | `/api/cron/reports-refresh` | manual only | 300 |
@@ -73,6 +74,7 @@ bun packages/web/app/api/rest/timeseries/refresh.cli.ts
 bun packages/web/app/api/rest/timeseries/refresh-historical.cli.ts
 bun packages/web/app/api/rest/reports/refresh.cli.ts
 bun packages/web/app/api/rest/reports/refresh-historical.cli.ts
+bun packages/web/app/api/rest/tvl/refresh.cli.ts
 ```
 
 ### Required Vercel environment variables
@@ -96,8 +98,8 @@ Defaulted:
 Optional (job still runs and returns 200):
 
 - `UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS`, `UPTIME_KUMA_PUSH_URL_TIMESERIES_REFRESH`,
-  `UPTIME_KUMA_PUSH_URL_TIMESERIES_HISTORICAL`, `UPTIME_KUMA_PUSH_URL_REPORTS_REFRESH`,
-  `UPTIME_KUMA_PUSH_URL_REPORTS_HISTORICAL` — a missing URL silently disables that job's heartbeat,
+  `UPTIME_KUMA_PUSH_URL_TIMESERIES_HISTORICAL`, `UPTIME_KUMA_PUSH_URL_TVL_REFRESH`,
+  `UPTIME_KUMA_PUSH_URL_REPORTS_REFRESH`, `UPTIME_KUMA_PUSH_URL_REPORTS_HISTORICAL` — a missing URL silently disables that job's heartbeat,
   so the monitor never alerts
 
 Cron jobs query through their own pool in `app/api/db/cron.ts` (`POSTGRES_CRON_POOL_MAX`,
