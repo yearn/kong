@@ -8,16 +8,30 @@ import type { AggregateTvlSnapshot, AggregateTvlStrategyRef, AggregateTvlStrateg
 type VaultDbRow = Omit<AggregateTvlSnapshot, 'chainId'> & { chainId: number | string }
 
 function selectVaultSnapshots(where: string): string {
+  // Project nested fields in PostgreSQL so unused snapshot data never leaves the database.
   return `
     SELECT
       thing.chain_id AS "chainId",
       thing.address,
       CASE WHEN snapshot.hook IS NULL THEN NULL ELSE jsonb_build_object(
-        'tvl', snapshot.hook->'tvl',
-        'debts', snapshot.hook->'debts'
+        'tvl', jsonb_build_object('close', snapshot.hook->'tvl'->'close'),
+        'debts', COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'strategy', debt->'strategy',
+            'currentDebtUsd', debt->'currentDebtUsd',
+            'totalDebtUsd', debt->'totalDebtUsd'
+          ) ORDER BY debt_index)
+          FROM jsonb_array_elements(
+            CASE WHEN jsonb_typeof(snapshot.hook->'debts') = 'array'
+              THEN snapshot.hook->'debts' ELSE '[]'::jsonb END
+          ) WITH ORDINALITY AS debts(debt, debt_index)
+          WHERE jsonb_typeof(debt) = 'object'
+        ), '[]'::jsonb)
       ) END AS hook,
       jsonb_build_object(
-        'asset', COALESCE(NULLIF(snapshot.hook->'asset', 'null'::jsonb), ${mergedJsonSql('asset')}),
+        'asset', jsonb_build_object(
+          'address', COALESCE(NULLIF(snapshot.hook->'asset', 'null'::jsonb), ${mergedJsonSql('asset')})->'address'
+        ),
         'v3', ${mergedJsonSql('v3')}
       ) AS "mergedSnapshot"
     FROM thing

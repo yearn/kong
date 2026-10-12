@@ -69,6 +69,58 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
     assert.equal(result.vaults.length, 2)
   })
 
+  it.each([true, false])('projects nested fields without changing aggregate TVL when v3 is %s', async (v3) => {
+    const hook = {
+      tvl: { close: 100, open: 90, high: 120, low: 80 },
+      asset: { address: strategy, name: 'Underlying token', symbol: 'TOKEN', decimals: 18 },
+      v3: !v3,
+      debts: [
+        { strategy: child, currentDebtUsd: 30, totalDebtUsd: 45, lastReport: 123, totalGainUsd: 10 },
+        null, 'invalid', 42, [],
+        { strategy, currentDebtUsd: '20', activation: 456 },
+      ],
+      composition: [{ address: child, name: 'Child vault' }],
+    }
+    await thing(1, parent, 'vault', { yearn: true, v3: !v3, asset: { address: child } })
+    await thing(1, child, 'vault', { yearn: true })
+    await snapshot(1, parent, hook, { v3, asset: child })
+    await snapshot(1, child, { tvl: { close: 150 } })
+
+    const rows = await getAggregateVaults(pool!)
+    const parentRow = rows.find(row => row.address === parent)!
+    assert.deepEqual(parentRow.hook, {
+      tvl: { close: 100 },
+      debts: [
+        { strategy: child, currentDebtUsd: 30, totalDebtUsd: 45 },
+        { strategy, currentDebtUsd: '20', totalDebtUsd: null },
+      ],
+    })
+    assert.deepEqual(parentRow.mergedSnapshot, { asset: { address: strategy }, v3 })
+    const unprojectedRows = rows.map(row => row.address === parent
+      ? { ...row, hook, mergedSnapshot: { asset: hook.asset, v3 } }
+      : row)
+    const updatedAt = '2026-01-02T03:04:05.000Z'
+    assert.deepEqual(
+      calculateAggregateTvl(rows, [], updatedAt),
+      calculateAggregateTvl(unprojectedRows, [], updatedAt),
+    )
+    assert.equal(calculateAggregateTvl(rows).tvl, v3 ? 220 : 205)
+    assert.deepEqual(getAggregateTvlStrategyRefs(rows), getAggregateTvlStrategyRefs(unprojectedRows))
+  })
+
+  it.each([
+    { debts: undefined }, { debts: null }, { debts: {} },
+    { debts: 'invalid' }, { debts: 42 }, { debts: [] },
+  ])('ignores absent, empty, or non-array debts: %j', async ({ debts }) => {
+    await thing(1, parent, 'vault', { yearn: true })
+    await snapshot(1, parent, { tvl: { close: 100 }, debts })
+
+    const rows = await getAggregateVaults(pool!)
+    assert.deepEqual(rows[0].hook, { tvl: { close: 100 }, debts: [] })
+    assert.equal(calculateAggregateTvl(rows).tvl, 100)
+    assert.deepEqual(getAggregateTvlStrategyRefs(rows), [])
+  })
+
   it('fetches only requested exposures and resolves lowercase references to canonical storage', async () => {
     await thing(1, parent, 'vault', { yearn: true, v3: true })
     await thing(1, child, 'vault', { yearn: true })

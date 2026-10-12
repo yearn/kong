@@ -20,8 +20,8 @@ describe('aggregate TVL database reads', () => {
       rows: [{
         chainId: '1',
         address: A,
-        hook: { tvl: { close: 100 }, debts: [{ strategy: STRATEGY, currentDebtUsd: 25 }] },
-        mergedSnapshot: { asset: { address: B, symbol: 'yvTOKEN' }, v3: true },
+        hook: { tvl: { close: 100 }, debts: [{ strategy: STRATEGY, currentDebtUsd: 25, totalDebtUsd: null }] },
+        mergedSnapshot: { asset: { address: B }, v3: true },
       }],
     })
 
@@ -30,9 +30,9 @@ describe('aggregate TVL database reads', () => {
     const sql = query.mock.calls[0][0] as string
     assert.doesNotMatch(sql, /DISTINCT|lower\(/)
     assert.doesNotMatch(sql, /snapshot\.snapshot AS|snapshot\.hook AS|thing\.defaults AS/)
-    assert.match(sql, /'tvl', snapshot\.hook->'tvl'/)
-    assert.match(sql, /'debts', snapshot\.hook->'debts'/)
-    assert.match(sql, /'asset', COALESCE\(NULLIF\(snapshot\.hook->'asset'/)
+    assert.match(sql, /'close', snapshot\.hook->'tvl'->'close'/)
+    assert.match(sql, /jsonb_array_elements/)
+    assert.match(sql, /'address', COALESCE\(NULLIF\(snapshot\.hook->'asset'/)
     assert.match(sql, /'v3', /)
     assert.match(sql, /thing\.label = \$1/)
     assert.match(sql, /origin.*yearn/)
@@ -42,8 +42,8 @@ describe('aggregate TVL database reads', () => {
     assert.deepEqual(vaults, [{
       chainId: 1,
       address: A,
-      hook: { tvl: { close: 100 }, debts: [{ strategy: STRATEGY, currentDebtUsd: 25 }] },
-      mergedSnapshot: { asset: { address: B, symbol: 'yvTOKEN' }, v3: true },
+      hook: { tvl: { close: 100 }, debts: [{ strategy: STRATEGY, currentDebtUsd: 25, totalDebtUsd: null }] },
+      mergedSnapshot: { asset: { address: B }, v3: true },
     }])
   })
 
