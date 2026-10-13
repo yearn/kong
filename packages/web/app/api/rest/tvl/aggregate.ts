@@ -218,9 +218,18 @@ export function calculateAggregateTvl(
     if (!strategyByIdentity.has(key)) strategyByIdentity.set(key, strategy)
   }
 
+  const childBudget = new Map(vaults.map(vault => [vault.identity, vault.grossTvl]))
+
   const vaultResults: AggregateTvlVault[] = vaults.map((vault) => {
     const deductions: AggregateTvlDeduction[] = []
     let remaining = vault.grossTvl
+    const deduct = (target: InternalVault, requested: number, reason: AggregateTvlDeductionReason) => {
+      const amount = Math.min(requested, remaining, childBudget.get(target.identity) ?? 0)
+      if (amount <= 0) return
+      deductions.push({ targetChainId: target.chainId, targetAddress: target.address, amount, reason })
+      childBudget.set(target.identity, (childBudget.get(target.identity) ?? 0) - amount)
+      remaining -= amount
+    }
 
     const underlyingAddress = getAssetAddress(vault)
     const underlying = underlyingAddress
@@ -228,54 +237,34 @@ export function calculateAggregateTvl(
       : undefined
 
     if (underlying && underlying.identity !== vault.identity) {
-      deductions.push({
-        targetChainId: underlying.chainId,
-        targetAddress: underlying.address,
-        amount: remaining,
-        reason: 'underlying-vault',
-      })
+      deduct(underlying, remaining, 'underlying-vault')
       return {
         chainId: vault.chainId,
         address: vault.address,
         grossTvl: vault.grossTvl,
-        deductedTvl: vault.grossTvl,
-        contribution: 0,
+        deductedTvl: vault.grossTvl - remaining,
+        contribution: remaining,
         deductions,
       }
     }
 
-    const directByTarget = new Map<string, { target: InternalVault, requested: number }>()
-    const parentStrategies = strategyRefs(vault)
+    // Repeated debt rows for one strategy describe the same position; take the largest.
+    const debtByStrategy = new Map<string, number>()
     for (const debt of getDebts(vault)) {
       const strategyAddress = address(debt.strategy)
-      if (!strategyAddress) continue
-      const target = vaultByIdentity.get(identity(vault.chainId, strategyAddress))
-      if (!target || target.identity === vault.identity) continue
-
-      const rawDebt = isV3(vault) ? debt.currentDebtUsd : debt.totalDebtUsd
-      const debtAmount = amount(rawDebt)
-      if (debtAmount == null || debtAmount <= 0) continue
-
-      // Repeated debt rows for one strategy describe the same position; take the largest.
-      const current = directByTarget.get(target.identity)
-      directByTarget.set(target.identity, {
-        target,
-        requested: Math.max(current?.requested ?? 0, debtAmount),
-      })
+      const debtAmount = amount(isV3(vault) ? debt.currentDebtUsd : debt.totalDebtUsd)
+      if (!strategyAddress || debtAmount == null || debtAmount <= 0) continue
+      const key = identity(vault.chainId, strategyAddress)
+      debtByStrategy.set(key, Math.max(debtByStrategy.get(key) ?? 0, debtAmount))
     }
 
-    const directDeductions = Array.from(directByTarget.values())
+    const parentStrategies = strategyRefs(vault)
+    const directDeductions = Array.from(debtByStrategy)
+      .map(([key, requested]) => ({ target: vaultByIdentity.get(key), requested }))
+      .filter((d): d is { target: InternalVault, requested: number } => !!d.target && d.target.identity !== vault.identity)
       .sort((a, b) => a.target.address.localeCompare(b.target.address))
     for (const { target, requested } of directDeductions) {
-      const deducted = Math.min(requested, remaining)
-      if (deducted <= 0) continue
-      deductions.push({
-        targetChainId: target.chainId,
-        targetAddress: target.address,
-        amount: deducted,
-        reason: isV3(vault) ? 'v3-debt' : 'v2-debt',
-      })
-      remaining -= deducted
+      deduct(target, requested, isV3(vault) ? 'v3-debt' : 'v2-debt')
     }
 
     const indirectByTarget = new Map<string, { target: InternalVault, requested: number }>()
@@ -288,8 +277,7 @@ export function calculateAggregateTvl(
       if (vaultByIdentity.has(strategyRef)) continue
 
       const hook = asObject(strategy.hook)
-      const exposures = hook?.aggregateTvlExposures
-      if (!Array.isArray(exposures)) continue
+      const exposures = Array.isArray(hook?.aggregateTvlExposures) ? hook.aggregateTvlExposures : []
       const perStrategyTarget = new Map<string, { target: InternalVault, requested: number }>()
 
       for (const value of exposures) {
@@ -311,6 +299,18 @@ export function calculateAggregateTvl(
         })
       }
 
+      // Without an observed exposure, estimate the overlap from the parent's recorded debt.
+      const mapped = asObject(hook?.aggregateTvlTarget)
+      const mappedChain = chainId(mapped?.chainId)
+      const mappedAddress = address(mapped?.address)
+      const mappedTarget = mappedChain != null && mappedAddress != null
+        ? vaultByIdentity.get(identity(mappedChain, mappedAddress))
+        : undefined
+      const parentDebt = debtByStrategy.get(strategyRef) ?? 0
+      if (perStrategyTarget.size === 0 && mappedTarget && mappedTarget.identity !== vault.identity && parentDebt > 0) {
+        perStrategyTarget.set(mappedTarget.identity, { target: mappedTarget, requested: parentDebt })
+      }
+
       // Repeated entries for one strategy, parent and target describe the same
       // position. Distinct intermediary strategies represent separate holdings.
       for (const [targetIdentity, exposure] of Array.from(perStrategyTarget)) {
@@ -328,15 +328,7 @@ export function calculateAggregateTvl(
         a.target.address.localeCompare(b.target.address)
       ))
     for (const { target, requested } of indirectDeductions) {
-      const deducted = Math.min(requested, remaining)
-      if (deducted <= 0) continue
-      deductions.push({
-        targetChainId: target.chainId,
-        targetAddress: target.address,
-        amount: deducted,
-        reason: 'strategy-exposure',
-      })
-      remaining -= deducted
+      deduct(target, requested, 'strategy-exposure')
     }
 
     const deductedTvl = vault.grossTvl - remaining

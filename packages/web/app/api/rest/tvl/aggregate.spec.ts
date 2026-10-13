@@ -216,6 +216,72 @@ describe('calculateAggregateTvl', () => {
     assertAggregateInvariants(result)
   })
 
+  it('estimates a mapped strategy target from the parent debt, including cross-chain targets', () => {
+    const REMOTE = '0x0000000000000000000000000000000000000020'
+    const result = calculateAggregateTvl([
+      vault(1, A, 100, { v3: true }, { debts: [
+        { strategy: STRATEGY, currentDebtUsd: 30 },
+        { strategy: STRATEGY, currentDebtUsd: 25 },
+        { strategy: REMOTE, currentDebtUsd: 20 },
+      ] }),
+      vault(1, B, 150),
+      vault(747474, C, 50),
+    ], [
+      { chainId: 1, address: STRATEGY, hook: { aggregateTvlTarget: { chainId: 1, address: B } } },
+      { chainId: 1, address: REMOTE, hook: { aggregateTvlTarget: { chainId: 747474, address: C } } },
+    ])
+
+    assert.deepEqual(resultFor(result, 1, A).deductions, [
+      { targetChainId: 1, targetAddress: B, amount: 30, reason: 'strategy-exposure' },
+      { targetChainId: 747474, targetAddress: C, amount: 20, reason: 'strategy-exposure' },
+    ])
+    assert.equal(result.tvl, 250)
+    assertAggregateInvariants(result)
+  })
+
+  it('prefers observed exposures over the debt estimate for the same strategy', () => {
+    const result = calculateAggregateTvl([
+      vault(1, A, 100, {}, { debts: [{ strategy: STRATEGY, totalDebtUsd: 80 }] }),
+      vault(1, B, 150),
+    ], [{
+      chainId: 1,
+      address: STRATEGY,
+      hook: {
+        aggregateTvlTarget: { chainId: 1, address: B },
+        aggregateTvlExposures: [
+          { parentChainId: 1, parentVaultAddress: A, targetChainId: 1, targetVaultAddress: B, attributableUsd: 10 },
+        ],
+      },
+    }])
+
+    assert.equal(resultFor(result, 1, A).deductedTvl, 10)
+    assertAggregateInvariants(result)
+  })
+
+  it('shares one child budget across all parents and deduction kinds', () => {
+    const result = calculateAggregateTvl([
+      vault(1, A, 100, { v3: true }, { debts: [{ strategy: C, currentDebtUsd: 70 }] }),
+      vault(1, B, 100, { v3: true }, { debts: [{ strategy: STRATEGY, currentDebtUsd: 70 }] }),
+      vault(1, C, 100),
+    ], [{ chainId: 1, address: STRATEGY, hook: { aggregateTvlTarget: { chainId: 1, address: C } } }])
+
+    assert.equal(resultFor(result, 1, A).deductedTvl, 70)
+    assert.equal(resultFor(result, 1, B).deductedTvl, 30)
+    assert.equal(result.tvl, 200)
+    assertAggregateInvariants(result)
+  })
+
+  it('caps a wrapper at the underlying vault budget', () => {
+    const result = calculateAggregateTvl([
+      vault(1, A, 100, { asset: { address: C } }),
+      vault(1, C, 60),
+    ])
+
+    assert.equal(resultFor(result, 1, A).contribution, 40)
+    assert.equal(result.tvl, 100)
+    assertAggregateInvariants(result)
+  })
+
   it('stops tracing at included vaults so nested exposure is deducted by the immediate parent only', () => {
     const result = calculateAggregateTvl([
       vault(1, A, 100, { v3: true }, { debts: [{ strategy: B, currentDebtUsd: 80 }] }),

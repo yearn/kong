@@ -83,7 +83,10 @@ export async function getAggregateStrategies(
 
   const result = await pool.query<AggregateTvlStrategySnapshot>(`
     SELECT thing.chain_id AS "chainId", thing.address,
-      jsonb_build_object('aggregateTvlExposures', snapshot.hook->'aggregateTvlExposures') AS hook
+      jsonb_build_object(
+        'aggregateTvlExposures', snapshot.hook->'aggregateTvlExposures',
+        'aggregateTvlTarget', snapshot.hook->'aggregateTvlTarget'
+      ) AS hook
     FROM unnest($1::int[], $2::text[]) AS requested(chain_id, address)
     INNER JOIN thing
       ON requested.chain_id = thing.chain_id
@@ -92,8 +95,9 @@ export async function getAggregateStrategies(
     INNER JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
-    WHERE jsonb_typeof(snapshot.hook->'aggregateTvlExposures') = 'array'
-      AND snapshot.hook->'aggregateTvlExposures' <> '[]'::jsonb
+    WHERE (jsonb_typeof(snapshot.hook->'aggregateTvlExposures') = 'array'
+        AND snapshot.hook->'aggregateTvlExposures' <> '[]'::jsonb)
+      OR jsonb_typeof(snapshot.hook->'aggregateTvlTarget') = 'object'
   `, [strategies.map(ref => ref.chainId), strategies.map(ref => ref.address)])
 
   return result.rows

@@ -157,8 +157,17 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
     const strategies = await getAggregateStrategies([
       ...refs, { chainId: 1, address: strategy }, { chainId: 1, address: missing },
     ], pool!)
-    assert.deepEqual(strategies, [{ chainId: 1, address: strategy, hook: { aggregateTvlExposures: [exposure] } }])
+    assert.deepEqual(strategies, [{ chainId: 1, address: strategy, hook: { aggregateTvlExposures: [exposure], aggregateTvlTarget: null } }])
     assert.equal(calculateAggregateTvl(vaults, strategies).tvl, 200)
+  })
+
+  it('reads strategies that publish only a mapped target', async () => {
+    await thing(1, strategy, 'strategy')
+    await snapshot(1, strategy, { aggregateTvlTarget: { chainId: 1, address: child } })
+    assert.deepEqual(await getAggregateStrategies([{ chainId: 1, address: strategy }], pool!), [{
+      chainId: 1, address: strategy,
+      hook: { aggregateTvlExposures: null, aggregateTvlTarget: { chainId: 1, address: child } },
+    }])
   })
 
   it('omits absent, empty, or malformed exposures and snapshots without a strategy label', async () => {

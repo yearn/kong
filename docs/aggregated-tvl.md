@@ -76,7 +76,13 @@ The refresh script consumes those exposures and deducts them once. For shared st
 
 Stop tracing a position when it reaches an included vault: that vault's own deductions handle subsequent nesting. Do not subtract the same position through both debt and enriched holdings.
 
-V2 router strategies publish this data. The V2 strategy snapshot hook reads `yVault()`. When it returns a non-zero address, the hook emits one exposure from the strategy's `vault` to that target, with `attributableUsd` equal to the strategy's `totalDebtUsd`. The hook always returns the key, using `[]` for strategies that are not routers.
+Where no observed exposure exists, a strategy can publish `hook.aggregateTvlTarget` (`chainId`, `address`): the vault that holds the strategy's assets. The refresh script then estimates the overlap as the parent's own recorded debt to that strategy (`currentDebtUsd` for V3, `totalDebtUsd` for V2). Observed exposures for a parent take precedence over this estimate.
+
+- V2 strategies: `yVault()` (routers and delegates).
+- V3 strategies: `vault()` or `VAULT()` (depositors such as USDC to USDS Depositor).
+- V3 cross-chain strategies: `REMOTE_CHAIN_ID` and `REMOTE_COUNTERPART`, then `vault()` on the remote counterpart (Katana yvUSDC Compounder).
+
+The hooks always return the key, using `null` when no target exists. A target counts only when it is an included vault.
 
 Lender/borrower and looper strategies that deposit borrowed assets into another vault are not deducted. The borrowed assets are real TVL.
 
@@ -85,6 +91,7 @@ Other strategy relationships alone do not establish these hidden holdings. Inspe
 ### Approximation defaults
 
 - Cap total deductions at the parent's gross TVL.
+- Cap all deductions into one child, from every parent and rule, at that child's gross TVL. Vaults consume the budget in chain/address order.
 - Leave unresolved holdings undeducted; they can cause residual double counting.
 - Do not subtract all strategy debt, all delegated assets, or exclude a child merely because another vault invests in it.
 - Use `hook.debts` as the source of direct allocations; do not count mirrored `composition` entries again.
