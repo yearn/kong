@@ -277,7 +277,8 @@ export function calculateAggregateTvl(
       if (vaultByIdentity.has(strategyRef)) continue
 
       const hook = asObject(strategy.hook)
-      const exposures = Array.isArray(hook?.aggregateTvlExposures) ? hook.aggregateTvlExposures : []
+      const rawExposures = hook?.aggregateTvlExposures
+      const exposures = Array.isArray(rawExposures) ? rawExposures : []
       const perStrategyTarget = new Map<string, { target: InternalVault, requested: number }>()
 
       for (const value of exposures) {
