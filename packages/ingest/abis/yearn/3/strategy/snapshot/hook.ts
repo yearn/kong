@@ -1,5 +1,7 @@
 import { z } from 'zod'
+import { parseAbi, zeroAddress } from 'viem'
 import { zhexstring } from 'lib/types'
+import { rpcs } from '../../../../../rpcs'
 import { firstRow } from '../../../../../db'
 import { fetchOrExtractErc20 } from '../../../lib'
 import { getStrategyMeta, getVaultMeta } from '../../../lib/meta'
@@ -10,7 +12,26 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const vaultMeta = await getVaultMeta(chainId, address)
   const meta = vaultMeta ?? await getStrategyMeta(chainId, address)
   const lastReportDetail = await fetchLastReportDetail(chainId, address)
-  return { asset, meta, lastReportDetail }
+  const aggregateTvlTarget = await extractAggregateTvlTarget(chainId, data)
+  return { asset, meta, lastReportDetail, aggregateTvlTarget }
+}
+
+const isAddress = (value: unknown): value is `0x${string}` =>
+  typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value) && value !== zeroAddress
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function extractAggregateTvlTarget(chainId: number, data: any) {
+  if (isAddress(data.REMOTE_COUNTERPART) && data.REMOTE_CHAIN_ID) {
+    const remoteChainId = Number(data.REMOTE_CHAIN_ID)
+    const remoteVault = await rpcs.next(remoteChainId).readContract({
+      address: data.REMOTE_COUNTERPART,
+      abi: parseAbi(['function vault() view returns (address)']),
+      functionName: 'vault'
+    }).catch(() => undefined)
+    return isAddress(remoteVault) ? { chainId: remoteChainId, address: remoteVault } : null
+  }
+  const target = isAddress(data.vault) ? data.vault : isAddress(data.VAULT) ? data.VAULT : null
+  return target ? { chainId, address: target } : null
 }
 
 async function fetchLastReportDetail(chainId: number, address: `0x${string}`) {
