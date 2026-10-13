@@ -4,9 +4,27 @@ import db, { toUpsertSql } from '../../../../../db'
 import * as dbModule from '../../../../../db'
 import { rpcs } from '../../../../../rpcs'
 import { getLatestApy, getLatestEstimatedApr, getLatestEstimatedAprV3 } from '../../../../../helpers/apy-apr'
-import { extractLenderStatuses, fetchApiVersion } from './hook'
+import { extractLenderStatuses, fetchApiVersion, routerExposures } from './hook'
 
 describe('abis/yearn/2/strategy/snapshot/hook', function() {
+  describe('routerExposures', function() {
+    const vault = '0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE' as const
+    const want = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as const
+    const yVault = '0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204' as const
+
+    it('publishes one exposure from parent vault to router target', function() {
+      expect(routerExposures(1, { vault, want, yVault }, 4_835_511)).to.deep.equal([{
+        parentChainId: 1, parentVaultAddress: vault,
+        targetChainId: 1, targetVaultAddress: yVault, attributableUsd: 4_835_511
+      }])
+    })
+
+    it('publishes nothing for non-router strategies', function() {
+      expect(routerExposures(1, { vault, want }, 100)).to.deep.equal([])
+      expect(routerExposures(1, { vault, want, yVault: '0x0000000000000000000000000000000000000000' }, 100)).to.deep.equal([])
+    })
+  })
+
   it('extracts lender statuses', async function() {
     const statuses = await extractLenderStatuses(mainnet.id, '0x2216E44fA633ABd2540dB72Ad34b42C7F1557cd4', 18530014n)
     expect(statuses).to.be.an('array')

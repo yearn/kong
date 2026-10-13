@@ -20,7 +20,8 @@ const borkedVaults = [
 const SnapshotSchema = z.object({
   vault: zhexstring,
   want: zhexstring,
-  tradeFactory: zhexstring.optional()
+  tradeFactory: zhexstring.optional(),
+  yVault: zhexstring.optional()
 })
 
 export type Snapshot = z.infer<typeof SnapshotSchema>
@@ -56,7 +57,19 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const vaultMeta = await getVaultMeta(chainId, address)
   const meta = vaultMeta ?? await getStrategyMeta(chainId, address)
   const estimated = await getLatestEstimatedApr(chainId, address)
-  return { totalDebt, totalDebtUsd, lenderStatuses, lastReportDetail, claims, meta, performance: { estimated, oracle: undefined, historical: undefined } }
+  const aggregateTvlExposures = routerExposures(chainId, snapshot, totalDebtUsd)
+  return { totalDebt, totalDebtUsd, lenderStatuses, lastReportDetail, claims, meta, aggregateTvlExposures, performance: { estimated, oracle: undefined, historical: undefined } }
+}
+
+export function routerExposures(chainId: number, snapshot: Snapshot, totalDebtUsd: number) {
+  if (!snapshot.yVault || snapshot.yVault === zeroAddress) return []
+  return [{
+    parentChainId: chainId,
+    parentVaultAddress: snapshot.vault,
+    targetChainId: chainId,
+    targetVaultAddress: snapshot.yVault,
+    attributableUsd: totalDebtUsd
+  }]
 }
 
 async function processTradeFactory(chainId: number, snapshot: Snapshot) {

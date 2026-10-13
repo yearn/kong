@@ -18,6 +18,7 @@ The implementation exposes the latest cached estimate. Historical aggregate TVL 
 - Reuse the classification and merge semantics in [`vaultFilters.ts`](../packages/web/lib/vaultFilters.ts) and [`mergeSnapshot.ts`](../packages/web/lib/mergeSnapshot.ts).
 - Identify each vault by chain ID and lowercase address. Count contracts labeled both vault and strategy only once.
 - Include hidden and retired vaults if they still hold assets.
+- Exclude V3 vaults that are both retired and hidden (`snapshot.hook.meta`). This removes the Katana pre-deposit vaults, whose assets are not Yearn V3 TVL. Hidden-only or retired-only vaults stay included.
 - Read gross USD TVL from `snapshot.hook.tvl.close`, which supplies the current [REST vault listing](../packages/web/app/api/rest/list/db.ts).
 - Omit vaults whose gross TVL is missing, negative, or non-finite. They cannot serve as included deduction targets until a usable TVL is available.
 - Use the latest available snapshots. The TVL and debt values can represent different observation times, so the result is an approximation.
@@ -48,7 +49,7 @@ For remaining parents, match `hook.debts[].strategy` against included vault addr
 Subtract the corresponding allocation:
 
 - V3: `currentDebtUsd`.
-- V2: `totalDebtUsd`, where the strategy address is itself an included vault.
+- V2: `totalDebtUsd`, where the strategy address is itself an included vault. In practice V2 strategies are never vaults, so this branch does not fire. V2 nesting goes through rule 3.
 
 Keep the child's full TVL. This retains deposits made directly into the child by other users.
 
@@ -75,7 +76,11 @@ The refresh script consumes those exposures and deducts them once. For shared st
 
 Stop tracing a position when it reaches an included vault: that vault's own deductions handle subsequent nesting. Do not subtract the same position through both debt and enriched holdings.
 
-Existing strategy relationships alone do not establish these hidden holdings. Inspect representative snapshots and strategy accounting before adding strategy-specific enrichment. Until an exposure can be identified, leave it undeducted.
+V2 router strategies publish this data. The V2 strategy snapshot hook reads `yVault()`. When it returns a non-zero address, the hook emits one exposure from the strategy's `vault` to that target, with `attributableUsd` equal to the strategy's `totalDebtUsd`. The hook always returns the key, using `[]` for strategies that are not routers.
+
+Lender/borrower and looper strategies that deposit borrowed assets into another vault are not deducted. The borrowed assets are real TVL.
+
+Other strategy relationships alone do not establish these hidden holdings. Inspect representative snapshots and strategy accounting before adding strategy-specific enrichment. Until an exposure can be identified, leave it undeducted.
 
 ### Approximation defaults
 
@@ -85,7 +90,7 @@ Existing strategy relationships alone do not establish these hidden holdings. In
 - Use `hook.debts` as the source of direct allocations; do not count mirrored `composition` entries again.
 - Different snapshot observation times can affect the estimate. Refresh time is the time the aggregate was calculated, not a common on-chain valuation time.
 
-The current [TVL computation](../packages/ingest/abis/yearn/lib/tvl.ts) includes total assets and reports delegated assets separately. The delegated component is not a general-purpose deduction: it does not identify which target vaults are included in this aggregate.
+The current [TVL computation](../packages/ingest/abis/yearn/lib/tvl.ts) includes total assets. Do not use its `delegated` component as a deduction. It does not identify target vaults, and the series has reported zero since April 2024.
 
 ## Endpoint and refresh
 
@@ -139,7 +144,7 @@ Indirect exposure enrichment is opt-in. A relevant strategy snapshot can publish
 `hook.aggregateTvlExposures` entries with `parentChainId`, `parentVaultAddress`,
 `targetChainId`, `targetVaultAddress`, and `attributableUsd`. Each entry describes
 one parent's position in one target through that strategy. Existing strategy
-hooks do not produce these facts; unresolved holdings remain undeducted.
+hooks other than the V2 router case do not produce these facts; unresolved holdings remain undeducted.
 
 ## Validation
 
