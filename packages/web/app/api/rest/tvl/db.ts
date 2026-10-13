@@ -45,7 +45,15 @@ function selectVaultSnapshots(where: string): string {
 /** Read Yearn vault rows and their snapshots in one query. */
 export async function getAggregateVaults(pool: Pool = cronDb): Promise<AggregateTvlSnapshot[]> {
   const { where, params } = buildVaultFilters({ yearn: true })
-  const result = await pool.query<VaultDbRow>(selectVaultSnapshots(where), params)
+  const excludeRetiredHiddenV3 = `NOT (
+        (${mergedJsonSql('v3')} = to_jsonb(true)) IS TRUE
+        AND COALESCE((snapshot.hook->'meta'->>'isRetired')::boolean, false)
+        AND COALESCE((snapshot.hook->'meta'->>'isHidden')::boolean, false)
+      )`
+  const result = await pool.query<VaultDbRow>(
+    selectVaultSnapshots(`${where}\n      AND ${excludeRetiredHiddenV3}`),
+    params,
+  )
   return result.rows.map(row => ({ ...row, chainId: Number(row.chainId) }))
 }
 

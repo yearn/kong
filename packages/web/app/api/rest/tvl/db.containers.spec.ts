@@ -69,6 +69,18 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
     assert.equal(result.vaults.length, 2)
   })
 
+  it('excludes retired and hidden v3 vaults only', async () => {
+    await thing(1, parent, 'vault', { yearn: true, v3: true })
+    await thing(1, child, 'vault', { yearn: true, v3: true })
+    await thing(1, missing, 'vault', { yearn: true })
+    await snapshot(1, parent, { tvl: { close: 100 }, meta: { isRetired: true, isHidden: true } })
+    await snapshot(1, child, { tvl: { close: 60 }, meta: { isRetired: false, isHidden: true } })
+    await snapshot(1, missing, { tvl: { close: 40 }, meta: { isRetired: true, isHidden: true } })
+
+    const rows = await getAggregateVaults(pool!)
+    assert.deepEqual(rows.map(row => row.address).sort(), [child, missing].sort())
+  })
+
   it.each([true, false])('projects nested fields without changing aggregate TVL when v3 is %s', async (v3) => {
     const hook = {
       tvl: { close: 100, open: 90, high: 120, low: 80 },

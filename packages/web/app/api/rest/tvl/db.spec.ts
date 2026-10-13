@@ -37,6 +37,7 @@ describe('aggregate TVL database reads', () => {
     assert.match(sql, /thing\.label = \$1/)
     assert.match(sql, /origin.*yearn/)
     assert.match(sql, /LEFT JOIN snapshot/)
+    assert.match(sql, /NOT \(\s*\(.*'v3'.*\) IS TRUE\s*AND COALESCE\(\(snapshot\.hook->'meta'->>'isRetired'\)::boolean, false\)\s*AND COALESCE\(\(snapshot\.hook->'meta'->>'isHidden'\)::boolean, false\)/s)
     assert.match(sql, /thing\.address = snapshot\.address/)
     assert.deepEqual(query.mock.calls[0][1], ['vault'])
     assert.deepEqual(vaults, [{
