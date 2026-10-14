@@ -285,16 +285,19 @@ export function calculateAggregateTvl(
       const rawExposures = hook?.aggregateTvlExposures
       const exposures = Array.isArray(rawExposures) ? rawExposures : []
       const perStrategyTarget = new Map<string, { target: InternalVault, requested: number }>()
+      let hasObservedExposure = false
 
       for (const value of exposures) {
         const exposure = parseExposure(value)
         if (
           !exposure ||
           exposure.parentChainId !== vault.chainId ||
-          exposure.parentVaultAddress !== vault.address ||
-          exposure.attributableUsd <= 0
+          exposure.parentVaultAddress !== vault.address
         ) continue
 
+        // Zero ownership, or ownership of an excluded target, is still an
+        // observation for this parent and must suppress the debt estimate.
+        hasObservedExposure = true
         const target = vaultByIdentity.get(identity(exposure.targetChainId, exposure.targetVaultAddress))
         if (!target || target.identity === vault.identity) continue
 
@@ -313,7 +316,7 @@ export function calculateAggregateTvl(
         ? vaultByIdentity.get(identity(mappedChain, mappedAddress))
         : undefined
       const parentDebt = debtByStrategy.get(strategyRef) ?? 0
-      if (perStrategyTarget.size === 0 && mappedTarget && mappedTarget.identity !== vault.identity && parentDebt > 0) {
+      if (!hasObservedExposure && mappedTarget && mappedTarget.identity !== vault.identity && parentDebt > 0) {
         perStrategyTarget.set(mappedTarget.identity, { target: mappedTarget, requested: parentDebt })
       }
 

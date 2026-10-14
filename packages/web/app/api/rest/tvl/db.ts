@@ -4,6 +4,7 @@ import { mergedJsonSql } from '../../../../lib/mergeSnapshot'
 import { buildVaultFilters } from '../../../../lib/vaultFilters'
 import { cronDb } from '../../db/cron'
 import type { AggregateTvlSnapshot, AggregateTvlStrategyRef, AggregateTvlStrategySnapshot } from './aggregate'
+import { KNOWN_AGGREGATE_TVL_TARGETS } from './known-targets'
 
 type VaultDbRow = Omit<AggregateTvlSnapshot, 'chainId'> & { chainId: number | string }
 
@@ -65,8 +66,8 @@ export async function getAggregateVaults(pool: Pool = cronDb): Promise<Aggregate
 }
 
 /**
- * Batch-read only strategy snapshots referenced by the selected vaults.
- * Only projected exposures and mapped targets leave the database.
+ * Read exposures and targets for referenced strategies, including reviewed
+ * router mappings whose catalog entry or target observation is still missing.
  */
 export async function getAggregateStrategies(
   refs: AggregateTvlStrategyRef[],
@@ -88,23 +89,34 @@ export async function getAggregateStrategies(
   if (strategies.length === 0) return []
 
   const result = await pool.query<AggregateTvlStrategySnapshot>(`
-    SELECT thing.chain_id AS "chainId", thing.address,
+    WITH candidates AS (
+      SELECT requested.chain_id AS "chainId", requested.address,
+        snapshot.hook->'aggregateTvlExposures' AS exposures,
+        CASE WHEN snapshot.hook ? 'aggregateTvlTarget'
+          THEN snapshot.hook->'aggregateTvlTarget'
+          ELSE known.target END AS target
+      FROM unnest($1::int[], $2::text[]) AS requested(chain_id, address)
+      LEFT JOIN thing
+        ON requested.chain_id = thing.chain_id
+        AND requested.address = thing.address
+        AND thing.label = 'strategy'
+      LEFT JOIN snapshot
+        ON requested.chain_id = snapshot.chain_id
+        AND requested.address = snapshot.address
+      LEFT JOIN jsonb_to_recordset($3::jsonb) AS known("chainId" int, address text, target jsonb)
+        ON requested.chain_id = known."chainId"
+        AND requested.address = known.address
+      WHERE thing.address IS NOT NULL OR known.address IS NOT NULL
+    )
+    SELECT "chainId", address,
       jsonb_strip_nulls(jsonb_build_object(
-        'aggregateTvlExposures', snapshot.hook->'aggregateTvlExposures',
-        'aggregateTvlTarget', snapshot.hook->'aggregateTvlTarget'
+        'aggregateTvlExposures', exposures,
+        'aggregateTvlTarget', target
       )) AS hook
-    FROM unnest($1::int[], $2::text[]) AS requested(chain_id, address)
-    INNER JOIN thing
-      ON requested.chain_id = thing.chain_id
-      AND requested.address = thing.address
-      AND thing.label = 'strategy'
-    INNER JOIN snapshot
-      ON thing.chain_id = snapshot.chain_id
-      AND thing.address = snapshot.address
-    WHERE (jsonb_typeof(snapshot.hook->'aggregateTvlExposures') = 'array'
-        AND snapshot.hook->'aggregateTvlExposures' <> '[]'::jsonb)
-      OR jsonb_typeof(snapshot.hook->'aggregateTvlTarget') = 'object'
-  `, [strategies.map(ref => ref.chainId), strategies.map(ref => ref.address)])
+    FROM candidates
+    WHERE (jsonb_typeof(exposures) = 'array' AND exposures <> '[]'::jsonb)
+      OR jsonb_typeof(target) = 'object'
+  `, [strategies.map(ref => ref.chainId), strategies.map(ref => ref.address), JSON.stringify(KNOWN_AGGREGATE_TVL_TARGETS)])
 
   return result.rows
 }

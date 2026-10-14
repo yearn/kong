@@ -203,4 +203,70 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
       [parent, child, strategy, missing].map(address => ({ chainId: 1, address })), pool!,
     ), [])
   })
+
+  const uncataloguedRouters = [
+    {
+      parent: getAddress('0x5f18c75abdae578b483e5f43f12a39cf75b973a9'),
+      router: getAddress('0x36822d0b11f4594380181ce6e76bd4986d46c389'),
+      target: getAddress('0xa354f35829ae975e850e23e9615b11da1b3dc4de'),
+    },
+    {
+      parent: getAddress('0xdcd90c7f6324cfa40d7169ef80b12031770b4325'),
+      router: getAddress('0x9084b5a98e3b4b257affd82ae4a1753f87906dce'),
+      target: getAddress('0x5b8c556b8b2a78696f0b9b830b3d67623122e270'),
+    },
+  ]
+
+  it('deducts both reviewed routers through database reads without strategy records or snapshots', async () => {
+    for (const route of uncataloguedRouters) {
+      await thing(1, route.parent, 'vault', { yearn: true })
+      await thing(1, route.target, 'vault', { yearn: true })
+      await snapshot(1, route.parent, { tvl: { close: 100 }, debts: [
+        { strategy: route.router, totalDebtUsd: 80 },
+        { strategy: route.router, totalDebtUsd: 80 },
+      ] })
+      await snapshot(1, route.target, { tvl: { close: 150 } })
+    }
+
+    const vaults = await getAggregateVaults(pool!)
+    const strategies = await getAggregateStrategies(getAggregateTvlStrategyRefs(vaults), pool!)
+    const result = calculateAggregateTvl(vaults, strategies)
+
+    assert.equal(strategies.length, 2)
+    assert.equal(result.tvl, 340)
+    for (const route of uncataloguedRouters) {
+      assert.deepEqual(result.vaults.find(v => v.address === route.parent.toLowerCase())?.deductions, [{
+        targetChainId: 1, targetAddress: route.target.toLowerCase(), amount: 80, reason: 'strategy-exposure',
+      }])
+    }
+    assert.deepEqual(await getAggregateStrategies(
+      uncataloguedRouters.map(route => ({ chainId: 10, address: route.router })), pool!,
+    ), [])
+  })
+
+  it.each([null, { chainId: 1, address: child }])('prefers a stored router target %j over the reviewed mapping', async (target) => {
+    const { router } = uncataloguedRouters[0]
+    await snapshot(1, router, { aggregateTvlTarget: target })
+    const strategies = await getAggregateStrategies([{ chainId: 1, address: router }], pool!)
+    assert.deepEqual(strategies, target === null ? [] : [{
+      chainId: 1, address: router, hook: { aggregateTvlTarget: target },
+    }])
+  })
+
+  it('lets an observed zero suppress the reviewed router estimate through database reads', async () => {
+    const route = uncataloguedRouters[0]
+    await thing(1, route.parent, 'vault', { yearn: true })
+    await thing(1, route.target, 'vault', { yearn: true })
+    await snapshot(1, route.parent, { tvl: { close: 100 }, debts: [{ strategy: route.router, totalDebtUsd: 80 }] })
+    await snapshot(1, route.target, { tvl: { close: 150 } })
+    await snapshot(1, route.router, { aggregateTvlExposures: [{
+      parentChainId: 1, parentVaultAddress: route.parent,
+      targetChainId: 1, targetVaultAddress: route.target, attributableUsd: 0,
+    }] })
+
+    const vaults = await getAggregateVaults(pool!)
+    const strategies = await getAggregateStrategies(getAggregateTvlStrategyRefs(vaults), pool!)
+    assert.equal(strategies.length, 1)
+    assert.equal(calculateAggregateTvl(vaults, strategies).tvl, 250)
+  })
 })

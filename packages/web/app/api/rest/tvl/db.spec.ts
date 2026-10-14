@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert'
 import { getAddress } from 'viem'
 import { getAggregateStrategies, getAggregateVaults } from './db'
+import { KNOWN_AGGREGATE_TVL_TARGETS } from './known-targets'
 
 const query = vi.fn()
 const pool = { query }
@@ -71,12 +72,13 @@ describe('aggregate TVL database reads', () => {
     assert.match(sql, /thing\.label = 'strategy'/)
     assert.match(sql, /requested\.chain_id = thing\.chain_id/)
     assert.match(sql, /requested\.address = thing\.address/)
-    assert.match(sql, /INNER JOIN snapshot/)
+    assert.match(sql, /LEFT JOIN snapshot/)
     assert.doesNotMatch(sql, /lower\(|_defaults|_snapshot/)
-    assert.match(sql, /thing\.address = snapshot\.address/)
+    assert.match(sql, /requested\.address = snapshot\.address/)
     assert.deepEqual(query.mock.calls[0][1], [
       [1, 10],
       [getAddress(STRATEGY), getAddress(STRATEGY)],
+      JSON.stringify(KNOWN_AGGREGATE_TVL_TARGETS),
     ])
     assert.equal(strategies.length, 1)
     assert.deepEqual(strategies[0].hook, { aggregateTvlExposures: [{ attributableUsd: 20 }] })

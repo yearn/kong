@@ -258,6 +258,34 @@ describe('calculateAggregateTvl', () => {
     assertAggregateInvariants(result)
   })
 
+  it.each([
+    { label: 'zero', observed: { attributableUsd: 0 }, expectedTvl: 250 },
+    { label: 'an excluded destination', observed: { targetChainId: 10, attributableUsd: 20 }, expectedTvl: 250 },
+    { label: 'another parent', observed: { parentVaultAddress: C, attributableUsd: 0 }, expectedTvl: 170 },
+    { label: 'a malformed amount', observed: { attributableUsd: -1 }, expectedTvl: 170 },
+    { label: 'an empty array', observed: null, expectedTvl: 170 },
+    { label: 'a missing observation', observed: undefined, expectedTvl: 170 },
+  ])('handles $label when a mapped debt estimate is available', ({ observed, expectedTvl }) => {
+    const result = calculateAggregateTvl([
+      vault(1, A, 100, {}, { debts: [{ strategy: STRATEGY, totalDebtUsd: 80 }] }),
+      vault(1, B, 150),
+    ], [{
+      chainId: 1,
+      address: STRATEGY,
+      hook: {
+        aggregateTvlTarget: { chainId: 1, address: B },
+        aggregateTvlExposures: observed === undefined ? undefined : observed === null ? [] : [{
+          parentChainId: 1, parentVaultAddress: A, targetChainId: 1, targetVaultAddress: B,
+          ...observed,
+        }],
+      },
+    }])
+
+    assert.equal(result.tvl, expectedTvl)
+    assert.equal(resultFor(result, 1, A).deductedTvl, 250 - expectedTvl)
+    assertAggregateInvariants(result)
+  })
+
   it('shares one child budget across all parents and deduction kinds', () => {
     const result = calculateAggregateTvl([
       vault(1, A, 100, { v3: true }, { debts: [{ strategy: C, currentDebtUsd: 70 }] }),

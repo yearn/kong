@@ -76,13 +76,22 @@ The refresh script consumes those exposures and deducts them once. For shared st
 
 Stop tracing a position when it reaches an included vault: that vault's own deductions handle subsequent nesting. Do not subtract the same position through both debt and enriched holdings.
 
-Where no observed exposure exists, a strategy can publish `hook.aggregateTvlTarget` (`chainId`, `address`): the vault that holds the strategy's assets. The refresh script then estimates the overlap as the parent's own recorded debt to that strategy (`currentDebtUsd` for V3, `totalDebtUsd` for V2). Observed exposures for a parent take precedence over this estimate.
+Where no observed exposure exists, a strategy can publish `hook.aggregateTvlTarget` (`chainId`, `address`): the vault that holds the strategy's assets. The refresh script then estimates the overlap as the parent's own recorded debt to that strategy (`currentDebtUsd` for V3, `totalDebtUsd` for V2). Valid observed exposures for a parent take precedence over this estimate, including zero ownership or an exposure to a vault outside the included set. Missing or malformed observations still permit estimation.
 
 - V2 strategies: `yVault()` (routers and delegates).
 - V3 strategies: `vault()` or `VAULT()` (depositors such as USDC to USDS Depositor).
 - V3 cross-chain strategies: `REMOTE_CHAIN_ID` and `REMOTE_COUNTERPART`, then `vault()` on the remote counterpart (Katana yvUSDC Compounder).
 
 The hooks always return the key, using `null` when no target exists. A target counts only when it is an included vault.
+
+The database reader also supplies the two reviewed Ethereum router mappings in
+[`known-targets.ts`](../packages/web/app/api/rest/tvl/known-targets.ts): USDC router
+`0x36822d0b11F4594380181cE6e76bd4986d46c389` and stETH router
+`0x9084B5a98E3b4B257affd82AE4a1753f87906DcE`. These estimates work even without a
+strategy catalog entry or snapshot. They require a reference from an included
+parent's debts and an included destination, and use the same accounting caps.
+A stored `aggregateTvlTarget` overrides the reviewed mapping; explicit `null`
+disables it. The mappings establish destinations, not current share ownership.
 
 Lender/borrower and looper strategies that deposit borrowed assets into another vault are not deducted. The borrowed assets are real TVL.
 
