@@ -75,11 +75,15 @@ export function splitPairsForMSet(
   return chunks
 }
 
-export async function cacheMSet(pairs: Array<[string, string]>): Promise<void> {
+export async function cacheMSet(pairs: Array<[string, string]>, options: { atomic?: boolean } = {}): Promise<void> {
   if (pairs.length === 0) return
+  if (options.atomic && estimateMSetRequestSize(pairs) > REDIS_MSET_HARD_LIMIT_BYTES) {
+    throw new Error('Atomic Redis MSET payload exceeds hard limit')
+  }
+  const chunks = options.atomic ? [pairs] : splitPairsForMSet(pairs)
   if (!writeClient.isOpen) await writeClient.connect()
 
-  for (const chunk of splitPairsForMSet(pairs)) {
+  for (const chunk of chunks) {
     await writeClient.mSet(chunk)
   }
 }

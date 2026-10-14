@@ -110,9 +110,11 @@ Return:
 - `tvl`: the approximate aggregate after deductions.
 - `chains`: per-chain `chainId` and `tvl`.
 
-The cached payload keeps the full detail (`grossTvl`, `deductedTvl`, `updatedAt`, per-vault
-contributions and deductions) for debugging. The endpoint projects it to the lean shape above
-and sends the refresh timestamp in the `x-last-refresh` header.
+The diagnostic cache (`rest:tvl:aggregate`) keeps the full detail (`grossTvl`, `deductedTvl`,
+`updatedAt`, per-vault contributions and deductions). A separate summary (`rest:tvl:summary`)
+contains only `updatedAt` and per-chain TVL. Requests read the summary and send its timestamp
+in the `x-last-refresh` header. Until the first summary is published after deployment, requests
+fall back to the existing diagnostic cache.
 
 The endpoint reads a cached payload using existing REST cache and CORS conventions. It performs no RPC calls or database aggregation on requests.
 
@@ -120,12 +122,16 @@ The endpoint reads a cached payload using existing REST cache and CORS conventio
 
 Add a dedicated refresh module and CLI under `packages/web/app/api/rest/tvl/`.
 
-1. Batch-read vault snapshots and relevant strategy snapshots from Postgres.
+1. Batch-read projected vault snapshots and relevant strategy snapshots from Postgres.
+   Send only the applicable V2/V3 debt amount. Filter missing and unusable TVL in SQL,
+   retaining numeric rounding boundaries for the calculator's finite-number check.
+   Skip strategy lookups for zero-TVL parents and wrappers of included vaults.
 2. Select the included Yearn vaults and build a lookup by chain ID and normalized address.
 3. Sum their gross snapshot TVLs.
 4. Apply the ordered deduplication rules and record each deduction.
 5. Calculate per-vault contributions, per-chain totals, and the overall aggregate.
-6. Write one aggregate payload to Redis.
+6. Atomically publish the diagnostic payload and compact summary in one Redis MSET.
+   Reject publications above the Redis request limit before changing either key.
 
 Keep all aggregation and deduplication logic in this refresh module. Ingest enrichment supplies missing exposure facts; it does not calculate the aggregate.
 

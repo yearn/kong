@@ -9,17 +9,10 @@ vi.mock('../cache', () => ({
 }))
 
 const payload = {
-  tvl: 260,
-  grossTvl: 300,
-  deductedTvl: 40,
   updatedAt: '2026-01-02T03:04:05.000Z',
   chains: [
-    { chainId: 1, tvl: 100, grossTvl: 120, deductedTvl: 20 },
-    { chainId: 10, tvl: 160, grossTvl: 180, deductedTvl: 20 },
-  ],
-  vaults: [
-    { chainId: 1, address: '0x0000000000000000000000000000000000000001', contribution: 100 },
-    { chainId: 10, address: '0x0000000000000000000000000000000000000001', contribution: 160 },
+    { chainId: 1, tvl: 100 },
+    { chainId: 10, tvl: 160 },
   ],
 }
 
@@ -50,12 +43,23 @@ describe('rest TVL route', () => {
       chains: [{ chainId: 1, tvl: 100 }, { chainId: 10, tvl: 160 }],
     })
     assert.equal(get.mock.calls.length, 1)
-    assert.deepEqual(get.mock.calls[0], ['rest:tvl:aggregate'])
-    assert.deepEqual(lastRefreshHeaders.mock.calls, [['tvl-refresh']])
+    assert.deepEqual(get.mock.calls[0], ['rest:tvl:summary'])
+    assert.deepEqual(lastRefreshHeaders.mock.calls, [])
     assert.equal(response.headers.get('access-control-allow-origin'), '*')
     assert.match(response.headers.get('cache-control') ?? '', /public/)
     assert.equal(response.headers.get('x-last-refresh'), payload.updatedAt)
     assert.equal(response.headers.get('access-control-expose-headers'), 'x-last-refresh')
+  })
+
+  it('serves the legacy payload until the first compact summary is published', async () => {
+    get.mockResolvedValueOnce(undefined).mockResolvedValueOnce({ ...payload, vaults: [], tvl: 260 })
+
+    const response = await call()
+
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), { tvl: 260, chains: payload.chains })
+    assert.deepEqual(get.mock.calls, [['rest:tvl:summary'], ['rest:tvl:aggregate']])
+    assert.equal(lastRefreshHeaders.mock.calls.length, 0)
   })
 
   it('filters chains and recalculates tvl for a requested chain', async () => {

@@ -373,6 +373,33 @@ describe('calculateAggregateTvl', () => {
 
 
 describe('getAggregateTvlStrategyRefs', () => {
+  it('skips wrappers and zero-TVL parents, retaining shared refs needed by another parent', () => {
+    const rows = [
+      vault(1, A, 100, { asset: { address: B } }, { debts: [{ strategy: STRATEGY }] }),
+      vault(1, B, 50),
+      vault(1, C, 0, {}, { debts: [{ strategy: STRATEGY }] }),
+    ]
+    assert.deepEqual(getAggregateTvlStrategyRefs(rows), [])
+    assert.deepEqual(getAggregateTvlStrategyRefs([
+      ...rows, vault(10, A, 20, {}, { debts: [{ strategy: STRATEGY }] }),
+    ]), [{ chainId: 10, address: STRATEGY }])
+    assert.deepEqual(getAggregateTvlStrategyRefs([
+      ...rows, vault(1, '0x0000000000000000000000000000000000000004', 20, {}, {
+        debts: [{ strategy: STRATEGY, totalDebtUsd: 0 }],
+      }),
+    ]), [{ chainId: 1, address: STRATEGY }])
+  })
+
+  it('retains refs when the asset is self, on another chain, or has unusable TVL', () => {
+    for (const asset of [A, B]) {
+      assert.deepEqual(getAggregateTvlStrategyRefs([
+        vault(1, A, 100, { asset: { address: asset } }, { debts: [{ strategy: STRATEGY }] }),
+        vault(1, B, null),
+        vault(10, B, 100),
+      ]), [{ chainId: 1, address: STRATEGY }])
+    }
+  })
+
   it('skips included vaults but retains same-address references on other chains', () => {
     const refs = getAggregateTvlStrategyRefs([
       vault(1, A, 100, {}, { debts: [{ strategy: B }, { strategy: STRATEGY }, { strategy: STRATEGY }] }),

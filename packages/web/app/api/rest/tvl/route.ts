@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getKeyvClient, lastRefreshHeaders } from '../cache'
-import type { AggregateTvlPayload } from './aggregate'
-import { AGGREGATE_TVL_KEY } from './redis'
+import { AGGREGATE_TVL_KEY, AGGREGATE_TVL_SUMMARY_KEY, type AggregateTvlSummary } from './redis'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,7 +18,7 @@ type TvlResponse = {
   chains: { chainId: number, tvl: number }[]
 }
 
-function toResponse(payload: AggregateTvlPayload, chainId?: number): TvlResponse {
+function toResponse(payload: AggregateTvlSummary, chainId?: number): TvlResponse {
   const chains = payload.chains
     .filter((chain) => chainId === undefined || chain.chainId === chainId)
     .map(({ chainId, tvl }) => ({ chainId, tvl }))
@@ -45,19 +44,18 @@ export async function GET(request: Request) {
     }
   }
 
-  let payload: AggregateTvlPayload | undefined
-  let refreshHeaders: Record<string, string> = {}
+  let payload: AggregateTvlSummary | undefined
   try {
-    ;[payload, refreshHeaders] = await Promise.all([
-      keyv.get(AGGREGATE_TVL_KEY) as Promise<AggregateTvlPayload | undefined>,
-      lastRefreshHeaders(REFRESH_JOB),
-    ])
+    payload = await keyv.get(AGGREGATE_TVL_SUMMARY_KEY) as AggregateTvlSummary | undefined
+    // Serve the previous deployment's cache until the first summary refresh.
+    if (!payload) payload = await keyv.get(AGGREGATE_TVL_KEY) as AggregateTvlSummary | undefined
   } catch (error) {
-    console.error(`Redis read failed for ${AGGREGATE_TVL_KEY}:`, error)
+    console.error('Redis read failed for aggregate TVL:', error)
     throw error
   }
 
   if (!payload) {
+    const refreshHeaders = await lastRefreshHeaders(REFRESH_JOB)
     return new NextResponse('Not found', {
       status: 404,
       headers: { ...corsHeaders, ...refreshHeaders },

@@ -48,7 +48,7 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
     )
   }
 
-  it('joins canonical addresses once across labels, scopes chains, and preserves missing snapshots', async () => {
+  it('joins canonical addresses once across labels, scopes chains, and omits missing snapshots', async () => {
     await thing(1, parent, 'vault', { yearn: true, v3: true })
     await thing(1, parent, 'strategy')
     await thing(10, parent, 'vault', { origin: 'yearn' })
@@ -60,10 +60,10 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
     await snapshot(1, child, { tvl: { close: 60 } }, { yearn: false })
 
     const rows = await getAggregateVaults(pool!)
-    assert.equal(rows.length, 3)
+    assert.equal(rows.length, 2)
     assert.equal(rows.filter(row => row.chainId === 1 && row.address === parent).length, 1)
     assert.deepEqual(rows.find(row => row.chainId === 1 && row.address === parent)?.mergedSnapshot.asset, { address: child })
-    assert.equal(rows.find(row => row.address === missing)?.hook, null)
+    assert.equal(rows.find(row => row.address === missing), undefined)
     const result = calculateAggregateTvl(rows)
     assert.equal(result.tvl, 140)
     assert.equal(result.vaults.length, 2)
@@ -79,6 +79,26 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
 
     const rows = await getAggregateVaults(pool!)
     assert.deepEqual(rows.map(row => row.address).sort(), [child, missing].sort())
+  })
+
+  it.each(['null', '"100"', '-1', '{}', '[]', '1e400'])('omits unusable TVL %s before returning debts', async (close) => {
+    await thing(1, parent, 'vault', { yearn: true })
+    await pool!.query(
+      'INSERT INTO snapshot (chain_id, address, hook, block_number) VALUES (1, $1, $2::jsonb, 100)',
+      [parent, `{"tvl":{"close":${close}},"debts":[{"strategy":"${strategy}"}]} `],
+    )
+    assert.deepEqual(await getAggregateVaults(pool!), [])
+  })
+
+  it.each(['0', '-1e-400', '1.7976931348623158e308'])('preserves TVL %s that parses as a finite nonnegative number', async (close) => {
+    await thing(1, parent, 'vault', { yearn: true })
+    await pool!.query(
+      'INSERT INTO snapshot (chain_id, address, hook, block_number) VALUES (1, $1, $2::jsonb, 100)',
+      [parent, `{"tvl":{"close":${close}}}`],
+    )
+    const rows = await getAggregateVaults(pool!)
+    assert.equal(rows.length, 1)
+    assert.equal(calculateAggregateTvl(rows).vaults.length, 1)
   })
 
   it.each([true, false])('projects nested fields without changing aggregate TVL when v3 is %s', async (v3) => {
@@ -103,8 +123,8 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
     assert.deepEqual(parentRow.hook, {
       tvl: { close: 100 },
       debts: [
-        { strategy: child, currentDebtUsd: 30, totalDebtUsd: 45 },
-        { strategy, currentDebtUsd: '20', totalDebtUsd: null },
+        { strategy: child, ...(v3 ? { currentDebtUsd: 30 } : { totalDebtUsd: 45 }) },
+        { strategy, ...(v3 ? { currentDebtUsd: '20' } : { totalDebtUsd: null }) },
       ],
     })
     assert.deepEqual(parentRow.mergedSnapshot, { asset: { address: strategy }, v3 })
@@ -157,7 +177,7 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
     const strategies = await getAggregateStrategies([
       ...refs, { chainId: 1, address: strategy }, { chainId: 1, address: missing },
     ], pool!)
-    assert.deepEqual(strategies, [{ chainId: 1, address: strategy, hook: { aggregateTvlExposures: [exposure], aggregateTvlTarget: null } }])
+    assert.deepEqual(strategies, [{ chainId: 1, address: strategy, hook: { aggregateTvlExposures: [exposure] } }])
     assert.equal(calculateAggregateTvl(vaults, strategies).tvl, 200)
   })
 
@@ -166,7 +186,7 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
     await snapshot(1, strategy, { aggregateTvlTarget: { chainId: 1, address: child } })
     assert.deepEqual(await getAggregateStrategies([{ chainId: 1, address: strategy }], pool!), [{
       chainId: 1, address: strategy,
-      hook: { aggregateTvlExposures: null, aggregateTvlTarget: { chainId: 1, address: child } },
+      hook: { aggregateTvlTarget: { chainId: 1, address: child } },
     }])
   })
 

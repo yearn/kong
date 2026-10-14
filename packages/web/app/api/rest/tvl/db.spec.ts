@@ -20,7 +20,7 @@ describe('aggregate TVL database reads', () => {
       rows: [{
         chainId: '1',
         address: A,
-        hook: { tvl: { close: 100 }, debts: [{ strategy: STRATEGY, currentDebtUsd: 25, totalDebtUsd: null }] },
+        hook: { tvl: { close: 100 }, debts: [{ strategy: STRATEGY, currentDebtUsd: 25 }] },
         mergedSnapshot: { asset: { address: B }, v3: true },
       }],
     })
@@ -36,14 +36,14 @@ describe('aggregate TVL database reads', () => {
     assert.match(sql, /'v3', /)
     assert.match(sql, /thing\.label = \$1/)
     assert.match(sql, /origin.*yearn/)
-    assert.match(sql, /LEFT JOIN snapshot/)
+    assert.match(sql, /INNER JOIN snapshot/)
     assert.match(sql, /NOT \(\s*\(.*'v3'.*\) IS TRUE\s*AND COALESCE\(\(snapshot\.hook->'meta'->>'isRetired'\)::boolean, false\)\s*AND COALESCE\(\(snapshot\.hook->'meta'->>'isHidden'\)::boolean, false\)/s)
     assert.match(sql, /thing\.address = snapshot\.address/)
     assert.deepEqual(query.mock.calls[0][1], ['vault'])
     assert.deepEqual(vaults, [{
       chainId: 1,
       address: A,
-      hook: { tvl: { close: 100 }, debts: [{ strategy: STRATEGY, currentDebtUsd: 25, totalDebtUsd: null }] },
+      hook: { tvl: { close: 100 }, debts: [{ strategy: STRATEGY, currentDebtUsd: 25 }] },
       mergedSnapshot: { asset: { address: B }, v3: true },
     }])
   })

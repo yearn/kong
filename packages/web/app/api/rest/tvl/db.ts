@@ -18,8 +18,10 @@ function selectVaultSnapshots(where: string): string {
         'debts', COALESCE((
           SELECT jsonb_agg(jsonb_build_object(
             'strategy', debt->'strategy',
-            'currentDebtUsd', debt->'currentDebtUsd',
-            'totalDebtUsd', debt->'totalDebtUsd'
+            CASE WHEN ${mergedJsonSql('v3')} = to_jsonb(true)
+              THEN 'currentDebtUsd' ELSE 'totalDebtUsd' END,
+            CASE WHEN ${mergedJsonSql('v3')} = to_jsonb(true)
+              THEN debt->'currentDebtUsd' ELSE debt->'totalDebtUsd' END
           ) ORDER BY debt_index)
           FROM jsonb_array_elements(
             CASE WHEN jsonb_typeof(snapshot.hook->'debts') = 'array'
@@ -35,10 +37,15 @@ function selectVaultSnapshots(where: string): string {
         'v3', ${mergedJsonSql('v3')}
       ) AS "mergedSnapshot"
     FROM thing
-    LEFT JOIN snapshot
+    INNER JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
     WHERE ${where}
+      -- Leave IEEE-754 rounding boundaries to the calculator: tiny negatives
+      -- can parse as -0, and values just above MAX_VALUE can round down to it.
+      AND CASE WHEN jsonb_typeof(snapshot.hook->'tvl'->'close') = 'number'
+        THEN (snapshot.hook->'tvl'->>'close')::numeric BETWEEN -5e-324::numeric AND 1.8e308::numeric
+        ELSE false END
   `
 }
 
@@ -59,8 +66,7 @@ export async function getAggregateVaults(pool: Pool = cronDb): Promise<Aggregate
 
 /**
  * Batch-read only strategy snapshots referenced by the selected vaults.
- * These snapshots are used solely when they publish explicit attributable
- * aggregateTvlExposures in their hook.
+ * Only projected exposures and mapped targets leave the database.
  */
 export async function getAggregateStrategies(
   refs: AggregateTvlStrategyRef[],
@@ -83,10 +89,10 @@ export async function getAggregateStrategies(
 
   const result = await pool.query<AggregateTvlStrategySnapshot>(`
     SELECT thing.chain_id AS "chainId", thing.address,
-      jsonb_build_object(
+      jsonb_strip_nulls(jsonb_build_object(
         'aggregateTvlExposures', snapshot.hook->'aggregateTvlExposures',
         'aggregateTvlTarget', snapshot.hook->'aggregateTvlTarget'
-      ) AS hook
+      )) AS hook
     FROM unnest($1::int[], $2::text[]) AS requested(chain_id, address)
     INNER JOIN thing
       ON requested.chain_id = thing.chain_id

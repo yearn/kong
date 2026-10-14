@@ -179,6 +179,11 @@ export function getAggregateTvlStrategyRefs(
   const vaults = normalizedRows(vaultSnapshots)
   const included = new Set(vaults.map(vault => vault.identity))
   for (const vault of vaults) {
+    if (vault.grossTvl === 0) continue
+    const asset = getAssetAddress(vault)
+    const underlying = asset ? identity(vault.chainId, asset) : undefined
+    // Wrappers return before strategy deductions, regardless of the child budget.
+    if (underlying && underlying !== vault.identity && included.has(underlying)) continue
     for (const [key, ref] of Array.from(strategyRefs(vault))) {
       if (!included.has(key)) refs.set(key, ref)
     }

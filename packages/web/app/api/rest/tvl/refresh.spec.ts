@@ -1,5 +1,6 @@
 import { strict as assert } from 'node:assert'
 import { AGGREGATE_TVL_KEY, refresh } from './refresh'
+import { AGGREGATE_TVL_SUMMARY_KEY } from './redis'
 
 const { cronDb, getAggregateVaults, getAggregateStrategies, cacheMSet } = vi.hoisted(() => ({
   cronDb: { tag: 'cron' },
@@ -48,12 +49,18 @@ describe('aggregate TVL refresh', () => {
     assert.equal(cacheMSet.mock.calls.length, 1)
 
     const pairs = cacheMSet.mock.calls[0][0] as Array<[string, string]>
-    assert.equal(pairs.length, 1)
+    assert.equal(pairs.length, 2)
+    assert.deepEqual(cacheMSet.mock.calls[0][1], { atomic: true })
     assert.equal(pairs[0][0], AGGREGATE_TVL_KEY)
     assert.equal(cachedValue, pairs[0][1])
     const cacheEntry = JSON.parse(pairs[0][1])
     const payload = cacheEntry.value
     assert.match(payload.updatedAt, /^\d{4}-\d\d-\d\dT/)
+    assert.equal(pairs[1][0], AGGREGATE_TVL_SUMMARY_KEY)
+    assert.deepEqual(JSON.parse(pairs[1][1]), { value: {
+      updatedAt: payload.updatedAt,
+      chains: [{ chainId: 1, tvl: 170 }],
+    } })
     assert.deepEqual({ ...payload, updatedAt: 'generated-at-refresh' }, {
       tvl: 170,
       grossTvl: 250,
