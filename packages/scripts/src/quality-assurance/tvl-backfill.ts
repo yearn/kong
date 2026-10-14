@@ -273,122 +273,9 @@ interface OutputRow {
   seriesTime: Date
 }
 
-interface PriceRow {
-  chainId: number
-  address: string
-  priceUsd: number
-  priceSource: string
-  blockNumber: bigint
-  blockTime: Date
-}
-
 const DB_BATCH_SIZE = 100
 
-async function upsertOutputAndPrices(
-  outputRows: OutputRow[],
-  priceRows: PriceRow[],
-  retry = true
-): Promise<{ outputSuccess: number; outputFailed: number; priceSuccess: number; priceFailed: number }> {
-  if (outputRows.length === 0 && priceRows.length === 0) {
-    return { outputSuccess: 0, outputFailed: 0, priceSuccess: 0, priceFailed: 0 }
-  }
-
-  const client = await pool.connect()
-
-  try {
-    await client.query('BEGIN')
-
-    // Upsert output rows
-    if (outputRows.length > 0) {
-      const outputValues: string[] = []
-      const outputParams: (string | number | bigint | Date)[] = []
-      let paramIndex = 1
-
-      for (const row of outputRows) {
-        outputValues.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7})`)
-        outputParams.push(
-          row.chainId,
-          row.address,
-          row.label,
-          row.component,
-          row.value,
-          row.blockNumber.toString(),
-          row.blockTime,
-          row.seriesTime
-        )
-        paramIndex += 8
-      }
-
-      const outputQuery = `
-        INSERT INTO output (chain_id, address, label, component, value, block_number, block_time, series_time)
-        VALUES ${outputValues.join(', ')}
-        ON CONFLICT (chain_id, address, label, component, series_time)
-        DO UPDATE SET
-          value = EXCLUDED.value,
-          block_number = EXCLUDED.block_number,
-          block_time = EXCLUDED.block_time
-      `
-      await client.query(outputQuery, outputParams)
-    }
-
-    // Upsert price rows
-    if (priceRows.length > 0) {
-      const priceValues: string[] = []
-      const priceParams: (string | number | bigint | Date)[] = []
-      let paramIndex = 1
-
-      for (const row of priceRows) {
-        priceValues.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5})`)
-        priceParams.push(
-          row.chainId,
-          row.address,
-          row.priceUsd,
-          row.priceSource,
-          row.blockNumber.toString(),
-          row.blockTime
-        )
-        paramIndex += 6
-      }
-
-      const priceQuery = `
-        INSERT INTO price (chain_id, address, price_usd, price_source, block_number, block_time)
-        VALUES ${priceValues.join(', ')}
-        ON CONFLICT (chain_id, address, block_number)
-        DO UPDATE SET
-          price_usd = EXCLUDED.price_usd,
-          price_source = EXCLUDED.price_source,
-          block_time = EXCLUDED.block_time
-      `
-      await client.query(priceQuery, priceParams)
-    }
-
-    await client.query('COMMIT')
-    return {
-      outputSuccess: outputRows.length,
-      outputFailed: 0,
-      priceSuccess: priceRows.length,
-      priceFailed: 0,
-    }
-  } catch (error) {
-    await client.query('ROLLBACK')
-    if (retry) {
-      console.warn(`  Batch upsert failed, retrying once: ${error instanceof Error ? error.message : String(error)}`)
-      client.release()
-      return upsertOutputAndPrices(outputRows, priceRows, false)
-    }
-    console.error(`  Batch upsert failed after retry: ${error instanceof Error ? error.message : String(error)}`)
-    return {
-      outputSuccess: 0,
-      outputFailed: outputRows.length,
-      priceSuccess: 0,
-      priceFailed: priceRows.length,
-    }
-  } finally {
-    client.release()
-  }
-}
-
-async function upsertTotalAssets(rows: OutputRow[], retry = true): Promise<{ success: number; failed: number }> {
+async function upsertOutputs(rows: OutputRow[], retry = true): Promise<{ success: number; failed: number }> {
   if (rows.length === 0) return { success: 0, failed: 0 }
 
   const values: string[] = []
@@ -426,7 +313,7 @@ async function upsertTotalAssets(rows: OutputRow[], retry = true): Promise<{ suc
   } catch (error) {
     if (retry) {
       console.warn(`  Batch upsert failed, retrying once: ${error instanceof Error ? error.message : String(error)}`)
-      return upsertTotalAssets(rows, false)
+      return upsertOutputs(rows, false)
     }
     console.error(`  Batch upsert failed after retry: ${error instanceof Error ? error.message : String(error)}`)
     return { success: 0, failed: rows.length }
@@ -655,7 +542,7 @@ async function main() {
           console.log(`  [${batchNum}/${totalBatches}] Upserting ${batch.length} rows...`)
         }
 
-        const result = await upsertTotalAssets(batch)
+        const result = await upsertOutputs(batch)
         dbSuccess += result.success
         dbFailed += result.failed
       }
@@ -765,52 +652,13 @@ async function main() {
     console.log('Days without prices:', uniqueDays.size - historicalPrices.size)
     console.log('Total prices fetched:', totalPricesFetched)
 
-    // Fetch block numbers for each unique (assetChainId, day) pair
-    console.log(`\n--- Fetching block numbers for asset chains ---`)
-    const assetBlockCache = new Map<string, bigint>() // "chainId:day" -> blockNumber
-
-    const uniqueAssetChainDays = new Set<string>()
-    for (const vault of vaults) {
-      if (!vault.asset || !vault.inceptTime) continue
-      const vaultKey = `${vault.chainId}:${vault.address}`
-      const days = vaultDays.get(vaultKey)
-      if (!days) continue
-
-      for (const day of days) {
-        uniqueAssetChainDays.add(`${vault.asset.chainId}:${day}`)
-      }
-    }
-
-    let blockFetchCount = 0
-    for (const key of uniqueAssetChainDays) {
-      const [chainIdStr, dayStr] = key.split(':')
-      const chainId = Number(chainIdStr)
-      const day = Number(dayStr)
-
-      if (!assetBlockCache.has(key)) {
-        try {
-          const blockNumber = await getBlockForTimestamp(chainId, day)
-          assetBlockCache.set(key, blockNumber)
-          blockFetchCount++
-          if (blockFetchCount % 50 === 0) {
-            console.log(`  Fetched ${blockFetchCount} block numbers...`)
-          }
-        } catch (error) {
-          console.warn(`  Failed to get block for chain ${chainId} at ${day}: ${error instanceof Error ? error.message : String(error)}`)
-        }
-      }
-    }
-    console.log(`Block numbers fetched: ${assetBlockCache.size}`)
-
     // Now we need totalAssets from the database for each vault/day
     // Query the output table for totalAssets component
     console.log(`\n--- Fetching totalAssets from database ---`)
 
     const outputRowsToUpsert: OutputRow[] = []
-    const priceRowMap = new Map<string, PriceRow>() // Dedupe prices: multiple vaults can share same asset
     let missingTotalAssets = 0
     let missingPrices = 0
-    let missingAssetBlocks = 0
 
     for (const vault of vaults) {
       if (!vault.asset || !vault.inceptTime) continue
@@ -857,14 +705,6 @@ async function main() {
           continue
         }
 
-        // Get block number for asset chain at this day
-        const assetBlockKey = `${vault.asset.chainId}:${day}`
-        const assetBlockNumber = assetBlockCache.get(assetBlockKey)
-        if (!assetBlockNumber) {
-          missingAssetBlocks++
-          continue
-        }
-
         const tvl = totalAssetsData.value * priceUsd
 
         // Output record for tvl
@@ -890,65 +730,38 @@ async function main() {
           blockTime: new Date(day * 1000),
           seriesTime: new Date(day * 1000),
         })
-
-        // Add price row - dedupe because multiple vaults can share the same asset
-        const priceKey = `${vault.asset.chainId}:${vault.asset.address}:${assetBlockNumber}`
-        if (!priceRowMap.has(priceKey)) {
-          priceRowMap.set(priceKey, {
-            chainId: vault.asset.chainId,
-            address: vault.asset.address,
-            priceUsd,
-            priceSource: 'defillama',
-            blockNumber: assetBlockNumber,
-            blockTime: new Date(day * 1000),
-          })
-        }
       }
     }
 
-    const priceRowsToUpsert = Array.from(priceRowMap.values())
-
     console.log('Missing totalAssets:', missingTotalAssets)
     console.log('Missing prices:', missingPrices)
-    console.log('Missing asset blocks:', missingAssetBlocks)
 
     console.log(`\n--- Database Upsert ---`)
     console.log('Output rows to upsert:', outputRowsToUpsert.length)
-    console.log('Price rows to upsert:', priceRowsToUpsert.length)
 
     if (dryRun) {
       console.log('DRY RUN: Skipping database writes')
     } else {
       let outputSuccess = 0
       let outputFailed = 0
-      let priceSuccess = 0
-      let priceFailed = 0
+      const totalBatches = Math.ceil(outputRowsToUpsert.length / DB_BATCH_SIZE)
 
-      // Batch both output and price rows together
-      const maxRows = Math.max(outputRowsToUpsert.length, priceRowsToUpsert.length)
-      const totalBatches = Math.ceil(maxRows / DB_BATCH_SIZE)
-
-      for (let i = 0; i < maxRows; i += DB_BATCH_SIZE) {
+      for (let i = 0; i < outputRowsToUpsert.length; i += DB_BATCH_SIZE) {
         const outputBatch = outputRowsToUpsert.slice(i, i + DB_BATCH_SIZE)
-        const priceBatch = priceRowsToUpsert.slice(i, i + DB_BATCH_SIZE)
         const batchNum = Math.floor(i / DB_BATCH_SIZE) + 1
 
         if (batchNum % 10 === 1 || batchNum === totalBatches) {
-          console.log(`  [${batchNum}/${totalBatches}] Upserting ${outputBatch.length} output rows, ${priceBatch.length} price rows...`)
+          console.log(`  [${batchNum}/${totalBatches}] Upserting ${outputBatch.length} output rows...`)
         }
 
-        const result = await upsertOutputAndPrices(outputBatch, priceBatch)
-        outputSuccess += result.outputSuccess
-        outputFailed += result.outputFailed
-        priceSuccess += result.priceSuccess
-        priceFailed += result.priceFailed
+        const result = await upsertOutputs(outputBatch)
+        outputSuccess += result.success
+        outputFailed += result.failed
       }
 
       console.log('\n--- Database Stats ---')
       console.log('Output rows upserted:', outputSuccess)
       console.log('Output rows failed:', outputFailed)
-      console.log('Price rows upserted:', priceSuccess)
-      console.log('Price rows failed:', priceFailed)
     }
   }
 

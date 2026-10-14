@@ -28,7 +28,7 @@ import { clearNegativePriceCache, fetchErc20PriceUsd } from './prices'
 
 const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' as const
 const WETH_COIN = 'polygon:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'
-const CHAIN_ID = 137 // polygon — not in the on-chain `lens` map
+const CHAIN_ID = 137
 
 const endOfDay = (timestamp: number) => Math.floor(timestamp / 86400) * 86400 + 86399
 
@@ -56,15 +56,11 @@ function batchMissThenExact(exact: { ok: boolean, status?: number, price?: numbe
       : { ok: false, status: exact.status })
 }
 
-describe('fetchErc20PriceUsd (USE_PRICE_SERVICE, past-day path)', () => {
-  const originalUsePriceService = process.env.USE_PRICE_SERVICE
+describe('fetchErc20PriceUsd (past-day path)', () => {
   const originalApiKey = process.env.PRICE_SERVICE_API_KEY
-  const originalYpriceEnabled = process.env.YPRICE_ENABLED
 
   beforeEach(() => {
-    process.env.USE_PRICE_SERVICE = 'true'
     process.env.PRICE_SERVICE_API_KEY = 'test-key'
-    delete process.env.YPRICE_ENABLED
 
     cacheGet.mockReset().mockResolvedValue(undefined)
     cacheSet.mockReset()
@@ -76,12 +72,8 @@ describe('fetchErc20PriceUsd (USE_PRICE_SERVICE, past-day path)', () => {
   })
 
   afterEach(() => {
-    if (originalUsePriceService === undefined) delete process.env.USE_PRICE_SERVICE
-    else process.env.USE_PRICE_SERVICE = originalUsePriceService
     if (originalApiKey === undefined) delete process.env.PRICE_SERVICE_API_KEY
     else process.env.PRICE_SERVICE_API_KEY = originalApiKey
-    if (originalYpriceEnabled === undefined) delete process.env.YPRICE_ENABLED
-    else process.env.YPRICE_ENABLED = originalYpriceEnabled
 
     vi.unstubAllGlobals()
   })

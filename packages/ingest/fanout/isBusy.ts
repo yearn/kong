@@ -1,6 +1,6 @@
 import { chains, mq } from 'lib'
 
-export type BusyMatch = { queue: string; jobName: string; status: 'waiting' | 'active' }
+export type BusyMatch = { queue: string; jobName: string; status: 'waiting' | 'prioritized' | 'active' }
 
 type QueueSpec = { queueName: string; includedNames: Set<string> }
 
@@ -13,10 +13,10 @@ function buildQueueSpecs(): QueueSpec[] {
     includedNames: new Set([mq.job.fanout.events.name, mq.job.fanout.timeseries.name])
   })
 
-  // extract (root) queue: include manuals, waveydb, webhook
+  // extract (root) queue: include manuals, webhook
   specs.push({
     queueName: mq.q.extract,
-    includedNames: new Set([mq.job.extract.manuals.name, mq.job.extract.waveydb.name, mq.job.extract.webhook.name])
+    includedNames: new Set([mq.job.extract.manuals.name, mq.job.extract.webhook.name])
   })
 
   // extract-{chainId} queues: include evmlog, snapshot, timeseries (exclude block)
@@ -29,16 +29,14 @@ function buildQueueSpecs(): QueueSpec[] {
     specs.push({ queueName: `${mq.q.extract}-${chain.id}`, includedNames: perChainNames })
   }
 
-  // load queue: include evmlog, snapshot, thing, output, price, monitor (exclude block)
+  // load queue: include evmlog, snapshot, thing, output (exclude block, monitor)
   specs.push({
     queueName: mq.q.load,
     includedNames: new Set([
       mq.job.load.evmlog.name,
       mq.job.load.snapshot.name,
       mq.job.load.thing.name,
-      mq.job.load.output.name,
-      mq.job.load.price.name,
-      mq.job.load.monitor.name
+      mq.job.load.output.name
     ])
   })
 
@@ -53,13 +51,13 @@ export async function findBusyMatch(): Promise<BusyMatch | null> {
   for (const spec of specs) {
     const queue = mq.connect(spec.queueName)
     try {
-      for (const status of ['waiting', 'active'] as const) {
+      for (const status of ['waiting', 'prioritized', 'active'] as const) {
         const PAGE = 100
         let start = 0
         while (true) {
           const jobs = await queue.getJobs([status], start, start + PAGE - 1)
           for (const job of jobs) {
-            if (spec.includedNames.has(job.name)) {
+            if (job && spec.includedNames.has(job.name)) {
               return { queue: spec.queueName, jobName: job.name, status }
             }
           }

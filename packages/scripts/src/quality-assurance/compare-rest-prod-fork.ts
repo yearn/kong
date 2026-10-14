@@ -1,6 +1,6 @@
 /**
  * Issue #439 Phase 2 — compare REST API values between prod Kong and a fork
- * (Neon branch / USE_PRICE_SERVICE trial).
+ * (Neon branch trial).
  *
  * Pulls list, snapshot, and TVL timeseries for a curated set of vaults and
  * reports relative diffs on price-influenced fields. Timeseries is constrained
