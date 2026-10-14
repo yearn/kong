@@ -86,7 +86,7 @@ describe('upsertSnapshotData', () => {
 
   it('preserves a legacy null meta and can merge new fields into it', async () => {
     await upsertSnapshotData(base, client)
-    await client.query(`UPDATE snapshot SET hook = '{"meta":null}'::jsonb`)
+    await client.query('UPDATE snapshot SET hook = \'{"meta":null}\'::jsonb')
     await upsertSnapshotData(base, client)
     expect((await read()).hook).to.deep.equal({ meta: null })
     await upsertSnapshotData({ ...base, hook: { meta: { next: true } } }, client)
