@@ -16,6 +16,7 @@ vi.mock('./webhook', () => ({ WebhookExtractor: class { extract = vi.fn() } }))
 vi.mock('lib', () => ({
   mq: {
     q: { extract: 'extract' },
+    connect: vi.fn(() => ({ getRepeatableJobs: vi.fn(async () => []), close: vi.fn() })),
     job: {
       extract: {
         block: { queue: 'extract', name: 'block', bychain: true },

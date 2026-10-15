@@ -1,9 +1,11 @@
 import { expect } from 'chai'
+import { afterEach, beforeEach, vi } from 'vitest'
 import { decodeEventLog, decodeFunctionResult, encodeAbiParameters, getAddress, pad, toEventSelector } from 'viem'
 import { extractComposition, mapStrategyParams, projectStrategies, projectStrategyEvents, resolveStrategies, strategiesAbi, union } from './hook'
 import db, { toUpsertSql } from '../../../../../db'
 import vaultAbi from '../abi'
 import abiutil from '../../../../../abiutil'
+import * as meta from '../../../lib/meta'
 
 const selectors = {
   added: toEventSelector('event StrategyAdded(address indexed strategy, uint256 debtRatio, uint256 minDebtPerHarvest, uint256 maxDebtPerHarvest, uint256 performanceFee)'),
@@ -30,6 +32,13 @@ async function seedLog(vault: string, signature: string, args: object, blockNumb
 }
 
 describe('abis/yearn/2/vault/snapshot/hook', () => {
+  beforeEach(() => {
+    vi.spyOn(meta, 'getVaultMeta').mockResolvedValue(undefined)
+    vi.spyOn(meta, 'getStrategyMeta').mockResolvedValue(undefined)
+  })
+
+  afterEach(() => vi.restoreAllMocks())
+
   it('extracts composition with performance', async function() {
     const chainId = 1337
     const vault = '0x1000000000000000000000000000000000000001'

@@ -79,9 +79,8 @@ export default class Probe implements Processor {
 
       await mq.add(mq.job.load.monitor, {
         ...await this.probeQueues(),
-        ...await this.probeDb(),
-        ...await this.probeIngest(),
-        ...await this.probeIndexStats()
+        ...await this.probeDbCached(),
+        ...await this.probeIngest()
       })
 
       console.timeEnd(label)
@@ -91,6 +90,16 @@ export default class Probe implements Processor {
   async down() {
     await this.worker?.close()
     await Promise.all(Object.values(this.queues).map(q => q.close()))
+  }
+
+  private dbProbeCache: { value: object, ts: number } = { value: {}, ts: 0 }
+
+  private async probeDbCached() {
+    const now = Date.now()
+    if (now - this.dbProbeCache.ts < 60_000) return this.dbProbeCache.value
+    const value = { ...await this.probeDb(), ...await this.probeIndexStats() }
+    this.dbProbeCache = { value, ts: now }
+    return value
   }
 
   private async probeDb() {
@@ -120,14 +129,10 @@ export default class Probe implements Processor {
       redis: {} as ProbeResults['redis']
     }
 
-    for(const queue of Object.values(this.queues)) {
-      result.queues.push({
-        name: queue.name,
-        waiting: await queue.count(),
-        active: (await queue.getJobs('active')).length,
-        failed: (await queue.getJobs('failed')).length
-      })
-    }
+    result.queues = await Promise.all(Object.values(this.queues).map(async queue => {
+      const [waiting, counts] = await Promise.all([queue.count(), queue.getJobCounts('active', 'failed')])
+      return { name: queue.name, waiting, active: counts.active, failed: counts.failed }
+    }))
 
     const redisClient = await Object.values(this.queues)[0].client
     const rawRedis = await redisClient.info()

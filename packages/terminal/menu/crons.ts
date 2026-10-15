@@ -12,7 +12,8 @@ export default {
 const ChoiceSchema = CronSchema.and(z.object({
   title: z.string(),
   value: z.string(),
-  scheduled: z.boolean()
+  scheduled: z.boolean(),
+  chainId: z.number().optional()
 }))
 
 async function action() {
@@ -30,6 +31,8 @@ async function action() {
           ...cron,
           title: `${scheduled ? '🟢 enabled' : '🔴 disabled'} - ${cron.name}-${chain.id} (${cron.schedule})`,
           value: `${cron.name}-${chain.id}`,
+          queue: `${cron.queue}-${chain.id}`,
+          chainId: chain.id,
           scheduled
         })
       }
@@ -97,7 +100,7 @@ async function action() {
       } else {
         for(const cron of choices) {
           const q = mq.connect(cron.queue)
-          await q.add(cron.job, { id: strings.camelToSnake(cron.name) }, {
+          await q.add(cron.job, { id: strings.camelToSnake(cron.name), ...(cron.chainId === undefined ? {} : { chainId: cron.chainId }) }, {
             repeat: { pattern: cron.schedule }
           })
           await q.close()
@@ -106,7 +109,7 @@ async function action() {
 
       }
     } else {
-      const cron = choices.find(c => c.name === name)
+      const cron = choices.find(c => c.value === name)
       if(!cron) return
 
       if(cron.scheduled) {
@@ -117,7 +120,7 @@ async function action() {
 
       } else {
         const q = mq.connect(cron.queue)
-        await q.add(cron.job, { id: strings.camelToSnake(cron.name) }, {
+        await q.add(cron.job, { id: strings.camelToSnake(cron.name), ...(cron.chainId === undefined ? {} : { chainId: cron.chainId }) }, {
           repeat: { pattern: cron.schedule }
         })
         await q.close()
