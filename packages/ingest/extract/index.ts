@@ -36,8 +36,11 @@ export default class Extract implements Processor {
         ? `🎭 ${job.name} ${job.id} ${job.data.chainId}`
         : `🛸 ${job.name} ${job.id} ${job.data.chainId}`
       console.time(label)
-      await extractor.extract(job.data)
-      console.timeEnd(label)
+      try {
+        await extractor.extract(job.data)
+      } finally {
+        console.timeEnd(label)
+      }
     }
     this.workers = mq.workers(mq.q.extract, handler)
     this.workers.push(mq.worker(mq.q.extract, handler))
