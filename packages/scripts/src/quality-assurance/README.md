@@ -56,7 +56,13 @@ Vault metadata is fetched by address in one request via the `addresses` filter.
 
 **`--update totalAssets`** — Fetches on-chain `totalAssets()` via multicall at end-of-day blocks (resolved through DefiLlama) and upserts into the `output` table.
 
-**`--update tvls`** — Reads stored `totalAssets` from the database, fetches historical asset prices from DefiLlama, computes `tvl = totalAssets * priceUsd`, and upserts `tvl` and `priceUsd` rows into the `output` table.
+**`--update tvls`** — Reads stored `totalAssets` from the database, fetches historical asset prices, computes `tvl = totalAssets * priceUsd`, and upserts `tvl` and `priceUsd` rows into the `output` table.
+
+### Price source
+
+When `PRICE_SERVICE_API_KEY` is set (same env vars as ingest: `PRICE_SERVICE_API_KEY`, optional `PRICE_SERVICE_URL`, default `https://prices.yearn.dev`), `--update tvls` prices assets with the Yearn Price Service: `batchHistorical` in chunks of 50 (token, day) pairs, then the exact `historical/:timestamp/:tokenKey` route for anything the batch missed. 429 and 5xx responses are retried with exponential backoff. Without a key it falls back to DefiLlama `coins.llama.fi`.
+
+A (vault, day) with no usable price (not found, zero, or a request that still failed after retries) is logged and skipped, so an existing `tvl`/`priceUsd` row is never overwritten with 0 or a guessed price. `--dry-run` prints the rows it would write.
 
 ### Options
 
