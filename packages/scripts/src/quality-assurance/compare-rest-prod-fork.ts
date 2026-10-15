@@ -98,7 +98,7 @@ type ListItem = {
   performance?: {
     oracle?: Record<string, number | null | undefined>
     historical?: Record<string, number | null | undefined>
-    estimated?: { apr?: number; apy?: number; type?: string; components?: Record<string, unknown> }
+    estimated?: { apr?: number; apy?: number; grossAPR?: number; grossAPY?: number; type?: string; components?: Record<string, unknown> }
   } | null
   asset?: { address?: string; symbol?: string; decimals?: number | null } | null
 }
@@ -427,6 +427,16 @@ async function compareVault(
         `list.performance.historical.${key}`,
         toNumber(prodListItem?.performance?.historical?.[key]),
         toNumber(forkListItem?.performance?.historical?.[key]),
+        PRICE_THRESHOLD,
+      ),
+    )
+  }
+  for (const key of ['apr', 'apy', 'grossAPR', 'grossAPY'] as const) {
+    report.list.push(
+      makeDiff(
+        `list.performance.estimated.${key}`,
+        toNumber(prodListItem?.performance?.estimated?.[key]),
+        toNumber(forkListItem?.performance?.estimated?.[key]),
         PRICE_THRESHOLD,
       ),
     )
