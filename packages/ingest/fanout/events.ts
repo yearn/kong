@@ -28,6 +28,8 @@ export default class EventsFanout {
       ? await estimateHeight(chainId, replay?.since)
       : startBlock ?? inceptBlock
 
+    // Envio lag must not delay RPC-served events. Extraction chooses full RPC
+    // whenever a chunk extends past the indexer's processed watermark.
     const to = endBlock ?? await getBlockNumber(chainId)
 
     const replayRange = undefined // [{ from: 19309874n, to: 19309874n }]
