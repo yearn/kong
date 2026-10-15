@@ -1,5 +1,5 @@
 import db from '@/app/api/db'
-import { mergeSnapshot } from '@/lib/mergeSnapshot'
+import { mergeSnapshotSql, VAULT_UNSERVED_KEYS } from '@/lib/mergeSnapshot'
 import { getAddress } from 'viem'
 
 const vault = async (_: object, args: { chainId: number, address: `0x${string}` }) => {
@@ -10,9 +10,7 @@ const vault = async (_: object, args: { chainId: number, address: `0x${string}` 
     SELECT
       thing.chain_id,
       thing.address,
-      thing.defaults,
-      snapshot.snapshot,
-      snapshot.hook
+      ${mergeSnapshotSql(VAULT_UNSERVED_KEYS)} AS merged
     FROM thing
     JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
@@ -25,7 +23,7 @@ const vault = async (_: object, args: { chainId: number, address: `0x${string}` 
     const [first] = result.rows.map(row => ({
       chainId: row.chain_id,
       address: row.address,
-      ...mergeSnapshot(row.defaults, row.snapshot, row.hook)
+      ...row.merged
     }))
 
     return first

@@ -41,6 +41,8 @@ export function setTestcontainersEnv({ postgres, redis }: { postgres: StartedPos
   process.env.POSTGRES_USER = postgres.getUsername()
   process.env.POSTGRES_PASSWORD = postgres.getPassword()
   process.env.POSTGRES_DB = postgres.getDatabase()
+  process.env.POSTGRES_DATABASE = postgres.getDatabase()
+  process.env.POSTGRES_SSL = ''
   process.env.REDIS_HOST = redis.getHost()
   process.env.REDIS_PORT = redis.getMappedPort(6379).toString()
   return {

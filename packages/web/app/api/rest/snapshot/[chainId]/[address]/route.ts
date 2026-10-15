@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getKeyvClient } from '../../../cache'
+import { getKeyvClient, lastRefreshHeaders } from '../../../cache'
 import type { VaultSnapshot } from '../../db'
 import { getSnapshotKey } from '../../redis'
 
@@ -11,6 +11,8 @@ type RouteParams = {
   chainId?: string | string[]
   address?: string | string[]
 }
+
+const REFRESH_JOB = 'refresh-cache'
 
 const corsHeaders = {
   'access-control-allow-origin': '*',
@@ -34,8 +36,12 @@ export async function GET(
   const cacheKey = getSnapshotKey(Number(chainId), addressLower)
 
   let parsed: VaultSnapshot | undefined
+  let refreshHeaders: Record<string, string> = {}
   try {
-    parsed = await keyv.get(cacheKey)
+    ;[parsed, refreshHeaders] = await Promise.all([
+      keyv.get(cacheKey) as Promise<VaultSnapshot | undefined>,
+      lastRefreshHeaders(REFRESH_JOB),
+    ])
   } catch (err) {
     console.error(`Redis read failed for ${cacheKey}:`, err)
     throw err
@@ -50,6 +56,7 @@ export async function GET(
     headers: {
       'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
       ...corsHeaders,
+      ...refreshHeaders,
     },
   })
 }

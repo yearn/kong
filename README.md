@@ -167,7 +167,7 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 
 `output` - timeseries hook data
 
-`price` - price data
+`price` - legacy price data (no longer written; pending drop)
 
 `latest_block` - latest block numbers
 
@@ -445,6 +445,8 @@ A strides array that looks like `[{"from":"19419991","to":"19800000"}, {"from":"
 
 - [**Outputs (Timeseries)**](docs/outputs.md) - Comprehensive guide to Kong's timeseries outputs including TVL, APY, and PPS calculations. Covers the `tvl` → `tvl-c` migration, component schemas, and query examples.
 
+- [**yTranche**](docs/ytranche.md) - How Kong indexes yTranche: controller-driven discovery, the `hook` vs `hookState` snapshot distinction, controller-backed assets and price per share, accounting semantics, and why tranche claims aren't additional protocol TVL.
+
 
 ## Motivation
 Robust indexing is tough. Some observations,
@@ -519,3 +521,10 @@ There are some tickets related to this, that's why we preferred to still have ya
 | GraphQL    | [vercel.com](vercel.com)   |
 | Cache    | [turso.com](turso.com)   |
 
+
+### Retired ingestion jobs
+
+Retired `extract.waveydb` and `load.price` jobs are drained without processing.
+Each occurrence is logged by name and reported to Sentry once per job name per
+process. Unexpected extract/load job names fail and follow the existing failed-job
+retention policy (15 minutes / 100 failures by default).

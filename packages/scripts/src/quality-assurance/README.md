@@ -50,11 +50,19 @@ bun run tvl-detect-gaps.ts --start 2024-06-01 --end 2024-12-31
 
 Recomputes and backfills `tvl-c` timeseries data for specific vaults. Runs in two modes.
 
+Vault metadata is fetched by address in one request via the `addresses` filter.
+
 ### Modes
 
 **`--update totalAssets`** — Fetches on-chain `totalAssets()` via multicall at end-of-day blocks (resolved through DefiLlama) and upserts into the `output` table.
 
-**`--update tvls`** — Reads stored `totalAssets` from the database, fetches historical asset prices from DefiLlama, computes `tvl = totalAssets * priceUsd`, and upserts `tvl`, `priceUsd`, and `price` table rows.
+**`--update tvls`** — Reads stored `totalAssets` from the database, fetches historical asset prices, computes `tvl = totalAssets * priceUsd`, and upserts `tvl` and `priceUsd` rows into the `output` table.
+
+### Price source
+
+When `PRICE_SERVICE_API_KEY` is set (same env vars as ingest: `PRICE_SERVICE_API_KEY`, optional `PRICE_SERVICE_URL`, default `https://prices.yearn.dev`), `--update tvls` prices assets with the Yearn Price Service: `batchHistorical` in chunks of 50 (token, day) pairs, then the exact `historical/:timestamp/:tokenKey` route for anything the batch missed. 429 and 5xx responses are retried with exponential backoff. Without a key it falls back to DefiLlama `coins.llama.fi`.
+
+A (vault, day) with no usable price (not found, zero, or a request that still failed after retries) is logged and skipped, so an existing `tvl`/`priceUsd` row is never overwritten with 0 or a guessed price. `--dry-run` prints the rows it would write.
 
 ### Options
 
@@ -98,7 +106,7 @@ bun run tvl-backfill.ts --update tvls \
 
 Issue [#439](https://github.com/yearn/kong/issues/439) Phase 2 verification.
 
-**Always compares against prod.** Prod is the baseline (`--prod`, default `https://kong.yearn.fi`). The fork is the trial side (`--fork`, required) — e.g. local web, Neon branch deploy, or any host running with `USE_PRICE_SERVICE`.
+**Always compares against prod.** Prod is the baseline (`--prod`, default `https://kong.yearn.fi`). The fork is the trial side (`--fork`, required) — e.g. local web, Neon branch deploy, or any other host.
 
 For each vault it hits the same REST paths on **both** bases and diffs price-influenced fields (`tvl`, `priceUsd`) plus on-chain anchors (`totalAssets`, `pricePerShare`).
 

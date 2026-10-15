@@ -81,6 +81,32 @@ export const customChains = {
       },
     },
     testnet: false,
+  }),
+
+  robinhood: /*#__PURE__*/ defineChain({
+    id: 4663,
+    name: 'Robinhood Chain',
+    nativeCurrency: {
+      decimals: 18,
+      name: 'Ether',
+      symbol: 'ETH',
+    },
+    rpcUrls: {
+      default: { http: ['https://rpc.mainnet.chain.robinhood.com'] },
+    },
+    blockExplorers: {
+      default: {
+        name: 'Blockscout',
+        url: 'https://robinhoodchain.blockscout.com',
+      },
+    },
+    contracts: {
+      multicall3: {
+        address: '0xcA11bde05977b3631167028862bE2a173976CA11',
+        blockCreated: 0,
+      },
+    },
+    testnet: false,
   })
 }
 
@@ -91,7 +117,7 @@ interface YamlConfig { chains: string [] }
 const yamlPath = (() => {
   const local = path.join(__dirname, '../../config', 'chains.local.yaml')
   const production = path.join(__dirname, '../../config', 'chains.yaml')
-  if(fs.existsSync(local)) return local
+  if(!process.env.VITEST && fs.existsSync(local)) return local
   return production
 })()
 

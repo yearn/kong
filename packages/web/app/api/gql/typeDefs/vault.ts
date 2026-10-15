@@ -126,6 +126,9 @@ type EstimatedAprComponents {
   katRewardsAPR: Float
   debtRatio: Float
   isStrategy: Float
+  estimatedDebtCoverage: Float
+  morphoBaseAPY: Float
+  morphoRewardsAPR: Float
 }
 
 type EstimatedApr {

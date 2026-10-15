@@ -27,7 +27,7 @@ curl -s -X POST https://kong.yearn.fi/api/gql \
 
 #### `vaults`
 
-List all vaults, sorted by TVL descending.
+List vaults one page at a time, sorted by TVL descending, then chain ID ascending, then address ascending. Omit `chainId` to list every chain.
 
 | Argument | Type | Description |
 |----------|------|-------------|
@@ -41,12 +41,18 @@ List all vaults, sorted by TVL descending.
 | `vaultType` | `Int` | Filter by vault type |
 | `riskLevel` | `Int` | Filter by risk level |
 | `unratedOnly` | `Boolean` | Only unrated vaults |
+| `limit` | `Int` | Page size, default `100`, clamped to `1..1000` |
+| `offset` | `Int` | Rows to skip, default `0` |
+
+Paging is offset based: repeat the same filters and raise `offset` by `limit`
+for each page. Rows are ordered by TVL descending, then chain ID ascending,
+then address ascending; vaults with no TVL sort last as `0`.
 
 Returns [`Vault`](#vault-1).
 
 ```graphql
 {
-  vaults(chainId: 1, v3: true) {
+  vaults(chainId: 1, v3: true, limit: 50, offset: 50) {
     address
     name
     symbol
@@ -1107,6 +1113,9 @@ queries using `components { grossAPR }` fail validation.
 | `katRewardsAPR` | `Float` | Katana rewards APR |
 | `debtRatio` | `Float` | Legacy scope marker; debt allocation in basis points |
 | `isStrategy` | `Float` | Scope marker. Non-zero means strategy-scoped |
+| `estimatedDebtCoverage` | `Float` | Katana publisher fraction of active strategy debt backed by Morpho/Merkl estimates (0–1; 0.5 means 50%); Kong serves it unchanged and does not enforce the range |
+| `morphoBaseAPY` | `Float` | Katana publisher vault-asset-weighted Morpho base APY contribution, as an annual fractional rate (0.0204 means 2.04%); served unchanged |
+| `morphoRewardsAPR` | `Float` | Katana publisher vault-asset-weighted non-KAT Morpho rewards APR contribution, as an annual fractional rate (0.01 means 1%); served unchanged |
 
 ### Historical
 

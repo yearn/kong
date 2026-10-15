@@ -81,4 +81,26 @@ describe('blocks', function() {
       )
     }
   })
+
+  it('falls back to binary search when the first block is not served', async function() {
+    const originalNext = rpcs.next
+    const chainId = 31339
+    const keys = ['undefined', ...Array.from({ length: 101 }, (_, i) => String(i))]
+    await Promise.all(keys.map(blockNumber => cache.del(`getBlock:${chainId}:${blockNumber}`)))
+
+    rpcs.next = (() => ({
+      getBlock: async ({ blockNumber }: { blockNumber?: bigint } = {}) => {
+        if (blockNumber === 1n) throw new Error('Block at number "1" could not be found.')
+        const number = blockNumber ?? 100n
+        return { number, timestamp: number * 10n }
+      }
+    })) as unknown as typeof rpcs.next
+
+    try {
+      expect(await __estimateHeight(chainId, 425n)).to.equal(43n)
+    } finally {
+      rpcs.next = originalNext
+      await Promise.all(keys.map(blockNumber => cache.del(`getBlock:${chainId}:${blockNumber}`)))
+    }
+  })
 })
