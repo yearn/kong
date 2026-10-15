@@ -7,7 +7,6 @@ const { captured, repeatables, removeRepeatableByKey, close, blockExtract } = vi
 
 vi.mock('./evmlogs', () => ({ EvmLogsExtractor: class { extract = vi.fn() } }))
 vi.mock('./block', () => ({ BlockExtractor: class { extract = blockExtract } }))
-vi.mock('./waveydb', () => ({ WaveyDbExtractor: class { extract = vi.fn() } }))
 vi.mock('./snapshot', () => ({ SnapshotExtractor: class { extract = vi.fn() } }))
 vi.mock('./timeseries', () => ({ TimeseriesExtractor: class { extract = vi.fn() } }))
 vi.mock('./manuals', () => ({ ManualsExtractor: class { extract = vi.fn() } }))

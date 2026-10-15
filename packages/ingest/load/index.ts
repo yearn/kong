@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { mq, strider, strings, types } from 'lib'
 import db, { firstRow, getTravelledStrides, toBulkUpsertSql, toUpsertSql, upsertThingDefaults, withTransaction } from '../db'
 import { Processor } from 'lib/processor'
+import { reportRetiredJob } from '../retired-jobs'
 import { PoolClient } from 'pg'
 import { OutputSchema, SnapshotSchema, ThingSchema, zhexstring } from 'lib/types'
 import { Worker } from 'bullmq'
@@ -30,18 +31,22 @@ export default class Load implements Processor {
       await upsertThing(data),
 
     [mq.job.load.output.name]: async data =>
-      await upsertBatchOutput(data.batch === undefined ? [data] : data.batch),
-
-    [mq.job.load.price.name]: async data => data.batch
-      ? await upsertBatch(data.batch, 'price', 'chain_id, address, block_number')
-      : await upsert(data, 'price', 'chain_id, address, block_number')
+      await upsertBatchOutput(data.batch === undefined ? [data] : data.batch)
   }
 
   async up() {
     this.worker = mq.worker(mq.q.load, async job => {
       const label = `📀 ${job.name} ${job.id}`
+      const handler = Object.prototype.hasOwnProperty.call(this.handlers, job.name) ? this.handlers[job.name] : undefined
+      if (!handler) {
+        if (job.name === 'price') {
+          reportRetiredJob('load', job.name)
+          return
+        }
+        throw new Error(`unknown load job ${job.name}`)
+      }
       console.time(label)
-      await this.handlers[job.name](job.data)
+      await handler(job.data)
       console.timeEnd(label)
     })
   }

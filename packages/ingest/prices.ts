@@ -1,19 +1,7 @@
-import { mq } from 'lib'
 import { getBlockNumber, getBlockTime } from 'lib/blocks'
 import { cache } from 'lib/cache'
 import { Price, PriceSchema } from 'lib/types'
-import { getAddress, parseAbi } from 'viem'
-import { arbitrum, base, fantom, mainnet, optimism } from 'viem/chains'
-import db from './db'
-import { rpcs } from './rpcs'
-
-export const lens = {
-  [mainnet.id]: '0x83d95e0D5f402511dB06817Aff3f9eA88224B030' as `0x${string}`,
-  [optimism.id]: '0xB082d9f4734c535D9d80536F7E87a6f4F471bF65' as `0x${string}`,
-  [fantom.id]: '0x57AA88A0810dfe3f9b71a9b179Dd8bF5F956C46A' as `0x${string}`,
-  [base.id]: '0xE0F3D78DB7bC111996864A32d22AB0F59Ca5Fa86' as `0x${string}`,
-  [arbitrum.id]: '0x043518AB266485dC085a1DB095B8d9C2Fc78E9b9' as `0x${string}`
-}
+import { getAddress } from 'viem'
 
 const DAY_SECONDS = 86_400
 // v2: don't reuse entries a prior trial wrote under the old key.
@@ -21,22 +9,14 @@ const SERVICE_DAY_KEY_PREFIX = 'fetchErc20PriceUsd:service:v2:'
 const PAST_DAY_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const PAST_DAY_NEGATIVE_CACHE_TTL_MS = 120_000
 const PAST_DAY_NEGATIVE_CACHE_MAX_TTL_MS = 6 * 60 * 60 * 1000
-const BLOCK_CACHE_TTL_MS = 30_000
 // lib/blocks pins the head block for 15m and the service refreshes today's row hourly, so a 30s
 // ttl re-fetched an unchanged value ~120x/h per token.
 const SERVICE_BLOCK_CACHE_TTL_MS = 15 * 60 * 1000
 const CLEAR_BATCH_SIZE = 100
 
-/** When true, indexer reads prices from yearn-prices and skips the Postgres price table. */
-export function usePriceService(): boolean {
-  return (process.env.USE_PRICE_SERVICE || '').trim().toLowerCase() === 'true'
-}
-
-/** Fail closed when service mode lacks a key. Call from ingest startup. */
+/** Fail closed without a key. Call from ingest startup. */
 export function assertPriceSourceConfig(): void {
-  if (usePriceService() && !process.env.PRICE_SERVICE_API_KEY) {
-    throw new Error('USE_PRICE_SERVICE=true requires PRICE_SERVICE_API_KEY')
-  }
+  if (!process.env.PRICE_SERVICE_API_KEY?.trim()) throw new Error('PRICE_SERVICE_API_KEY is required')
 }
 
 /** UTC day start (unix seconds): floor(ts/86400)*86400 — cache key, not service day-end. */
@@ -57,7 +37,7 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
   }
   const blockCacheKey = `fetchErc20PriceUsd:${chainId}:${token}:${blockNumber}`
 
-  if (usePriceService() && !latest) {
+  if (!latest) {
     const blockTime = await getBlockTime(chainId, blockNumber)
     if (!isCurrentUtcDay(blockTime)) {
       const day = utcDayStart(blockTime)
@@ -68,7 +48,7 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
       if (parsed.success) return parsed.data
       const result = await cache.wrap(
         blockCacheKey,
-        async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, latest, blockTime),
+        async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, blockTime),
         blockCacheTtl()
       )
       // Only a day-granular service result is safe under a day key: a transient miss must
@@ -81,7 +61,7 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
 
   return cache.wrap(
     blockCacheKey,
-    async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, latest),
+    async () => __fetchErc20PriceUsd(chainId, token, blockNumber!),
     blockCacheTtl()
   )
 }
@@ -114,69 +94,16 @@ export async function clearNegativePriceCache() {
 
 // Misses keep the short negative ttl so a transient outage can't stick tvl=0 for 15 minutes.
 function blockCacheTtl() {
-  if (!usePriceService()) return BLOCK_CACHE_TTL_MS
   return (result: { priceSource: string }) => result.priceSource === 'priceservice'
     ? SERVICE_BLOCK_CACHE_TTL_MS
     : PAST_DAY_NEGATIVE_CACHE_TTL_MS
 }
 
-async function __fetchErc20PriceUsd(
-  chainId: number,
-  token: `0x${string}`,
-  blockNumber: bigint,
-  latest = false,
-  knownBlockTime?: bigint
-) {
-  // USE_PRICE_SERVICE=true: price service is the only source — no table read/write,
-  // no fallbacks. Unknown price when the service has nothing.
-  if (usePriceService()) {
-    const result = await fetchPriceServiceUsdResult(chainId, token, blockNumber, knownBlockTime)
-    if (result.type === 'price') return result.price
-    if (result.type === 'missing') return unknownPrice(chainId, token, blockNumber)
-    return unavailablePrice(chainId, token, blockNumber, knownBlockTime)
-  }
-  return __fetchErc20PriceUsdFromTable(chainId, token, blockNumber, latest)
-}
-
-/** Legacy path: read/write the Postgres price table (USE_PRICE_SERVICE=false, default). */
-async function __fetchErc20PriceUsdFromTable(chainId: number, token: `0x${string}`, blockNumber: bigint, latest = false) {
-  let result: Price | undefined
-
-  if (latest) {
-    result = await fetchYDaemonPriceUsd(chainId, token, blockNumber)
-    if (result) {
-      await mq.add(mq.job.load.price, result)
-      return result
-    }
-  }
-
-  result = await fetchDbPriceUsd(chainId, token, blockNumber)
-  if (result) return result
-
-  result = await fetchLensPriceUsd(chainId, token, blockNumber)
-  if (result) {
-    await mq.add(mq.job.load.price, result)
-    return result
-  }
-
-  if (JSON.parse(process.env.YPRICE_ENABLED || 'false')) {
-    result = await fetchYPriceUsd(chainId, token, blockNumber)
-    if (result) {
-      await mq.add(mq.job.load.price, result)
-      return result
-    }
-  }
-
-  result = await fetchPriceServiceUsd(chainId, token, blockNumber)
-  if (result) {
-    await mq.add(mq.job.load.price, result)
-    return result
-  }
-
-  console.warn('🚨', 'no price', chainId, token, blockNumber)
-  const empty = await unknownPrice(chainId, token, blockNumber)
-  await mq.add(mq.job.load.price, empty)
-  return empty
+async function __fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint, knownBlockTime?: bigint) {
+  const result = await fetchPriceServiceUsdResult(chainId, token, blockNumber, knownBlockTime)
+  if (result.type === 'price') return result.price
+  if (result.type === 'missing') return unknownPrice(chainId, token, blockNumber)
+  return unavailablePrice(chainId, token, blockNumber, knownBlockTime)
 }
 
 async function unknownPrice(chainId: number, token: `0x${string}`, blockNumber: bigint): Promise<Price> {
@@ -226,16 +153,9 @@ function isPriceServiceNegativeCacheMarker(value: unknown): value is PriceServic
     && ['na', 'unavailable'].includes((value as PriceServiceNegativeCacheMarker).priceSource)
 }
 
-async function fetchPriceServiceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint, knownBlockTime?: bigint): Promise<Price | undefined> {
-  const result = await fetchPriceServiceUsdResult(chainId, token, blockNumber, knownBlockTime)
-  return result.type === 'price' ? result.price : undefined
-}
-
 async function fetchPriceServiceUsdResult(chainId: number, token: `0x${string}`, blockNumber: bigint, knownBlockTime?: bigint): Promise<PriceServiceResult> {
-  // Warn only in service mode: in the legacy path a missing key or unmapped chain is normal.
-  const warn = (reason: string, detail?: unknown) => {
-    if (usePriceService()) console.warn('🚨', 'price service miss', reason, chainId, token, blockNumber, detail ?? '')
-  }
+  const warn = (reason: string, detail?: unknown) =>
+    console.warn('🚨', 'price service miss', reason, chainId, token, blockNumber, detail ?? '')
 
   if (!process.env.PRICE_SERVICE_API_KEY) { warn('no api key'); return { type: 'unavailable' } }
   const chainName = PRICE_SERVICE_CHAIN_NAMES[chainId]
@@ -247,11 +167,7 @@ async function fetchPriceServiceUsdResult(chainId: number, token: `0x${string}`,
     const blockTime = knownBlockTime ?? await getBlockTime(chainId, blockNumber)
     const coinId = `${chainName}:${token.toLowerCase()}`
 
-    // Batching is service-mode only: the legacy path hits this as a rare last resort, where a
-    // flush window buys nothing and the kill switch should take the whole layer with it.
-    const batched = usePriceService()
-      ? await enqueuePriceServiceBatch(coinId, Number(blockTime))
-      : { found: false } as const
+    const batched = await enqueuePriceServiceBatch(coinId, Number(blockTime))
     if (batched.found) {
       const priceUsd = batched.priceUsd
       // A stored zero is an answer, not a gap: the exact endpoint would read the same row.
@@ -362,126 +278,5 @@ async function sendPriceServiceBatch(entries: PriceServiceBatchEntry[]) {
     // Distinguish a broken batch route from a legitimate table miss, which resolves the same way.
     console.warn('🚨', 'price service batch failed', entries.length, error)
     for (const entry of entries) entry.resolve({ found: false })
-  }
-}
-
-async function fetchYPriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
-  if (!process.env.YPRICE_API) return undefined
-
-  try {
-    const url = `${process.env.YPRICE_API}/get_price/${chainId}/${token}?block=${blockNumber}`
-    const result = await fetch(url, {
-      headers: {
-        'X-Signature': process.env.YPRICE_API_X_SIGNATURE || '',
-        'X-Signer': process.env.YPRICE_API_X_SIGNER || ''
-      }
-    })
-
-    const priceUsd = Number(await result.json())
-    if (priceUsd === 0) return undefined
-
-    return PriceSchema.parse({
-      chainId,
-      address: token,
-      priceUsd,
-      priceSource: 'lens',
-      blockNumber,
-      blockTime: await getBlockTime(chainId, blockNumber)
-    })
-
-  } catch {
-    console.warn('🚨', 'yprice failed', chainId, token, blockNumber)
-    return undefined
-  }
-}
-
-async function fetchDbPriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
-  const result = await db.query(
-    `SELECT
-      chain_id as "chainId",
-      address,
-      price_usd as "priceUsd",
-      price_source as "priceSource",
-      block_number as "blockNumber",
-      block_time as "blockTime"
-    FROM price WHERE chain_id = $1 AND address = $2 AND block_number = $3`,
-    [chainId, getAddress(token), blockNumber]
-  )
-  if (result.rows.length === 0) return undefined
-  return PriceSchema.parse(result.rows[0])
-}
-
-async function fetchLensPriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
-  if (!(chainId in lens)) return undefined
-
-  try {
-    const priceUSDC = await rpcs.next(chainId, blockNumber).readContract({
-      address: lens[chainId as keyof typeof lens],
-      functionName: 'getPriceUsdcRecommended',
-      args: [token],
-      abi: parseAbi(['function getPriceUsdcRecommended(address tokenAddress) view returns (uint256)']),
-      blockNumber
-    }) as bigint
-
-    if (priceUSDC === 0n) return undefined
-
-    return PriceSchema.parse({
-      chainId,
-      address: token,
-      priceUsd: Number(priceUSDC * 10_000n / BigInt(10 ** 6)) / 10_000,
-      priceSource: 'lens',
-      blockNumber,
-      blockTime: await getBlockTime(chainId, blockNumber)
-    })
-
-  } catch (error) {
-    console.warn('🚨', 'lens price failed', error)
-    return undefined
-  }
-}
-
-async function fetchAllYDaemonPrices() {
-  if (!process.env.YDAEMON_API) throw new Error('!YDAEMON_API')
-  return cache.wrap('fetchAllYDaemonPrices', async () => {
-    const url = `${process.env.YDAEMON_API}/prices/all?humanized=true`
-    const result = await fetch(url)
-    const json = await result.json()
-    return lowercaseAddresses(json)
-  }, 60_000)
-}
-
-type YDaemonPrices = {
-  [key: string]: {
-      [key: string]: number
-  }
-}
-
-function lowercaseAddresses(data: YDaemonPrices): YDaemonPrices {
-  const result: YDaemonPrices = {}
-  for (const outerKey in data) {
-    result[outerKey] = {}
-    for (const innerKey in data[outerKey]) {
-      result[outerKey][innerKey.toLowerCase()] = data[outerKey][innerKey]
-    }
-  }
-  return result
-}
-
-async function fetchYDaemonPriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint) {
-  try {
-    const prices = await fetchAllYDaemonPrices()
-    const price = prices[chainId.toString()]?.[token.toLowerCase()] || 0
-    if (isNaN(price)) return undefined
-    return PriceSchema.parse({
-      chainId,
-      address: token,
-      priceUsd: price,
-      priceSource: 'ydaemon',
-      blockNumber,
-      blockTime: await getBlockTime(chainId, blockNumber)
-    })
-  } catch (error) {
-    console.warn('🚨', 'ydaemon price failed', error)
-    return undefined
   }
 }

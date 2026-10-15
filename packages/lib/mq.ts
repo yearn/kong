@@ -24,7 +24,6 @@ export const job: { [queue: string]: { [job: string]: Job } } = {
     evmlog: { queue: 'extract', name: 'evmlog', bychain: true },
     snapshot: { queue: 'extract', name: 'snapshot', bychain: true },
     timeseries: { queue: 'extract', name: 'timeseries', bychain: true },
-    waveydb: { queue: 'extract', name: 'waveydb' },
     manuals: { queue: 'extract', name: 'manuals' },
     webhook: { queue: 'extract', name: 'webhook' }
   },
@@ -35,8 +34,7 @@ export const job: { [queue: string]: { [job: string]: Job } } = {
     monitor: { queue: 'load', name: 'monitor' },
     evmlog: { queue: 'load', name: 'evmlog' },
     snapshot: { queue: 'load', name: 'snapshot' },
-    thing: { queue: 'load', name: 'thing' },
-    price: { queue: 'load', name: 'price' }
+    thing: { queue: 'load', name: 'thing' }
   },
 
   probe: {

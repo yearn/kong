@@ -36,18 +36,12 @@ export async function getLatestEstimatedAprRows(
 // chunks. series_time >= block_time always holds, so a floor at the same
 // maxAgeDays bound never drops a row the block_time bound keeps.
 function latestEstimatedAprRowsSql(
-  latestWhere: string,
+  latestCtes: string,
   includeAddressesParam: string,
   maxAgeParam: string
 ) {
   return `
-    WITH latest AS (
-      SELECT o.block_time, o.label
-      FROM output o
-      WHERE ${latestWhere}
-      ORDER BY o.block_time DESC
-      LIMIT 1
-    )
+    WITH ${latestCtes}
     SELECT
       label,
       address,
@@ -62,26 +56,46 @@ function latestEstimatedAprRowsSql(
 }
 
 const LATEST_ROWS_BY_LABEL_SQL = latestEstimatedAprRowsSql(`
-        o.chain_id = $1
+    latest AS (
+      SELECT o.block_time, o.label
+      FROM output o
+      WHERE o.chain_id = $1
         AND o.address = $2
         AND o.label = $3
         AND ($4::int IS NULL OR o.block_time > NOW() - ($4::int * INTERVAL '1 day'))
         AND ($4::int IS NULL OR o.series_time > NOW() - ($4::int * INTERVAL '1 day'))
+      ORDER BY o.block_time DESC
+      LIMIT 1
+    )
 `, '$5', '$4')
 
+// Scope is decided per emission (same chain/address/label/block_time), then the
+// latest vault-scoped emission is kept. A correlated bool_or SubPlan cannot be
+// an anti-join: on prod (Timescale 2.13, 141 chunks) it BitmapAnds
+// output_series_time_idx (~360k rows/chunk) while still excluding 139/141
+// chunks. Uncorrelated GROUP BY keeps the series_time index seek.
 const LATEST_ROWS_BY_ESTIMATED_APR_SQL = latestEstimatedAprRowsSql(`
-        o.chain_id = $1
+    candidates AS (
+      SELECT o.block_time, o.label, o.component, o.value
+      FROM output o
+      WHERE o.chain_id = $1
         AND o.address = $2
         AND o.label LIKE '%-estimated-apr'
         AND ($3::int IS NULL OR o.block_time > NOW() - ($3::int * INTERVAL '1 day'))
         AND ($3::int IS NULL OR o.series_time > NOW() - ($3::int * INTERVAL '1 day'))
-        AND NOT EXISTS (
-          SELECT 1 FROM output o2
-          WHERE o2.chain_id = o.chain_id
-            AND o2.address = o.address
-            AND o2.label = o.label
-            AND o2.block_time = o.block_time
-            AND o2.component = 'debtRatio'
-            AND ($3::int IS NULL OR o2.series_time > NOW() - ($3::int * INTERVAL '1 day'))
+    ),
+    latest AS (
+      SELECT block_time, label
+      FROM candidates
+      GROUP BY block_time, label
+      HAVING NOT (
+        bool_or(component = 'isStrategy' AND COALESCE(value, 0) <> 0)
+        OR (
+          NOT bool_or(component = 'isStrategy' AND value IS NOT NULL)
+          AND bool_or(component = 'debtRatio')
         )
+      )
+      ORDER BY block_time DESC
+      LIMIT 1
+    )
 `, '$4', '$3')

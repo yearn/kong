@@ -26,5 +26,17 @@ export const addresses = {
     stargateUsdcStaker: '0x8BBa7AFd0f9B1b664C161EC31d812a8Ec15f7e1a' as `0x${string}`
   },
 
+  // Ethereum yTranche deployment. Tranche A runs the base implementation,
+  // B and E the locked one. See docs/ytranche.md.
+  tranche: {
+    controller: '0xF0145433E5289dd10712650dCd28333FA317eF36' as `0x${string}`,
+    hook: '0x776DEd3273440f1481d07B6CE916b5d5Fac170dC' as `0x${string}`,
+    mainVault: '0xDa87123895a043Ed3610155550177C54ce8ba49B' as `0x${string}`,
+    usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as `0x${string}`,
+    a: '0x2D4F47208853a3D20EADCbdA0F03900771C6Eba3' as `0x${string}`,
+    b: '0xF7B5D8b432E8c57B4a388c2D833A473091FbF284' as `0x${string}`,
+    e: '0xF0A070c0c5b808AbB8EeF6838f178D44A6d9376E' as `0x${string}`
+  },
+
   rando: '0x1B243724A773092Df465B20186aF39Ae0A90fC26' as `0x${string}`
 }

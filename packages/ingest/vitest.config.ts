@@ -23,8 +23,7 @@ export default defineConfig({
           setupFiles: ['./vitest.setup.ts'],
           // one shared set of testcontainers + sequential execution: several specs
           // share the same tables, so they must not run in parallel.
-          pool: 'forks',
-          poolOptions: { forks: { singleFork: true } },
+          maxWorkers: 1,
           fileParallelism: false,
           isolate: false,
         },
@@ -35,6 +34,7 @@ export default defineConfig({
         test: {
           ...shared,
           name: 'mocks',
+          sequence: { groupOrder: 1 },
           include: ['**/*.mock.spec.ts'],
           exclude: ['**/node_modules/**'],
           setupFiles: ['./vitest.mocks.setup.ts'],

@@ -52,7 +52,7 @@ E2E tests use `TestEnvironment` from `lib/helpers/containers` to run the full st
 ### Prerequisites
 
 - Docker running
-- `.env` at repo root with RPC endpoints (`HTTP_ARCHIVE_*`, `HTTP_FULLNODE_*`, `YDAEMON_API`, etc.)
+- `.env` at repo root with RPC endpoints (`HTTP_ARCHIVE_*`, `HTTP_FULLNODE_*`, etc.) and `PRICE_SERVICE_API_KEY` (ingest exits at startup without it)
 
 ### Running
 
@@ -191,7 +191,7 @@ Run `node scripts/check-typecheck-baseline.mjs` after installing dependencies.
 The checked-in baseline records the TypeScript 7 audit's existing ingest (17),
 lib (1), and web (2) diagnostics. It compares file, code, message and occurrence
 count, ignoring line/column so unrelated edits can move existing diagnostics.
-Fixing an error passes immediately; remove its baseline entry afterward. Do not
+Fixing an error passes immediately; remove its baseline entry afterward (an empty or missing key keeps the workspace a zero-error gate). Do not
 refresh the baseline to accept a regression. Terminal remains a zero-error gate.
 
 Web typecheck uses checked-in `next-types.d.ts` for Next ambient declarations.
@@ -222,7 +222,10 @@ while others still match remains allowed.
 
 Ingest startup removes obsolete root-`extract` repeatable `block` jobs before starting workers. Per-chain crons keep their `chainId` payload; verify root repeatables are empty for `block` after rollout. Pool errors report to Sentry without crashing on an idle-client error. Concurrency probes do not overlap. Errors report on the first failure and at most once per minute per worker, including when failed probes alternate with successful probes.
 
-The baseline gate invokes each workspace's declared `typecheck` command. The
+The baseline gate invokes the declared `typecheck` command of every workspace under
+`packages/` that has one; a workspace without a baseline key is checked against an
+empty baseline, and a baseline key with no matching workspace script fails. Removing
+a workspace's last baseline entries never drops it from the gate. The
 native wrapper emits a completion record only to the gate; abnormal exits,
 signals, unexpected compiler stderr or missing records fail even when earlier
 diagnostics matched the baseline. A normal completed diagnostic run can still
