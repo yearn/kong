@@ -123,6 +123,9 @@ type EstimatedAprComponents {
   baseNetAPY: Float
   lockerBonusAPR: Float
   lockerBonusAPY: Float
+  estimatedDebtCoverage: Float
+  morphoBaseAPY: Float
+  morphoRewardsAPR: Float
 }
 
 type EstimatedApr {
