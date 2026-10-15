@@ -57,7 +57,7 @@ export async function findBusyMatch(): Promise<BusyMatch | null> {
         while (true) {
           const jobs = await queue.getJobs([status], start, start + PAGE - 1)
           for (const job of jobs) {
-            if (spec.includedNames.has(job.name)) {
+            if (job && spec.includedNames.has(job.name)) {
               return { queue: spec.queueName, jobName: job.name, status }
             }
           }

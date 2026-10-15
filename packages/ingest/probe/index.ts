@@ -1,4 +1,3 @@
-import { reportQuarantineDepth } from '../retired-jobs'
 import { Queue, Worker } from 'bullmq'
 import { chains, mq } from 'lib'
 import { Processor } from 'lib/processor'
@@ -73,7 +72,6 @@ export default class Probe implements Processor {
       this.queues[`${mq.q.extract}-${chain.id}`] = mq.connect(`${mq.q.extract}-${chain.id}`)
     }
     this.queues[mq.q.load] = mq.connect(mq.q.load)
-    this.queues[mq.q.quarantine] = mq.connect(mq.q.quarantine)
 
     this.worker = mq.worker(mq.q.probe, async job => {
       const label = `👽 ${job.name} ${job.id}`
@@ -125,13 +123,11 @@ export default class Probe implements Processor {
     for(const queue of Object.values(this.queues)) {
       result.queues.push({
         name: queue.name,
-        waiting: await queuedDepth(queue),
+        waiting: await queue.count(),
         active: (await queue.getJobs('active')).length,
         failed: (await queue.getJobs('failed')).length
       })
     }
-
-    reportQuarantineDepth(result.queues.find(queue => queue.name === mq.q.quarantine)?.waiting ?? 0)
 
     const redisClient = await Object.values(this.queues)[0].client
     const rawRedis = await redisClient.info()
@@ -217,9 +213,4 @@ export default class Probe implements Processor {
       eventCounts: await this.fetchEventCounts()
     }}
   }
-}
-
-export async function queuedDepth(queue: Pick<ReturnType<typeof mq.connect>, 'getJobCounts'>) {
-  const counts = await queue.getJobCounts('waiting', 'paused', 'delayed', 'prioritized', 'waiting-children')
-  return (counts.waiting ?? 0) + (counts.paused ?? 0) + (counts.delayed ?? 0) + (counts.prioritized ?? 0) + (counts['waiting-children'] ?? 0)
 }

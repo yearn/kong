@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url'
 import { getAddress, createPublicClient, http, type PublicClient, type Chain } from 'viem'
 import { mainnet, optimism, gnosis, polygon, fantom, base, arbitrum } from 'viem/chains'
 import { customChains } from 'lib/chains'
+import { fetchPriceServiceHistoricalPrices, getPriceServiceConfig, toPriceServiceCoinId, utcDayStart } from './price-service'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 config({ path: resolve(__dirname, '.env') })
@@ -583,23 +584,6 @@ async function main() {
       }
     }
 
-    // Build coin IDs for DefiLlama
-    const coinIds: string[] = []
-    const assetLookup = new Map<string, { chainId: number; address: string }>()
-
-    for (const assetKey of assetsToFetch) {
-      const [chainIdStr, address] = assetKey.split(':')
-      const chainId = Number(chainIdStr)
-      const chainName = CHAIN_NAMES[chainId]
-      if (chainName) {
-        const coinId = `${chainName}:${address}`
-        coinIds.push(coinId)
-        assetLookup.set(coinId.toLowerCase(), { chainId, address })
-      } else {
-        console.warn(`  Unknown chain ${chainId} for asset ${address}, skipping price fetch`)
-      }
-    }
-
     // Collect unique days
     const uniqueDays = new Set<number>()
     for (const days of vaultDays.values()) {
@@ -608,47 +592,105 @@ async function main() {
       }
     }
 
-    console.log(`\n--- Price Fetching ---`)
-    console.log('Unique assets:', assetsToFetch.size)
-    console.log('Coin IDs to fetch:', coinIds.length)
-    console.log('Unique days:', uniqueDays.size)
-
-    // Fetch prices: day -> coinId -> price
+    // Fetch prices: day -> assetKey -> price
     const historicalPrices = new Map<number, Map<string, number>>()
     const sortedDays = [...uniqueDays].sort((a, b) => a - b)
-    let fetchedDays = 0
     let totalPricesFetched = 0
+    const setHistoricalPrice = (day: number, assetKey: string, price: number) => {
+      // Never accept a zero/negative/non-finite price: it would overwrite real tvl with 0.
+      if (!Number.isFinite(price) || price <= 0) return
+      let dayPrices = historicalPrices.get(day)
+      if (!dayPrices) historicalPrices.set(day, dayPrices = new Map())
+      dayPrices.set(assetKey, price)
+      totalPricesFetched++
+    }
 
-    for (const day of sortedDays) {
-      fetchedDays++
-      const dateStr = new Date(day * 1000).toISOString().split('T')[0]
+    const priceService = getPriceServiceConfig()
+    console.log(`\n--- Price Fetching (${priceService ? `price service ${priceService.baseUrl}` : `DefiLlama ${DEFILLAMA_API}`}) ---`)
+    console.log('Unique assets:', assetsToFetch.size)
+    console.log('Unique days:', uniqueDays.size)
 
-      if (fetchedDays % 10 === 1 || fetchedDays === sortedDays.length) {
-        console.log(`  [${fetchedDays}/${sortedDays.length}] ${dateStr}`)
+    if (priceService) {
+      // Only the (asset, day) pairs a vault actually needs.
+      const requests: { coinId: string; timestamp: number }[] = []
+      const assetByCoinId = new Map<string, string>() // coinId -> assetKey
+      for (const vault of vaults) {
+        if (!vault.asset) continue
+        const days = vaultDays.get(`${vault.chainId}:${vault.address}`)
+        if (!days) continue
+        const coinId = toPriceServiceCoinId(vault.asset.chainId, vault.asset.address)
+        if (!coinId) {
+          console.warn(`  Unknown chain ${vault.asset.chainId} for asset ${vault.asset.address}, skipping price fetch`)
+          continue
+        }
+        assetByCoinId.set(coinId, `${vault.asset.chainId}:${vault.asset.address}`)
+        for (const day of days) requests.push({ coinId, timestamp: day })
       }
 
-      const response = await fetchHistoricalPrices(coinIds, day)
+      const result = await fetchPriceServiceHistoricalPrices(requests, priceService)
+      for (const [coinId, byDay] of result.prices) {
+        const assetKey = assetByCoinId.get(coinId)
+        if (!assetKey) continue
+        for (const day of sortedDays) {
+          const price = byDay.get(utcDayStart(day))
+          if (price !== undefined) setHistoricalPrice(day, assetKey, price)
+        }
+      }
 
-      if (response) {
-        const dayPrices = new Map<string, number>()
+      console.log('Batch requests:', result.stats.batchRequests, `(hits ${result.stats.batchHits})`)
+      console.log('Exact fallbacks:', result.stats.exactRequests, `(hits ${result.stats.exactHits})`)
+      for (const miss of result.missing) {
+        console.warn(`  No price from price service: ${miss.coinId} ${new Date(miss.timestamp * 1000).toISOString().split('T')[0]} (left unpriced)`)
+      }
+      for (const { request, reason } of result.failed) {
+        console.warn(`  Price service error: ${request.coinId} ${new Date(request.timestamp * 1000).toISOString().split('T')[0]} ${reason} (left unpriced)`)
+      }
+    } else {
+      // Build coin IDs for DefiLlama
+      const coinIds: string[] = []
+      const assetLookup = new Map<string, { chainId: number; address: string }>()
 
-        for (const [coinId, priceData] of Object.entries(response.coins)) {
-          const asset = assetLookup.get(coinId.toLowerCase())
-          if (asset) {
-            const assetKey = `${asset.chainId}:${asset.address}`
-            dayPrices.set(assetKey, priceData.price)
-            totalPricesFetched++
+      for (const assetKey of assetsToFetch) {
+        const [chainIdStr, address] = assetKey.split(':')
+        const chainId = Number(chainIdStr)
+        const chainName = CHAIN_NAMES[chainId]
+        if (chainName) {
+          const coinId = `${chainName}:${address}`
+          coinIds.push(coinId)
+          assetLookup.set(coinId.toLowerCase(), { chainId, address })
+        } else {
+          console.warn(`  Unknown chain ${chainId} for asset ${address}, skipping price fetch`)
+        }
+      }
+
+      console.log('Coin IDs to fetch:', coinIds.length)
+      let fetchedDays = 0
+
+      for (const day of sortedDays) {
+        fetchedDays++
+        const dateStr = new Date(day * 1000).toISOString().split('T')[0]
+
+        if (fetchedDays % 10 === 1 || fetchedDays === sortedDays.length) {
+          console.log(`  [${fetchedDays}/${sortedDays.length}] ${dateStr}`)
+        }
+
+        const response = await fetchHistoricalPrices(coinIds, day)
+
+        if (response) {
+          for (const [coinId, priceData] of Object.entries(response.coins)) {
+            const asset = assetLookup.get(coinId.toLowerCase())
+            if (asset) {
+              setHistoricalPrice(day, `${asset.chainId}:${asset.address}`, priceData.price)
+            }
           }
         }
 
-        historicalPrices.set(day, dayPrices)
+        await sleep(100)
       }
-
-      await sleep(100)
     }
 
     console.log('\n--- Price Fetch Stats ---')
-    console.log('Days fetched:', historicalPrices.size)
+    console.log('Days with prices:', historicalPrices.size)
     console.log('Days without prices:', uniqueDays.size - historicalPrices.size)
     console.log('Total prices fetched:', totalPricesFetched)
 
@@ -702,6 +744,7 @@ async function main() {
         const priceUsd = dayPrices?.get(assetKey)
         if (priceUsd === undefined) {
           missingPrices++
+          console.warn(`  Unpriced: ${vaultKey} ${new Date(day * 1000).toISOString().split('T')[0]} (asset ${assetKey}), skipping`)
           continue
         }
 
@@ -740,6 +783,10 @@ async function main() {
     console.log('Output rows to upsert:', outputRowsToUpsert.length)
 
     if (dryRun) {
+      for (const row of outputRowsToUpsert.slice(0, 50)) {
+        console.log(`  ${row.chainId}:${row.address} ${row.seriesTime.toISOString().split('T')[0]} ${row.component}=${row.value}`)
+      }
+      if (outputRowsToUpsert.length > 50) console.log(`  ... ${outputRowsToUpsert.length - 50} more`)
       console.log('DRY RUN: Skipping database writes')
     } else {
       let outputSuccess = 0

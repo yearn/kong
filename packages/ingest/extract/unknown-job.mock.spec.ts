@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const { captureException, captureMessage, captured, snapshotExtract } = vi.hoisted(() => ({
+const { captureMessage, captured, snapshotExtract } = vi.hoisted(() => ({
   captureMessage: vi.fn(),
-  captureException: vi.fn(),
-  captured: {} as { handler?: (job: { name: string; id: string; queueName?: string; opts?: { removeOnFail?: boolean }; data: Record<string, unknown> | null }) => Promise<void> },
+  captured: {} as { handler?: (job: { name: string; id: string; data: Record<string, unknown> | null }) => Promise<void> },
   snapshotExtract: vi.fn(async () => undefined)
 }))
 
@@ -16,7 +15,6 @@ vi.mock('./webhook', () => ({ WebhookExtractor: class { extract = vi.fn() } }))
 
 vi.mock('lib', () => ({
   mq: {
-    quarantine: vi.fn(async () => undefined),
     q: { extract: 'extract' },
     job: {
       extract: {
@@ -34,19 +32,18 @@ vi.mock('lib', () => ({
       return { close: vi.fn() }
     })
   },
-  sentry: { captureMessage, captureException }
+  sentry: { captureMessage }
 }))
 
 import Extract from './index'
-import { mq } from 'lib'
 
 describe('extract worker unknown job guard', () => {
-  it('drops an unregistered job name with a sentry warning instead of throwing', async () => {
+  it('drains retired jobs and reports a warning once per name', async () => {
     await new Extract().up()
     await expect(captured.handler!({ name: 'waveydb', id: '1', data: { chainId: 1 } })).resolves.toBeUndefined()
     await captured.handler!({ name: 'waveydb', id: 'legacy-2', data: {} })
     expect(captureMessage).toHaveBeenCalledTimes(1)
-    expect(captureMessage).toHaveBeenCalledWith('unknown extract job waveydb', { level: 'warning', tags: { component: 'extract' } })
+    expect(captureMessage).toHaveBeenCalledWith('retired extract job waveydb', { level: 'warning', tags: { component: 'extract' } })
   })
 
   it('still dispatches registered job names', async () => {
@@ -55,24 +52,13 @@ describe('extract worker unknown job guard', () => {
     expect(snapshotExtract).toHaveBeenCalledWith({ chainId: 1 })
   })
 
-  it.each(['new-job', 'toString'])('quarantines unexpected job %s before failing', async name => {
+  it.each(['new-job', 'toString'])('fails unexpected job %s', async name => {
     await new Extract().up()
-    await expect(captured.handler!({ name, id: '3', queueName: 'extract-1', data: {}, opts: {} })).rejects.toThrow(`unknown extract job ${name}`)
-    expect(mq.quarantine).toHaveBeenCalledWith({ name, id: '3', queueName: 'extract-1', data: {}, opts: {} })
-  })
-  it('quarantines a null payload before reading dispatch metadata', async () => {
-    await new Extract().up()
-    const job = { name: 'unexpected-null', id: 'null', queueName: 'extract', data: null }
-    await expect(captured.handler!(job)).rejects.toThrow('unknown extract job unexpected-null')
-    expect(mq.quarantine).toHaveBeenCalledWith(job)
+    await expect(captured.handler!({ name, id: '3', data: {} })).rejects.toThrow(`unknown extract job ${name}`)
   })
 
-  it('preserves the unknown-job error and separately reports quarantine storage failure', async () => {
+  it('rejects an unknown name before reading a null payload', async () => {
     await new Extract().up()
-    vi.mocked(mq.quarantine).mockRejectedValueOnce(new Error('redis unavailable'))
-    const job = { name: 'new-job', id: 'failed-copy', queueName: 'extract-1', data: {}, opts: { removeOnFail: true } }
-    await expect(captured.handler!(job)).rejects.toThrow('unknown extract job new-job')
-    expect(job.opts.removeOnFail).toBe(true)
-    expect(captureException).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ tags: expect.objectContaining({ phase: 'quarantine_write' }) }))
+    await expect(captured.handler!({ name: 'unexpected-null', id: 'null', data: null })).rejects.toThrow('unknown extract job unexpected-null')
   })
 })
