@@ -23,7 +23,7 @@ describe('abis/yearn/3/tranche/vault/timeseries/tranche-accounting/hook', functi
       [mainnet.id, TRANCHE, 'tranche'])
   })
 
-  it('emits controller accounting normalized to asset decimals', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('emits controller accounting normalized to asset decimals', async function() {
     const outputs = await process_(mainnet.id, TRANCHE, {
       abiPath: 'yearn/3/tranche/vault', chainId: mainnet.id, address: TRANCHE,
       outputLabel: 'tranche-accounting', blockTime: BLOCK_TIME
@@ -45,7 +45,7 @@ describe('abis/yearn/3/tranche/vault/timeseries/tranche-accounting/hook', functi
     expect(component('accrualPaused')).to.equal(0)
   })
 
-  it('emits nothing for an address that is not a tranche thing', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('emits nothing for an address that is not a tranche thing', async function() {
     const outputs = await process_(mainnet.id, addresses.rando, {
       abiPath: 'yearn/3/tranche/vault', chainId: mainnet.id, address: addresses.rando,
       outputLabel: 'tranche-accounting', blockTime: BLOCK_TIME

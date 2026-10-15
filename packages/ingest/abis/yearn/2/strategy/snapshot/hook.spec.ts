@@ -7,7 +7,7 @@ import { getLatestApy, getLatestEstimatedApr, getLatestEstimatedAprV3 } from '..
 import { extractLenderStatuses, fetchApiVersion } from './hook'
 
 describe('abis/yearn/2/strategy/snapshot/hook', function() {
-  it('extracts lender statuses', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('extracts lender statuses', async function() {
     const statuses = await extractLenderStatuses(mainnet.id, '0x2216E44fA633ABd2540dB72Ad34b42C7F1557cd4', 18530014n)
     expect(statuses).to.be.an('array')
     expect(statuses).to.have.length(2)
@@ -19,7 +19,7 @@ describe('abis/yearn/2/strategy/snapshot/hook', function() {
     })
   })
 
-  it('extracts no lender statuses', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('extracts no lender statuses', async function() {
     const statuses = await extractLenderStatuses(mainnet.id, '0x120FA5738751b275aed7F7b46B98beB38679e093', 18530014n)
     expect(statuses).to.be.an('array')
     expect(statuses).to.have.length(0)

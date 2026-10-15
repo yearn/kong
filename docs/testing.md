@@ -1,5 +1,37 @@
 # Testing
 
+## TypeScript toolchain
+
+Use Bun 1.4.2 (`packageManager` in the root manifest, also pinned in CI and
+Dockerfiles). Install with `bun install --frozen-lockfile`.
+
+Workspace `typecheck` scripts run the native TypeScript 7.0.2 compiler (`tsc`),
+resolved directly from `@typescript/native` by `scripts/typecheck.mjs`, which
+checks both the package version and compiler output before running. ESLint, Next.js 15 and ts-node
+still need the JavaScript compiler API, so workspace `typescript` dependencies
+alias Microsoft's `@typescript/typescript6` compatibility package. Its underlying
+6.x API is pinned by `bun.lock`; typecheck does not use the potentially ambiguous
+`node_modules/.bin/tsc` shim.
+The ESLint parser/plugin use 8.69.0, which supports that API. Do not replace the
+compatibility alias with native TypeScript: these tools import its JavaScript API.
+
+```bash
+bun --filter terminal typecheck
+bun --filter ingest typecheck
+bun --filter lib typecheck
+bun --filter web typecheck
+```
+
+The native compiler requires ES2020 for the web package's BigInt usage. Node
+packages set `rootDir` to the workspace parent so ts-node can compile their
+cross-workspace imports with the 6.x API. Next.js continues to transpile browser
+code using its own build pipeline.
+
+Typecheck remains blocking for terminal. Ingest, lib and web compare diagnostics against
+`scripts/typecheck-baseline.json`; new diagnostic identities or additional
+occurrences fail CI. Known errors remain visible in that file and must be fixed
+and removed as follow-up work. A green workflow means no new errors, not zero errors.
+
 ## Unit tests
 
 Run unit tests for `lib` and `ingest`:
@@ -25,7 +57,7 @@ E2E tests use `TestEnvironment` from `lib/helpers/containers` to run the full st
 ### Running
 
 ```bash
-node_modules/.bin/ts-node packages/ingest/run-e2e.ts
+bun --filter ingest test:containers
 ```
 
 ---
@@ -90,19 +122,17 @@ RPC endpoints (`HTTP_ARCHIVE_*`, `HTTP_FULLNODE_*`, etc.) are read automatically
 **`env.runScript(scriptPath)`** — runs a TypeScript script from the repo root as a child process, inheriting the test env vars (Postgres host/port, Redis URL, etc.). Use to run refresh scripts against the test containers:
 
 ```typescript
-await env.runScript('packages/web/app/api/rest/snapshot/refresh-snapshot.ts')
+await env.runScript('packages/web/app/api/rest/refresh-vaults.cli.ts')
 ```
 
 ### Full example
 
 ```typescript
-describe('e2e: ingest → web snapshot', function() {
-  this.timeout(8 * 60_000)
-
+describe('e2e: ingest → web snapshot', () => {
   let env: TestEnvironment
   let pool: Pool
 
-  before(async function() {
+  beforeAll(async () => {
     env = new TestEnvironment({
       configs: {
         chains: ['mainnet'],
@@ -133,17 +163,69 @@ describe('e2e: ingest → web snapshot', function() {
     `, [1, VAULT_ADDRESS])
 
     // populate Redis cache
-    await env.runScript('packages/web/app/api/rest/snapshot/refresh-snapshot.ts')
+    await env.runScript('packages/web/app/api/rest/refresh-vaults.cli.ts')
   })
 
-  after(async function() {
+  afterAll(async () => {
     await pool?.end()
     await env?.stop()
   })
 
-  it('serves snapshot', async function() {
+  it('serves snapshot', async () => {
     const res = await fetch(`${webUrl}/api/rest/snapshot/1/${VAULT_ADDRESS.toLowerCase()}`)
     expect(res.status).to.equal(200)
   })
 })
 ```
+
+## Local end-to-end tests
+
+`bun --filter ingest test:containers` is local-only: configure the guarded
+`HTTP_ARCHIVE_1` / `HTTP_ARCHIVE_747474` RPC endpoints and start the required
+Docker/Timescale/Redis services. CI has no archive credentials and does not run
+this command; a green test job does not establish end-to-end RPC coverage.
+
+## Known typecheck diagnostics
+
+Run `node scripts/check-typecheck-baseline.mjs` after installing dependencies.
+The checked-in baseline records the TypeScript 7 audit's existing ingest (17),
+lib (1), and web (2) diagnostics. It compares file, code, message and occurrence
+count, ignoring line/column so unrelated edits can move existing diagnostics.
+Fixing an error passes immediately; remove its baseline entry afterward (an empty or missing key keeps the workspace a zero-error gate). Do not
+refresh the baseline to accept a regression. Terminal remains a zero-error gate.
+
+Web typecheck uses checked-in `next-types.d.ts` for Next ambient declarations.
+The separate `tsconfig.typecheck.json` excludes generated `next-env.d.ts` and
+`.next` files so local builds do not change the gate's input files. The base
+`tsconfig.json` still includes those files for Next's production route-type checks.
+
+`packages/scripts` is deliberately outside this initial gate: its operational
+scripts still have an unaudited diagnostic backlog and require a separate baseline
+audit. The gate currently covers terminal, ingest, lib and web; it does not claim
+type safety for the scripts workspace.
+
+CI initializes the installed compiler through the workspace's actual `production`
+command (`ts-node --transpile-only index.ts`) with `KONG_COMPILER_SMOKE=true`.
+The entrypoint validates the compatibility API and exits before loading external
+services or enqueuing jobs. This gates ts-node compiler initialization, not a full
+container boot, service connectivity or production Next build.
+
+`load.output` accepts current `{ batch }` payloads and wraps legacy single-output
+payloads as a one-element batch before validation, preserving queued work across
+upgrades. Invalid payloads still fail schema validation.
+
+A nonempty diagnostic baseline must match at least one compiler diagnostic.
+A silent zero-diagnostic result fails and lists the unmatched entries, guarding
+against lost compiler coverage. When fixing the last known error in a workspace,
+remove its now-resolved baseline entries in the same commit. Resolving some entries
+while others still match remains allowed.
+
+The baseline gate invokes the declared `typecheck` command of every workspace under
+`packages/` that has one; a workspace without a baseline key is checked against an
+empty baseline, and a baseline key with no matching workspace script fails. Removing
+a workspace's last baseline entries never drops it from the gate. The
+native wrapper emits a completion record only to the gate; abnormal exits,
+signals, unexpected compiler stderr or missing records fail even when earlier
+diagnostics matched the baseline. A normal completed diagnostic run can still
+resolve some baseline entries. Failure headlines distinguish execution/coverage
+failures, unparsable output and new diagnostics.

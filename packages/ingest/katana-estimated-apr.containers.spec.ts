@@ -107,7 +107,7 @@ const COMPOSITION_ASSEMBLED_SQL = `
     )
 `
 
-describe('e2e: katana strategy rewards APR surfaces in parent composition (PR #443)', () => {
+describe.skipIf(!process.env.HTTP_ARCHIVE_747474)('e2e: katana strategy rewards APR surfaces in parent composition (PR #443)', () => {
   let env: TestEnvironment
   let webUrl: string
   let pool: Pool

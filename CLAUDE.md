@@ -66,7 +66,7 @@ Kong is a real-time/historical EVM indexer with these core components:
 
 ## Technology Stack
 - **Runtime**: Bun (primary), Node.js
-- **Testing**: Mocha + Chai
+- **Testing**: Vitest
 - **Database**: PostgreSQL with TimescaleDB
 - **Message Queue**: Redis + BullMQ
 - **Web Framework**: Next.js with Apollo GraphQL

@@ -5,7 +5,7 @@ import { TestEnvironment, createTestPool, pollForRow, triggerFanout } from 'lib/
 const VAULT_ADDRESS = '0x696d02Db93291651ED510704c9b286841d506987'
 const CHAIN_ID = 1
 
-describe('e2e: ingest → web snapshot', () => {
+describe.skipIf(!process.env.HTTP_ARCHIVE_1)('e2e: ingest → web snapshot', () => {
   let env: TestEnvironment
   let webUrl: string
   let pool: Pool

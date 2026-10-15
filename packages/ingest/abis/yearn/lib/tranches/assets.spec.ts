@@ -34,7 +34,7 @@ const ordinary = ThingSchema.parse({
 })
 
 describe('abis/yearn/lib/tranches/assets', function() {
-  it('reads ordinary vault assets from totalAssets()', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('reads ordinary vault assets from totalAssets()', async function() {
     const totalAssets = await rpcs.next(mainnet.id, BLOCK).readContract({
       address: ordinary.address, abi: parseAbi(['function totalAssets() view returns (uint256)']),
       functionName: 'totalAssets', blockNumber: BLOCK
@@ -44,7 +44,7 @@ describe('abis/yearn/lib/tranches/assets', function() {
     expect(await readAuthoritativeAssets(ordinary, BLOCK)).to.equal(2101403879n)
   })
 
-  it('reads tranche assets from the controller', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('reads tranche assets from the controller', async function() {
     const liveAssets = await rpcs.next(mainnet.id, BLOCK).readContract({
       address: addresses.tranche.controller,
       abi: parseAbi(['function liveAssets(address) view returns (uint256)']),
@@ -55,7 +55,7 @@ describe('abis/yearn/lib/tranches/assets', function() {
     expect(await readAuthoritativeAssets(tranche, BLOCK)).to.equal(1000448417n)
   })
 
-  it('prices tranche shares from authoritative assets and supply', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('prices tranche shares from authoritative assets and supply', async function() {
     const assets = await readAuthoritativeAssets(tranche, BLOCK)
     const totalSupply = await rpcs.next(mainnet.id, BLOCK).readContract({
       address: tranche.address, abi: parseAbi(['function totalSupply() view returns (uint256)']),
@@ -67,7 +67,7 @@ describe('abis/yearn/lib/tranches/assets', function() {
     expect(await readPps(tranche, BLOCK)).to.equal(1000448n)
   })
 
-  it('prices ordinary vault shares from pricePerShare()', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('prices ordinary vault shares from pricePerShare()', async function() {
     const pricePerShare = await rpcs.next(mainnet.id, BLOCK).readContract({
       address: ordinary.address, abi: parseAbi(['function pricePerShare() view returns (uint256)']),
       functionName: 'pricePerShare', blockNumber: BLOCK

@@ -24,7 +24,7 @@ describe('abis/yearn/3/tranche/controller/timeseries/tranche-system/hook', funct
       [mainnet.id, USDC, 'erc20'])
   })
 
-  it('emits system backing normalized to asset decimals', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('emits system backing normalized to asset decimals', async function() {
     const outputs = await process_(mainnet.id, controller, {
       abiPath: 'yearn/3/tranche/controller', chainId: mainnet.id, address: controller,
       outputLabel: 'tranche-system', blockTime: BLOCK_TIME

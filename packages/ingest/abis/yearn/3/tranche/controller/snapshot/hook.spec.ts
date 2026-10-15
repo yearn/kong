@@ -8,7 +8,7 @@ const BLOCK = 25600000n
 const { controller, a, b, e } = addresses.tranche
 
 describe('abis/yearn/3/tranche/controller/snapshot/hook', function() {
-  it('discovers the deployed tranches in priority order', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('discovers the deployed tranches in priority order', async function() {
     const discovered = await extractTranchesByPriority(mainnet.id, controller, 3n, BLOCK)
     expect(discovered).to.deep.equal([a, b, e])
   })
@@ -18,7 +18,7 @@ describe('abis/yearn/3/tranche/controller/snapshot/hook', function() {
     expect(await extractTranchesByPriority(mainnet.id, controller, undefined, BLOCK)).to.deep.equal([])
   })
 
-  it('reads controller accounting per tranche', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('reads controller accounting per tranche', async function() {
     const accounting = await extractTrancheAccounting(
       mainnet.id, controller, [{ address: a, priority: 0 }, { address: e, priority: 2 }], BLOCK
     )
@@ -38,7 +38,7 @@ describe('abis/yearn/3/tranche/controller/snapshot/hook', function() {
     expect(senior.pendingExcess).to.equal(0n)
   })
 
-  it('reads tranche metadata and implementation type', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('reads tranche metadata and implementation type', async function() {
     // base and locked are implementations; A/B/E are deployment configuration
     expect(await extractTrancheMeta(mainnet.id, a, BLOCK)).to.deep.equal({
       name: 'yvUSD Fixed', symbol: 'yvUSD-A', decimals: 6, apiVersion: '3.1.0', trancheType: 'base'

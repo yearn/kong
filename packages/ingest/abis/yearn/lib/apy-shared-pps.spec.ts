@@ -48,7 +48,7 @@ describe('abis/yearn/lib/apy shared pps reader', function() {
     await db.query('DELETE FROM evmlog WHERE chain_id = $1 AND address = $2', [mainnet.id, vault.address])
   })
 
-  it('samples every pps observation through the shared reader', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('samples every pps observation through the shared reader', async function() {
     const apy = await _compute(vault, [], BLOCK)
 
     expect(apy.inceptionBlockNumber).to.equal(FIRST_HARVEST_BLOCK)

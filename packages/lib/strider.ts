@@ -1,4 +1,4 @@
-import { math } from '.'
+import * as math from './math'
 import { Stride } from './types'
 
 export function plan(from: bigint, to: bigint, travelled: Stride[] | undefined): Stride[] {
