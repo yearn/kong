@@ -10,7 +10,7 @@ import { estimateCreationBlock } from 'lib/blocks'
 import { fetchOrExtractErc20, throwOnMulticallError } from '../../../lib'
 import db, { firstRow } from '../../../../../db'
 import { getStrategyMeta, getVaultMeta } from '../../../lib/meta'
-import vaultAbi from '../../vault/abi'
+import { mapStrategyParams, strategiesAbi } from '../../vault/snapshot/hook'
 import { getLatestEstimatedApr } from '../../../../../helpers/apy-apr'
 
 const borkedVaults = [
@@ -84,19 +84,56 @@ export async function extractTotalDebt(chainId: number, vault: `0x${string}`, st
     totalDebtUsd: 0
   }
 
-  const status = await rpcs.next(chainId, blockNumber).readContract({
-    address: vault, abi: vaultAbi, functionName: 'strategies',
-    args: [strategy],
-    blockNumber
-  })
+  const { totalDebt } = await extractStrategyParams(chainId, vault, strategy, blockNumber)
 
   const { priceUsd } = await fetchErc20PriceUsd(chainId, want, blockNumber)
   const erc20 = await fetchOrExtractErc20(chainId, want)
 
   return {
-    totalDebt: status.totalDebt,
-    totalDebtUsd: priced(status.totalDebt, erc20.decimals, priceUsd)
+    totalDebt,
+    totalDebtUsd: priced(totalDebt, erc20.decimals, priceUsd)
   }
+}
+
+// pre-0.3.2 vaults return an 8 field StrategyParams (rateLimit instead of
+// min/maxDebtPerHarvest). their zero-padded return data still decodes under the
+// flattened 9 field abi, silently misaligning every field after debtRatio
+export async function extractStrategyParams(chainId: number, vault: `0x${string}`, strategy: `0x${string}`, blockNumber?: bigint) {
+  const apiVersion = await fetchApiVersion(chainId, vault, blockNumber)
+
+  const fields = await rpcs.next(chainId, blockNumber).readContract({
+    address: vault, abi: strategiesAbi(apiVersion), functionName: 'strategies',
+    args: [strategy],
+    blockNumber
+  })
+
+  return mapStrategyParams(apiVersion, fields)
+}
+
+const apiVersions = new Map<string, string>()
+
+export async function fetchApiVersion(chainId: number, vault: `0x${string}`, blockNumber?: bigint) {
+  const key = `${chainId}:${vault.toLowerCase()}`
+  const cached = apiVersions.get(key)
+  if (cached) return cached
+
+  const fromThing = await firstRow(
+    'SELECT defaults->>\'apiVersion\' AS "apiVersion" FROM thing WHERE chain_id = $1 AND address = $2 AND label = \'vault\'',
+    [chainId, vault]
+  )
+  if (fromThing?.apiVersion) {
+    apiVersions.set(key, fromThing.apiVersion)
+    return fromThing.apiVersion as string
+  }
+
+  const apiVersion = await rpcs.next(chainId, blockNumber).readContract({
+    address: vault, abi: parseAbi(['function apiVersion() view returns (string)']),
+    functionName: 'apiVersion',
+    blockNumber
+  })
+
+  apiVersions.set(key, apiVersion)
+  return apiVersion
 }
 
 export async function extractLenderStatuses(chainId: number, address: `0x${string}`, blockNumber?: bigint) {

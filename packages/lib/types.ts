@@ -6,7 +6,7 @@ export const zhexstring = z.custom<`0x${string}`>((val: any) => /^0x/.test(val))
 export const zvaultType = z.string()
 export type HexString = z.infer<typeof zhexstring>
 
-export const EvmAddressSchema = zhexstring.transform(s => getAddress(s))
+export const EvmAddressSchema = zhexstring.refine(s => /^0x[0-9a-fA-F]{40}$/.test(s)).transform(s => getAddress(s))
 export type EvmAddress = z.infer<typeof EvmAddressSchema>
 
 export function compareEvmAddresses(a?: string, b?: string) {

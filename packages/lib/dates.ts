@@ -50,16 +50,3 @@ export function makeTimeline(start: bigint, end: bigint): bigint[] {
   return result
 }
 
-export function findMissingTimestamps(start: bigint, end: bigint, outputed: bigint[]): bigint[] {
-  const result: bigint[] = []
-  const timeline = makeTimeline(start, end)
-
-  outputed.forEach((time, index) => outputed[index] = endOfDay(time))
-
-  for (const time of timeline) {
-    const index = outputed.indexOf(time)
-    if (index === -1) result.push(time)
-  }
-
-  return result
-}

@@ -9,8 +9,13 @@ import { first } from '../../../../../../db'
 import { math, multicall3 } from 'lib'
 import { extractDebtFromStrategy, extractDelegatedAssets, extractFees } from '../../../strategy/event/hook'
 
+// the 8 arg variant covers 0.2.x through 0.3.1 — identical types, so one selector.
+// on 0.2.x its last arg is debtLimit (absolute tokens), not bps debtRatio. the abi names
+// it debtRatio either way; the reports api nulls it for 0.2.x vaults, and fee math goes
+// through mapStrategyParams, which zeros pre-0.3.0 debtRatio.
 export const topics = [
-  'event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 debtPaid, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtRatio)'
+  'event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 debtPaid, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtRatio)',
+  'event StrategyReported(address indexed strategy, uint256 gain, uint256 loss, uint256 totalGain, uint256 totalLoss, uint256 totalDebt, uint256 debtAdded, uint256 debtRatio)'
 ].map(e => toEventSelector(e))
 
 export const HarvestSchema = z.object({
@@ -22,7 +27,7 @@ export const HarvestSchema = z.object({
     strategy: EvmAddressSchema,
     gain: z.bigint({ coerce: true }),
     loss: z.bigint({ coerce: true }),
-    debtPaid: z.bigint({ coerce: true }),
+    debtPaid: z.bigint({ coerce: true }).default(0n),
     totalGain: z.bigint({ coerce: true }),
     totalLoss: z.bigint({ coerce: true }),
     totalDebt: z.bigint({ coerce: true }),
@@ -65,12 +70,12 @@ async function fetchPreviousHarvest(harvest: Harvest) {
   WHERE
     chain_id = $1
     AND address = $2
-    AND signature = $3
+    AND signature = ANY($3)
     AND block_number < $4
     AND args->>'strategy' = $5
   ORDER BY block_number DESC, log_index DESC
   LIMIT 1`,
-  [harvest.chainId, harvest.address, topics[0], harvest.blockNumber, harvest.args.strategy])
+  [harvest.chainId, harvest.address, topics, harvest.blockNumber, harvest.args.strategy])
   if (!previousLog) return undefined
   return HarvestSchema.parse(previousLog)
 }

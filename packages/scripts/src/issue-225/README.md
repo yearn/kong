@@ -18,7 +18,7 @@ history. Reuses the live erc4626 timeseries hooks (`apy/hook.ts`,
 Recompute here is **timeseries** data, which lives in the `output` table.
 `evmlog_strides` only gates evmlog (event) and snapshot re-indexing — the
 timeseries fanout (`ingest/fanout/timeseries.ts`) decides what to compute by
-looking for **gaps in the `output` table** (`findMissingTimestamps`), not strides.
+looking for **gaps in the `output` table** (`findMissingDays`), not strides.
 
 Consequence:
 - Editing `evmlog_strides` + rerunning fanout does **not** recompute these series —
@@ -142,5 +142,5 @@ bun packages/scripts/src/issue-225/compute.ts --vaults <result>
 bun packages/scripts/src/issue-225/upsert.ts
 
 # 4. Refresh cache
-bun packages/web/app/api/rest/refresh-vaults.ts
+bun packages/web/app/api/rest/refresh-vaults.cli.ts
 ```

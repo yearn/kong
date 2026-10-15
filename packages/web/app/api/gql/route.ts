@@ -1,22 +1,22 @@
 import { ApolloServer } from '@apollo/server'
-import { startServerAndCreateNextHandler } from '@as-integrations/next'
 import { ApolloServerPluginCacheControl } from '@apollo/server/plugin/cacheControl'
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default'
-import responseCachePlugin from './responseCachePlugin'
-import typeDefs from './typeDefs'
-import resolvers from './resolvers'
+import { startServerAndCreateNextHandler } from '@as-integrations/next'
+import KeyvRedis from '@keyv/redis'
+import Keyv from 'keyv'
 import { NextRequest } from 'next/server'
 import { CORS_HEADERS } from '../headers'
 import { CustomKeyvAdapter } from './CustomKeyvAdapter'
-import Keyv from 'keyv'
-import KeyvRedis from '@keyv/redis'
+import resolvers from './resolvers'
+import responseCachePlugin from './responseCachePlugin'
+import typeDefs from './typeDefs'
 
 const enableCache = process.env.GQL_ENABLE_CACHE === 'true'
 const defaultCacheMaxAge = Number(process.env.GQL_DEFAULT_CACHE_MAX_AGE || 60 * 5)
 const redisUrl = process.env.GQL_CACHE_REDIS_URL || 'redis://localhost:6379'
 
 const defaultQuery = `query Query {
-  vaults {
+  vaults(chainId: 1) {
     chainId
     address
     name
@@ -57,4 +57,5 @@ async function OPTIONS() {
   return response
 }
 
-export { respondTo as GET, respondTo as POST, OPTIONS }
+export { respondTo as GET, OPTIONS, respondTo as POST }
+

@@ -1,4 +1,5 @@
 import db from '@/app/api/db'
+import { mergeSnapshot } from '@/lib/mergeSnapshot'
 import { getAddress } from 'viem'
 
 const strategy = async (_: object, args: { chainId: number, address: `0x${string}` }) => {
@@ -23,9 +24,7 @@ const strategy = async (_: object, args: { chainId: number, address: `0x${string
     const [first] = result.rows.map(row => ({
       chainId: row.chain_id,
       address: row.address,
-      ...row.defaults,
-      ...row.snapshot,
-      ...row.hook
+      ...mergeSnapshot(row.defaults, row.snapshot, row.hook)
     }))
 
     return first

@@ -1,3 +1,4 @@
+import type { Pool } from 'pg'
 import db from '../../db'
 
 /**
@@ -128,8 +129,8 @@ type ControllerRow = { chainId: number, controller: string }
 // Controllers are read from their own things rather than derived from the
 // tranches that point at them, so a deployment with nothing registered yet is
 // still discoverable.
-export async function getTrancheControllers(): Promise<ControllerRow[]> {
-  const result = await db.query(`
+export async function getTrancheControllers(pool: Pool = db): Promise<ControllerRow[]> {
+  const result = await pool.query(`
     SELECT
       chain_id AS "chainId",
       address AS controller
@@ -140,12 +141,12 @@ export async function getTrancheControllers(): Promise<ControllerRow[]> {
   return result.rows as ControllerRow[]
 }
 
-export async function getTrancheSystems(): Promise<TrancheSystem[]> {
-  const controllers = await getTrancheControllers()
+export async function getTrancheSystems(pool: Pool = db): Promise<TrancheSystem[]> {
+  const controllers = await getTrancheControllers(pool)
   const systems: TrancheSystem[] = []
 
   for (const { chainId, controller } of controllers) {
-    const system = await getTrancheSystem(chainId, controller)
+    const system = await getTrancheSystem(chainId, controller, pool)
     if (system) systems.push(system)
   }
 
@@ -155,8 +156,9 @@ export async function getTrancheSystems(): Promise<TrancheSystem[]> {
 export async function getTrancheSystem(
   chainId: number,
   controller: string,
+  pool: Pool = db,
 ): Promise<TrancheSystem | null> {
-  const controllerRows = await db.query(`
+  const controllerRows = await pool.query(`
     SELECT
       snapshot,
       hook,
@@ -174,7 +176,7 @@ export async function getTrancheSystem(
   const assetAddress = snapshot?.ASSET ?? null
 
   const assetRows = assetAddress
-    ? await db.query(
+    ? await pool.query(
       'SELECT defaults FROM thing WHERE chain_id = $1 AND lower(address) = lower($2) AND label = $3',
       [chainId, assetAddress, 'erc20'],
     )
@@ -182,7 +184,7 @@ export async function getTrancheSystem(
 
   const assetDefaults = assetRows.rows[0]?.defaults ?? {}
 
-  const trancheRows = await db.query(`
+  const trancheRows = await pool.query(`
     SELECT
       thing.address,
       thing.defaults,
@@ -202,6 +204,7 @@ export async function getTrancheSystem(
   const pps = await getLatestPricePerShare(
     chainId,
     trancheRows.rows.map((row) => row.address),
+    pool,
   )
 
   return buildTrancheSystem({
@@ -343,11 +346,11 @@ export function buildTrancheSystem({
   }
 }
 
-async function getLatestPricePerShare(chainId: number, addresses: string[]) {
+async function getLatestPricePerShare(chainId: number, addresses: string[], pool: Pool) {
   const result = new Map<string, { raw: number | null, humanized: number | null }>()
   if (addresses.length === 0) return result
 
-  const rows = await db.query(`
+  const rows = await pool.query(`
     SELECT DISTINCT ON (address, component)
       address,
       component,

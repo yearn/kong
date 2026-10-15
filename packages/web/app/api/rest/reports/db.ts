@@ -1,4 +1,5 @@
-import db from '@/app/api/db'
+import type { Pool } from 'pg'
+import db from '../../db'
 import { getAddress } from 'viem'
 
 export type VaultRow = {
@@ -58,8 +59,8 @@ export interface VaultReport {
  *
  * @returns All vaults with chainId and address
  */
-export async function getVaults(): Promise<VaultRow[]> {
-  const result = await db.query(`
+export async function getVaults(pool: Pool = db): Promise<VaultRow[]> {
+  const result = await pool.query(`
     SELECT DISTINCT
       chain_id AS "chainId",
       address
@@ -79,12 +80,12 @@ export async function getVaults(): Promise<VaultRow[]> {
  * @param address - Vault address (optional for refresh, required for API)
  * @returns Array of vault reports
  */
-export const getStrategyReports = async (chainId?: number, address?: string) => {
+export const getStrategyReports = async (chainId?: number, address?: string, pool: Pool = db) => {
   try {
-    const result = await db.query(`
+    const result = await pool.query(`
    SELECT
-      chain_id AS "chainId",
-      address,
+      evmlog.chain_id AS "chainId",
+      evmlog.address,
       event_name AS "eventName",
 
       args->>'strategy' AS strategy,
@@ -95,7 +96,9 @@ export const getStrategyReports = async (chainId?: number, address?: string) => 
       args->>'totalLoss' AS "totalLoss",
       args->>'totalDebt' AS "totalDebt",
       args->>'debtAdded' AS "debtAdded",
-      args->>'debtRatio' AS "debtRatio",
+      CASE WHEN thing.defaults->>'apiVersion' LIKE '0.2.%'
+        OR (thing.defaults->>'apiVersion' IS NULL AND NOT (args ? 'debtPaid')) THEN NULL
+        ELSE args->>'debtRatio' END AS "debtRatio",
       args->>'current_debt' AS "currentDebt",
       args->>'protocol_fees' AS "protocolFees",
       args->>'total_fees' AS "totalFees",
@@ -119,8 +122,10 @@ export const getStrategyReports = async (chainId?: number, address?: string) => 
       log_index AS "logIndex",
       transaction_hash AS "transactionHash"
     FROM evmlog
+    LEFT JOIN thing
+      ON thing.chain_id = evmlog.chain_id AND thing.address = evmlog.address AND thing.label = 'vault'
     WHERE
-      (chain_id = $1 OR $1 IS NULL) AND (address = $2 OR $2 IS NULL)
+      (evmlog.chain_id = $1 OR $1 IS NULL) AND (evmlog.address = $2 OR $2 IS NULL)
       AND event_name = 'StrategyReported'
     ORDER BY
       block_time DESC, log_index DESC
@@ -134,12 +139,12 @@ export const getStrategyReports = async (chainId?: number, address?: string) => 
   }
 }
 
-export const getRecentStrategyReports = async (chainId?: number, address?: string) => {
+export const getRecentStrategyReports = async (chainId?: number, address?: string, pool: Pool = db) => {
   try {
-    const result = await db.query(`
+    const result = await pool.query(`
    SELECT
-      chain_id AS "chainId",
-      address,
+      evmlog.chain_id AS "chainId",
+      evmlog.address,
       event_name AS "eventName",
 
       args->>'strategy' AS strategy,
@@ -150,7 +155,9 @@ export const getRecentStrategyReports = async (chainId?: number, address?: strin
       args->>'totalLoss' AS "totalLoss",
       args->>'totalDebt' AS "totalDebt",
       args->>'debtAdded' AS "debtAdded",
-      args->>'debtRatio' AS "debtRatio",
+      CASE WHEN thing.defaults->>'apiVersion' LIKE '0.2.%'
+        OR (thing.defaults->>'apiVersion' IS NULL AND NOT (args ? 'debtPaid')) THEN NULL
+        ELSE args->>'debtRatio' END AS "debtRatio",
       args->>'current_debt' AS "currentDebt",
       args->>'protocol_fees' AS "protocolFees",
       args->>'total_fees' AS "totalFees",
@@ -174,8 +181,10 @@ export const getRecentStrategyReports = async (chainId?: number, address?: strin
       log_index AS "logIndex",
       transaction_hash AS "transactionHash"
     FROM evmlog
+    LEFT JOIN thing
+      ON thing.chain_id = evmlog.chain_id AND thing.address = evmlog.address AND thing.label = 'vault'
     WHERE
-      (chain_id = $1 OR $1 IS NULL) AND (address = $2 OR $2 IS NULL)
+      (evmlog.chain_id = $1 OR $1 IS NULL) AND (evmlog.address = $2 OR $2 IS NULL)
       AND event_name = 'StrategyReported'
       AND block_time > NOW() - INTERVAL '2 days'
     ORDER BY

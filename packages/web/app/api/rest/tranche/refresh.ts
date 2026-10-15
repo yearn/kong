@@ -1,4 +1,5 @@
-import { cacheMSet, disconnect } from '../cache'
+import { cronDb } from '../../db/cron'
+import { cacheMSet } from '../cache'
 import { getTrancheSystems } from './db'
 import { getTrancheControllersKey, getTrancheSystemKey } from './redis'
 
@@ -11,10 +12,10 @@ import { getTrancheControllersKey, getTrancheSystemKey } from './redis'
  * `rest:tranche:{chainId}:{controller}` entry, and each chain gets a
  * `rest:tranche:{chainId}:controllers` collection holding all of them.
  */
-async function refresh(): Promise<void> {
+export async function refreshTranches(): Promise<void> {
   console.time('refresh tranche')
 
-  const systems = await getTrancheSystems()
+  const systems = await getTrancheSystems(cronDb)
 
   const byChain = new Map<number, typeof systems>()
   for (const system of systems) {
@@ -50,15 +51,3 @@ async function refresh(): Promise<void> {
   console.timeEnd('refresh tranche')
 }
 
-if (require.main === module) {
-  refresh()
-    .then(async () => {
-      await disconnect()
-      process.exit(0)
-    })
-    .catch(async (err) => {
-      console.error(err)
-      await disconnect()
-      process.exit(1)
-    })
-}

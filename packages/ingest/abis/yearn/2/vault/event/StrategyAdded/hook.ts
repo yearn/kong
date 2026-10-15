@@ -8,6 +8,7 @@ import { extractDecimals, fetchOrExtractAssetAddress, fetchOrExtractErc20 } from
 
 export const topics = [
   'event StrategyAdded(address indexed strategy, uint256 debtRatio, uint256 minDebtPerHarvest, uint256 maxDebtPerHarvest, uint256 performanceFee)',
+  'event StrategyAdded(address indexed strategy, uint256 debtRatio, uint256 rateLimit, uint256 performanceFee)',
   'event StrategyMigrated(address indexed oldVersion, address indexed newVersion)'
 ].map(e => toEventSelector(e))
 

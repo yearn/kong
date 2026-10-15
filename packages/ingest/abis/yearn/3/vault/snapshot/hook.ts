@@ -88,7 +88,8 @@ export const SnapshotSchema = z.object({
   accountant: EvmAddressSchema.optional(),
   role_manager: EvmAddressSchema.optional(),
   use_default_queue: z.boolean().optional(),
-  get_default_queue: EvmAddressSchema.array().optional()
+  get_default_queue: EvmAddressSchema.array().optional(),
+  pricePerShare: z.bigint({ coerce: true }).optional()
 })
 
 type Snapshot = z.infer<typeof SnapshotSchema>
@@ -159,6 +160,9 @@ export default async function process(chainId: number, address: `0x${string}`, d
     sparklines,
     tvl: sparklines.tvl[0],
     apy,
+    // echo contract state so stale hook.pricePerShare from the erc4626 hook
+    // (written before a vault turned yearn: true) gets overwritten on merge
+    pricePerShare: snapshot.pricePerShare,
     performance: {
       estimated: estimatedApr ?? undefined,
       oracle: {

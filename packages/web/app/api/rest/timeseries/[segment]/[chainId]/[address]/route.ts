@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getKeyvClient } from '../../../../cache'
+import { getKeyvClient, lastRefreshHeaders } from '../../../../cache'
 import { labels } from '../../../labels'
 import { getTimeseriesKey, getTimeseriesLatestKey } from '../../../redis'
 
@@ -10,6 +10,8 @@ type RouteParams = {
   chainId?: string | string[]
   address?: string | string[]
 }
+
+const REFRESH_JOB = 'timeseries-refresh'
 
 const corsHeaders = {
   'access-control-allow-origin': '*',
@@ -44,7 +46,7 @@ export async function GET(
     ? requestedComponents
     : [entry.defaultComponent]
 
-  type TimeseriesEntry = { time: number; component: string; value: number }
+  type TimeseriesEntry = { time: number; component: string; value: number | null }
 
   const addressLower = address.toLowerCase()
   const chainIdNum = Number(chainId)
@@ -53,13 +55,16 @@ export async function GET(
 
   let historical: TimeseriesEntry[] = []
   let latest: TimeseriesEntry[] = []
+  let refreshHeaders: Record<string, string> = {}
   try {
-    const [historicalCached, latestCached] = await Promise.all([
+    const [historicalCached, latestCached, headers] = await Promise.all([
       timeseriesKeyv.get(historicalKey),
       timeseriesKeyv.get(latestKey),
+      lastRefreshHeaders(REFRESH_JOB),
     ])
     historical = (historicalCached as TimeseriesEntry[]) || []
     latest = (latestCached as TimeseriesEntry[]) || []
+    refreshHeaders = headers
   } catch (err) {
     console.error(`Redis read failed for ${historicalKey}:`, err)
     throw err
@@ -72,13 +77,18 @@ export async function GET(
     ...latest,
   ].sort((a, b) => a.time - b.time)
 
-  const filtered = merged.filter((row) => components.includes(row.component))
+  // a null value is an ingest gap (price service outage), not a real zero: omit the
+  // point so consumers see a hole instead of a crash to $0
+  const filtered = merged.filter(
+    (row) => components.includes(row.component) && row.value !== null,
+  )
 
   return NextResponse.json(filtered, {
     status: 200,
     headers: {
       'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
       ...corsHeaders,
+      ...refreshHeaders,
     },
   })
 }

@@ -29,5 +29,8 @@
   },
   "dependencies": {
     "@types/bun": "1.2.2"
+  },
+  "overrides": {
+    "sharp": "0.35.5"
   }
 }
