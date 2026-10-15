@@ -296,10 +296,6 @@ curl -s https://kong.yearn.fi/api/rest/tranche/1/0xF0145433E5289dd10712650dCd283
       },
       "coverage": { "claim": 1000.800086, "covered": 1000.800086, "ratio": 1 },
       "pricePerShare": { "raw": 1000800, "humanized": 1.0008 },
-      "capacity": {
-        "deposit": { "cap": 100000, "limit": 1000000 },
-        "withdraw": { "cap": 2000.980608 }
-      },
       "blockNumber": 25600000,
       "blockTime": 1784590000
     }
@@ -317,10 +313,9 @@ curl -s https://kong.yearn.fi/api/rest/tranche/1/0xF0145433E5289dd10712650dCd283
 - `hook` is the Hook's address; `hookState` is what that Hook reports for the
   tranche. Both are as of the tranche's own `blockNumber` / `blockTime`, which is
   independent of the system block at the top level.
-- `capacity` is deliverable capacity as the Hook derives it — bounded by
-  aggregate limits, the fixed-window rate limits, and for withdrawals by
-  main-vault liquidity. `coverage` is an accounting measure and is not a
-  statement about what can be withdrawn now.
+- `coverage` is an accounting measure and is not a statement about what can be
+  withdrawn now; `hookState.depositCap` and `withdrawCap` carry the Hook's
+  derived limits.
 - Rate-limit windows are fixed, not sliding: `effectiveUsed` is zero once the
   snapshot's timestamp passes `windowStart + rateLimitWindow`.
 - `pricePerShare` is controller-backed, and `liveAssets` already excludes

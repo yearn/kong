@@ -138,13 +138,6 @@ describe('buildTrancheSystem', () => {
     assert.equal(equity.hookState?.depositRateLimit.remaining, 99_500)
   })
 
-  it('reports capacity as the hook derives it', () => {
-    const [senior, equity] = buildTrancheSystem(rows()).tranches
-    assert.deepEqual(senior.capacity?.deposit, { cap: 100_000, limit: 1_000_000 })
-    assert.deepEqual(senior.capacity?.withdraw, { cap: 2000.980608 })
-    assert.deepEqual(equity.capacity?.deposit, { cap: 99_500, limit: 100_000 })
-  })
-
   it('reports controller accounting and coverage per tranche', () => {
     const [senior, equity] = buildTrancheSystem(rows()).tranches
 
@@ -177,8 +170,19 @@ describe('buildTrancheSystem', () => {
     assert.equal(senior.name, 'yvUSD Fixed')
     assert.equal(senior.hook, null)
     assert.equal(senior.hookState, null)
-    assert.equal(senior.capacity, null)
     // controller accounting still resolves — it lives on the controller's snapshot
     assert.equal(senior.accounting?.liveAssets, 1000.800086)
+  })
+
+  it('treats a null hookState as absent', () => {
+    const nullState = rows()
+    nullState.trancheRows = [{
+      ...nullState.trancheRows[0],
+      hook: { hook: HOOK, hookState: null },
+    }]
+
+    const [senior] = buildTrancheSystem(nullState).tranches
+    assert.equal(senior.hook, HOOK)
+    assert.equal(senior.hookState, null)
   })
 })

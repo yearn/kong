@@ -1,4 +1,5 @@
 import type { Pool } from 'pg'
+import { getAddress } from 'viem'
 import db from '../../db'
 
 /**
@@ -60,13 +61,6 @@ export type TrancheEntry = {
   } | null
   coverage: { claim: number, covered: number, ratio: number | null } | null
   pricePerShare: { raw: number | null, humanized: number | null } | null
-  // Deliverable capacity, as the Hook derives it at the snapshot block — bounded
-  // by aggregate limits, the fixed-window rate limits and, for withdrawals,
-  // main-vault liquidity. Distinct from accounting coverage.
-  capacity: {
-    deposit: { cap: number, limit: number } | null
-    withdraw: { cap: number } | null
-  } | null
   blockNumber: number | null
   blockTime: number | null
 }
@@ -158,6 +152,7 @@ export async function getTrancheSystem(
   controller: string,
   pool: Pool = db,
 ): Promise<TrancheSystem | null> {
+  const controllerAddress = getAddress(controller as `0x${string}`)
   const controllerRows = await pool.query(`
     SELECT
       snapshot,
@@ -165,8 +160,8 @@ export async function getTrancheSystem(
       block_number AS "blockNumber",
       block_time AS "blockTime"
     FROM snapshot
-    WHERE chain_id = $1 AND lower(address) = lower($2)
-  `, [chainId, controller])
+    WHERE chain_id = $1 AND address = $2
+  `, [chainId, controllerAddress])
 
   // No controller snapshot yet means nothing to serve — the tranches' own
   // accounting lives in that row.
@@ -177,8 +172,8 @@ export async function getTrancheSystem(
 
   const assetRows = assetAddress
     ? await pool.query(
-      'SELECT defaults FROM thing WHERE chain_id = $1 AND lower(address) = lower($2) AND label = $3',
-      [chainId, assetAddress, 'erc20'],
+      'SELECT defaults FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3',
+      [chainId, getAddress(assetAddress), 'erc20'],
     )
     : { rows: [] }
 
@@ -198,8 +193,8 @@ export async function getTrancheSystem(
       AND snapshot.address = thing.address
     WHERE thing.chain_id = $1
       AND thing.label = 'tranche'
-      AND lower(thing.defaults->>'trancheController') = lower($2)
-  `, [chainId, controller])
+      AND thing.defaults->>'trancheController' = $2
+  `, [chainId, controllerAddress])
 
   const pps = await getLatestPricePerShare(
     chainId,
@@ -302,15 +297,6 @@ export function buildTrancheSystem({
         ? { claim, covered, ratio: claim > 0 ? covered / claim : null }
         : null,
       pricePerShare: ppsRow ?? null,
-      capacity: hookState
-        ? {
-          deposit: {
-            cap: normalize(hookState.depositCap, trancheDecimals),
-            limit: normalize(hookState.depositLimit, trancheDecimals),
-          },
-          withdraw: { cap: normalize(hookState.withdrawCap, trancheDecimals) },
-        }
-        : null,
       blockNumber: num(row.blockNumber),
       blockTime: trancheBlockTime,
     }

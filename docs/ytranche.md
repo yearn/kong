@@ -162,8 +162,9 @@ assets more than once.
 
 Both are daily, and every observation reads at a single historical block. Asset
 amounts are normalized to the asset's decimals; `accrualPaused` is 1 or 0;
-`coverageRatio` is null when there is no claim to cover, since no claim is not
-evidence of full coverage. Tranches also carry the standard `pps`,
+`coverageRatio` is stored as NULL when there is no claim to cover, since no claim
+is not evidence of full coverage; the REST timeseries omits those days rather
+than returning null. Tranches also carry the standard `pps`,
 `apy-bwd-delta-pps` and `tvl-c` series. See [outputs](outputs.md).
 
 ## REST

@@ -141,7 +141,7 @@ Price per share tracking over time. This represents the value of one vault share
 - `liveAssets`: authoritative tranche assets, excluding `pendingExcess`
 - `claim`: what the tranche claims
 - `covered`: how much of that claim the system's backing covers
-- `coverageRatio`: `covered / claim`, null when there is no claim
+- `coverageRatio`: `covered / claim`, NULL when there is no claim (such days are absent from the REST timeseries)
 - `targetRatePerSecondWad`: target accrual rate, raw WAD
 - `excessShareBps`: share of surplus, basis points
 - `accrualPaused`: 1 when accrual is paused (the tranche absorbed a loss), else 0
@@ -168,7 +168,7 @@ withdrawal capacity.
 - `vaultAssets`: main vault assets held for the system
 - `reserveAssets`: reserve vault assets
 - `backingAssets`: what actually stands behind the claims
-- `coverageRatio`: `backingAssets / totalClaims`, null when there are no claims
+- `coverageRatio`: `backingAssets / totalClaims`, NULL when there are no claims (such days are absent from the REST timeseries)
 
 **Description**:
 Daily system-wide backing, read at the controller. Each observation reads at a
