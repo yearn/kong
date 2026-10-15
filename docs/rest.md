@@ -228,3 +228,35 @@ curl -s https://kong.yearn.fi/api/rest/reports/1/0x6faf8b7ffee3306efcfc2ba9fec91
   }
 ]
 ```
+
+---
+
+### Aggregate TVL
+
+#### `GET /api/rest/tvl`
+
+Aggregated TVL across all Yearn vaults, refreshed by cron. Served from cache.
+
+**Query Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `chainId` | `number` | Optional. Restrict `tvl` and `chains` to one chain |
+
+```bash
+curl -s https://kong.yearn.fi/api/rest/tvl | jq
+curl -s 'https://kong.yearn.fi/api/rest/tvl?chainId=1' | jq
+```
+
+**Response**
+
+```json
+{
+  "tvl": 1234567.89,
+  "chains": [{ "chainId": 1, "tvl": 1000000.00 }, { "chainId": 10, "tvl": 234567.89 }]
+}
+```
+
+`x-last-refresh` header carries the time of the last cron refresh.
+
+**Errors**: `400` invalid `chainId`, `404` cache not yet populated (before first cron refresh).

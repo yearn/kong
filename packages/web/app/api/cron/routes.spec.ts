@@ -3,6 +3,7 @@ import { strict as assert } from 'node:assert'
 const refresh = vi.fn().mockResolvedValue(undefined)
 const refreshLatest = vi.fn().mockResolvedValue(undefined)
 const refreshHistorical = vi.fn().mockResolvedValue(undefined)
+const refreshTvl = vi.fn().mockResolvedValue(undefined)
 const refreshReportsLatest = vi.fn().mockResolvedValue(undefined)
 const refreshReportsHistorical = vi.fn().mockResolvedValue(undefined)
 
@@ -10,6 +11,7 @@ vi.mock('../rest/cache', () => ({ setLastRefresh: vi.fn().mockResolvedValue(unde
 vi.mock('../rest/refresh-vaults', () => ({ refresh }))
 vi.mock('../rest/timeseries/refresh', () => ({ refreshLatest }))
 vi.mock('../rest/timeseries/refresh-historical', () => ({ refreshHistorical }))
+vi.mock('../rest/tvl/refresh', () => ({ refresh: refreshTvl }))
 vi.mock('../rest/reports/refresh', () => ({ refreshLatest: refreshReportsLatest }))
 vi.mock('../rest/reports/refresh-historical', () => ({ refreshHistorical: refreshReportsHistorical }))
 
@@ -27,6 +29,14 @@ const ROUTES = [
     module: () => import('./timeseries-refresh/route'),
     job: refreshLatest,
     kumaEnvVar: 'UPTIME_KUMA_PUSH_URL_TIMESERIES_REFRESH',
+    maxDuration: 300,
+    scheduled: true,
+  },
+  {
+    path: '/api/cron/tvl-refresh',
+    module: () => import('./tvl-refresh/route'),
+    job: refreshTvl,
+    kumaEnvVar: 'UPTIME_KUMA_PUSH_URL_TVL_REFRESH',
     maxDuration: 300,
     scheduled: true,
   },
@@ -69,6 +79,7 @@ describe('cron routes', () => {
     const vercelConfig = await import('../../../vercel.json')
     assert.deepEqual(vercelConfig.default.crons, [
       { path: '/api/cron/refresh-cache', schedule: '*/30 * * * *' },
+      { path: '/api/cron/tvl-refresh', schedule: '*/30 * * * *' },
       { path: '/api/cron/timeseries-refresh', schedule: '0 * * * *' },
       { path: '/api/cron/timeseries-refresh-historical', schedule: '15 2 * * *' },
     ])

@@ -1,6 +1,98 @@
 import { expect } from 'chai'
 import { types } from 'lib'
-import db, { getSparkline, upsertThingDefaults } from './db'
+import type { PoolClient } from 'pg'
+import db, { getSparkline, upsertThingDefaults, upsertSnapshotData } from './db'
+
+describe('upsertSnapshotData', () => {
+  let client: PoolClient
+  const base: types.Snapshot = {
+    chainId: 1, address: '0x0000000000000000000000000000000000000001',
+    snapshot: {}, hook: {}, blockNumber: 100n, blockTime: 1700000000n,
+  }
+
+  beforeEach(async () => {
+    client = await db.connect()
+    await client.query('BEGIN')
+    // Shadow the real table on this connection; every case rolls back its writes.
+    await client.query(`CREATE TEMP TABLE snapshot (
+      chain_id int NOT NULL, address text NOT NULL, snapshot jsonb, hook jsonb,
+      block_number bigint NOT NULL, block_time timestamptz,
+      PRIMARY KEY (chain_id, address)
+    ) ON COMMIT DROP`)
+  })
+
+  afterEach(async () => {
+    try { await client.query('ROLLBACK') } finally { client.release() }
+  })
+
+  async function read() {
+    return (await client.query('SELECT * FROM snapshot')).rows[0]
+  }
+
+  it('inserts the incoming snapshot without manufacturing absent meta', async () => {
+    await upsertSnapshotData({ ...base, snapshot: { name: 'Vault' }, hook: { aggregateTvlTarget: null } }, client)
+    const row = await read()
+    expect(row.snapshot).to.deep.equal({ name: 'Vault' })
+    expect(row.hook).to.deep.equal({ aggregateTvlTarget: null })
+    expect(String(row.block_number)).to.equal('100')
+    expect(row.block_time).to.equal(base.blockTime)
+  })
+
+  it('preserves omitted fields, deletes explicit undefined fields, and replaces explicit nulls', async () => {
+    await upsertSnapshotData({ ...base,
+      snapshot: { keep: 1, remove: 2, clear: 3 },
+      hook: { keep: 1, remove: 2, aggregateTvlTarget: { chainId: 1, address: base.address } },
+    }, client)
+    await upsertSnapshotData({ ...base,
+      snapshot: { remove: undefined, clear: null },
+      hook: { remove: undefined, aggregateTvlTarget: null },
+      blockNumber: 101n, blockTime: 1700000010n,
+    }, client)
+    const row = await read()
+    expect(row.snapshot).to.deep.equal({ keep: 1, clear: null })
+    expect(row.hook).to.deep.equal({ keep: 1, aggregateTvlTarget: null })
+    expect(String(row.block_number)).to.equal('101')
+    expect(row.block_time).to.equal(1700000010n)
+  })
+
+  it('merges only meta, preserving its undefined fields and shallowly replacing its nested objects', async () => {
+    await upsertSnapshotData({ ...base,
+      snapshot: { nested: { old: true } },
+      hook: {
+        performance: { old: true },
+        meta: { keep: true, clear: true, nested: { old: true }, ignored: 'keep' },
+      },
+    }, client)
+    await upsertSnapshotData({ ...base,
+      snapshot: { nested: { next: true } },
+      hook: {
+        performance: { next: true },
+        meta: { clear: null, nested: { next: true }, ignored: undefined },
+      },
+    }, client)
+    const row = await read()
+    expect(row.snapshot).to.deep.equal({ nested: { next: true } })
+    expect(row.hook).to.deep.equal({
+      performance: { next: true },
+      meta: { keep: true, clear: null, nested: { next: true }, ignored: 'keep' },
+    })
+  })
+
+  it.each([undefined, null, false, 0, ''])('preserves stored meta when incoming meta is %s', async (meta) => {
+    await upsertSnapshotData({ ...base, hook: { meta: { keep: true } } }, client)
+    await upsertSnapshotData({ ...base, hook: { meta, next: true } }, client)
+    expect((await read()).hook).to.deep.equal({ meta: { keep: true }, next: true })
+  })
+
+  it('preserves a legacy null meta and can merge new fields into it', async () => {
+    await upsertSnapshotData(base, client)
+    await client.query('UPDATE snapshot SET hook = \'{"meta":null}\'::jsonb')
+    await upsertSnapshotData(base, client)
+    expect((await read()).hook).to.deep.equal({ meta: null })
+    await upsertSnapshotData({ ...base, hook: { meta: { next: true } } }, client)
+    expect((await read()).hook).to.deep.equal({ meta: { next: true } })
+  })
+})
 
 // upsertThingDefaults replaced a SELECT ... FOR UPDATE + read-modify-write
 // transaction with a single INSERT ... ON CONFLICT DO UPDATE that merges

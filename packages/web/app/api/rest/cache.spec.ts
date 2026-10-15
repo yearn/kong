@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert'
-import { estimateMSetRequestSize, getKeyvClient, lastRefreshHeaders, setLastRefresh, splitPairsForMSet, writeClient } from './cache'
+import { cacheMSet, estimateMSetRequestSize, getKeyvClient, lastRefreshHeaders, setLastRefresh, splitPairsForMSet, writeClient } from './cache'
 
 describe('splitPairsForMSet', () => {
   it('keeps all pairs in one chunk when below the target', () => {
@@ -43,6 +43,37 @@ describe('splitPairsForMSet', () => {
 describe('rest cache write client', () => {
   it('logs redis errors instead of crashing the process', () => {
     assert.equal(writeClient.listenerCount('error'), 1)
+  })
+})
+
+describe('atomic cache publication', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('publishes both views in one command even above the chunk target', async () => {
+    vi.spyOn(writeClient, 'connect').mockResolvedValue(writeClient as never)
+    const mSet = vi.spyOn(writeClient, 'mSet').mockResolvedValue('OK')
+    const pairs: Array<[string, string]> = [
+      ['diagnostics', 'x'.repeat(8 * 1024 * 1024)],
+      ['summary', '{"chains":[]}'],
+    ]
+
+    await cacheMSet(pairs, { atomic: true })
+
+    assert.deepEqual(mSet.mock.calls, [[pairs]])
+  })
+
+  it('rejects an oversized combined publication before connecting or writing', async () => {
+    const connect = vi.spyOn(writeClient, 'connect')
+    const mSet = vi.spyOn(writeClient, 'mSet')
+    const pairs: Array<[string, string]> = [
+      ['diagnostics', 'x'.repeat(6 * 1024 * 1024)],
+      ['summary', 'x'.repeat(5 * 1024 * 1024)],
+    ]
+
+    await assert.rejects(cacheMSet(pairs, { atomic: true }), /exceeds hard limit/)
+
+    assert.equal(connect.mock.calls.length, 0)
+    assert.equal(mSet.mock.calls.length, 0)
   })
 })
 

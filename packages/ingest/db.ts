@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import { strings } from 'lib'
-import { StrideSchema, Thing } from 'lib/types'
+import { StrideSchema, Thing, Snapshot } from 'lib/types'
 import { Pool, PoolClient, types as pgTypes } from 'pg'
 import { snakeToCamelCols } from 'lib/strings'
 
@@ -126,6 +126,34 @@ export async function upsertThingDefaults(thing: Thing, client?: PoolClient) {
     ON CONFLICT (chain_id, address, label)
     DO UPDATE SET defaults = COALESCE(thing.defaults, '{}'::jsonb) || EXCLUDED.defaults
   `, [thing.chainId, thing.address, thing.label, thing.defaults])
+}
+
+export async function upsertSnapshotData(snapshot: Snapshot, client?: PoolClient) {
+  // Object spread followed by JSON serialization removes explicit undefined
+  // keys, but preserves omitted keys. Send those deletions alongside the patch.
+  const removedSnapshotKeys = Object.keys(snapshot.snapshot).filter(key => snapshot.snapshot[key] === undefined)
+  const removedHookKeys = Object.keys(snapshot.hook).filter(key => key !== 'meta' && snapshot.hook[key] === undefined)
+  const { meta, ...hook } = snapshot.hook
+  // meta is the only nested merge. Falsy/omitted meta preserves the old value.
+  const metaPatch = meta ? { ...JSON.parse(JSON.stringify(meta)) } : null
+
+  await (client ?? db).query(`
+    INSERT INTO snapshot (chain_id, address, snapshot, hook, block_number, block_time)
+    VALUES ($1, $2, $3::jsonb,
+      $4::jsonb || CASE WHEN $8::jsonb IS NULL THEN '{}'::jsonb
+        ELSE jsonb_build_object('meta', $8::jsonb) END,
+      $5, to_timestamp($6::double precision))
+    ON CONFLICT (chain_id, address) DO UPDATE SET
+      snapshot = (COALESCE(snapshot.snapshot, '{}'::jsonb) - $7::text[]) || EXCLUDED.snapshot,
+      hook = ((COALESCE(snapshot.hook, '{}'::jsonb) - $9::text[]) || $4::jsonb)
+        || CASE WHEN $8::jsonb IS NULL THEN '{}'::jsonb
+          ELSE jsonb_build_object('meta',
+            COALESCE(NULLIF(snapshot.hook->'meta', 'null'::jsonb), '{}'::jsonb) || $8::jsonb)
+        END,
+      block_number = EXCLUDED.block_number,
+      block_time = EXCLUDED.block_time
+  `, [snapshot.chainId, snapshot.address, snapshot.snapshot, hook,
+    snapshot.blockNumber, snapshot.blockTime, removedSnapshotKeys, metaPatch, removedHookKeys])
 }
 
 export function toUpsertSql(table: string, pk: string, data: object, where?: string) {
