@@ -36,14 +36,14 @@ describe('abis/yearn/3/tranche/vault/timeseries/tvl-c/hook', function() {
       [mainnet.id, TRANCHE, 'vault'])
   })
 
-  it('computes tvl from controller-backed assets', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('computes tvl from controller-backed assets', async function() {
     const vault = types.ThingSchema.parse({ chainId: mainnet.id, address: TRANCHE, label: 'vault', defaults })
     const { totalAssets } = await _compute(vault, BLOCK)
     // liveAssets at this block, not the tranche's own totalAssets()
     expect(totalAssets).to.equal(1000448417n)
   })
 
-  it('emits the componentized tvl shape', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('emits the componentized tvl shape', async function() {
     const outputs = await process_(mainnet.id, TRANCHE, {
       abiPath: 'yearn/3/tranche/vault', chainId: mainnet.id, address: TRANCHE,
       outputLabel: 'tvl-c', blockTime: BLOCK_TIME

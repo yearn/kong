@@ -20,7 +20,7 @@ const automaticSnapshot = {
 }
 
 describe('abis/yearn/3/tranche/vault/snapshot/hook', function() {
-  it('appends hookState and leaves the raw hook address alone', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('appends hookState and leaves the raw hook address alone', async function() {
     const result = await process_(mainnet.id, TRANCHE, automaticSnapshot)
 
     // the address stays where the automatic snapshot put it, and enrichment adds
@@ -47,7 +47,7 @@ describe('abis/yearn/3/tranche/vault/snapshot/hook', function() {
     expect(await process_(mainnet.id, TRANCHE, { blockNumber: BLOCK, hook: zeroAddress })).to.deep.equal({ hookState: null })
   })
 
-  it('clears a populated hookState when the hook becomes zero or incompatible', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('clears a populated hookState when the hook becomes zero or incompatible', async function() {
     const populated = await process_(mainnet.id, TRANCHE, automaticSnapshot)
     expect(populated.hookState).to.not.equal(null)
 
@@ -58,7 +58,7 @@ describe('abis/yearn/3/tranche/vault/snapshot/hook', function() {
     expect({ ...populated, ...incompatible }.hookState).to.equal(null)
   })
 
-  it('skips enrichment when the hook does not implement the interface', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('skips enrichment when the hook does not implement the interface', async function() {
     // the raw address is stored either way; that is what a reader investigates
     expect(await extractHookState(mainnet.id, addresses.tranche.mainVault, TRANCHE, BLOCK)).to.equal(undefined)
   })
