@@ -7,6 +7,5 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 export const GET = createCronHandler(async () => {
-  await refresh()
-  await refreshTranches()
+  await Promise.all([refresh(), refreshTranches()])
 }, 'UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS')
