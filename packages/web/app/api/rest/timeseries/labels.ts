@@ -2,6 +2,9 @@ export type TimeseriesLabel = {
   label: string
   segment: string
   defaultComponent: string
+  // Which addresses carry this label. The refresh scripts walk every vault, so
+  // narrower scopes get their own pass instead of one query per vault.
+  address?: 'vault' | 'tranche' | 'trancheController'
 }
 
 export const labels: TimeseriesLabel[] = [
@@ -25,4 +28,21 @@ export const labels: TimeseriesLabel[] = [
     segment: 'tvl',
     defaultComponent: 'tvl',
   },
+  {
+    label: 'tranche-accounting',
+    segment: 'tranche-accounting',
+    defaultComponent: 'liveAssets',
+    address: 'tranche',
+  },
+  {
+    label: 'tranche-system',
+    segment: 'tranche-system',
+    defaultComponent: 'backingAssets',
+    address: 'trancheController',
+  },
 ]
+
+// Tranches are vaults, so they pick up pps, apy and tvl from the vault pass.
+export const vaultLabels = labels.filter((label) => (label.address ?? 'vault') === 'vault')
+export const trancheLabels = labels.filter((label) => label.address === 'tranche')
+export const trancheControllerLabels = labels.filter((label) => label.address === 'trancheController')
