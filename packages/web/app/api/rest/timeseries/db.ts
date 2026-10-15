@@ -9,12 +9,8 @@ export type VaultRow = {
 }
 
 export type TimeseriesRow = {
-  chainId: number
-  address: string
-  label: string
   component: string
   value: number
-  period?: string
   time: bigint
 }
 
@@ -107,18 +103,14 @@ export async function getFullTimeseries(
   const result = await pool.query(
     `
     SELECT
-      chain_id AS "chainId",
-      address,
-      $3::text AS label,
       component,
       COALESCE(AVG(NULLIF(value, 0)), 0) AS value,
-      '1 day'::text AS period,
       time_bucket('1 day'::interval, series_time) AS time
     FROM output
     WHERE chain_id = $1
       AND address = $2
       AND label = $3
-    GROUP BY chain_id, address, component, time
+    GROUP BY component, time
     -- all-null bucket = ingest gap (price service outage): must read as missing, not zero
     HAVING COUNT(value) > 0
     ORDER BY time ASC
@@ -138,47 +130,17 @@ export async function getRecentTimeseries(
   const result = await pool.query(
     `
     SELECT
-      chain_id AS "chainId",
-      address,
-      $3::text AS label,
       component,
       COALESCE(AVG(NULLIF(value, 0)), 0) AS value,
-      '1 day'::text AS period,
       time_bucket('1 day'::interval, series_time) AS time
     FROM output
     WHERE chain_id = $1
       AND address = $2
       AND label = $3
       AND series_time >= date_trunc('day', NOW()) - INTERVAL '2 days'
-    GROUP BY chain_id, address, component, time
+    GROUP BY component, time
     HAVING COUNT(value) > 0
     ORDER BY time ASC
-  `,
-    [chainId, getAddress(address as `0x${string}`), label],
-  )
-
-  return result.rows as TimeseriesRow[]
-}
-
-export async function getLatestTimeseries(
-  chainId: number,
-  address: string,
-  label: string,
-): Promise<TimeseriesRow[]> {
-  const result = await db.query(
-    `
-    SELECT DISTINCT ON (component)
-      chain_id AS "chainId",
-      address,
-      label,
-      component,
-      value,
-      series_time AS time
-    FROM output
-    WHERE chain_id = $1
-      AND address = $2
-      AND label = $3
-    ORDER BY component, series_time DESC
   `,
     [chainId, getAddress(address as `0x${string}`), label],
   )
