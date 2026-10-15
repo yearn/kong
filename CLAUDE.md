@@ -76,4 +76,4 @@ Kong is a real-time/historical EVM indexer with these core components:
 Copy `.env.example` to `.env` and configure:
 - RPC endpoints for supported chains (1, 10, 137, 250, 8453, 42161)
 - Redis connection details
-- External API keys (YDAEMON, YPRICE)
+- Price service API key (PRICE_SERVICE_API_KEY)

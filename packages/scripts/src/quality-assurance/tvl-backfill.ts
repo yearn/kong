@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url'
 import { getAddress, createPublicClient, http, type PublicClient, type Chain } from 'viem'
 import { mainnet, optimism, gnosis, polygon, fantom, base, arbitrum } from 'viem/chains'
 import { customChains } from 'lib/chains'
+import { fetchPriceServiceHistoricalPrices, getPriceServiceConfig, toPriceServiceCoinId, utcDayStart } from './price-service'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 config({ path: resolve(__dirname, '.env') })
@@ -273,122 +274,9 @@ interface OutputRow {
   seriesTime: Date
 }
 
-interface PriceRow {
-  chainId: number
-  address: string
-  priceUsd: number
-  priceSource: string
-  blockNumber: bigint
-  blockTime: Date
-}
-
 const DB_BATCH_SIZE = 100
 
-async function upsertOutputAndPrices(
-  outputRows: OutputRow[],
-  priceRows: PriceRow[],
-  retry = true
-): Promise<{ outputSuccess: number; outputFailed: number; priceSuccess: number; priceFailed: number }> {
-  if (outputRows.length === 0 && priceRows.length === 0) {
-    return { outputSuccess: 0, outputFailed: 0, priceSuccess: 0, priceFailed: 0 }
-  }
-
-  const client = await pool.connect()
-
-  try {
-    await client.query('BEGIN')
-
-    // Upsert output rows
-    if (outputRows.length > 0) {
-      const outputValues: string[] = []
-      const outputParams: (string | number | bigint | Date)[] = []
-      let paramIndex = 1
-
-      for (const row of outputRows) {
-        outputValues.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7})`)
-        outputParams.push(
-          row.chainId,
-          row.address,
-          row.label,
-          row.component,
-          row.value,
-          row.blockNumber.toString(),
-          row.blockTime,
-          row.seriesTime
-        )
-        paramIndex += 8
-      }
-
-      const outputQuery = `
-        INSERT INTO output (chain_id, address, label, component, value, block_number, block_time, series_time)
-        VALUES ${outputValues.join(', ')}
-        ON CONFLICT (chain_id, address, label, component, series_time)
-        DO UPDATE SET
-          value = EXCLUDED.value,
-          block_number = EXCLUDED.block_number,
-          block_time = EXCLUDED.block_time
-      `
-      await client.query(outputQuery, outputParams)
-    }
-
-    // Upsert price rows
-    if (priceRows.length > 0) {
-      const priceValues: string[] = []
-      const priceParams: (string | number | bigint | Date)[] = []
-      let paramIndex = 1
-
-      for (const row of priceRows) {
-        priceValues.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5})`)
-        priceParams.push(
-          row.chainId,
-          row.address,
-          row.priceUsd,
-          row.priceSource,
-          row.blockNumber.toString(),
-          row.blockTime
-        )
-        paramIndex += 6
-      }
-
-      const priceQuery = `
-        INSERT INTO price (chain_id, address, price_usd, price_source, block_number, block_time)
-        VALUES ${priceValues.join(', ')}
-        ON CONFLICT (chain_id, address, block_number)
-        DO UPDATE SET
-          price_usd = EXCLUDED.price_usd,
-          price_source = EXCLUDED.price_source,
-          block_time = EXCLUDED.block_time
-      `
-      await client.query(priceQuery, priceParams)
-    }
-
-    await client.query('COMMIT')
-    return {
-      outputSuccess: outputRows.length,
-      outputFailed: 0,
-      priceSuccess: priceRows.length,
-      priceFailed: 0,
-    }
-  } catch (error) {
-    await client.query('ROLLBACK')
-    if (retry) {
-      console.warn(`  Batch upsert failed, retrying once: ${error instanceof Error ? error.message : String(error)}`)
-      client.release()
-      return upsertOutputAndPrices(outputRows, priceRows, false)
-    }
-    console.error(`  Batch upsert failed after retry: ${error instanceof Error ? error.message : String(error)}`)
-    return {
-      outputSuccess: 0,
-      outputFailed: outputRows.length,
-      priceSuccess: 0,
-      priceFailed: priceRows.length,
-    }
-  } finally {
-    client.release()
-  }
-}
-
-async function upsertTotalAssets(rows: OutputRow[], retry = true): Promise<{ success: number; failed: number }> {
+async function upsertOutputs(rows: OutputRow[], retry = true): Promise<{ success: number; failed: number }> {
   if (rows.length === 0) return { success: 0, failed: 0 }
 
   const values: string[] = []
@@ -426,7 +314,7 @@ async function upsertTotalAssets(rows: OutputRow[], retry = true): Promise<{ suc
   } catch (error) {
     if (retry) {
       console.warn(`  Batch upsert failed, retrying once: ${error instanceof Error ? error.message : String(error)}`)
-      return upsertTotalAssets(rows, false)
+      return upsertOutputs(rows, false)
     }
     console.error(`  Batch upsert failed after retry: ${error instanceof Error ? error.message : String(error)}`)
     return { success: 0, failed: rows.length }
@@ -655,7 +543,7 @@ async function main() {
           console.log(`  [${batchNum}/${totalBatches}] Upserting ${batch.length} rows...`)
         }
 
-        const result = await upsertTotalAssets(batch)
+        const result = await upsertOutputs(batch)
         dbSuccess += result.success
         dbFailed += result.failed
       }
@@ -696,23 +584,6 @@ async function main() {
       }
     }
 
-    // Build coin IDs for DefiLlama
-    const coinIds: string[] = []
-    const assetLookup = new Map<string, { chainId: number; address: string }>()
-
-    for (const assetKey of assetsToFetch) {
-      const [chainIdStr, address] = assetKey.split(':')
-      const chainId = Number(chainIdStr)
-      const chainName = CHAIN_NAMES[chainId]
-      if (chainName) {
-        const coinId = `${chainName}:${address}`
-        coinIds.push(coinId)
-        assetLookup.set(coinId.toLowerCase(), { chainId, address })
-      } else {
-        console.warn(`  Unknown chain ${chainId} for asset ${address}, skipping price fetch`)
-      }
-    }
-
     // Collect unique days
     const uniqueDays = new Set<number>()
     for (const days of vaultDays.values()) {
@@ -721,96 +592,115 @@ async function main() {
       }
     }
 
-    console.log(`\n--- Price Fetching ---`)
-    console.log('Unique assets:', assetsToFetch.size)
-    console.log('Coin IDs to fetch:', coinIds.length)
-    console.log('Unique days:', uniqueDays.size)
-
-    // Fetch prices: day -> coinId -> price
+    // Fetch prices: day -> assetKey -> price
     const historicalPrices = new Map<number, Map<string, number>>()
     const sortedDays = [...uniqueDays].sort((a, b) => a - b)
-    let fetchedDays = 0
     let totalPricesFetched = 0
+    const setHistoricalPrice = (day: number, assetKey: string, price: number) => {
+      // Never accept a zero/negative/non-finite price: it would overwrite real tvl with 0.
+      if (!Number.isFinite(price) || price <= 0) return
+      let dayPrices = historicalPrices.get(day)
+      if (!dayPrices) historicalPrices.set(day, dayPrices = new Map())
+      dayPrices.set(assetKey, price)
+      totalPricesFetched++
+    }
 
-    for (const day of sortedDays) {
-      fetchedDays++
-      const dateStr = new Date(day * 1000).toISOString().split('T')[0]
+    const priceService = getPriceServiceConfig()
+    console.log(`\n--- Price Fetching (${priceService ? `price service ${priceService.baseUrl}` : `DefiLlama ${DEFILLAMA_API}`}) ---`)
+    console.log('Unique assets:', assetsToFetch.size)
+    console.log('Unique days:', uniqueDays.size)
 
-      if (fetchedDays % 10 === 1 || fetchedDays === sortedDays.length) {
-        console.log(`  [${fetchedDays}/${sortedDays.length}] ${dateStr}`)
+    if (priceService) {
+      // Only the (asset, day) pairs a vault actually needs.
+      const requests: { coinId: string; timestamp: number }[] = []
+      const assetByCoinId = new Map<string, string>() // coinId -> assetKey
+      for (const vault of vaults) {
+        if (!vault.asset) continue
+        const days = vaultDays.get(`${vault.chainId}:${vault.address}`)
+        if (!days) continue
+        const coinId = toPriceServiceCoinId(vault.asset.chainId, vault.asset.address)
+        if (!coinId) {
+          console.warn(`  Unknown chain ${vault.asset.chainId} for asset ${vault.asset.address}, skipping price fetch`)
+          continue
+        }
+        assetByCoinId.set(coinId, `${vault.asset.chainId}:${vault.asset.address}`)
+        for (const day of days) requests.push({ coinId, timestamp: day })
       }
 
-      const response = await fetchHistoricalPrices(coinIds, day)
+      const result = await fetchPriceServiceHistoricalPrices(requests, priceService)
+      for (const [coinId, byDay] of result.prices) {
+        const assetKey = assetByCoinId.get(coinId)
+        if (!assetKey) continue
+        for (const day of sortedDays) {
+          const price = byDay.get(utcDayStart(day))
+          if (price !== undefined) setHistoricalPrice(day, assetKey, price)
+        }
+      }
 
-      if (response) {
-        const dayPrices = new Map<string, number>()
+      console.log('Batch requests:', result.stats.batchRequests, `(hits ${result.stats.batchHits})`)
+      console.log('Exact fallbacks:', result.stats.exactRequests, `(hits ${result.stats.exactHits})`)
+      for (const miss of result.missing) {
+        console.warn(`  No price from price service: ${miss.coinId} ${new Date(miss.timestamp * 1000).toISOString().split('T')[0]} (left unpriced)`)
+      }
+      for (const { request, reason } of result.failed) {
+        console.warn(`  Price service error: ${request.coinId} ${new Date(request.timestamp * 1000).toISOString().split('T')[0]} ${reason} (left unpriced)`)
+      }
+    } else {
+      // Build coin IDs for DefiLlama
+      const coinIds: string[] = []
+      const assetLookup = new Map<string, { chainId: number; address: string }>()
 
-        for (const [coinId, priceData] of Object.entries(response.coins)) {
-          const asset = assetLookup.get(coinId.toLowerCase())
-          if (asset) {
-            const assetKey = `${asset.chainId}:${asset.address}`
-            dayPrices.set(assetKey, priceData.price)
-            totalPricesFetched++
+      for (const assetKey of assetsToFetch) {
+        const [chainIdStr, address] = assetKey.split(':')
+        const chainId = Number(chainIdStr)
+        const chainName = CHAIN_NAMES[chainId]
+        if (chainName) {
+          const coinId = `${chainName}:${address}`
+          coinIds.push(coinId)
+          assetLookup.set(coinId.toLowerCase(), { chainId, address })
+        } else {
+          console.warn(`  Unknown chain ${chainId} for asset ${address}, skipping price fetch`)
+        }
+      }
+
+      console.log('Coin IDs to fetch:', coinIds.length)
+      let fetchedDays = 0
+
+      for (const day of sortedDays) {
+        fetchedDays++
+        const dateStr = new Date(day * 1000).toISOString().split('T')[0]
+
+        if (fetchedDays % 10 === 1 || fetchedDays === sortedDays.length) {
+          console.log(`  [${fetchedDays}/${sortedDays.length}] ${dateStr}`)
+        }
+
+        const response = await fetchHistoricalPrices(coinIds, day)
+
+        if (response) {
+          for (const [coinId, priceData] of Object.entries(response.coins)) {
+            const asset = assetLookup.get(coinId.toLowerCase())
+            if (asset) {
+              setHistoricalPrice(day, `${asset.chainId}:${asset.address}`, priceData.price)
+            }
           }
         }
 
-        historicalPrices.set(day, dayPrices)
+        await sleep(100)
       }
-
-      await sleep(100)
     }
 
     console.log('\n--- Price Fetch Stats ---')
-    console.log('Days fetched:', historicalPrices.size)
+    console.log('Days with prices:', historicalPrices.size)
     console.log('Days without prices:', uniqueDays.size - historicalPrices.size)
     console.log('Total prices fetched:', totalPricesFetched)
-
-    // Fetch block numbers for each unique (assetChainId, day) pair
-    console.log(`\n--- Fetching block numbers for asset chains ---`)
-    const assetBlockCache = new Map<string, bigint>() // "chainId:day" -> blockNumber
-
-    const uniqueAssetChainDays = new Set<string>()
-    for (const vault of vaults) {
-      if (!vault.asset || !vault.inceptTime) continue
-      const vaultKey = `${vault.chainId}:${vault.address}`
-      const days = vaultDays.get(vaultKey)
-      if (!days) continue
-
-      for (const day of days) {
-        uniqueAssetChainDays.add(`${vault.asset.chainId}:${day}`)
-      }
-    }
-
-    let blockFetchCount = 0
-    for (const key of uniqueAssetChainDays) {
-      const [chainIdStr, dayStr] = key.split(':')
-      const chainId = Number(chainIdStr)
-      const day = Number(dayStr)
-
-      if (!assetBlockCache.has(key)) {
-        try {
-          const blockNumber = await getBlockForTimestamp(chainId, day)
-          assetBlockCache.set(key, blockNumber)
-          blockFetchCount++
-          if (blockFetchCount % 50 === 0) {
-            console.log(`  Fetched ${blockFetchCount} block numbers...`)
-          }
-        } catch (error) {
-          console.warn(`  Failed to get block for chain ${chainId} at ${day}: ${error instanceof Error ? error.message : String(error)}`)
-        }
-      }
-    }
-    console.log(`Block numbers fetched: ${assetBlockCache.size}`)
 
     // Now we need totalAssets from the database for each vault/day
     // Query the output table for totalAssets component
     console.log(`\n--- Fetching totalAssets from database ---`)
 
     const outputRowsToUpsert: OutputRow[] = []
-    const priceRowMap = new Map<string, PriceRow>() // Dedupe prices: multiple vaults can share same asset
     let missingTotalAssets = 0
     let missingPrices = 0
-    let missingAssetBlocks = 0
 
     for (const vault of vaults) {
       if (!vault.asset || !vault.inceptTime) continue
@@ -854,14 +744,7 @@ async function main() {
         const priceUsd = dayPrices?.get(assetKey)
         if (priceUsd === undefined) {
           missingPrices++
-          continue
-        }
-
-        // Get block number for asset chain at this day
-        const assetBlockKey = `${vault.asset.chainId}:${day}`
-        const assetBlockNumber = assetBlockCache.get(assetBlockKey)
-        if (!assetBlockNumber) {
-          missingAssetBlocks++
+          console.warn(`  Unpriced: ${vaultKey} ${new Date(day * 1000).toISOString().split('T')[0]} (asset ${assetKey}), skipping`)
           continue
         }
 
@@ -890,65 +773,42 @@ async function main() {
           blockTime: new Date(day * 1000),
           seriesTime: new Date(day * 1000),
         })
-
-        // Add price row - dedupe because multiple vaults can share the same asset
-        const priceKey = `${vault.asset.chainId}:${vault.asset.address}:${assetBlockNumber}`
-        if (!priceRowMap.has(priceKey)) {
-          priceRowMap.set(priceKey, {
-            chainId: vault.asset.chainId,
-            address: vault.asset.address,
-            priceUsd,
-            priceSource: 'defillama',
-            blockNumber: assetBlockNumber,
-            blockTime: new Date(day * 1000),
-          })
-        }
       }
     }
 
-    const priceRowsToUpsert = Array.from(priceRowMap.values())
-
     console.log('Missing totalAssets:', missingTotalAssets)
     console.log('Missing prices:', missingPrices)
-    console.log('Missing asset blocks:', missingAssetBlocks)
 
     console.log(`\n--- Database Upsert ---`)
     console.log('Output rows to upsert:', outputRowsToUpsert.length)
-    console.log('Price rows to upsert:', priceRowsToUpsert.length)
 
     if (dryRun) {
+      for (const row of outputRowsToUpsert.slice(0, 50)) {
+        console.log(`  ${row.chainId}:${row.address} ${row.seriesTime.toISOString().split('T')[0]} ${row.component}=${row.value}`)
+      }
+      if (outputRowsToUpsert.length > 50) console.log(`  ... ${outputRowsToUpsert.length - 50} more`)
       console.log('DRY RUN: Skipping database writes')
     } else {
       let outputSuccess = 0
       let outputFailed = 0
-      let priceSuccess = 0
-      let priceFailed = 0
+      const totalBatches = Math.ceil(outputRowsToUpsert.length / DB_BATCH_SIZE)
 
-      // Batch both output and price rows together
-      const maxRows = Math.max(outputRowsToUpsert.length, priceRowsToUpsert.length)
-      const totalBatches = Math.ceil(maxRows / DB_BATCH_SIZE)
-
-      for (let i = 0; i < maxRows; i += DB_BATCH_SIZE) {
+      for (let i = 0; i < outputRowsToUpsert.length; i += DB_BATCH_SIZE) {
         const outputBatch = outputRowsToUpsert.slice(i, i + DB_BATCH_SIZE)
-        const priceBatch = priceRowsToUpsert.slice(i, i + DB_BATCH_SIZE)
         const batchNum = Math.floor(i / DB_BATCH_SIZE) + 1
 
         if (batchNum % 10 === 1 || batchNum === totalBatches) {
-          console.log(`  [${batchNum}/${totalBatches}] Upserting ${outputBatch.length} output rows, ${priceBatch.length} price rows...`)
+          console.log(`  [${batchNum}/${totalBatches}] Upserting ${outputBatch.length} output rows...`)
         }
 
-        const result = await upsertOutputAndPrices(outputBatch, priceBatch)
-        outputSuccess += result.outputSuccess
-        outputFailed += result.outputFailed
-        priceSuccess += result.priceSuccess
-        priceFailed += result.priceFailed
+        const result = await upsertOutputs(outputBatch)
+        outputSuccess += result.success
+        outputFailed += result.failed
       }
 
       console.log('\n--- Database Stats ---')
       console.log('Output rows upserted:', outputSuccess)
       console.log('Output rows failed:', outputFailed)
-      console.log('Price rows upserted:', priceSuccess)
-      console.log('Price rows failed:', priceFailed)
     }
   }
 

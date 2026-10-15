@@ -117,12 +117,16 @@ abis:
       { chainId: 747474, address: '0x310aC28ACF5E514abDbFF9Ab25e21f1bfe22bcAC', inceptBlock: 35157654 }
     ]
 
+  # tranche things carry vault and strategy labels too, but their snapshots are
+  # owned by yearn/3/tranche/vault — the `tranche` filter keeps the generic v3
+  # paths from processing the same address.
   - abiPath: 'yearn/3/vault'
     things: {
       label: 'vault',
       filter: [
         { field: 'apiVersion', op: '>=', value: '3.0.0' },
-        { field: 'origin', op: '!=', value: 'ydaemon' }
+        { field: 'origin', op: '!=', value: 'ydaemon' },
+        { field: 'tranche', op: '!=', value: 'true' }
       ]
     }
 
@@ -131,8 +135,23 @@ abis:
       label: 'strategy',
       filter: [
         { field: 'apiVersion', op: '>=', value: '3.0.0' },
-        { field: 'origin', op: '!=', value: 'ydaemon' }
+        { field: 'origin', op: '!=', value: 'ydaemon' },
+        { field: 'tranche', op: '!=', value: 'true' }
       ]
+    }
+
+  # yTranche. The controller is a static source and discovers its tranches;
+  # tranches are indexed as `tranche` things so they get exactly one snapshot
+  # owner. See docs/ytranche.md.
+  - abiPath: 'yearn/3/tranche/controller'
+    sources: [
+      { chainId: 1, address: '0xF0145433E5289dd10712650dCd28333FA317eF36', inceptBlock: 25576296 }
+    ]
+
+  - abiPath: 'yearn/3/tranche/vault'
+    things: {
+      label: 'tranche',
+      filter: []
     }
 
   - abiPath: 'yearn/3/accountant'
