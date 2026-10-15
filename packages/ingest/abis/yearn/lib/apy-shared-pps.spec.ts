@@ -6,7 +6,7 @@ import { afterAll, beforeAll } from 'vitest'
 import db from '../../../db'
 import { addresses } from '../../../test-addresses'
 import { _compute } from './apy'
-import { readPps } from './assets'
+import { readPps } from './tranches/assets'
 
 // apy must have no price-per-share path of its own: every observation it samples
 // has to come from the shared reader, or a tranche and an ordinary vault would

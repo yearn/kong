@@ -1,7 +1,7 @@
 import { EvmAddressSchema, Thing } from 'lib/types'
 import { parseAbi } from 'viem'
-import { rpcs } from '../../../rpcs'
-import controllerAbi from '../3/tranche/controller/abi'
+import { rpcs } from '../../../../rpcs'
+import controllerAbi from '../../3/tranche/controller/abi'
 
 // A vault's asset balance has one authoritative source, and for tranches it is
 // not the vault itself: the tranche controller holds the accounting. A tranche's

@@ -3,7 +3,7 @@ import { Output, OutputSchema, Thing, ThingSchema } from 'lib/types'
 import { first } from '../../../../../../db'
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { multicall3 } from 'lib'
-import { readPps } from '../../../../lib/assets'
+import { readPps } from '../../../../lib/tranches/assets'
 import { div } from 'lib/math'
 
 export const outputLabel = 'pps'

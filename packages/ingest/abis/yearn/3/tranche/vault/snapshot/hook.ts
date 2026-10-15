@@ -36,10 +36,10 @@ export const SnapshotSchema = z.object({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const { hook, blockNumber } = SnapshotSchema.parse(data)
-  if (!hook || hook === zeroAddress) return {}
+  if (!hook || hook === zeroAddress) return { hookState: null }
 
   const hookState = await extractHookState(chainId, hook, address, blockNumber)
-  if (!hookState) return {}
+  if (!hookState) return { hookState: null }
 
   return { hookState }
 }

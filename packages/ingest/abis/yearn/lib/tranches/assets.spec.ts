@@ -2,8 +2,8 @@ import { expect } from 'chai'
 import { ThingSchema } from 'lib/types'
 import { parseAbi } from 'viem'
 import { mainnet } from 'viem/chains'
-import { rpcs } from '../../../rpcs'
-import { addresses } from '../../../test-addresses'
+import { rpcs } from '../../../../rpcs'
+import { addresses } from '../../../../test-addresses'
 import { computeTranchePps, readAuthoritativeAssets, readPps } from './assets'
 
 // Fixed block on the deployed yTranche system, so the expected values below are
@@ -33,7 +33,7 @@ const ordinary = ThingSchema.parse({
   }
 })
 
-describe('abis/yearn/lib/assets', function() {
+describe('abis/yearn/lib/tranches/assets', function() {
   it('reads ordinary vault assets from totalAssets()', async function() {
     const totalAssets = await rpcs.next(mainnet.id, BLOCK).readContract({
       address: ordinary.address, abi: parseAbi(['function totalAssets() view returns (uint256)']),

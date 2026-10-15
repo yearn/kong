@@ -5,7 +5,7 @@ import { Output, OutputSchema, Thing, ThingSchema } from 'lib/types'
 import { first } from '../../../../../../../db'
 import { Data } from '../../../../../../../extract/timeseries'
 import { extractTrancheAccounting } from '../../../controller/snapshot/hook'
-import { trancheControllerOf } from '../../../../../lib/assets'
+import { trancheControllerOf } from '../../../../../lib/tranches/assets'
 
 export const outputLabel = 'tranche-accounting'
 
@@ -43,7 +43,9 @@ export default async function process(chainId: number, address: `0x${string}`, d
   // A block before registration reads as an unregistered tranche rather than
   // reverting, so early observations are real zeros. A failed read is not:
   // emit nothing so a bad rpc response can't be mistaken for empty accounting.
-  const accounting = await extractTrancheAccounting(chainId, controller, [address], blockNumber)
+  const accounting = await extractTrancheAccounting(
+    chainId, controller, [{ address, priority: Number(tranche.defaults.priority) }], blockNumber
+  )
     .catch(error => {
       console.warn('🚨', outputLabel, 'read fail', chainId, address, blockNumber, error)
       return []

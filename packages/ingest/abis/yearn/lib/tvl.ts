@@ -10,7 +10,7 @@ import { Data } from '../../../extract/timeseries'
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { first, some } from '../../../db'
 import { endOfDay } from 'lib/dates'
-import { readAuthoritativeAssets } from './assets'
+import { readAuthoritativeAssets } from './tranches/assets'
 
 export default async function _process(chainId: number, address: `0x${string}`, data: Data, components?: boolean): Promise<Output[]> {
   console.info('🧮', data.outputLabel, chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())

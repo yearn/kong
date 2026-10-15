@@ -42,9 +42,20 @@ describe('abis/yearn/3/tranche/vault/snapshot/hook', function() {
     })
   })
 
-  it('skips enrichment when the tranche has no hook', async function() {
-    expect(await process_(mainnet.id, TRANCHE, { blockNumber: BLOCK })).to.deep.equal({})
-    expect(await process_(mainnet.id, TRANCHE, { blockNumber: BLOCK, hook: zeroAddress })).to.deep.equal({})
+  it('clears hookState when the tranche has no hook', async function() {
+    expect(await process_(mainnet.id, TRANCHE, { blockNumber: BLOCK })).to.deep.equal({ hookState: null })
+    expect(await process_(mainnet.id, TRANCHE, { blockNumber: BLOCK, hook: zeroAddress })).to.deep.equal({ hookState: null })
+  })
+
+  it('clears a populated hookState when the hook becomes zero or incompatible', async function() {
+    const populated = await process_(mainnet.id, TRANCHE, automaticSnapshot)
+    expect(populated.hookState).to.not.equal(null)
+
+    const zeroed = await process_(mainnet.id, TRANCHE, { ...automaticSnapshot, hook: zeroAddress })
+    expect({ ...populated, ...zeroed }.hookState).to.equal(null)
+
+    const incompatible = await process_(mainnet.id, TRANCHE, { ...automaticSnapshot, hook: addresses.tranche.mainVault })
+    expect({ ...populated, ...incompatible }.hookState).to.equal(null)
   })
 
   it('skips enrichment when the hook does not implement the interface', async function() {

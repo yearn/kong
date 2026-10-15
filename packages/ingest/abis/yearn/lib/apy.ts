@@ -11,7 +11,7 @@ import { rpcs } from '../../../rpcs'
 import { extractFeesBps } from '../2/strategy/event/hook'
 import * as snapshot__v2 from '../2/vault/snapshot/hook'
 import * as snapshot__v3 from '../3/vault/snapshot/hook'
-import { readPps } from './assets'
+import { readPps } from './tranches/assets'
 
 export const APYSchema = z.object({
   chainId: z.number(),

@@ -19,10 +19,12 @@ describe('abis/yearn/3/tranche/controller/snapshot/hook', function() {
   })
 
   it('reads controller accounting per tranche', async function() {
-    const accounting = await extractTrancheAccounting(mainnet.id, controller, [a, e], BLOCK)
+    const accounting = await extractTrancheAccounting(
+      mainnet.id, controller, [{ address: a, priority: 0 }, { address: e, priority: 2 }], BLOCK
+    )
 
     expect(accounting.map(entry => entry.address)).to.deep.equal([a, e])
-    expect(accounting.map(entry => entry.priority)).to.deep.equal([0, 1])
+    expect(accounting.map(entry => entry.priority)).to.deep.equal([0, 2])
 
     const [senior] = accounting
     expect(senior.registered).to.equal(true)

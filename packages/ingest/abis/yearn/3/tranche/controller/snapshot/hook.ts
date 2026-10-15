@@ -3,6 +3,7 @@ import { estimateCreationBlock } from 'lib/blocks'
 import { EvmAddress, EvmAddressSchema, ThingSchema } from 'lib/types'
 import { z } from 'zod'
 import { rpcs } from '../../../../../../rpcs'
+import * as things from '../../../../../../things'
 import { fetchOrExtractErc20, throwOnMulticallError } from '../../../../lib'
 import trancheAbi from '../../vault/abi'
 import abi from '../abi'
@@ -29,6 +30,8 @@ export const TrancheAccountingSchema = z.object({
 
 export type TrancheAccounting = z.infer<typeof TrancheAccountingSchema>
 
+export type TrancheRef = { address: EvmAddress, priority: number }
+
 export const SnapshotSchema = z.object({
   blockNumber: z.bigint({ coerce: true }),
   blockTime: z.bigint({ coerce: true }),
@@ -46,10 +49,14 @@ export default async function process(chainId: number, address: `0x${string}`, d
   const { blockNumber } = snapshot
 
   const addresses = await extractTranchesByPriority(chainId, address, snapshot.tranchesLength, blockNumber)
-  const tranches = await extractTrancheAccounting(chainId, address, addresses, blockNumber)
+  const tranches = await extractTrancheAccounting(
+    chainId, address, addresses.map((trancheAddress, priority) => ({ address: trancheAddress, priority })), blockNumber
+  )
 
-  await projectControllerThing(chainId, address, snapshot)
-  await projectTrancheThings(chainId, address, snapshot, tranches)
+  await Promise.all([
+    projectControllerThing(chainId, address, snapshot),
+    projectTrancheThings(chainId, address, snapshot, tranches)
+  ])
 
   return { tranches }
 }
@@ -66,7 +73,9 @@ async function projectControllerThing(
   controller: `0x${string}`,
   snapshot: Snapshot
 ) {
-  const incept = await estimateCreationBlock(chainId, controller)
+  const incept = await things.exist(chainId, controller, 'trancheController')
+    ? undefined
+    : await estimateCreationBlock(chainId, controller)
 
   await mq.add(mq.job.load.thing, ThingSchema.parse({
     chainId,
@@ -75,8 +84,7 @@ async function projectControllerThing(
     defaults: {
       asset: snapshot.ASSET,
       mainVault: snapshot.VAULT,
-      inceptBlock: incept.number,
-      inceptTime: incept.timestamp,
+      ...(incept && { inceptBlock: incept.number, inceptTime: incept.timestamp }),
       v3: true,
       yearn: true
     }
@@ -113,13 +121,13 @@ export async function extractTranchesByPriority(
 export async function extractTrancheAccounting(
   chainId: number,
   controller: `0x${string}`,
-  tranches: EvmAddress[],
+  tranches: TrancheRef[],
   blockNumber: bigint
 ): Promise<TrancheAccounting[]> {
   if (tranches.length === 0) return []
 
   const multicall = await rpcs.next(chainId, blockNumber).multicall({
-    contracts: tranches.flatMap(tranche => [
+    contracts: tranches.flatMap(({ address: tranche }) => [
       { address: controller, abi, functionName: 'tranches', args: [tranche] },
       { address: controller, abi, functionName: 'liveAssets', args: [tranche] },
       { address: controller, abi, functionName: 'trancheCoverage', args: [tranche] }
@@ -129,13 +137,13 @@ export async function extractTrancheAccounting(
 
   throwOnMulticallError(multicall)
 
-  return tranches.map((address, priority) => {
+  return tranches.map(({ address, priority }, index) => {
     const [
       registered, accrualPaused, excessShareBps, targetRatePerSecondWad,
       baselineAssets, lastAccrual, pendingExcess
-    ] = multicall[priority * 3 + 0].result as unknown as readonly [boolean, boolean, number, bigint, bigint, bigint, bigint]
-    const liveAssets = multicall[priority * 3 + 1].result as bigint
-    const [claim, covered] = multicall[priority * 3 + 2].result as unknown as readonly [bigint, bigint]
+    ] = multicall[index * 3 + 0].result as unknown as readonly [boolean, boolean, number, bigint, bigint, bigint, bigint]
+    const liveAssets = multicall[index * 3 + 1].result as bigint
+    const [claim, covered] = multicall[index * 3 + 2].result as unknown as readonly [bigint, bigint]
 
     return TrancheAccountingSchema.parse({
       address,
@@ -168,7 +176,9 @@ async function projectTrancheThings(
 ) {
   for (const tranche of tranches) {
     const meta = await extractTrancheMeta(chainId, tranche.address, snapshot.blockNumber)
-    const incept = await estimateCreationBlock(chainId, tranche.address)
+    const incept = await things.exist(chainId, tranche.address, 'tranche')
+      ? undefined
+      : await estimateCreationBlock(chainId, tranche.address)
 
     const defaults = {
       trancheController: controller,
@@ -176,8 +186,7 @@ async function projectTrancheThings(
       trancheType: meta.trancheType,
       asset: snapshot.ASSET,
       mainVault: snapshot.VAULT,
-      inceptBlock: incept.number,
-      inceptTime: incept.timestamp,
+      ...(incept && { inceptBlock: incept.number, inceptTime: incept.timestamp }),
       erc4626: true,
       v3: true,
       yearn: true,
