@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { rpcs } from '../rpcs'
 import { math, mq } from 'lib'
-import { EvmAddress, EvmAddressSchema, EvmLogSchema, zhexstring } from 'lib/types'
+import { EvmAddressSchema, EvmLogSchema, zhexstring } from 'lib/types'
 import { getBlockTime, getDefaultStartBlockNumber } from 'lib/blocks'
 import { getAddress } from 'viem'
 import db from '../db'
@@ -48,12 +48,21 @@ export class EvmLogsExtractor {
     })()
 
     const hooks = this.resolveHooks(abiPath, 'event')
-    const processedLogs: any[] = []
+    let decimals: ReturnType<typeof safeFetchOrExtractDecimals> | undefined
+    const getDecimals = async () => {
+      const pending = decimals ??= safeFetchOrExtractDecimals(chainId, address)
+      const result = await pending
+      if (!result.success && decimals === pending) decimals = undefined
+      return result
+    }
+
+    const blockTimes = new Map<bigint | undefined, bigint>()
+    const processedLogs: unknown[] = []
     for (const log of logs) {
       if(!log.topics[0]) { throw new Error('!log.topics[0]') }
 
       const args = extractLogArgs(log)
-      if (await tooSmall(chainId, address, args)) {
+      if (await tooSmall(args, getDecimals)) {
         console.log('❌', 'too small', chainId, log.transactionHash)
         continue
       }
@@ -75,14 +84,24 @@ export class EvmLogsExtractor {
         }
       }
 
+      // Hooks can enqueue writes. Resolve this log's timestamp before running
+      // another hook, preserving the original failure boundary without leaving
+      // speculative RPC requests running after the job fails.
+      const logAddress = getAddress(log.address)
+      const blockNumber = log.blockNumber || undefined
+      let blockTime = blockTimes.get(blockNumber)
+      if (blockTime === undefined) {
+        blockTime = await getBlockTime(chainId, blockNumber)
+        blockTimes.set(blockNumber, blockTime)
+      }
       processedLogs.push({
         ...log,
         chainId,
-        address: getAddress(log.address),
+        address: logAddress,
         signature: log.topics[0],
         args,
         hook: hookResult,
-        blockTime: await getBlockTime(chainId, log.blockNumber || undefined)
+        blockTime
       })
     }
 
@@ -119,11 +138,11 @@ export function containsBlacklistedAddress(chainId: number, args: any) {
   return { result: false, address: undefined }
 }
 
-export async function tooSmall(chainId: number, address: EvmAddress, args: any) {
-  const { success, decimals } = await safeFetchOrExtractDecimals(chainId, address)
-  if (!success) return false
+export async function tooSmall(args: any, getDecimals: () => ReturnType<typeof safeFetchOrExtractDecimals>) {
   const amount =  args.value ?? args.assets ?? args.amount
   if (amount === undefined) return false
+  const { success, decimals } = await getDecimals()
+  if (!success) return false
   return math.div(BigInt(amount), 10n ** BigInt(decimals)) < 0.1
 }
 

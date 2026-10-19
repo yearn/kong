@@ -3,8 +3,8 @@ import manuals from 'lib/manuals'
 
 export class ManualsExtractor {
   async extract() {
-    for (const manual of manuals) {
-      await mq.add(mq.job.load.thing, manual)
-    }
+    await mq.addBulk((function* () {
+      for (const manual of manuals) yield { job: mq.job.load.thing, data: manual }
+    })())
   }
 }

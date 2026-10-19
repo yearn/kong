@@ -22,8 +22,14 @@ export default class Extract implements Processor {
   }
 
   async up() {
+    await removeLegacyBlockCrons()
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handler = async (job: any) => {
+      if (job.queueName === mq.q.extract && job.name === mq.job.extract.block.name && job.data?.chainId == null) {
+        console.info('IGNORED_LEGACY_BLOCK_JOB', job.id)
+        return
+      }
       const extractor = Object.prototype.hasOwnProperty.call(this.extractors, job.name) ? this.extractors[job.name] : undefined
       if (!extractor) {
         if (job.name === 'waveydb') {
@@ -48,5 +54,22 @@ export default class Extract implements Processor {
 
   async down() {
     await Promise.all(this.workers.map(worker => worker.close()))
+  }
+}
+
+// Old terminal versions registered LatestBlocks on the root queue without chainId.
+// Remove only this obsolete repeatable; per-chain registrations remain intact.
+export async function removeLegacyBlockCrons() {
+  const queue = mq.connect(mq.q.extract)
+  try {
+    const repeatables = await queue.getRepeatableJobs()
+    for (const repeatable of repeatables) {
+      if (repeatable.name === mq.job.extract.block.name) {
+        await queue.removeRepeatableByKey(repeatable.key)
+        console.info('REMOVED_LEGACY_BLOCK_CRON', repeatable.key)
+      }
+    }
+  } finally {
+    await queue.close()
   }
 }

@@ -1,4 +1,3 @@
-import { setTimeout } from 'timers/promises'
 import { mq, strider } from 'lib'
 import { AbiConfig, AbiConfigSchema, SourceConfig, SourceConfigSchema } from 'lib/abis'
 import { estimateHeight, getBlockNumber } from 'lib/blocks'
@@ -34,26 +33,20 @@ export default class EventsFanout {
     const travelled = replay?.enabled ? undefined : await getTravelledStrides(chainId, address)
     const nextStrides = replayRange ? replayRange : strider.plan(from, to, travelled)
 
-    for (const stride of StrideSchema.array().parse(nextStrides)) {
-      console.log('📤', 'stride', chainId, address, stride.from, stride.to)
-      await walklog({...stride, logStride: getLogStride(chainId)}, async (from, to) => {
-        const jobId = `evmlog-${chainId}-${address}-${from}-${to}`
-        await mq.add(mq.job.extract.evmlog, {
-          abiPath, chainId, address, from, to, replay: replay?.enabled
-        }, { jobId })
-      })
+    function* jobs() {
+      for (const stride of StrideSchema.array().parse(nextStrides)) {
+        console.log('📤', 'stride', chainId, address, stride.from, stride.to)
+        const logStride = BigInt(getLogStride(chainId))
+        for (let fromBlock = stride.from; fromBlock <= stride.to; fromBlock += logStride) {
+          const toBlock = fromBlock + logStride - 1n < stride.to ? fromBlock + logStride - 1n : stride.to
+          yield {
+            job: mq.job.extract.evmlog,
+            data: { abiPath, chainId, address, from: fromBlock, to: toBlock, replay: replay?.enabled },
+            options: { jobId: `evmlog-${chainId}-${address}-${fromBlock}-${toBlock}` }
+          }
+        }
+      }
     }
-  }
-}
-
-async function walklog(
-  o: { from: bigint, to: bigint, logStride: number }, 
-  f: (from: bigint, to: bigint) => Promise<void>
-) {
-  const logStride = BigInt(o.logStride)
-  for (let fromBlock = o.from; fromBlock <= o.to; fromBlock += logStride) {
-    const toBlock = fromBlock + logStride - 1n < o.to ? fromBlock + logStride - 1n : o.to
-    await f(fromBlock, toBlock)
-    await setTimeout(16)
+    await mq.addBulk(jobs())
   }
 }
