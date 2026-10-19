@@ -14,7 +14,7 @@ vi.mock('lib', () => ({
   math: { max: (...args: bigint[]) => args.reduce((a, b) => (a > b ? a : b)) },
   mq: {
     add: mqAdd,
-    addBulk: async (jobs: { job: unknown, data: unknown, options?: unknown }[]) => {
+    addBulk: async (jobs: Iterable<{ job: unknown, data: unknown, options?: unknown }>) => {
       for (const { job, data, options } of jobs) await (mqAdd as (...args: unknown[]) => Promise<undefined>)(job, data, options)
     },
     job: {

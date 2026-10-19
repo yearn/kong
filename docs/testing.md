@@ -222,6 +222,31 @@ while others still match remains allowed.
 
 Ingest startup removes obsolete root-`extract` repeatable `block` jobs before starting workers. Per-chain crons keep their `chainId` payload; verify root repeatables are empty for `block` after rollout. Pool errors report to Sentry without crashing on an idle-client error. Concurrency probes do not overlap. Errors report on the first failure and at most once per minute per worker, including when failed probes alternate with successful probes.
 
+Event extraction resolves a kept log's timestamp after its hooks and before the
+next log's hooks. Successful timestamps are reused by block within the job;
+lookups run sequentially so a failed job leaves no speculative requests running
+and later hooks cannot publish side effects past a failed timestamp lookup.
+Successful decimals are reused for the job, assuming stable token decimals;
+failed lookups are retried for later logs.
+
+Bulk enqueueing consumes lazy producers with at most 1,000 descriptors buffered
+across queues, discards returned BullMQ Job instances, and waits for every queue
+submission in a batch to settle before returning a failure. Submission is not
+atomic across queues or batches. ABI fanout flushes its pending descriptors even
+if a later source or thing lookup fails, preserving already-produced work.
+Guarded database upsert batches remain sequential so each conflict guard sees
+all preceding writes; unguarded batches use multi-row statements.
+
+Phase 1a also changes operational behavior: each block job polls only its own
+chain, so a paused chain queue stops that chain's head updates; terminal cron
+toggles route to that chain's queue. DB monitor statistics and index totals are
+cached for 60 seconds while queue/CPU readings remain fresh (event counts keep
+their existing one-hour cache). `RPC_BATCH_SIZE` unset or zero sends ordinary
+JSON-RPC request objects; positive values enable batch arrays. The 365-day
+sparkline tier avoids a full scan when it finds three buckets, but adds one
+query for sparse series that still need the full scan. The thing no-op guard
+avoids redundant writes while retaining PostgreSQL conflict-row locking.
+
 The baseline gate invokes the declared `typecheck` command of every workspace under
 `packages/` that has one; a workspace without a baseline key is checked against an
 empty baseline, and a baseline key with no matching workspace script fails. Removing

@@ -127,6 +127,15 @@ const UPSERT_CHUNK = 500
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function upsertBatch(batch: any[], table: string, pk: string, where?: string, _client?: PoolClient) {
+  if (where) {
+    // Each guard must observe the preceding write, including repeated keys.
+    const run = async (client: PoolClient) => {
+      for (const row of batch) await upsert(row, table, pk, where, client)
+    }
+    if (_client) await run(_client)
+    else await withTransaction(run)
+    return
+  }
   const pkColumns = pk.split(',').map(column => column.trim())
   const rows = new Map<string, Record<string, unknown>>()
   for (const object of batch) {

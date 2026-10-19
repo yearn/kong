@@ -38,11 +38,13 @@ export default class TimeseriesFanout {
         missing.push(end)
       }
 
-      await mq.addBulk(missing.map(blockTime => ({
-        job: mq.job.extract.timeseries,
-        data: { abiPath, chainId, address, outputLabel, blockTime },
-        options: { jobId: `timeseries-${chainId}-${address}-${outputLabel}-${blockTime}` }
-      })))
+      await mq.addBulk((function* () {
+        for (const blockTime of missing) yield {
+          job: mq.job.extract.timeseries,
+          data: { abiPath, chainId, address, outputLabel, blockTime },
+          options: { jobId: `timeseries-${chainId}-${address}-${outputLabel}-${blockTime}` }
+        }
+      })())
     }
   }
 }

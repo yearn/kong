@@ -63,6 +63,31 @@ describe('load/upsertBatch', () => {
     expect(Number(row.block_number)).to.equal(9)
   })
 
+  it('evaluates guarded duplicate rows against each preceding write', async () => {
+    await upsertBatch([output(1000, { blockNumber: 100, value: 1 })], 'output', PK)
+    await upsertBatch([
+      output(1000, { blockNumber: 150, value: 2 }),
+      output(1000, { blockNumber: 120, value: 3 })
+    ], 'output', PK, 'WHERE output.block_number < EXCLUDED.block_number')
+    const [row] = await rows()
+    expect(Number(row.block_number)).to.equal(150)
+    expect(row.value).to.equal(2)
+  })
+
+  it('rolls back guarded writes when a later row fails', async () => {
+    await upsertBatch([output(1000, { blockNumber: 100, value: 1 })], 'output', PK)
+    await upsertBatch([
+      output(1000, { blockNumber: 150, value: 2 }),
+      { ...output(2000), address: null }
+    ], 'output', PK, 'WHERE output.block_number < EXCLUDED.block_number').then(
+      () => expect.fail('expected a failure'),
+      error => expect(String(error)).to.contain('null value')
+    )
+    const [row] = await rows()
+    expect(Number(row.block_number)).to.equal(100)
+    expect(row.value).to.equal(1)
+  })
+
   it('leaves pk columns untouched on conflict', async () => {
     await upsertBatch([output(1000, { value: 1 })], 'output', PK)
     await upsertBatch([output(1000, { value: 2 })], 'output', PK)

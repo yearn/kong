@@ -3,6 +3,7 @@ import * as things from '../things'
 import { clearNegativePriceCache } from '../prices'
 import WebhookCollector from './webhooks'
 import { findBusyMatch } from './isBusy'
+import type { BulkJob } from 'lib/mq'
 
 export default class AbisFanout {
   async fanout(data: object) {
@@ -23,47 +24,56 @@ export default class AbisFanout {
 
     await mq.add(mq.job.extract.manuals, data)
 
-    const jobs: Parameters<typeof mq.addBulk>[0] = []
-    for (const abi of abisConfig.abis) {
-      for (const source of abi.sources) {
-        console.info('🤝', 'source', 'abiPath', abi.abiPath, source.chainId, source.address)
-        const _data = { ...data, chainId: source.chainId, abi, source }
-        jobs.push(
-          { job: mq.job.fanout.events, data: _data },
-          { job: mq.job.extract.snapshot, data: _data },
-          { job: mq.job.fanout.timeseries, data: _data }
-        )
-        webhookCollector.collect(abi, source)
-      }
-
-      if (abi.things) {
-        const chainIds = chains.map(chain => chain.id) as number[]
-        const _things = (await things.get(abi.things)).filter(thing => chainIds.includes(thing.chainId))
-        for (const _thing of _things) {
-          console.info('🤝', 'thing', 'abiPath', abi.abiPath, _thing.chainId, _thing.address)
-          const _data = {
-            ...data,
-            chainId: _thing.chainId,
-            abi,
-            source: {
-              chainId: _thing.chainId,
-              address: _thing.address,
-              inceptBlock: _thing.defaults.inceptBlock,
-              inceptTime: _thing.defaults.inceptTime,
-              skip: false,
-              only: false
-            } }
+    const jobs: BulkJob[] = []
+    const flush = async () => {
+      if (jobs.length) await mq.addBulk(jobs.splice(0))
+    }
+    try {
+      for (const abi of abisConfig.abis) {
+        for (const source of abi.sources) {
+          console.info('🤝', 'source', 'abiPath', abi.abiPath, source.chainId, source.address)
+          const _data = { ...data, chainId: source.chainId, abi, source }
           jobs.push(
             { job: mq.job.fanout.events, data: _data },
             { job: mq.job.extract.snapshot, data: _data },
             { job: mq.job.fanout.timeseries, data: _data }
           )
-          webhookCollector.collect(abi, _data.source)
+          webhookCollector.collect(abi, source)
+          if (jobs.length >= 999) await flush()
+        }
+
+        if (abi.things) {
+          const chainIds = chains.map(chain => chain.id) as number[]
+          const _things = (await things.get(abi.things)).filter(thing => chainIds.includes(thing.chainId))
+          for (const _thing of _things) {
+            console.info('🤝', 'thing', 'abiPath', abi.abiPath, _thing.chainId, _thing.address)
+            const _data = {
+              ...data,
+              chainId: _thing.chainId,
+              abi,
+              source: {
+                chainId: _thing.chainId,
+                address: _thing.address,
+                inceptBlock: _thing.defaults.inceptBlock,
+                inceptTime: _thing.defaults.inceptTime,
+                skip: false,
+                only: false
+              } }
+            jobs.push(
+              { job: mq.job.fanout.events, data: _data },
+              { job: mq.job.extract.snapshot, data: _data },
+              { job: mq.job.fanout.timeseries, data: _data }
+            )
+            webhookCollector.collect(abi, _data.source)
+            if (jobs.length >= 999) await flush()
+          }
         }
       }
-    }
 
-    await mq.addBulk(jobs)
+    } finally {
+      // Preserve work already produced if a later source or DB lookup fails.
+      await flush()
+    }
     await webhookCollector.flush()
   }
 }

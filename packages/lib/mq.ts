@@ -92,21 +92,31 @@ export async function add(job: Job, data: any, options?: any) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function addBulk(jobs: { job: Job, data: any, options?: any }[]) {
+export type BulkJob = { job: Job, data: any, options?: any }
+
+// Consume lazy producers in bounded batches; callers do not need Job instances.
+export async function addBulk(jobs: Iterable<BulkJob>) {
   const byQueue = new Map<Queue, { name: string, data: unknown, opts: object }[]>()
+  let buffered = 0
+  const flush = async () => {
+    const batches = [...byQueue]
+    byQueue.clear()
+    buffered = 0
+    const results = await Promise.allSettled(batches.map(async ([queue, bulk]) => {
+      await queue.addBulk(bulk)
+    }))
+    for (const result of results) {
+      if (result.status === 'rejected') throw result.reason
+    }
+  }
   for (const { job, data, options } of jobs) {
     const queue = enqueue(job, data)
     const bulk = byQueue.get(queue) ?? []
     bulk.push({ name: job.name, data, opts: { priority: DEFAULT_PRIORITY, attempts: 1, ...options } })
     byQueue.set(queue, bulk)
+    if (++buffered === BULK_CHUNK) await flush()
   }
-  return (await Promise.all([...byQueue].map(async ([queue, bulk]) => {
-    const added: Awaited<ReturnType<Queue['addBulk']>> = []
-    for (let i = 0; i < bulk.length; i += BULK_CHUNK) {
-      added.push(...await queue.addBulk(bulk.slice(i, i + BULK_CHUNK)))
-    }
-    return added
-  }))).flat()
+  await flush()
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -11,23 +11,6 @@ import abiutil from '../abiutil'
 import blacklist from 'lib/blacklist'
 import { safeFetchOrExtractDecimals } from '../abis/yearn/lib'
 
-const BLOCK_TIME_CONCURRENCY = 8
-
-async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
-  let next = 0
-  let stopped = false
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (!stopped && next < items.length) {
-      try {
-        await fn(items[next++])
-      } catch (error) {
-        stopped = true
-        throw error
-      }
-    }
-  }))
-}
-
 export class EvmLogsExtractor {
   resolveHooks: ResolveHooks|undefined
 
@@ -73,7 +56,8 @@ export class EvmLogsExtractor {
       return result
     }
 
-    const kept: { log: (typeof logs)[number], args: any, hook: object }[] = []
+    const blockTimes = new Map<bigint | undefined, bigint>()
+    const processedLogs: unknown[] = []
     for (const log of logs) {
       if(!log.topics[0]) { throw new Error('!log.topics[0]') }
 
@@ -100,24 +84,26 @@ export class EvmLogsExtractor {
         }
       }
 
-      kept.push({ log, args, hook: hookResult })
+      // Hooks can enqueue writes. Resolve this log's timestamp before running
+      // another hook, preserving the original failure boundary without leaving
+      // speculative RPC requests running after the job fails.
+      const logAddress = getAddress(log.address)
+      const blockNumber = log.blockNumber || undefined
+      let blockTime = blockTimes.get(blockNumber)
+      if (blockTime === undefined) {
+        blockTime = await getBlockTime(chainId, blockNumber)
+        blockTimes.set(blockNumber, blockTime)
+      }
+      processedLogs.push({
+        ...log,
+        chainId,
+        address: logAddress,
+        signature: log.topics[0],
+        args,
+        hook: hookResult,
+        blockTime
+      })
     }
-
-    const blockTimes = new Map<bigint | undefined, bigint>()
-    const blockNumbers = [...new Set(kept.map(({ log }) => log.blockNumber || undefined))]
-    await mapLimit(blockNumbers, BLOCK_TIME_CONCURRENCY, async blockNumber => {
-      blockTimes.set(blockNumber, await getBlockTime(chainId, blockNumber))
-    })
-
-    const processedLogs = kept.map(({ log, args, hook }) => ({
-      ...log,
-      chainId,
-      address: getAddress(log.address),
-      signature: log.topics[0],
-      args,
-      hook,
-      blockTime: blockTimes.get(log.blockNumber || undefined)
-    }))
 
     try {
       await mq.add(mq.job.load.evmlog, {
