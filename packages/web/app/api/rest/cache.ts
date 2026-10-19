@@ -90,11 +90,15 @@ export async function cacheMGet(keys: string[]): Promise<Array<string | null>> {
   return await writeClient.mGet(keys)
 }
 
-export async function cacheMSet(pairs: Array<[string, string]>): Promise<void> {
+export async function cacheMSet(pairs: Array<[string, string]>, options: { atomic?: boolean } = {}): Promise<void> {
   if (pairs.length === 0) return
+  if (options.atomic && estimateMSetRequestSize(pairs) > REDIS_MSET_HARD_LIMIT_BYTES) {
+    throw new Error('Atomic Redis MSET payload exceeds hard limit')
+  }
+  const chunks = options.atomic ? [pairs] : splitPairsForMSet(pairs)
   await connectWriteClient()
 
-  for (const chunk of splitPairsForMSet(pairs)) {
+  for (const chunk of chunks) {
     await writeClient.mSet(chunk)
   }
 }

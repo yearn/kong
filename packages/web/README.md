@@ -48,6 +48,7 @@ Uptime Kuma URL named in its route file.
 | Route | Schedule | maxDuration |
 |---|---|---|
 | `/api/cron/refresh-cache` | `*/30 * * * *` | 300 |
+| `/api/cron/tvl-refresh` | `*/30 * * * *` | 300 |
 | `/api/cron/timeseries-refresh` | `0 * * * *` | 300 |
 | `/api/cron/timeseries-refresh-historical` | `15 2 * * *` | 800 |
 | `/api/cron/reports-refresh` | manual only | 300 |
@@ -96,6 +97,7 @@ bun packages/web/app/api/rest/timeseries/refresh.cli.ts
 bun packages/web/app/api/rest/timeseries/refresh-historical.cli.ts
 bun packages/web/app/api/rest/reports/refresh.cli.ts
 bun packages/web/app/api/rest/reports/refresh-historical.cli.ts
+bun packages/web/app/api/rest/tvl/refresh.cli.ts
 ```
 
 ### Required Vercel environment variables
@@ -119,8 +121,8 @@ Defaulted:
 Optional (job still runs and returns 200):
 
 - `UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS`, `UPTIME_KUMA_PUSH_URL_TIMESERIES_REFRESH`,
-  `UPTIME_KUMA_PUSH_URL_TIMESERIES_HISTORICAL`, `UPTIME_KUMA_PUSH_URL_REPORTS_REFRESH`,
-  `UPTIME_KUMA_PUSH_URL_REPORTS_HISTORICAL` — a missing URL silently disables that job's heartbeat,
+  `UPTIME_KUMA_PUSH_URL_TIMESERIES_HISTORICAL`, `UPTIME_KUMA_PUSH_URL_TVL_REFRESH`,
+  `UPTIME_KUMA_PUSH_URL_REPORTS_REFRESH`, `UPTIME_KUMA_PUSH_URL_REPORTS_HISTORICAL` — a missing URL silently disables that job's heartbeat,
   so the monitor never alerts
 
 Cron jobs query through their own pool in `app/api/db/cron.ts` (`POSTGRES_CRON_POOL_MAX`,
@@ -146,3 +148,14 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+
+### Aggregate TVL database tests
+
+The PostgreSQL integration suite uses a disposable TimescaleDB container and the
+repository's table definitions. With Docker available, run from `packages/web`:
+
+```bash
+RUN_DB_TESTS=1 bun run test app/api/rest/tvl/db.containers.spec.ts
+```
+
+These tests are opt-in; the normal web suite does not start Docker.

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { mq, strider, types } from 'lib'
-import db, { firstRow, getTravelledStrides, invalidateSparkline, toUpsertSql, upsertThingDefaults } from '../db'
+import db, { getTravelledStrides, invalidateSparkline, toUpsertSql, upsertThingDefaults, upsertSnapshotData } from '../db'
 import { Processor } from 'lib/processor'
 import { reportRetiredJob } from '../retired-jobs'
 import { PoolClient } from 'pg'
@@ -92,35 +92,7 @@ export async function upsertEvmLog(data: object) {
 
 
 export async function upsertSnapshot(data: object) {
-  const snapshot = SnapshotSchema.parse(data)
-  const client = await db.connect()
-
-  try {
-    await client.query('BEGIN')
-    const { snapshot: currentSnapshot, hook: currentHook } = (await firstRow(
-      'SELECT snapshot, hook FROM snapshot WHERE chain_id = $1 AND address = $2 FOR UPDATE',
-      [snapshot.chainId, snapshot.address],
-      client
-    )) ?? { snapshot: {}, hook: {} }
-
-    snapshot.snapshot = { ...currentSnapshot, ...snapshot.snapshot }
-
-    snapshot.hook = {
-      ...currentHook,
-      ...snapshot.hook,
-      meta: snapshot.hook.meta ? { ...currentHook.meta, ...JSON.parse(JSON.stringify(snapshot.hook.meta)) } : currentHook.meta
-    }
-    await upsert(snapshot, 'snapshot', 'chain_id, address', undefined, client)
-
-    await client.query('COMMIT')
-
-  } catch(error) {
-    await client.query('ROLLBACK')
-    throw error
-
-  } finally {
-    client.release()
-  }
+  await upsertSnapshotData(SnapshotSchema.parse(data))
 }
 
 export async function upsertThing(data: object) {
