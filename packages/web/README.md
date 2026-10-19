@@ -63,10 +63,13 @@ For immediate reconciliation after a backfill, run the historical CLI with
 it afterward). API payloads keep the same shape. The first run after upgrading
 rebuilds legacy entries once to initialize refresh metadata.
 
-The job logs full/incremental series counts, rows read from Postgres, Redis payload
-bytes, elapsed time, environment and deployment commit. Redis payload bytes are not
-a measurement of Postgres network bytes. Full histories are still read and rewritten
-in Redis during incremental refreshes.
+The job logs completed full/incremental series reads, rows read from Postgres,
+serialized cache payload bytes, elapsed time, environment and deployment commit.
+Completed reads are counted even if another read or the Redis write fails; all
+in-flight reads in a failed batch settle before its summary is logged. Payload
+bytes describe generated cache values, not successful Redis writes or Postgres
+network bytes. Full histories are still read and rewritten in Redis during
+incremental refreshes.
 
 Database connections identify API and refresh traffic as
 `kong:web:api:<VERCEL_ENV>` and `kong:web:cron:<VERCEL_ENV>`; without `VERCEL_ENV`, the

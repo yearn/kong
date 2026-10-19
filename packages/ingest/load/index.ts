@@ -136,7 +136,7 @@ export async function upsertBatchOutput(batch: any[]) {
   }))
   await upsertBatch(outputs, 'output', 'chain_id, address, label, component, series_time')
   for (const output of outputs) {
-    invalidateSparkline(output.chainId, output.address, output.label)
+    invalidateSparkline(output.chainId, output.address, output.label, output.blockTime)
   }
 }
 

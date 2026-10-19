@@ -16,7 +16,7 @@ describe('sparkline cache', () => {
     vi.useFakeTimers()
     vi.stubEnv('SPARKLINE_CACHE_TTL_SECONDS', '60')
     query.mockReset()
-    query.mockResolvedValue({ rows: [row] })
+    query.mockImplementation(async (sql: string) => ({ rows: sql.includes('AND block_time >=') ? [] : [row] }))
   })
   afterEach(() => {
     vi.useRealTimers()
@@ -26,10 +26,10 @@ describe('sparkline cache', () => {
   it('shares sparse fallbacks and protects cached rows from mutation', async () => {
     const { getSparkline } = await import('./db')
     const results = await Promise.all(Array.from({ length: 10 }, () => getSparkline(1, '0x1', 'tvl-c', 'tvl')))
-    expect(query).toHaveBeenCalledTimes(2)
+    expect(query).toHaveBeenCalledTimes(3)
     results[0][0].close = 999
     expect((await getSparkline(1, '0x1', 'tvl-c', 'tvl'))[0].close).toBe(10)
-    expect(query).toHaveBeenCalledTimes(2)
+    expect(query).toHaveBeenCalledTimes(4)
   })
 
   it('expires entries and caches empty results too', async () => {
@@ -37,10 +37,10 @@ describe('sparkline cache', () => {
     const { getSparkline } = await import('./db')
     await getSparkline(1, '0x1', 'tvl-c', 'tvl')
     await getSparkline(1, '0x1', 'tvl-c', 'tvl')
-    expect(query).toHaveBeenCalledTimes(2)
+    expect(query).toHaveBeenCalledTimes(4)
     vi.advanceTimersByTime(60_000)
     await getSparkline(1, '0x1', 'tvl-c', 'tvl')
-    expect(query).toHaveBeenCalledTimes(4)
+    expect(query).toHaveBeenCalledTimes(7)
   })
 
   it('invalidates all components of only the affected series', async () => {
@@ -50,10 +50,10 @@ describe('sparkline cache', () => {
     await getSparkline(1, '0x2', 'tvl-c', 'tvl')
     invalidateSparkline(1, '0x1', 'tvl-c')
     await getSparkline(1, '0x2', 'tvl-c', 'tvl')
-    expect(query).toHaveBeenCalledTimes(6)
+    expect(query).toHaveBeenCalledTimes(10)
     await getSparkline(1, '0x1', 'tvl-c', 'tvl')
     await getSparkline(1, '0x1', 'tvl-c')
-    expect(query).toHaveBeenCalledTimes(10)
+    expect(query).toHaveBeenCalledTimes(16)
   })
 
   it('retries failures instead of caching them', async () => {
@@ -61,6 +61,6 @@ describe('sparkline cache', () => {
     const { getSparkline } = await import('./db')
     await expect(getSparkline(1, '0x1', 'tvl-c', 'tvl')).rejects.toThrow('database unavailable')
     await getSparkline(1, '0x1', 'tvl-c', 'tvl')
-    expect(query).toHaveBeenCalledTimes(3)
+    expect(query).toHaveBeenCalledTimes(5)
   })
 })
