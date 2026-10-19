@@ -15,6 +15,7 @@ pgTypes.setTypeParser(1184, (stringValue) => {
 })
 
 const db = new Pool({
+  application_name: process.env.POSTGRES_APPLICATION_NAME || 'kong:ingest',
   host: process.env.POSTGRES_HOST ?? 'localhost',
   port: (process.env.POSTGRES_PORT ?? 5432) as number,
   ssl: (process.env.POSTGRES_SSL ?? false)
@@ -76,7 +77,49 @@ export async function getTravelledStrides(chainId: number, address: `0x${string}
   return stridesJson ? StrideSchema.array().parse(JSON.parse(stridesJson)) : undefined
 }
 
+type Sparkline = Awaited<ReturnType<typeof fetchSparkline>>
+type SparklineCacheEntry = { expires: number; result: Promise<Sparkline> }
+const sparklineCache = new Map<string, Map<string | undefined, SparklineCacheEntry>>()
+const SPARKLINE_CACHE_MAX_SERIES = 10_000
+const configuredSparklineTtl = Number(process.env.SPARKLINE_CACHE_TTL_SECONDS || 3600)
+const sparklineTtl = Number.isFinite(configuredSparklineTtl) && configuredSparklineTtl >= 0
+  ? configuredSparklineTtl * 1000
+  : 3_600_000
+
+export function invalidateSparkline(chainId: number, address: string, label: string) {
+  sparklineCache.delete(JSON.stringify([chainId, address, label]))
+}
+
 export async function getSparkline(chainId: number, address: string, label: string, component?: string) {
+  if (sparklineTtl === 0) return fetchSparkline(chainId, address, label, component)
+
+  const key = JSON.stringify([chainId, address, label])
+  let series = sparklineCache.get(key)
+  if (!series) {
+    if (sparklineCache.size >= SPARKLINE_CACHE_MAX_SERIES) {
+      sparklineCache.delete(sparklineCache.keys().next().value!)
+    }
+    series = new Map()
+    sparklineCache.set(key, series)
+  }
+  const components = series
+  let entry = components.get(component)
+  if (!entry || entry.expires <= Date.now()) {
+    // Share in-flight queries too, including expensive sparse-series fallbacks.
+    const pending = { expires: Infinity, result: fetchSparkline(chainId, address, label, component) }
+    components.set(component, pending)
+    pending.result.then(() => {
+      pending.expires = Date.now() + sparklineTtl
+    }, () => {
+      if (components.get(component) === pending) components.delete(component)
+    })
+    entry = pending
+  }
+  // Snapshot hooks may mutate their results; do not expose the cached objects.
+  return (await entry.result).map(row => ({ ...row }))
+}
+
+async function fetchSparkline(chainId: number, address: string, label: string, component?: string) {
   // series_time floor prunes hypertable chunks. If the 90d window holds all 3
   // buckets they're the 3 most recent overall; fall back to a full scan when
   // fewer, so sparse/stale vaults keep their full series.

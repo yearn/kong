@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import { types } from 'lib'
-import db, { getSparkline, upsertThingDefaults } from './db'
+import db, { getSparkline, invalidateSparkline, upsertThingDefaults } from './db'
 
 // upsertThingDefaults replaced a SELECT ... FOR UPDATE + read-modify-write
 // transaction with a single INSERT ... ON CONFLICT DO UPDATE that merges
@@ -113,6 +113,7 @@ describe('getSparkline', () => {
   }
 
   afterEach(async () => {
+    invalidateSparkline(CHAIN_ID, ADDRESS, LABEL)
     await db.query('DELETE FROM output WHERE chain_id = $1 AND address = $2 AND label = $3',
       [CHAIN_ID, ADDRESS, LABEL])
   })

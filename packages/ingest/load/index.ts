@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { mq, strider, types } from 'lib'
-import db, { firstRow, getTravelledStrides, toUpsertSql, upsertThingDefaults } from '../db'
+import db, { firstRow, getTravelledStrides, invalidateSparkline, toUpsertSql, upsertThingDefaults } from '../db'
 import { Processor } from 'lib/processor'
 import { reportRetiredJob } from '../retired-jobs'
 import { PoolClient } from 'pg'
@@ -135,6 +135,9 @@ export async function upsertBatchOutput(batch: any[]) {
     series_time: endOfDay(output.blockTime)
   }))
   await upsertBatch(outputs, 'output', 'chain_id, address, label, component, series_time')
+  for (const output of outputs) {
+    invalidateSparkline(output.chainId, output.address, output.label)
+  }
 }
 
 export async function upsert(data: object, table: string, pk: string, where?: string, _client?: PoolClient) {

@@ -10,7 +10,7 @@ export type VaultRow = {
 
 export type TimeseriesRow = {
   component: string
-  value: number
+  value: number | string | null
   time: bigint
 }
 
@@ -145,5 +145,26 @@ export async function getRecentTimeseries(
     [chainId, getAddress(address as `0x${string}`), label],
   )
 
+  return result.rows as TimeseriesRow[]
+}
+
+export async function getTimeseriesSince(
+  chainId: number,
+  address: string,
+  label: string,
+  since: number,
+  pool: Pool = db,
+): Promise<TimeseriesRow[]> {
+  const result = await pool.query(`
+    SELECT component,
+      COALESCE(AVG(NULLIF(value, 0)), 0) AS value,
+      time_bucket('1 day'::interval, series_time) AS time
+    FROM output
+    WHERE chain_id = $1 AND address = $2 AND label = $3
+      AND series_time >= to_timestamp($4::double precision)
+    GROUP BY component, time
+    HAVING COUNT(value) > 0
+    ORDER BY time ASC
+  `, [chainId, getAddress(address as `0x${string}`), label, since])
   return result.rows as TimeseriesRow[]
 }

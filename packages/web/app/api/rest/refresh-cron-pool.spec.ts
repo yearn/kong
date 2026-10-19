@@ -7,11 +7,14 @@ const getTimeseriesVaults = vi.fn()
 const getRecentTimeseries = vi.fn()
 const getFullTimeseries = vi.fn()
 const getScopedTimeseriesPairs = vi.fn()
+const getTranches = vi.fn()
+const getTrancheControllers = vi.fn()
 const getTrancheSystems = vi.fn()
 const getReportsVaults = vi.fn()
 const getStrategyReports = vi.fn()
 const getRecentStrategyReports = vi.fn()
 const cacheMSet = vi.fn().mockResolvedValue(undefined)
+const cacheMGet = vi.fn()
 
 vi.mock('../db/cron', () => ({ cronDb }))
 vi.mock('./list/db', () => ({ getVaultsWithSnapshots }))
@@ -20,6 +23,8 @@ vi.mock('./timeseries/db', () => ({
   getRecentTimeseries,
   getFullTimeseries,
   getScopedTimeseriesPairs,
+  getTranches,
+  getTrancheControllers,
 }))
 vi.mock('./tranche/db', () => ({ getTrancheSystems }))
 vi.mock('./reports/db', () => ({
@@ -27,7 +32,7 @@ vi.mock('./reports/db', () => ({
   getStrategyReports,
   getRecentStrategyReports,
 }))
-vi.mock('./cache', () => ({ cacheMSet }))
+vi.mock('./cache', () => ({ cacheMSet, cacheMGet }))
 
 const VAULT = { chainId: 1, address: '0x0000000000000000000000000000000000000001' }
 
@@ -39,6 +44,9 @@ describe('refresh jobs pass cronDb into db helpers', () => {
     getRecentTimeseries.mockResolvedValue([])
     getFullTimeseries.mockResolvedValue([])
     getScopedTimeseriesPairs.mockResolvedValue([])
+    getTranches.mockResolvedValue([])
+    getTrancheControllers.mockResolvedValue([])
+    cacheMGet.mockImplementation(async (keys: string[]) => keys.map(() => null))
     getTrancheSystems.mockResolvedValue([])
     getReportsVaults.mockResolvedValue([VAULT])
     getStrategyReports.mockResolvedValue([{ transactionHash: '0x1' }])
@@ -72,8 +80,8 @@ describe('refresh jobs pass cronDb into db helpers', () => {
     for (const args of getFullTimeseries.mock.calls) {
       assert.equal(args[3], cronDb)
     }
-    assert.deepEqual(getScopedTimeseriesPairs.mock.calls[0].slice(0, 1), [getFullTimeseries])
-    assert.equal(getScopedTimeseriesPairs.mock.calls[0][2], cronDb)
+    assert.equal(getTranches.mock.calls[0][0], cronDb)
+    assert.equal(getTrancheControllers.mock.calls[0][0], cronDb)
   })
 
   it('tranche refreshTranches', async () => {

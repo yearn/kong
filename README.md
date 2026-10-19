@@ -173,6 +173,12 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 
 `monitor` - system stats
 
+Ingestion caches sparkline reads per process for one hour, including empty and
+sparse series. `SPARKLINE_CACHE_TTL_SECONDS` changes that lifetime; `0` disables
+the cache. Output writes invalidate the affected series in the writing process.
+Writes from another process become visible when the cache expires. The cache
+keeps at most 10,000 series and shares concurrent reads of the same component.
+
 
 ## Webhooks
 Kong supports real-time webhook notifications that are triggered during the indexing process. Webhooks allow external services to receive and react to blockchain events as they're processed by the indexer.
