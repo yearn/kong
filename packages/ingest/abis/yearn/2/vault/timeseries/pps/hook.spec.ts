@@ -5,7 +5,7 @@ import { ThingSchema } from 'lib/types'
 import { addresses } from '../../../../../../test-addresses'
 
 describe('abis/yearn/2/vault/timeseries/pps/hook', function() {
-  it('extracts pps', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('extracts pps', async function() {
     const vault = ThingSchema.parse({
       chainId: mainnet.id,
       address: addresses.v2.yvusdt,

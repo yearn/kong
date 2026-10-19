@@ -8,7 +8,7 @@ import { upsertBatch } from '../../../load'
 import db from '../../../db'
 import { rpcs } from '../../../rpcs'
 
-const hasPolygon = chains.some(chain => chain.id === polygon.id)
+const hasPolygon = chains.some(chain => chain.id === polygon.id) && !!process.env.HTTP_ARCHIVE_137
 
 describe('abis/yearn/lib/apy', () => {
   beforeAll(async () => {
@@ -37,14 +37,14 @@ describe('abis/yearn/lib/apy', () => {
     await db.query('DELETE FROM evmlog WHERE address = ANY($1)', [[addresses.v2.yvusdt, addresses.v3.yvusdca]])
   })
 
-  it('extracts v2 fees', async () => {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('extracts v2 fees', async () => {
     const strategies: `0x${string}`[] = [addresses.v2.strategyLenderYieldOptimiser]
     const fees = await extractFees__v2(mainnet.id, addresses.v2.yvusdt, '0.4.3', strategies, 15871070n)
     expect(fees.management).to.eq(0)
     expect(fees.performance).to.eq(.2)
   }, 20_000)
 
-  it('extracts modern 0.4.3 v2 fees with a non-zero strategist fee in plain bps', async () => {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('extracts modern 0.4.3 v2 fees with a non-zero strategist fee in plain bps', async () => {
     // vault performanceFee 1000 bps + strategy performanceFee 1000 bps * debtRatio 4126,
     // scaled from bps² back to bps: 0.1 + 0.04126
     const strategies: `0x${string}`[] = [addresses.v2.yvdai043LeveragedCompStrategy]
@@ -53,7 +53,7 @@ describe('abis/yearn/lib/apy', () => {
     expect(fees.performance).to.be.closeTo(0.14126, 1e-9)
   }, 20_000)
 
-  it('extracts legacy 0.3.0 v2 fees in plain bps', async () => {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('extracts legacy 0.3.0 v2 fees in plain bps', async () => {
     // vault performanceFee 1000 bps + strategy performanceFee 1000 bps * debtRatio 9800,
     // scaled from bps² back to bps: 0.1 + 0.098
     const strategies: `0x${string}`[] = [addresses.v2.yvwbtc030MakerStrategy]
@@ -62,7 +62,7 @@ describe('abis/yearn/lib/apy', () => {
     expect(fees.performance).to.be.closeTo(0.198, 1e-9)
   }, 20_000)
 
-  it('picks the strategies abi arity from the vault api version', async () => {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('picks the strategies abi arity from the vault api version', async () => {
     // performanceFee and debtRatio sit at the same offsets in both layouts, so a fee
     // assertion cannot catch a revert to the hardcoded 9-field abi. Pin the request itself.
     const arities: number[] = []
@@ -89,7 +89,7 @@ describe('abis/yearn/lib/apy', () => {
     }
   })
 
-  it('extracts v2 locked profit', async () => {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('extracts v2 locked profit', async () => {
     const lotsOfLockedProfit = await extractLockedProfit__v2(mainnet.id, addresses.v2.yvusdt, 18344466n)
     expect(lotsOfLockedProfit).to.eq(1912999444631n)
 
@@ -97,7 +97,7 @@ describe('abis/yearn/lib/apy', () => {
     expect(noLockedProfit).to.eq(0n)
   }, 20_000)
 
-  it('yvUSDT 0.4.3 @ block 18344466', async () => {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('yvUSDT 0.4.3 @ block 18344466', async () => {
     const blockNumber = 18344466n
     const strategies: `0x${string}`[] = [addresses.v2.strategyLenderYieldOptimiser]
     const yvusdt = ThingSchema.parse({
@@ -137,7 +137,7 @@ describe('abis/yearn/lib/apy', () => {
     expect(Number(apy.inceptionBlockNumber)).to.be.closeTo(15243268, 4)
   }, 20_000)
 
-  it('yvUSDT 0.4.3 @ block 15871070', async () => {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('yvUSDT 0.4.3 @ block 15871070', async () => {
     const blockNumber = 15871070n
     const strategies: `0x${string}`[] = ['0xBc04eFD0D18685BA97cFAdE4e2D3171701B4099c', '0xd8F414beB0aEb5784c5e5eBe32ca9fC182682Ff8']
     const yvusdt = ThingSchema.parse({

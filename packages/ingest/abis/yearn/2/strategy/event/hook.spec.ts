@@ -18,14 +18,14 @@ function mock() {
 }
 
 describe('abis/yearn/2/strategy/event/Harvested/hook', function() {
-  it('zeros apr on zero debt', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('zeros apr on zero debt', async function() {
     const zeroDebt = {...mock(), args: { ...mock().args, profit: 0n } }
     const apr = await computeApr(zeroDebt, mock())
     expect(apr.gross).to.equal(0)
     expect(apr.net).to.equal(0)
   })
 
-  it('computes gross and net apr on profit', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('computes gross and net apr on profit', async function() {
     const latest = {
       ...mock(),
       blockNumber: 18116044n,
@@ -40,7 +40,7 @@ describe('abis/yearn/2/strategy/event/Harvested/hook', function() {
     expect(apr.net).to.equal(0.0319771345882416)
   })
 
-  it('computes gross and net apr on loss', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('computes gross and net apr on loss', async function() {
     const zero = {
       ...mock(),
       args: { ...mock().args,

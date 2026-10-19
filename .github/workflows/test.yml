@@ -9,6 +9,14 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.2
       - run: bun install --frozen-lockfile
-      - run: bun --filter ingest test -- --project mocks
+      - name: Initialize production ts-node compiler
+        working-directory: packages/ingest
+        env:
+          KONG_COMPILER_SMOKE: 'true'
+        run: bun run production
+      - run: bun --filter lib test
+      - run: bun --filter ingest test
       - run: bun --filter web test

@@ -9,7 +9,7 @@ import { getOracleConfig } from '../../../yearn/3/vault/timeseries/apr-oracle/co
 describe('abis/erc4626/timeseries/apr-oracle/hook', function() {
   const morphoUsdt = '0x0963232eB842BAF53E8e517691f81745C1F228a0' as const
 
-  it('prices a plain erc4626 vault via the apr oracle', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('prices a plain erc4626 vault via the apr oracle', async function() {
     // 0x0963 is a bare ERC4626 (no apiVersion/pricePerShare), so it lands on the
     // erc4626 path. The oracle still prices it via getStrategyApr.
     const oracle = getOracleConfig(mainnet.id)
@@ -26,7 +26,7 @@ describe('abis/erc4626/timeseries/apr-oracle/hook', function() {
     expect(await hook(999999, morphoUsdt, data)).to.deep.equal([])
   })
 
-  it('emits apr and apy outputs', async function() {
+  it.skipIf(!process.env.HTTP_ARCHIVE_1)('emits apr and apy outputs', async function() {
     const data: Data = {
       abiPath: 'erc4626', chainId: mainnet.id, address: morphoUsdt,
       outputLabel, blockTime: BigInt(Math.floor(Date.now() / 1000)) + 60n

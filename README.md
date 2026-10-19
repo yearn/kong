@@ -40,7 +40,7 @@ Kong comes configured with an index over Yearn Finance's v2 and v3 vault ecosyst
 - [Production](#production)
 
 ## Requirements
-- node, yarn, bun, make, tmux, docker, docker compose, postgresql-client
+- node, bun, make, tmux, docker, docker compose, postgresql-client
 - ♥ for zoo animals
 
 
@@ -167,11 +167,20 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 
 `output` - timeseries hook data
 
-`price` - price data
+`price` - legacy price data (no longer written; pending drop)
 
 `latest_block` - latest block numbers
 
 `monitor` - system stats
+
+Ingestion caches completed sparkline weeks per process for one hour, including
+empty and sparse history. Each snapshot reads the current UTC week with a bounded
+query so current-week writes from any process remain visible without waiting for
+the cache TTL. Concurrent reads share their queries. `SPARKLINE_CACHE_TTL_SECONDS`
+changes the historical cache lifetime; `0` disables it. Current-week output writes
+preserve cached history; older writes invalidate the affected series locally.
+Older corrections from another process become visible when the cache expires.
+The cache keeps at most 10,000 series and rebuilds when the UTC week changes.
 
 
 ## Webhooks
@@ -328,7 +337,7 @@ Kong resources are managed monorepo style using a workspace.
 
 `NextJS\Graphql` - Raw x enriched data are made available over graphql running in a serverless nextjs function call.
 
-`Testing` - Kong uses mocha\chai for testing. Tests are co-located with the code they test.
+`Testing` - Kong uses vitest for testing. Tests are co-located with the code they test.
 
 `yaml config` - Kong's indexing set is defined by yaml file.
 
@@ -445,6 +454,8 @@ A strides array that looks like `[{"from":"19419991","to":"19800000"}, {"from":"
 
 - [**Outputs (Timeseries)**](docs/outputs.md) - Comprehensive guide to Kong's timeseries outputs including TVL, APY, and PPS calculations. Covers the `tvl` → `tvl-c` migration, component schemas, and query examples.
 
+- [**yTranche**](docs/ytranche.md) - How Kong indexes yTranche: controller-driven discovery, the `hook` vs `hookState` snapshot distinction, controller-backed assets and price per share, accounting semantics, and why tranche claims aren't additional protocol TVL.
+
 
 ## Motivation
 Robust indexing is tough. Some observations,
@@ -506,7 +517,7 @@ Kong uses viem to interface with rpcs. Because viem is new and changing often, a
 
 ### bun
 Bun has a built in flag on their cli which collapses the texts called [ellide](https://bun.sh/blog/bun-v1.1.43#elide-lines-n-controls-filter-output-line-length), you can use `--elide-lines 0` on each cli command, but it has a lot of bugs.
-There are some tickets related to this, that's why we preferred to still have yarn for our command running on `Makefile`
+There are some tickets related to this, that's why `--elide-lines 0` is only used on the root `lint` scripts and the Makefile `test` target
 
 
 ## Production
@@ -519,3 +530,10 @@ There are some tickets related to this, that's why we preferred to still have ya
 | GraphQL    | [vercel.com](vercel.com)   |
 | Cache    | [turso.com](turso.com)   |
 
+
+### Retired ingestion jobs
+
+Retired `extract.waveydb` and `load.price` jobs are drained without processing.
+Each occurrence is logged by name and reported to Sentry once per job name per
+process. Unexpected extract/load job names fail and follow the existing failed-job
+retention policy (15 minutes / 100 failures by default).

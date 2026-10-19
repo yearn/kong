@@ -54,8 +54,31 @@ Uptime Kuma URL named in its route file.
 | `/api/cron/reports-refresh` | manual only | 300 |
 | `/api/cron/reports-refresh-historical` | manual only | 800 |
 
-The historical timeseries rebuild is one full pass over every vault, scheduled daily
-and capped at 800s (`maxDuration`). Prod duration was not measured here.
+The historical timeseries job runs daily, capped at 800s (`maxDuration`). Cached
+series refresh from their last successful refresh day minus two UTC days, replacing
+that entire range so corrected or now-null buckets disappear. Missing or legacy cache
+entries are rebuilt in full. Each series is reconciled against full history every
+seven days; older backfills and deletions become visible at that reconciliation.
+For immediate reconciliation after a backfill, run the historical CLI with
+`TIMESERIES_HISTORICAL_FULL_REFRESH=true` (or set it for the cron invocation and unset
+it afterward). API payloads keep the same shape. The first run after upgrading
+rebuilds legacy entries once to initialize refresh metadata.
+
+The job logs completed full/incremental series reads, rows read from Postgres,
+serialized cache payload bytes, elapsed time, environment and deployment commit.
+Completed reads are counted even if another read or the Redis write fails; all
+in-flight reads in a failed batch settle before its summary is logged. Payload
+bytes describe generated cache values, not successful Redis writes or Postgres
+network bytes. Full histories are still read and rewritten in Redis during
+incremental refreshes.
+
+Database connections identify API and refresh traffic as
+`kong:web:api:<VERCEL_ENV>` and `kong:web:cron:<VERCEL_ENV>`; without `VERCEL_ENV`, the
+suffix is `local`. `POSTGRES_APPLICATION_NAME` overrides the `kong:web` prefix.
+Ingestion uses `kong:ingest`. Cron and CLI logs identify the refresh job as well.
+Existing cumulative query statistics cannot distinguish historical callers that
+shared a database role and left `application_name` empty. These labels take effect
+when the updated processes start and open connections.
 
 The 800s routes need Fluid compute; without it the Pro ceiling is 300s and they are
 killed mid-run. `"fluid": true` in `vercel.json` keeps that in code, not in the dashboard.

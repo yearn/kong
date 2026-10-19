@@ -1,7 +1,7 @@
 import { cronDb } from '../../db/cron'
 import { cacheMSet } from '../cache'
-import { getRecentTimeseries, getVaults, TimeseriesRow } from './db'
-import { labels } from './labels'
+import { getRecentTimeseries, getScopedTimeseriesPairs, getVaults, TimeseriesRow } from './db'
+import { vaultLabels } from './labels'
 import { getTimeseriesLatestKey } from './redis'
 
 const BATCH_SIZE = 10
@@ -23,7 +23,7 @@ export async function refreshLatest(): Promise<void> {
       await Promise.all(batch.map(async (vault) => {
         const addressLower = vault.address.toLowerCase()
 
-        await Promise.all(labels.map(async ({ label }) => {
+        await Promise.all(vaultLabels.map(async ({ label }) => {
           const rows: TimeseriesRow[] = await getRecentTimeseries(
             vault.chainId,
             vault.address,
@@ -52,7 +52,10 @@ export async function refreshLatest(): Promise<void> {
       }
     }
 
-    console.log(`✓ Completed: ${processed} vaults processed`)
+    const scopedPairs = await getScopedTimeseriesPairs(getRecentTimeseries, getTimeseriesLatestKey, cronDb)
+    await cacheMSet(scopedPairs)
+
+    console.log(`✓ Completed: ${processed} vaults, ${scopedPairs.length} tranche series processed`)
   } finally {
     console.log(`refreshLatest: ${Date.now() - started}ms`)
   }

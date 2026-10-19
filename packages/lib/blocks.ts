@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { cache } from './cache'
 import { rpcs } from './rpcs'
-import { dates } from '.'
+import * as dates from './dates'
 
 export const BlockSchema = z.object({
   chainId: z.number(),
@@ -73,16 +73,19 @@ export async function __estimateHeight(chainId: number, timestamp: bigint) {
 // by linear time->block estimate instead of the midpoint, converging in ~O(log log n)
 // getBlock calls (~4) vs binary search's ~24. each getBlock is cached, so this collapses
 // the dominant RPC cost of timestamp->block resolution.
+const FIRST_BLOCK: Record<number, bigint> = { 10: 105235063n }
+
 async function estimateHeightManual(chainId: number, timestamp: bigint) {
   const top = await getBlock(chainId)
   let hi = top.number, hiTime = top.timestamp
   if (timestamp >= hiTime) return hi
 
-  let lo = 1n, loTime = (await getBlock(chainId, lo)).timestamp
-  if (timestamp <= loTime) return lo
+  let lo = FIRST_BLOCK[chainId] ?? 1n
+  let loTime: bigint | undefined = await getBlockTime(chainId, lo).catch(() => undefined)
+  if (loTime !== undefined && timestamp <= loTime) return lo
 
   while (hi - lo > 1n) {
-    let probe = hiTime > loTime
+    let probe = loTime !== undefined && hiTime > loTime
       ? lo + ((hi - lo) * (timestamp - loTime)) / (hiTime - loTime)
       : (lo + hi) / 2n
     if (probe <= lo) probe = lo + 1n

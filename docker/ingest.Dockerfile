@@ -1,6 +1,6 @@
 FROM node:20-slim
 
-RUN npm install -g bun
+RUN npm install -g bun@1.4.2
 
 WORKDIR /app
 

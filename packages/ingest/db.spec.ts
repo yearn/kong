@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { types } from 'lib'
 import type { PoolClient } from 'pg'
-import db, { getSparkline, upsertThingDefaults, upsertSnapshotData } from './db'
+import db, { getSparkline, invalidateSparkline, upsertThingDefaults, upsertSnapshotData } from './db'
 
 describe('upsertSnapshotData', () => {
   let client: PoolClient
@@ -205,6 +205,7 @@ describe('getSparkline', () => {
   }
 
   afterEach(async () => {
+    invalidateSparkline(CHAIN_ID, ADDRESS, LABEL)
     await db.query('DELETE FROM output WHERE chain_id = $1 AND address = $2 AND label = $3',
       [CHAIN_ID, ADDRESS, LABEL])
   })
@@ -232,5 +233,30 @@ describe('getSparkline', () => {
 
     const rows = await getSparkline(CHAIN_ID, ADDRESS, LABEL, 'tvl')
     expect(rows[0].close).to.equal(0)
+  })
+
+  it('refreshes the current week without invalidation and fills all three points after a null correction', async () => {
+    const current = 946857600 + Math.floor((Date.now() / 1000 - 946857600) / WEEK) * WEEK + 60
+    await insert(10, 1, current - 3 * WEEK)
+    await insert(20, 2, current - 2 * WEEK)
+    await insert(30, 3, current - WEEK)
+    await insert(40, 4, current)
+    expect((await getSparkline(CHAIN_ID, ADDRESS, LABEL, 'tvl')).map(row => row.close)).to.deep.equal([40, 30, 20])
+
+    // Direct SQL models a writer in another process: there is no local cache invalidation.
+    await db.query(`UPDATE output SET value = NULL WHERE chain_id = $1 AND address = $2
+      AND label = $3 AND series_time = to_timestamp($4)`, [CHAIN_ID, ADDRESS, LABEL, current])
+    expect((await getSparkline(CHAIN_ID, ADDRESS, LABEL, 'tvl')).map(row => row.close)).to.deep.equal([30, 20, 10])
+
+    await insert(0, 5, current + 60)
+    expect((await getSparkline(CHAIN_ID, ADDRESS, LABEL, 'tvl')).map(row => row.close)).to.deep.equal([0, 30, 20])
+  })
+
+  it('refreshes a completed week after explicit historical invalidation', async () => {
+    await insert(10, 1, b1)
+    await getSparkline(CHAIN_ID, ADDRESS, LABEL, 'tvl')
+    await insert(25, 2, b1 + 60)
+    invalidateSparkline(CHAIN_ID, ADDRESS, LABEL, BigInt(b1 + 60))
+    expect((await getSparkline(CHAIN_ID, ADDRESS, LABEL, 'tvl'))[0].close).to.equal(25)
   })
 })

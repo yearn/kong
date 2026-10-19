@@ -17,7 +17,7 @@ const dotenvParsed = dotenv.config({ path: path.join(REPO_ROOT, '.env') }).parse
 function rpcEnv(): Record<string, string> {
   const merged = { ...dotenvParsed, ...process.env }
   const result: Record<string, string> = {}
-  const prefixes = ['HTTP_ARCHIVE_', 'HTTP_FULLNODE_', 'YDAEMON_', 'YPRICE_', 'PRICE_SERVICE_', 'WEBHOOK_SECRET_']
+  const prefixes = ['HTTP_ARCHIVE_', 'HTTP_FULLNODE_', 'PRICE_SERVICE_', 'WEBHOOK_SECRET_']
   for (const [k, v] of Object.entries(merged)) {
     if (v && prefixes.some(p => k.startsWith(p))) result[k] = v
   }
@@ -283,7 +283,7 @@ export class TestEnvironment {
   runScript(scriptPath: string): Promise<void> {
     const abs = path.isAbsolute(scriptPath) ? scriptPath : path.join(REPO_ROOT, scriptPath)
     const tsNode = path.join(REPO_ROOT, 'node_modules/.bin/ts-node')
-    const compilerOptions = JSON.stringify({ module: 'commonjs', moduleResolution: 'node', esModuleInterop: true })
+    const compilerOptions = JSON.stringify({ module: 'commonjs', moduleResolution: 'node', esModuleInterop: true, ignoreDeprecations: '6.0' })
     return new Promise((resolve, reject) => {
       let output = ''
       const proc = spawn(tsNode, ['--transpile-only', '--skip-project', '--compiler-options', compilerOptions, abs], {

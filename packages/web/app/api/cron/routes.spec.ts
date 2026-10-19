@@ -6,9 +6,11 @@ const refreshHistorical = vi.fn().mockResolvedValue(undefined)
 const refreshTvl = vi.fn().mockResolvedValue(undefined)
 const refreshReportsLatest = vi.fn().mockResolvedValue(undefined)
 const refreshReportsHistorical = vi.fn().mockResolvedValue(undefined)
+const refreshTranches = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('../rest/cache', () => ({ setLastRefresh: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../rest/refresh-vaults', () => ({ refresh }))
+vi.mock('../rest/tranche/refresh', () => ({ refreshTranches }))
 vi.mock('../rest/timeseries/refresh', () => ({ refreshLatest }))
 vi.mock('../rest/timeseries/refresh-historical', () => ({ refreshHistorical }))
 vi.mock('../rest/tvl/refresh', () => ({ refresh: refreshTvl }))
@@ -20,6 +22,7 @@ const ROUTES = [
     path: '/api/cron/refresh-cache',
     module: () => import('./refresh-cache/route'),
     job: refresh,
+    also: refreshTranches,
     kumaEnvVar: 'UPTIME_KUMA_PUSH_URL_REFRESH_VAULTS',
     maxDuration: 300,
     scheduled: true,
@@ -104,6 +107,7 @@ describe('cron routes', () => {
 
       assert.equal(response.status, 200)
       assert.equal(route.job.mock.calls.length, 1)
+      assert.equal(refreshTranches.mock.calls.length, route.also ? 1 : 0)
       for (const other of ROUTES.filter((candidate) => candidate !== route)) {
         assert.equal(other.job.mock.calls.length, 0)
       }
