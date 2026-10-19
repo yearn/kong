@@ -173,6 +173,15 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 
 `monitor` - system stats
 
+Ingestion caches completed sparkline weeks per process for one hour, including
+empty and sparse history. Each snapshot reads the current UTC week with a bounded
+query so current-week writes from any process remain visible without waiting for
+the cache TTL. Concurrent reads share their queries. `SPARKLINE_CACHE_TTL_SECONDS`
+changes the historical cache lifetime; `0` disables it. Current-week output writes
+preserve cached history; older writes invalidate the affected series locally.
+Older corrections from another process become visible when the cache expires.
+The cache keeps at most 10,000 series and rebuilds when the UTC week changes.
+
 
 ## Webhooks
 Kong supports real-time webhook notifications that are triggered during the indexing process. Webhooks allow external services to receive and react to blockchain events as they're processed by the indexer.

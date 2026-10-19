@@ -15,6 +15,7 @@ pgTypes.setTypeParser(1184, (stringValue) => {
 })
 
 const db = new Pool({
+  application_name: process.env.POSTGRES_APPLICATION_NAME || 'kong:ingest',
   host: process.env.POSTGRES_HOST ?? 'localhost',
   port: (process.env.POSTGRES_PORT ?? 5432) as number,
   ssl: (process.env.POSTGRES_SSL ?? false)
@@ -76,11 +77,94 @@ export async function getTravelledStrides(chainId: number, address: `0x${string}
   return stridesJson ? StrideSchema.array().parse(JSON.parse(stridesJson)) : undefined
 }
 
+type Sparkline = Awaited<ReturnType<typeof querySparkline>>
+type SparklineCacheEntry = { expires: number; result: Promise<Sparkline> }
+type SparklineSeries = {
+  boundary: number
+  history: Map<string | undefined, SparklineCacheEntry>
+  recent: Map<string | undefined, Promise<Sparkline>>
+}
+const sparklineCache = new Map<string, SparklineSeries>()
+const SPARKLINE_CACHE_MAX_SERIES = 10_000
+const SPARKLINE_WEEK = 7 * 86400
+// time_bucket('7 day', timestamptz) uses Monday 2000-01-03 UTC as its origin.
+const SPARKLINE_ORIGIN = 946857600
+const configuredSparklineTtl = Number(process.env.SPARKLINE_CACHE_TTL_SECONDS || 3600)
+const sparklineTtl = Number.isFinite(configuredSparklineTtl) && configuredSparklineTtl >= 0
+  ? configuredSparklineTtl * 1000
+  : 3_600_000
+
+export function invalidateSparkline(chainId: number, address: string, label: string, blockTime?: bigint) {
+  const key = JSON.stringify([chainId, address, label])
+  const series = sparklineCache.get(key)
+  if (!series) return
+  if (blockTime === undefined || blockTime < BigInt(series.boundary)) {
+    sparklineCache.delete(key)
+  } else {
+    // A current-week write must not evict completed historical buckets. Drop any
+    // in-flight recent read so the next snapshot observes the committed write.
+    series.recent.clear()
+  }
+}
+
 export async function getSparkline(chainId: number, address: string, label: string, component?: string) {
-  // series_time floor prunes hypertable chunks. If the 90d window holds all 3
+  if (sparklineTtl === 0) return fetchSparkline(chainId, address, label, component)
+
+  const key = JSON.stringify([chainId, address, label])
+  const boundary = SPARKLINE_ORIGIN + Math.floor((Date.now() / 1000 - SPARKLINE_ORIGIN) / SPARKLINE_WEEK) * SPARKLINE_WEEK
+  let series = sparklineCache.get(key)
+  if (!series || series.boundary !== boundary) {
+    sparklineCache.delete(key)
+    if (sparklineCache.size >= SPARKLINE_CACHE_MAX_SERIES) {
+      sparklineCache.delete(sparklineCache.keys().next().value!)
+    }
+    series = { boundary, history: new Map(), recent: new Map() }
+    sparklineCache.set(key, series)
+  }
+  const components = series.history
+  let entry = components.get(component)
+  if (!entry || entry.expires <= Date.now()) {
+    // Share in-flight queries too, including expensive sparse-series fallbacks.
+    const pending = { expires: Infinity, result: fetchSparkline(chainId, address, label, component, boundary) }
+    components.set(component, pending)
+    pending.result.then(() => {
+      pending.expires = Date.now() + sparklineTtl
+    }, () => {
+      if (components.get(component) === pending) components.delete(component)
+    })
+    entry = pending
+  }
+  const recentReads = series.recent
+  let recent = recentReads.get(component)
+  if (!recent) {
+    const pending = querySparkline(chainId, address, label, component,
+      'AND series_time >= to_timestamp($5::double precision) AND block_time >= to_timestamp($5::double precision)', boundary)
+    recentReads.set(component, pending)
+    const clear = () => { if (recentReads.get(component) === pending) recentReads.delete(component) }
+    pending.then(clear, clear)
+    recent = pending
+  }
+  // The current bucket also supplies live TVL: share concurrent reads, but never
+  // retain it across snapshots. Historical rows and recent rows cannot overlap.
+  const [history, current] = await Promise.all([entry.result, recent])
+  return [...current, ...history].slice(0, 3).map(row => ({ ...row }))
+}
+
+async function fetchSparkline(chainId: number, address: string, label: string, component?: string, boundary?: number) {
+  // series_time floor prunes hypertable chunks. If the recent window holds all 3
   // buckets they're the 3 most recent overall; fall back to a full scan when
   // fewer, so sparse/stale vaults keep their full series.
-  const sql = (floor: string) => `
+  const upper = boundary === undefined ? ''
+    : 'AND block_time < to_timestamp($5::double precision)'
+  const floor = boundary === undefined ? 'AND series_time >= now() - make_interval(days => 90)'
+    : 'AND series_time >= to_timestamp($5::double precision) - INTERVAL \'13 weeks\''
+  let rows = await querySparkline(chainId, address, label, component, `${floor} ${upper}`, boundary)
+  if (rows.length < 3) rows = await querySparkline(chainId, address, label, component, upper, boundary)
+  return rows
+}
+
+async function querySparkline(chainId: number, address: string, label: string, component: string | undefined, predicate: string, boundary?: number) {
+  const sql = `
     SELECT
       CAST($1 AS int4) AS "chainId",
       CAST($2 AS text) AS address,
@@ -92,16 +176,15 @@ export async function getSparkline(chainId: number, address: string, label: stri
       COALESCE(LAST(NULLIF(value, 0), block_number) FILTER (WHERE value IS NOT NULL), 0) AS close
     FROM output
     WHERE chain_id = $1 AND address = $2 AND label = $3 AND (component = $4 OR $4 IS NULL)
-      ${floor}
+      ${predicate}
     GROUP BY "blockTime"
     HAVING COUNT(value) > 0
     ORDER BY "blockTime" DESC
     LIMIT 3;
   `
 
-  const params = [chainId, address, label, component]
-  let result = await db.query(sql('AND series_time >= now() - make_interval(days => 90)'), params)
-  if (result.rows.length < 3) result = await db.query(sql(''), params)
+  const params = boundary === undefined ? [chainId, address, label, component] : [chainId, address, label, component, boundary]
+  const result = await db.query(sql, params)
 
   return z.object({
     chainId: z.number(),

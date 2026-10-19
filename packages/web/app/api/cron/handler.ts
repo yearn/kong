@@ -22,6 +22,8 @@ export function createCronHandler(job: () => Promise<void>, kumaEnvVar: string) 
     if (!isAuthenticated(request)) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
+    const started = Date.now()
+    const jobName = new URL(request.url).pathname.split('/').filter(Boolean).pop()
     try {
       await job()
       await recordLastRefresh(request)
@@ -31,6 +33,13 @@ export function createCronHandler(job: () => Promise<void>, kumaEnvVar: string) 
       console.error(error)
       await pushUptimeKuma(kumaEnvVar, 'down', 'Run failed')
       return NextResponse.json({ ok: false }, { status: 500 })
+    } finally {
+      console.info('rest refresh cron', {
+        job: jobName,
+        durationMs: Date.now() - started,
+        source: process.env.VERCEL_ENV || 'local',
+        deployment: process.env.VERCEL_GIT_COMMIT_SHA || 'local',
+      })
     }
   }
 }

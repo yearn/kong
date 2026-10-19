@@ -11,7 +11,8 @@ vi.mock('../db', () => ({
   firstRow: vi.fn(),
   getTravelledStrides: vi.fn(),
   toUpsertSql: vi.fn(),
-  upsertThingDefaults: vi.fn()
+  upsertThingDefaults: vi.fn(),
+  invalidateSparkline: vi.fn()
 }))
 
 vi.mock('lib', () => ({
