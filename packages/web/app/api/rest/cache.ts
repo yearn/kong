@@ -9,6 +9,7 @@ const keyv = createKeyv(process.env.REST_CACHE_REDIS_URL || 'redis://localhost:6
 
 const DEFAULT_REDIS_MSET_TARGET_BYTES = 8 * 1024 * 1024
 const REDIS_MSET_HARD_LIMIT_BYTES = 10 * 1024 * 1024
+const REDIS_GET_CONCURRENCY = 5
 const parsedRedisMSetTargetBytes = parseInt(
   process.env.REST_CACHE_REDIS_MAX_REQUEST_BYTES || `${DEFAULT_REDIS_MSET_TARGET_BYTES}`,
   10,
@@ -87,7 +88,20 @@ async function connectWriteClient(): Promise<void> {
 export async function cacheMGet(keys: string[]): Promise<Array<string | null>> {
   if (keys.length === 0) return []
   await connectWriteClient()
-  return await writeClient.mGet(keys)
+  // Upstash also limits the combined response to MGET. Read histories separately
+  // so their total size cannot exceed the limit for a single command.
+  const values: Array<string | null> = []
+  for (let i = 0; i < keys.length; i += REDIS_GET_CONCURRENCY) {
+    const results = await Promise.allSettled(
+      keys.slice(i, i + REDIS_GET_CONCURRENCY).map(key => writeClient.get(key)),
+    )
+    // Settle all in-flight reads before returning an error to the refresh job.
+    for (const result of results) {
+      if (result.status === 'rejected') throw result.reason
+      values.push(result.value)
+    }
+  }
+  return values
 }
 
 export async function cacheMSet(pairs: Array<[string, string]>, options: { atomic?: boolean } = {}): Promise<void> {

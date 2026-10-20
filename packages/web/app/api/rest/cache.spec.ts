@@ -1,5 +1,59 @@
 import { strict as assert } from 'node:assert'
-import { cacheMSet, estimateMSetRequestSize, getKeyvClient, lastRefreshHeaders, setLastRefresh, splitPairsForMSet, writeClient } from './cache'
+import { cacheMGet, cacheMSet, estimateMSetRequestSize, getKeyvClient, lastRefreshHeaders, setLastRefresh, splitPairsForMSet, writeClient } from './cache'
+
+describe('cacheMGet', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('reads more than 10 MiB in individual commands with bounded concurrency and preserves key order and misses', async () => {
+    vi.spyOn(writeClient, 'connect').mockResolvedValue(writeClient as never)
+    const mGet = vi.spyOn(writeClient, 'mGet').mockRejectedValue(new Error('oversized MGET'))
+    const keys = Array.from({ length: 13 }, (_, index) => `history:${index}`)
+    const payload = 'x'.repeat(1024 * 1024)
+    let active = 0
+    let peak = 0
+    vi.spyOn(writeClient, 'get').mockImplementation(async (key) => {
+      active++
+      peak = Math.max(peak, active)
+      await Promise.resolve()
+      active--
+      return key === keys[6] ? null : `${key}:${payload}`
+    })
+
+    const values = await cacheMGet(keys)
+
+    assert.deepEqual(values, keys.map(key => key === keys[6] ? null : `${key}:${payload}`))
+    assert.ok(values.reduce((size, value) => size + Buffer.byteLength(value ?? ''), 0) > 10 * 1024 * 1024)
+    assert.equal(peak, 5)
+    assert.equal(active, 0)
+    assert.equal(mGet.mock.calls.length, 0)
+  })
+
+  it('returns an empty result without connecting for no keys', async () => {
+    const connect = vi.spyOn(writeClient, 'connect')
+    const get = vi.spyOn(writeClient, 'get')
+
+    assert.deepEqual(await cacheMGet([]), [])
+    assert.equal(connect.mock.calls.length, 0)
+    assert.equal(get.mock.calls.length, 0)
+  })
+
+  it('settles the current batch and stops scheduling reads after a failure', async () => {
+    vi.spyOn(writeClient, 'connect').mockResolvedValue(writeClient as never)
+    const failure = new Error('Redis read failed')
+    let completed = 0
+    const get = vi.spyOn(writeClient, 'get').mockImplementation(async (key) => {
+      if (key === 'bad') throw failure
+      await Promise.resolve()
+      completed++
+      return 'cached'
+    })
+
+    await assert.rejects(cacheMGet(['bad', 'a', 'b', 'c', 'd', 'unscheduled']), failure)
+
+    assert.equal(completed, 4)
+    assert.equal(get.mock.calls.length, 5)
+  })
+})
 
 describe('splitPairsForMSet', () => {
   it('keeps all pairs in one chunk when below the target', () => {
