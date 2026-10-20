@@ -11,7 +11,8 @@ describe('cacheMGet', () => {
     const payload = 'x'.repeat(1024 * 1024)
     let active = 0
     let peak = 0
-    vi.spyOn(writeClient, 'get').mockImplementation(async (key) => {
+    vi.spyOn(writeClient, 'get').mockImplementation(async (...args) => {
+      const key = args.length === 1 ? args[0] : args[1]
       active++
       peak = Math.max(peak, active)
       await Promise.resolve()
@@ -41,7 +42,8 @@ describe('cacheMGet', () => {
     vi.spyOn(writeClient, 'connect').mockResolvedValue(writeClient as never)
     const failure = new Error('Redis read failed')
     let completed = 0
-    const get = vi.spyOn(writeClient, 'get').mockImplementation(async (key) => {
+    const get = vi.spyOn(writeClient, 'get').mockImplementation(async (...args) => {
+      const key = args.length === 1 ? args[0] : args[1]
       if (key === 'bad') throw failure
       await Promise.resolve()
       completed++
