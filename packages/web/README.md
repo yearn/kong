@@ -72,6 +72,10 @@ bytes describe generated cache values, not successful Redis writes or Postgres
 network bytes. Full histories are still read and rewritten in Redis during
 incremental refreshes.
 
+Historical cache reads use individual Redis `GET` commands, at most five at a time,
+so a batch of histories cannot exceed Upstash's 10 MiB combined `MGET` response
+limit. A single history must still fit within the per-command limit.
+
 Database connections identify API and refresh traffic as
 `kong:web:api:<VERCEL_ENV>` and `kong:web:cron:<VERCEL_ENV>`; without `VERCEL_ENV`, the
 suffix is `local`. `POSTGRES_APPLICATION_NAME` overrides the `kong:web` prefix.
