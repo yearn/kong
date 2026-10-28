@@ -45,6 +45,28 @@ describe('reader coverage', () => {
     expect(await getTravelledStrides(1, address, 'erc4626')).toBeUndefined()
   })
 
+  it('does not create reader coverage for an empty replay', async () => {
+    await upsertEvmLog({ ...payload, abiPath: 'erc4626', replay: true })
+    expect(await getTravelledStrides(1, address, 'erc4626')).toBeUndefined()
+  })
+
+  it('saves replay logs without claiming replay coverage', async () => {
+    await upsertEvmLog({ ...payload, abiPath: 'erc4626', from: 100n, to: 150n })
+    expect(await getTravelledStrides(1, address, 'erc4626')).toEqual([{ from: 100n, to: 150n }])
+
+    await upsertEvmLog({
+      ...payload,
+      abiPath: 'erc4626',
+      from: 100n,
+      to: 200n,
+      replay: true,
+      batch: [{ ...log, hook: { replayed: true } }]
+    })
+
+    expect(await getTravelledStrides(1, address, 'erc4626')).toEqual([{ from: 100n, to: 150n }])
+    expect((await db.query('SELECT hook FROM evmlog WHERE address = $1', [address])).rows[0].hook).toEqual({ replayed: true })
+  })
+
   it('replans rolled-back history independently for each reader', async () => {
     for (const abiPath of ['erc4626', 'yearn/3/vault']) {
       await upsertEvmLog({ ...payload, abiPath })

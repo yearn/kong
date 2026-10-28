@@ -58,25 +58,29 @@ export default class Load implements Processor {
 }
 
 export async function upsertEvmLog(data: object) {
-  const { abiPath, chainId, address: rawAddress, from, to, batch } = z.object({
+  const { abiPath, chainId, address: rawAddress, from, to, batch, replay } = z.object({
     abiPath: z.string().min(1).optional(),
     chainId: z.number(),
     address: zhexstring,
     from: z.bigint({ coerce: true }),
     to: z.bigint({ coerce: true }),
-    batch: z.array(types.EvmLogSchema)
+    batch: z.array(types.EvmLogSchema),
+    replay: z.boolean().optional()
   }).parse(data)
 
   const address = getAddress(rawAddress)
+  // Replay jobs read logs already stored in Postgres. They must not claim the
+  // whole replay window was fetched from the chain.
+  const creditCoverage = Boolean(abiPath && !replay)
   const client = await db.connect()
   try {
     await client.query('BEGIN')
     // Serializes first inserts too, when no coverage row exists to lock yet.
-    if (abiPath) await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [JSON.stringify([chainId, address, abiPath])])
+    if (creditCoverage) await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [JSON.stringify([chainId, address, abiPath])])
     await upsertBatch(batch, 'evmlog', 'chain_id, address, signature, block_number, log_index, transaction_hash', undefined, client)
 
     // Old queued payloads can save logs but cannot prove reader coverage.
-    if (abiPath) {
+    if (abiPath && creditCoverage) {
       const current = await getTravelledStrides(chainId, address, abiPath, client)
       const next = strider.add({ from, to }, current)
       await client.query(`

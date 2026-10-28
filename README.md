@@ -546,6 +546,9 @@ extraction job IDs also include the reader. Logs and reader coverage commit in o
 transaction. Shared log hook objects merge at the top level: readers must use
 separate keys; an incoming value replaces the same key, and omitted keys remain.
 Hook changes that remove fields require explicit cleanup before replay.
+Replay updates stored logs and hooks without advancing reader coverage, so missing
+ranges remain eligible for RPC backfill. Fanout pins the recent-history cutoff in
+each extraction job; chunks crossing it query limited events only from that cutoff.
 
 Apply the additive reader-strides migration before deploying new workers. It leaves
 `evmlog_strides` intact for old workers. New workers ignore legacy coverage: the

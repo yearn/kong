@@ -1,7 +1,7 @@
 import { setTimeout } from 'timers/promises'
 import { mq, strider } from 'lib'
 import { AbiConfig, AbiConfigSchema, SourceConfig, SourceConfigSchema } from 'lib/abis'
-import { estimateHeight, getBlockNumber } from 'lib/blocks'
+import { estimateHeight, getBlockNumber, getDefaultStartBlockNumber } from 'lib/blocks'
 import { getTravelledStrides } from '../db'
 import { StrideSchema } from 'lib/types'
 import { getAddress } from 'viem'
@@ -32,6 +32,9 @@ export default class EventsFanout {
 
     const to = endBlock ?? await getBlockNumber(chainId)
 
+    // Queue delays must not move the recent-history cutoff for these jobs.
+    const limitStartBlock = replay?.enabled ? undefined : await getDefaultStartBlockNumber(chainId)
+
     const replayRange = undefined // [{ from: 19309874n, to: 19309874n }]
     const travelled = replay?.enabled ? undefined : await getTravelledStrides(chainId, address, abiPath)
     const nextStrides = replayRange ? replayRange : strider.plan(from, to, travelled)
@@ -41,7 +44,7 @@ export default class EventsFanout {
       await walklog({...stride, logStride: getLogStride(chainId)}, async (from, to) => {
         const jobId = `evmlog-${chainId}-${address}-${abiPath}-${from}-${to}`
         await mq.add(mq.job.extract.evmlog, {
-          abiPath, chainId, address, from, to, replay: replay?.enabled
+          abiPath, chainId, address, from, to, replay: replay?.enabled, limitStartBlock
         }, { jobId })
       })
     }
