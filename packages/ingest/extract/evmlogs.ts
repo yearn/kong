@@ -17,33 +17,45 @@ export class EvmLogsExtractor {
   async extract(data: object) {
     if (!this.resolveHooks) this.resolveHooks = await requireHooks()
 
-    const { abiPath, chainId, address, from, to, replay } = z.object({
+    const { abiPath, chainId, address, from, to, replay, limitStartBlock } = z.object({
       abiPath: z.string(),
       chainId: z.number(),
       address: zhexstring,
       from: z.bigint({ coerce: true }),
       to: z.bigint({ coerce: true }),
-      replay: z.boolean().optional()
+      replay: z.boolean().optional(),
+      limitStartBlock: z.bigint({ coerce: true }).optional()
     }).parse(data)
 
     const abi = await abiutil.load(abiPath)
-    const defaultStartBlockNumber = await getDefaultStartBlockNumber(chainId)
+    const defaultStartBlockNumber = limitStartBlock ?? await getDefaultStartBlockNumber(chainId)
     const excludeLimitlist = from < defaultStartBlockNumber
 
-    const events = excludeLimitlist
-      ? abiutil.exclude([...blacklist.events.ignore, ...blacklist.events.limit], abiutil.events(abi))
-      : abiutil.exclude(blacklist.events.ignore, abiutil.events(abi))
+    const historicalEvents = abiutil.exclude([...blacklist.events.ignore, ...blacklist.events.limit], abiutil.events(abi))
+    const recentEvents = abiutil.exclude(blacklist.events.ignore, abiutil.events(abi))
 
     const logs = await (async () => {
       if (replay) {
         return await fetchLogs(chainId, address, from, to)
       } else {
-        return await rpcs.next(chainId, from).getLogs({
-          address,
-          events,
-          fromBlock: BigInt(from),
-          toBlock: BigInt(to)
-        })
+        const fetch = async (rangeFrom: bigint, rangeTo: bigint, rangeEvents: any[]) => {
+          if (rangeFrom > rangeTo || rangeEvents.length === 0) return []
+          return await rpcs.next(chainId, rangeFrom).getLogs({
+            address,
+            events: rangeEvents,
+            fromBlock: rangeFrom,
+            toBlock: rangeTo
+          })
+        }
+
+        // Split at the cutoff so limited events in the recent part are fetched.
+        if (from < defaultStartBlockNumber && to >= defaultStartBlockNumber) {
+          const historical = await fetch(from, defaultStartBlockNumber - 1n, historicalEvents)
+          const recent = await fetch(defaultStartBlockNumber, to, recentEvents)
+          return [...historical, ...recent]
+        }
+
+        return await fetch(from, to, excludeLimitlist ? historicalEvents : recentEvents)
       }
     })()
 
@@ -88,7 +100,7 @@ export class EvmLogsExtractor {
 
     try {
       await mq.add(mq.job.load.evmlog, {
-        chainId, address, from, to,
+        abiPath, chainId, address: getAddress(address), from, to, replay,
         batch: EvmLogSchema.array().parse(processedLogs)
       }, {
         priority: mq.LOWEST_PRIORITY

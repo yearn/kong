@@ -1,5 +1,5 @@
 /**
- * Rollback evmlog_strides to commit 5a88a2a (2025-10-25 18:12:11 -0400)
+ * Rollback evmlog_reader_strides to commit 5a88a2a (2025-10-25 18:12:11 -0400)
  *
  * This script rolls back the indexed block ranges to a specific point in time.
  * Block numbers were obtained from DeFiLlama API for the target timestamp: 1761430331
@@ -40,6 +40,7 @@ const CHAIN_NAMES: Record<ChainId, string> = {
 interface StrideRow {
   chain_id: number
   address: string
+  abi_path: string
   strides: string
 }
 
@@ -62,27 +63,28 @@ async function main() {
     password: process.env.POSTGRES_PASSWORD ?? 'password',
   })
 
+  console.log('Stop and drain ingestion before running this rollback; queued loads can restore coverage.')
   console.log('🔍 Checking which addresses will be affected...\n')
 
   // Compute affected addresses for all chains
-  const affectedByChain = new Map<ChainId, Array<{ address: string, strides: Stride[], rolledback: Stride[] }>>()
+  const affectedByChain = new Map<ChainId, Array<{ address: string, abiPath: string, strides: Stride[], rolledback: Stride[] }>>()
 
   for (const [chainId, targetBlock] of Object.entries(ROLLBACK_TARGETS)) {
     const chain = Number(chainId) as ChainId
     const result = await pool.query<StrideRow>(
-      'SELECT chain_id, address, strides FROM evmlog_strides WHERE chain_id = $1',
+      'SELECT chain_id, address, abi_path, strides FROM evmlog_reader_strides WHERE chain_id = $1',
       [chain]
     )
 
-    const affected: Array<{ address: string, strides: Stride[], rolledback: Stride[] }> = []
+    const affected: Array<{ address: string, abiPath: string, strides: Stride[], rolledback: Stride[] }> = []
 
     for (const row of result.rows) {
-      const strides: Stride[] = JSON.parse(row.strides)
+      const strides: Stride[] = JSON.parse(row.strides).map((s: Stride) => ({ from: BigInt(s.from), to: BigInt(s.to) }))
       const rolledback = rollback(strides, targetBlock)
 
       // Only include if rollback changes something
-      if (JSON.stringify(strides) !== JSON.stringify(rolledback)) {
-        affected.push({ address: row.address, strides, rolledback })
+      if (strides.some(s => s.to > targetBlock)) {
+        affected.push({ address: row.address, abiPath: row.abi_path, strides, rolledback })
       }
     }
 
@@ -111,18 +113,18 @@ async function main() {
 
     if (affected.length === 0) continue
 
-    for (const { address, strides, rolledback } of affected) {
+    for (const { address, abiPath, strides, rolledback } of affected) {
       const rolledbackStridesJson = rolledback.map(s => ({
         from: s.from.toString(),
         to: s.to.toString()
       }))
 
       await pool.query(
-        'UPDATE evmlog_strides SET strides = $1 WHERE chain_id = $2 AND address = $3',
-        [JSON.stringify(rolledbackStridesJson), chain, address]
+        'UPDATE evmlog_reader_strides SET strides = $1 WHERE chain_id = $2 AND address = $3 AND abi_path = $4',
+        [JSON.stringify(rolledbackStridesJson), chain, address, abiPath]
       )
 
-      console.log(`  ✓ ${CHAIN_NAMES[chain]}: ${address} (${strides.length} → ${rolledback.length} strides)`)
+      console.log(`  ✓ ${CHAIN_NAMES[chain]}: ${address} ${abiPath} (${strides.length} → ${rolledback.length} strides)`)
     }
 
     console.log(`\n✅ ${CHAIN_NAMES[chain]}: Updated ${affected.length} addresses\n`)

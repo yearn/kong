@@ -54,6 +54,7 @@ async function action() {
       await db.query(`
           TRUNCATE TABLE evmlog;
           TRUNCATE TABLE evmlog_strides;
+          TRUNCATE TABLE evmlog_reader_strides;
           TRUNCATE TABLE thing;
           TRUNCATE TABLE snapshot;
           TRUNCATE TABLE output;

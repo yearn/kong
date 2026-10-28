@@ -6,6 +6,7 @@ import { reportRetiredJob } from '../retired-jobs'
 import { PoolClient } from 'pg'
 import { OutputSchema, SnapshotSchema, ThingSchema, zhexstring } from 'lib/types'
 import { Worker } from 'bullmq'
+import { getAddress } from 'viem'
 import { endOfDay } from 'lib/dates'
 
 export default class Load implements Processor {
@@ -57,29 +58,39 @@ export default class Load implements Processor {
 }
 
 export async function upsertEvmLog(data: object) {
-  const { chainId, address, from, to, batch } = z.object({
+  const { abiPath, chainId, address: rawAddress, from, to, batch, replay } = z.object({
+    abiPath: z.string().min(1).optional(),
     chainId: z.number(),
     address: zhexstring,
     from: z.bigint({ coerce: true }),
     to: z.bigint({ coerce: true }),
-    batch: z.array(types.EvmLogSchema)
+    batch: z.array(types.EvmLogSchema),
+    replay: z.boolean().optional()
   }).parse(data)
 
+  const address = getAddress(rawAddress)
+  // Replay jobs read logs already stored in Postgres. They must not claim the
+  // whole replay window was fetched from the chain.
+  const creditCoverage = Boolean(abiPath && !replay)
   const client = await db.connect()
   try {
     await client.query('BEGIN')
+    // Serializes first inserts too, when no coverage row exists to lock yet.
+    if (creditCoverage) await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [JSON.stringify([chainId, address, abiPath])])
     await upsertBatch(batch, 'evmlog', 'chain_id, address, signature, block_number, log_index, transaction_hash', undefined, client)
 
-    const current = await getTravelledStrides(chainId, address, client)
-    const next = strider.add({ from, to }, current)
-    await client.query(`
-      INSERT INTO evmlog_strides(chain_id, address, strides)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (chain_id, address)
-      DO UPDATE SET strides = $3`,
-    [chainId, address, JSON.stringify(next)]
-    )
-
+    // Old queued payloads can save logs but cannot prove reader coverage.
+    if (abiPath && creditCoverage) {
+      const current = await getTravelledStrides(chainId, address, abiPath, client)
+      const next = strider.add({ from, to }, current)
+      await client.query(`
+        INSERT INTO evmlog_reader_strides(chain_id, address, abi_path, strides)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (chain_id, address, abi_path)
+        DO UPDATE SET strides = EXCLUDED.strides`,
+      [chainId, address, abiPath, JSON.stringify(next)]
+      )
+    }
     await client.query('COMMIT')
   } catch(error) {
     await client.query('ROLLBACK')
