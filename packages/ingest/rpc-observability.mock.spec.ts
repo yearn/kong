@@ -2,8 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPublicClient } from 'viem'
 import { mainnet } from 'viem/chains'
 const { countMetric } = vi.hoisted(() => ({ countMetric: vi.fn() }))
-vi.mock('lib/sentry', () => ({ countMetric }))
+vi.mock('lib/sentry', () => ({ countMetric, captureException: vi.fn() }))
+vi.mock('bullmq', () => ({
+  Queue: class { count = async () => 0; close = async () => undefined },
+  Worker: class {
+    constructor(_name: string, public processor: (job: { name: string }) => Promise<void>) {}
+    close = async () => undefined
+  }
+}))
 import { rpcHttp, withRpcCaller } from 'lib/rpc-observability'
+import { worker } from 'lib/mq'
 const endpoint = 'https://private.invalid/secret'
 const fetchMock = vi.fn()
 function jsonResponse(body: unknown) { return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } }) }
@@ -22,11 +30,11 @@ const attempts = () => countMetric.mock.calls.filter(call => call[0] === 'rpc.at
 describe('RPC attempt metrics', () => {
   it('counts actual retries and preserves caller attribution without endpoint data', async () => {
     fetchMock.mockResolvedValueOnce(new Response('', { status: 503 }))
-    expect(await withRpcCaller('snapshot', () => client().getBlockNumber())).toBe(1n)
+    expect(await withRpcCaller('extract.snapshot', () => client().getBlockNumber())).toBe(1n)
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(attempts().map(call => call[2])).toEqual([
-      expect.objectContaining({ chainId: '1', caller: 'snapshot', retry: 'false', outcome: 'error' }),
-      expect.objectContaining({ caller: 'snapshot', retry: 'true', outcome: 'success' })
+      expect.objectContaining({ chainId: '1', caller: 'extract.snapshot', retry: 'false', outcome: 'error' }),
+      expect.objectContaining({ caller: 'extract.snapshot', retry: 'true', outcome: 'success' })
     ])
     expect(JSON.stringify(countMetric.mock.calls)).not.toContain('secret')
     expect(JSON.stringify(countMetric.mock.calls)).not.toContain('private.invalid')
@@ -48,13 +56,21 @@ describe('RPC attempt metrics', () => {
     const rpc = client()
     fetchMock.mockImplementation(async (_url, options) => response(JSON.parse(options.body).method === 'eth_getLogs' ? [] : '0x1'))
     await Promise.all([
-      withRpcCaller('evmlog', () => rpc.request({ method: 'eth_getLogs', params: [{ fromBlock: '0x1', toBlock: '0x2710' }] })),
+      withRpcCaller('extract.evmlog', () => rpc.request({ method: 'eth_getLogs', params: [{ fromBlock: '0x1', toBlock: '0x2710' }] })),
       withRpcCaller('user-controlled-address', () => rpc.request({ method: 'eth_blockNumber' }))
     ])
     expect(attempts().map(call => call[2])).toEqual(expect.arrayContaining([
-      expect.objectContaining({ caller: 'evmlog', range: '1001-10000' }),
+      expect.objectContaining({ caller: 'extract.evmlog', range: '1001-10000' }),
       expect.objectContaining({ caller: 'other', range: 'none' })
     ]))
+  })
+  it('labels worker callers by queue so same-named jobs stay separate', async () => {
+    const rpc = client()
+    const handler = () => rpc.request({ method: 'eth_blockNumber' })
+    const workers = [worker('fanout', handler), worker('extract-1', handler, 1)]
+    for (const w of workers) await (w as unknown as { processor: (job: { name: string }) => Promise<void> }).processor({ name: 'timeseries' })
+    await Promise.all(workers.map(w => w.close()))
+    expect(attempts().map(call => call[2].caller)).toEqual(['fanout.timeseries', 'extract.timeseries'])
   })
   it('is disabled by default and telemetry errors do not change results', async () => {
     vi.stubEnv('RPC_METRICS', 'false')

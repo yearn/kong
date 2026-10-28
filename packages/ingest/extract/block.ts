@@ -14,7 +14,8 @@ export class BlockExtractor {
 
       latestBlocks[rpc.chain?.id as number] = {
         blockNumber: block.number,
-        blockTime: block.timestamp
+        blockTime: block.timestamp,
+        observedAt: Date.now()
       }
 
       await mq.add(mq.job.load.block, {

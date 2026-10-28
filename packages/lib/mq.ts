@@ -99,7 +99,7 @@ export function worker(queueName: string, handler: (job: any) => Promise<any>, c
   const queue = new Queue(queueName, bull)
   const worker = new Worker(queueName, async job => {
     try {
-      await withRpcCaller(job.name, () => handler(job))
+      await withRpcCaller(`${queueName.replace(/-\d+$/, '')}.${job.name}`, () => handler(job))
     } catch(error) {
       console.error('🤬', error)
       captureException(error, { tags: { component: 'mq.worker', queue: queueName } })

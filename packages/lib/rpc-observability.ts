@@ -2,7 +2,12 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { createTransport, http, type HttpTransport, type HttpTransportConfig } from 'viem'
 import { countMetric } from './sentry'
 
-const callers = new Set(['block', 'evmlog', 'snapshot', 'timeseries', 'manuals', 'webhook', 'abis', 'events', 'all'])
+const callers = new Set([
+  'fanout.abis', 'fanout.events', 'fanout.timeseries',
+  'extract.block', 'extract.evmlog', 'extract.snapshot', 'extract.timeseries', 'extract.manuals', 'extract.webhook',
+  'load.block', 'load.output', 'load.monitor', 'load.evmlog', 'load.snapshot', 'load.thing',
+  'probe.all'
+])
 const methods = new Set(['eth_call', 'eth_getLogs', 'eth_getBlockByNumber', 'eth_blockNumber', 'eth_getCode', 'eth_getBalance', 'eth_getStorageAt', 'eth_getTransactionReceipt', 'eth_getTransactionByHash', 'eth_chainId'])
 const callerContext = new AsyncLocalStorage<string>()
 

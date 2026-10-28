@@ -16,7 +16,7 @@ describe('block polling scope', () => {
     expect(next.mock.calls).toEqual([[1], [137]])
     expect(add).toHaveBeenCalledTimes(2)
     expect(add).toHaveBeenCalledWith('block', { chainId: 137, blockNumber: 123n, blockTime: 456n }, { jobId: '137-123' })
-    expect(blocks).toHaveProperty('137', { blockNumber: 123n, blockTime: 456n })
+    expect(blocks).toHaveProperty('137', { blockNumber: 123n, blockTime: 456n, observedAt: expect.any(Number) })
   })
   it('supports queued legacy jobs without a chain', async () => {
     await new BlockExtractor().extract()
