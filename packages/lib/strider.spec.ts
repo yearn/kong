@@ -50,6 +50,8 @@ describe('strider', function() {
   })
 
   it('rolls back ending blocks', async function() {
+    expect(rollback([{ from: 0n, to: 20n }, { from: 30n, to: 40n }], 9n)).to.deep.equal([{ from: 0n, to: 9n }])
+    expect(rollback([{ from: 30n, to: 40n }], 9n)).to.deep.equal([])
     expect(rollback([], 9n)).to.deep.equal([])
     expect(rollback([{ from: 0n, to: 10n }], 9n)).to.deep.equal([{ from: 0n, to: 9n }])
     expect(rollback([{ from: 0n, to: 4n }, { from: 6n, to: 10n }], 9n)).to.deep.equal([{ from: 0n, to: 4n }, { from: 6n, to: 9n }])

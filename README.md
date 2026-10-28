@@ -159,7 +159,7 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 ### Postgres schema
 `evmlog` - raw evm logs + event hook data
 
-`evmlog_strides` - state of event block coverage
+`evmlog_reader_strides` - event block coverage per reader; `evmlog_strides` retains legacy address coverage
 
 `snapshot` - latest snapshot of each contract + snapshot hook data
 
@@ -537,3 +537,30 @@ Retired `extract.waveydb` and `load.price` jobs are drained without processing.
 Each occurrence is logged by name and reported to Sentry once per job name per
 process. Unexpected extract/load job names fail and follow the existing failed-job
 retention policy (15 minutes / 100 failures by default).
+
+### Reader event coverage
+
+Event fanout tracks ranges in `evmlog_reader_strides`, keyed by
+`(chain_id, address, abi_path)`. Readers of the same contract advance independently;
+extraction job IDs also include the reader. Logs and reader coverage commit in one
+transaction. Shared log hook objects merge at the top level: readers must use
+separate keys; an incoming value replaces the same key, and omitted keys remain.
+Hook changes that remove fields require explicit cleanup before replay.
+
+Apply the additive reader-strides migration before deploying new workers. It leaves
+`evmlog_strides` intact for old workers. New workers ignore legacy coverage: the
+first cycle backfills every configured reader from its configured start, while
+retaining the existing Transfer/Deposit/Withdraw history limits. Plan RPC capacity
+for this backfill. Old queued load jobs without `abiPath` save logs but credit no
+reader coverage. Complete the worker rollout before recovery: old binaries still
+replace hook objects and cannot maintain reader coverage. This migration permits
+schema deployment online; it does not make old worker behavior safe indefinitely.
+
+For rollback, drain ingestion first so queued loads cannot restore removed ranges.
+Clip or clear all `evmlog_reader_strides` rows for the affected address (or select an
+`abi_path` to refetch one reader). The next cycle fetches those missing ranges.
+The time-based rollback script targets the reader table. Changing a reader's ABI
+to add historical events requires rolling back that reader's coverage explicitly.
+Deploy old code before applying the down migration; it drops reader progress and
+leaves the legacy table untouched. Legacy coverage may need rollback before an
+old-code recovery because it is not maintained by new workers.

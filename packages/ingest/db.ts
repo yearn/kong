@@ -68,10 +68,10 @@ export async function firstValue<T>(query: string, params: any[] = [], client?: 
   return result.rows[0] ? result.rows[0][Object.keys(result.rows[0])[0]] as T : undefined
 }
 
-export async function getTravelledStrides(chainId: number, address: `0x${string}`, client?: PoolClient) {
+export async function getTravelledStrides(chainId: number, address: `0x${string}`, abiPath: string, client?: PoolClient) {
   const result = await (client ?? db).query(
-    `SELECT strides FROM evmlog_strides WHERE chain_id = $1 AND address = $2 ${client ? 'FOR UPDATE' : ''};`,
-    [chainId, address]
+    `SELECT strides FROM evmlog_reader_strides WHERE chain_id = $1 AND address = $2 AND abi_path = $3 ${client ? 'FOR UPDATE' : ''};`,
+    [chainId, address, abiPath]
   )
   const stridesJson = result.rows[0]?.strides
   return stridesJson ? StrideSchema.array().parse(JSON.parse(stridesJson)) : undefined
@@ -255,7 +255,9 @@ export function toUpsertSql(table: string, pk: string, data: object, where?: str
   ).join(', ')
 
   const updates = fields.map(field =>
-    `${field} = EXCLUDED.${field}`
+    table === 'evmlog' && field === 'hook'
+      ? 'hook = COALESCE(evmlog.hook, \'{}\'::jsonb) || EXCLUDED.hook'
+      : `${field} = EXCLUDED.${field}`
   ).join(', ')
 
   return `
