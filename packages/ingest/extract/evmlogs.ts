@@ -120,10 +120,10 @@ export function containsBlacklistedAddress(chainId: number, args: any) {
 }
 
 export async function tooSmall(chainId: number, address: EvmAddress, args: any) {
+  const amount = args.value ?? args.assets ?? args.amount
+  if (amount === undefined) return false
   const { success, decimals } = await safeFetchOrExtractDecimals(chainId, address)
   if (!success) return false
-  const amount =  args.value ?? args.assets ?? args.amount
-  if (amount === undefined) return false
   return math.div(BigInt(amount), 10n ** BigInt(decimals)) < 0.1
 }
 

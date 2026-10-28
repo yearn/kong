@@ -2,8 +2,13 @@ import { chains, mq, types } from 'lib'
 import { latestBlocks, rpcs } from '../rpcs'
 
 export class BlockExtractor {
-  async extract() {
-    for(const chain of chains) {
+  async extract(data: { chainId?: number } = {}) {
+    // Current repeatables are per chain; keep old root-queue jobs compatible.
+    const targets = data.chainId === undefined
+      ? chains
+      : chains.filter(chain => chain.id === data.chainId)
+    if (targets.length === 0) throw new Error(`Unknown block job chain: ${data.chainId}`)
+    for(const chain of targets) {
       const rpc = rpcs.next(chain.id)
       const block = await rpc.getBlock()
 

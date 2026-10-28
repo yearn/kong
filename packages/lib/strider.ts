@@ -17,7 +17,7 @@ export function plan(from: bigint, to: bigint, travelled: Stride[] | undefined):
         result.push({ from: startFrom, to: stride.from - 1n })
       }
     }
-    startFrom = stride.to + 1n
+    startFrom = math.max(startFrom, stride.to + 1n)
   }
 
   if (startFrom <= to) {

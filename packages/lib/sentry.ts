@@ -54,7 +54,7 @@ export function countMetric(
   void getSentry().then(Sentry => {
     if (!Sentry) return
     Sentry.metrics.count(name, value, { attributes })
-  })
+  }).catch(() => undefined)
 }
 
 export async function flush(timeout?: number) {

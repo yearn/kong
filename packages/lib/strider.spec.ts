@@ -21,6 +21,12 @@ describe('strider', function() {
       .to.deep.equal([{ from: 0n, to: 9n }, { from: 21n, to: 69n }, { from: 91n, to: 100n }])
   })
 
+  it('never moves the scan start backwards across old or nested checkpoints', () => {
+    expect(plan(80n, 100n, [{ from: 0n, to: 20n }])).to.deep.equal([{ from: 80n, to: 100n }])
+    expect(plan(0n, 100n, [{ from: 0n, to: 90n }, { from: 10n, to: 20n }])).to.deep.equal([{ from: 91n, to: 100n }])
+    expect(plan(80n, 70n, [{ from: 0n, to: 20n }])).to.deep.equal([])
+  })
+
   it('adds strides', async function() {
     expect(add({ from: 0n, to: 100n },    [])).to.deep.equal([{ from: 0n, to: 100n }])
     expect(add({ from: 0n, to: 100n },    [{ from: 0n, to: 100n }])).to.deep.equal([{ from: 0n, to: 100n }])
