@@ -81,6 +81,21 @@ describe('tvl hook on price service unavailable', () => {
     expect(outputs).to.deep.equal([])
   })
 
+  it('treats a missing service row (na) like unavailable: null usd components for a past day', async () => {
+    vi.mocked(fetchErc20PriceUsd).mockResolvedValue({ priceUsd: 0, priceSource: 'na' })
+    const outputs = await _process(1, VAULT, data, true)
+    const byComponent = Object.fromEntries(outputs.map(o => [o.component, o.value]))
+    expect(byComponent['tvl']).to.equal(null)
+    expect(byComponent['priceUsd']).to.equal(null)
+    expect(byComponent['totalAssets']).to.equal(5)
+  })
+
+  it('writes nothing for the current day when the service has no row yet (na)', async () => {
+    vi.mocked(fetchErc20PriceUsd).mockResolvedValue({ priceUsd: 0, priceSource: 'na' })
+    const outputs = await _process(1, VAULT, { outputLabel: 'tvl', blockTime: 9999999999n } as Data, true)
+    expect(outputs).to.deep.equal([])
+  })
+
   it('writes real values when the price resolves', async () => {
     vi.mocked(fetchErc20PriceUsd).mockResolvedValue({ priceUsd: 2, priceSource: 'priceservice' })
     const outputs = await _process(1, VAULT, data, true)

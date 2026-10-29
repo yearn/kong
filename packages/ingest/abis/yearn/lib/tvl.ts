@@ -37,11 +37,12 @@ export default async function _process(chainId: number, address: `0x${string}`, 
   // readAuthoritativeAssets returns undefined on read failure; skip emitting a false zero (a genuine empty vault is 0n)
   if (totalAssets === undefined) return []
 
-  // 'unavailable' (price service failure) still writes rows for past days: null for
+  // 'unavailable' (price service failure) and 'na' (service has no row yet: derived LP
+  // prices land only after the UTC day closes) still write rows for past days: null for
   // the usd components, real values for the on-chain ones. Returning [] left the day
   // permanently missing, so every fanout cycle re-enqueued it forever. Null days heal
   // by replay (fanout/timeseries.ts).
-  const priceUnavailable = priceSource === 'unavailable'
+  const priceUnavailable = priceSource === 'unavailable' || priceSource === 'na'
 
   // The current day is skipped outright: fanout re-extracts it every cycle anyway, and
   // a null row at today's series_time would shadow yesterday's real value in

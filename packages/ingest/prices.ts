@@ -175,7 +175,7 @@ async function fetchPriceServiceUsdResult(chainId: number, token: `0x${string}`,
       return { type: 'price', price: PriceSchema.parse({ chainId, address: token, priceUsd, priceSource: 'priceservice', blockNumber, blockTime }) }
     }
 
-    // batchHistorical reads the table only; the exact route also resolves upstream on a table miss.
+    // Both routes read the table only; a 404 means no stored row for that UTC day (yet).
     return await fetchPriceServiceExactResult({ chainId, token, blockNumber, blockTime, coinId, baseUrl, warn })
   } catch (error) {
     console.warn('🚨', 'price service failed', chainId, token, blockNumber, error)
