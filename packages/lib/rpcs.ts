@@ -1,5 +1,6 @@
 import { chains } from './chains'
-import { PublicClient, createPublicClient, http } from 'viem'
+import { PublicClient, createPublicClient } from 'viem'
+import { rpcHttp } from './rpc-observability'
 import { Chain } from 'viem/chains'
 
 export interface RpcClients { [chaindId: number]: PublicClient }
@@ -32,9 +33,9 @@ class pool {
       for(const archive of [true, false]) {
         this.rpcs[this.key(chain, archive)] = {
           clients: Array(this.size).fill(createPublicClient({
-            chain, transport: http(this.http(chain, archive), {
+            chain, transport: rpcHttp(this.http(chain, archive), {
               batch: { batchSize: Number(process.env['RPC_BATCH_SIZE'] || 0) }
-            })
+            }, chain.id, archive)
           })),
           pointers: { next: 0, recycle: 0 }
         }
@@ -52,7 +53,9 @@ class pool {
         const to_recycle = clients[pointer]
         console.log('♻️ ', 'rpc', chainId, pointer)
         clients[pointer] = createPublicClient({
-          chain: to_recycle.chain, transport: http(this.http(to_recycle.chain as Chain, archive))
+          chain: to_recycle.chain, transport: rpcHttp(this.http(to_recycle.chain as Chain, archive), {
+            batch: { batchSize: Number(process.env['RPC_BATCH_SIZE'] || 0) }
+          }, chainId, archive)
         })
         rpcsForKey.pointers.recycle = (pointer + 1) % clients.length
       })

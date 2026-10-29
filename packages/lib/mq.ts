@@ -2,6 +2,7 @@ import { Queue, Worker } from 'bullmq'
 import chains from './chains'
 import { captureException, countMetric, flush as flushSentry } from './sentry'
 import { Job } from './types'
+import { withRpcCaller } from './rpc-observability'
 
 const MQ_INVENTORY = process.env.MQ_INVENTORY === 'true'
 
@@ -98,7 +99,7 @@ export function worker(queueName: string, handler: (job: any) => Promise<any>, c
   const queue = new Queue(queueName, bull)
   const worker = new Worker(queueName, async job => {
     try {
-      await handler(job)
+      await withRpcCaller(`${queueName.replace(/-\d+$/, '')}.${job.name}`, () => handler(job))
     } catch(error) {
       console.error('🤬', error)
       captureException(error, { tags: { component: 'mq.worker', queue: queueName } })

@@ -70,6 +70,12 @@ export async function upsertEvmLog(data: object) {
     await client.query('BEGIN')
     await upsertBatch(batch, 'evmlog', 'chain_id, address, signature, block_number, log_index, transaction_hash', undefined, client)
 
+    // FOR UPDATE cannot lock a missing row. Seed it inside this transaction so
+    // concurrent first loads wait before reading and merging completed ranges.
+    await client.query(`
+      INSERT INTO evmlog_strides(chain_id, address, strides)
+      VALUES ($1, $2, '[]')
+      ON CONFLICT (chain_id, address) DO NOTHING`, [chainId, address])
     const current = await getTravelledStrides(chainId, address, client)
     const next = strider.add({ from, to }, current)
     await client.query(`

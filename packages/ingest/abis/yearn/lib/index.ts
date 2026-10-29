@@ -30,7 +30,7 @@ export async function safeFetchOrExtractDecimals(chainId: number, address: `0x${
 
 export async function fetchOrExtractDecimals(chainId: number, address: `0x${string}`) {
   const result = await fetchDecimals(chainId, address)
-  if (result) return result
+  if (result !== undefined && result !== null) return result
   try {
     return Number(await extractDecimals(chainId, address))
   } catch(_) {
