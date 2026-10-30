@@ -50,6 +50,10 @@ describe('blocks', function() {
       expect(calls.get(historicalKey)).to.equal(1)
       expect(ttls.get(historicalKey)).to.equal(24 * 60 * 60 * 1000)
 
+      const firstBlockKey = `estimateHeight:v2:${historicalChain}:1000`
+      expect(await estimateHeight(historicalChain, 1_000n)).to.equal(1n)
+      expect(ttls.get(firstBlockKey)).to.equal(24 * 60 * 60 * 1000)
+
       // An old target can resolve to a recent block when timestamps have a
       // large gap. Cache that result briefly because the resolved block is
       // still close to the observed head.
