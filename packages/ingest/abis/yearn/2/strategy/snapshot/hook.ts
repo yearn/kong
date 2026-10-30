@@ -66,9 +66,10 @@ export function routerTarget(chainId: number, snapshot: Snapshot) {
   return { chainId, address: snapshot.yVault }
 }
 
-async function processTradeFactory(chainId: number, snapshot: Snapshot) {
+export async function processTradeFactory(chainId: number, snapshot: Snapshot) {
   if (!snapshot.tradeFactory || snapshot.tradeFactory === zeroAddress) return
-  if (await things.exist(chainId, snapshot.tradeFactory, 'tradeFactory')) return
+  // Discovery persists this contract under the ABI's tradeHandler label.
+  if (await things.exist(chainId, snapshot.tradeFactory, 'tradeHandler')) return
 
   const block = await estimateCreationBlock(chainId, snapshot.tradeFactory)
   const inceptBlock = block.number

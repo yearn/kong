@@ -4,6 +4,7 @@ import { mainnet } from 'viem/chains'
 const { countMetric } = vi.hoisted(() => ({ countMetric: vi.fn() }))
 vi.mock('lib/sentry', () => ({ countMetric, captureException: vi.fn() }))
 vi.mock('bullmq', () => ({
+  PRIORITY_LIMIT: 2 ** 21 - 1,
   Queue: class { count = async () => 0; close = async () => undefined },
   Worker: class {
     constructor(_name: string, public processor: (job: { name: string }) => Promise<void>) {}

@@ -1,5 +1,27 @@
 # RPC consumption audit
 
+## October 30 follow-up: recurring discovery and cache reuse
+
+This follow-up starts from `83de931d` (PR #503); its polling/checkpoint fixes are already in the baseline. The supplied October 25–28 invoice charges 60,102,493 request units at $0.00001/RU, rounding to $601.02. All other displayed usage lines are zero. This confirms request consumption is the cost to reduce; the invoice alone does not establish a provider billing error or identify the responsible jobs.
+
+Additional changes:
+
+| Waste | Fix | Savings boundary |
+| --- | --- | --- |
+| V2 strategy snapshots check for a `tradeFactory` thing but persist a `tradeHandler` thing. The exact-label existence query therefore misses the saved record on every later snapshot. | Check `tradeHandler`, matching discovery writes and `config/abis.yaml`. Known handlers skip creation-block binary search and the duplicate load job. | Each skipped search avoids a head request plus roughly `ceil(log2(chain height))` bytecode probes and any uncached headers. Actual savings depend on active strategies, shared handlers, and cadence. |
+| ERC-4626 PPS and APY each read share `decimals()` for every observation, including backfills. | Cache successful share-decimal reads for 24 hours by chain and normalized vault address. Keep errors and per-caller fallback asset decimals outside the cache. | With Redis active, repeated reads for the same vault/day collapse to one successful read, except simultaneous misses across processes. At the checked-in 15-minute cadence, two outputs imply up to 192 reads/day/vault before caching and approximately one after; actual schedules and enabled outputs must be verified. |
+| Timestamp-to-height mappings expire after 10 seconds, so long-running backfills repeat searches for the same historical timestamps. A refreshed search head also changes the interpolation probes. | Keep historical mappings for 24 hours only when both the requested timestamp and resolved block are at least 24 hours behind the observed chain head. Keep recent results and head/future clamps at 10 seconds. A versioned key preserves mixed-version compatibility. | Avoids repeated search probes on expired mappings. Existing header-cache hits already avoid RPC, so a saved search is not necessarily a saved billable request. |
+
+These caches have finite retention, not a finality guarantee: a deep reorganization can leave a historical mapping stale until expiry. Latest block polling and its freshness are unchanged. A share-decimals change on an upgradeable vault can take up to 24 hours to appear. Scripts that do not initialize `cache.up()` retain uncached behavior. Errors from creation-block searches are still treated as absence by the existing algorithm, so its TTL is deliberately not extended.
+
+At the invoice rate, each **million verified avoided RUs saves $10**. Do not add a fleet-wide savings percentage without production data. Chainstack currently bills Global Node full reads at 1 RU and archive reads at 2; archive Trader Nodes bill every request at 2. HTTP batching does not make multiple JSON-RPC members one request. [Provider billing rules, checked October 30](https://docs.chainstack.com/docs/request-units).
+
+Operational priorities after deploying: confirm #503 is deployed; enable the existing `RPC_METRICS=true` instrumentation with Sentry; compare `eth_getCode`, `eth_call`, and header attempt counts by caller against provider RUs; inspect active backfill/replay jobs and duplicate repeatables; verify Redis retention/eviction and which scripts initialize it. Obtain a fixed-capacity quote for high-use nodes using measured post-fix traffic before changing providers. These are follow-up actions, not production changes made by this patch.
+
+Regression coverage is added for known/unknown handler discovery, share-versus-asset decimals, zero decimals, address/chain cache isolation, failure recovery, and historical versus moving-head cache expiry. Lint passes for `lib` and `ingest` with no errors, the changed spec files pass locally, and CI lint, test, and typecheck pass on the branch head. Local typechecks for `lib` and `ingest` report errors in untouched `lib/vitest.setup.ts`, `ingest/abis/yearn/lib/tvl.unavailable.mock.spec.ts`, and `ingest/fanout/timeseries.replay.mock.spec.ts`; no diagnostics point to changed files. No live RPC, deployment, billing-setting change, or provider migration was performed.
+
+## October 28 baseline audit
+
 Audit date: 2026-10-28. Baseline: `73b0d7bd`. Scope: tracked application code, configuration, scripts, local git history, and installed viem/cache-manager implementations. Production request logs, billing exports, deployed environment, eRPC metrics/configuration, replica counts, and deployment/job history were not available. No production configuration, credentials, or backfill jobs were changed.
 
 ## Executive summary

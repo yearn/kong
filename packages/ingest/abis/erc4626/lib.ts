@@ -1,6 +1,9 @@
 import { ReadContractParameters } from 'viem'
+import { cache } from 'lib/cache'
 import { rpcs } from '../../rpcs'
 import abi from './abi'
+
+const SHARE_DECIMALS_TTL = 24 * 60 * 60 * 1000
 
 // pps must be quoted in share units (the vault's own decimals()), not the asset
 // decimals stored in thing.defaults — they differ for vaults like the 18-share /
@@ -13,9 +16,16 @@ export async function ppsReadParameters(
   address: `0x${string}`,
   fallbackDecimals?: number,
 ): Promise<ReadContractParameters> {
-  const shareDecimals = await rpcs.next(chainId).readContract({
-    abi, address, functionName: 'decimals'
-  }).then(d => d as bigint).catch(error => {
+  const key = `erc4626:shareDecimals:${chainId}:${address.toLowerCase()}`
+  const shareDecimals = await cache.wrap(key, async () => {
+    const decimals = await rpcs.next(chainId).readContract({
+      abi, address, functionName: 'decimals'
+    }) as bigint
+    // Redis stores JSON values, so keep the successful bigint as a string. The
+    // cache callback deliberately has no fallback: rejected reads are not
+    // cached and can recover on the next attempt.
+    return String(decimals)
+  }, SHARE_DECIMALS_TTL).then(value => BigInt(value)).catch(error => {
     console.warn('🚨', 'erc4626 decimals() read failed, falling back to stored decimals', chainId, address, error)
     return BigInt(fallbackDecimals ?? 0)
   })

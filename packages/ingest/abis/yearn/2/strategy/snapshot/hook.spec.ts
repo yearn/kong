@@ -4,9 +4,50 @@ import db, { toUpsertSql } from '../../../../../db'
 import * as dbModule from '../../../../../db'
 import { rpcs } from '../../../../../rpcs'
 import { getLatestApy, getLatestEstimatedApr, getLatestEstimatedAprV3 } from '../../../../../helpers/apy-apr'
-import { extractLenderStatuses, fetchApiVersion, routerTarget } from './hook'
+import { extractLenderStatuses, fetchApiVersion, processTradeFactory, routerTarget } from './hook'
+import * as things from '../../../../../things'
+import * as blocks from 'lib/blocks'
+import { mq } from 'lib'
 
 describe('abis/yearn/2/strategy/snapshot/hook', function() {
+  describe('trade handler discovery', function() {
+    const tradeFactory = '0x1000000000000000000000000000000000000001' as const
+    const snapshot = { vault: tradeFactory, want: tradeFactory, tradeFactory }
+
+    it('does not search creation history again once the handler is stored', async function() {
+      const exist = vi.spyOn(things, 'exist').mockImplementation(async (_chain, _address, label) => label === 'tradeHandler')
+      const estimate = vi.spyOn(blocks, 'estimateCreationBlock').mockResolvedValue({ chainId: 1, number: 10n, timestamp: 100n })
+      const add = vi.spyOn(mq, 'add').mockResolvedValue({} as Awaited<ReturnType<typeof mq.add>>)
+      try {
+        await processTradeFactory(1, snapshot)
+        expect(exist.mock.calls).to.deep.equal([[1, tradeFactory, 'tradeHandler']])
+        expect(estimate.mock.calls).to.have.length(0)
+        expect(add.mock.calls).to.have.length(0)
+      } finally {
+        exist.mockRestore()
+        estimate.mockRestore()
+        add.mockRestore()
+      }
+    })
+
+    it('still discovers and queues an unknown handler', async function() {
+      const exist = vi.spyOn(things, 'exist').mockResolvedValue(false)
+      const estimate = vi.spyOn(blocks, 'estimateCreationBlock').mockResolvedValue({ chainId: 1, number: 10n, timestamp: 100n })
+      const add = vi.spyOn(mq, 'add').mockResolvedValue({} as Awaited<ReturnType<typeof mq.add>>)
+      try {
+        await processTradeFactory(1, snapshot)
+        expect(estimate.mock.calls).to.deep.equal([[1, tradeFactory]])
+        expect(add.mock.calls).to.have.length(1)
+        expect(add.mock.calls[0][1]).to.deep.include({ chainId: 1, address: tradeFactory, label: 'tradeHandler' })
+        expect(add.mock.calls[0][1].defaults).to.deep.equal({ inceptBlock: 10n, inceptTime: 100n })
+      } finally {
+        exist.mockRestore()
+        estimate.mockRestore()
+        add.mockRestore()
+      }
+    })
+  })
+
   describe('routerTarget', function() {
     const vault = '0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE' as const
     const want = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as const
