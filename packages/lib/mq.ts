@@ -1,4 +1,4 @@
-import { Queue, Worker } from 'bullmq'
+import { PRIORITY_LIMIT, Queue, Worker } from 'bullmq'
 import chains from './chains'
 import { captureException, countMetric, flush as flushSentry } from './sentry'
 import { Job } from './types'
@@ -47,11 +47,11 @@ export const job: { [queue: string]: { [job: string]: Job } } = {
 // https://github.com/taskforcesh/bullmq/blob/a01bb0b0345509cde6c74843323de6b67729f310/docs/gitbook/guide/jobs/prioritized.md
 // no priority set = highest (default)
 // 1 = next highest
-// 2 ** 21 = lowest
+// 2 ** 21 - 1 = lowest (bullmq 5 rejects anything above PRIORITY_LIMIT)
 // adding prioritized jobs to a queue goes like O(log(n))
 // where n is the number of prioritized jobs in the queue
 // (ie, total jobs - non-prioritized jobs)
-export const LOWEST_PRIORITY = 2 ** 21
+export const LOWEST_PRIORITY = PRIORITY_LIMIT
 const DEFAULT_PRIORITY = 100
 
 const bull = { connection: {
