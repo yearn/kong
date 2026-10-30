@@ -28,6 +28,8 @@ export async function getBlockTime(chainId: number, blockNumber?: bigint): Promi
 // blocks for hours, then never again. Only {number,timestamp} is cached.
 const HEAD_BLOCK_TTL = 15 * 60 * 1000
 const HISTORICAL_BLOCK_TTL = 24 * 60 * 60 * 1000
+const HEIGHT_ESTIMATE_TTL = 10 * 1000
+const HISTORICAL_HEIGHT_AGE = 24n * 60n * 60n
 
 export async function getBlock(chainId: number, blockNumber?: bigint): Promise<Block> {
   const ttl = blockNumber === undefined ? HEAD_BLOCK_TTL : HISTORICAL_BLOCK_TTL
@@ -59,14 +61,18 @@ export async function getDefaultStartBlockNumber(chainId: number): Promise<bigin
 }
 
 export async function estimateHeight(chainId: number, timestamp: bigint): Promise<bigint> {
-  const result = cache.wrap(`estimateHeight:${chainId}:${timestamp}`, async () => {
-    return BigInt(await __estimateHeight(chainId, timestamp))
-  }, 10_000)
-  return BigInt(await result)
+  // The v2 key stores metadata so historical results can use a longer TTL while
+  // moving-head clamps remain short-lived. The versioned key avoids reusing the
+  // previous scalar cache value with a different shape.
+  const result = cache.wrap(`estimateHeight:v2:${chainId}:${timestamp}`, async () => {
+    const estimate = await estimateHeightManual(chainId, timestamp)
+    return { height: estimate.height.toString(), historical: estimate.historical }
+  }, value => value.historical ? HISTORICAL_BLOCK_TTL : HEIGHT_ESTIMATE_TTL)
+  return BigInt((await result).height)
 }
 
 export async function __estimateHeight(chainId: number, timestamp: bigint) {
-  return await estimateHeightManual(chainId, timestamp)
+  return (await estimateHeightManual(chainId, timestamp)).height
 }
 
 // interpolation search over (near-linear, monotonic) block timestamps: picks each probe
@@ -75,14 +81,25 @@ export async function __estimateHeight(chainId: number, timestamp: bigint) {
 // the dominant RPC cost of timestamp->block resolution.
 const FIRST_BLOCK: Record<number, bigint> = { 10: 105235063n }
 
-async function estimateHeightManual(chainId: number, timestamp: bigint) {
+type HeightEstimate = { height: bigint, historical: boolean }
+
+async function estimateHeightManual(chainId: number, timestamp: bigint): Promise<HeightEstimate> {
   const top = await getBlock(chainId)
   let hi = top.number, hiTime = top.timestamp
-  if (timestamp >= hiTime) return hi
+  // A timestamp at or after the observed head is a clamp. Its answer must
+  // refresh frequently while the chain advances, even when wall-clock time
+  // makes the requested timestamp look old (for example on a stalled chain).
+  if (timestamp >= hiTime) return { height: hi, historical: false }
+  const targetIsHistorical = timestamp <= hiTime - HISTORICAL_HEIGHT_AGE
 
   let lo = FIRST_BLOCK[chainId] ?? 1n
   let loTime: bigint | undefined = await getBlockTime(chainId, lo).catch(() => undefined)
-  if (loTime !== undefined && timestamp <= loTime) return lo
+  if (loTime !== undefined && timestamp <= loTime) {
+    return {
+      height: lo,
+      historical: targetIsHistorical && loTime <= top.timestamp - HISTORICAL_HEIGHT_AGE
+    }
+  }
 
   while (hi - lo > 1n) {
     let probe = loTime !== undefined && hiTime > loTime
@@ -95,7 +112,13 @@ async function estimateHeightManual(chainId: number, timestamp: bigint) {
     else { hi = probe; hiTime = block.timestamp }
   }
 
-  return hi
+  // A sparse or stalled chain can have an old target timestamp but resolve to
+  // a block near the observed head. Only retain the long TTL when the resolved
+  // block itself is at least a day behind that head.
+  return {
+    height: hi,
+    historical: targetIsHistorical && hiTime <= top.timestamp - HISTORICAL_HEIGHT_AGE
+  }
 }
 
 export async function estimateCreationBlock(chainId: number, contract: `0x${string}`): Promise<Block> {
