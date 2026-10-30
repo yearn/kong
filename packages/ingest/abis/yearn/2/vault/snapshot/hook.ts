@@ -9,6 +9,7 @@ import { getLatestApy, getLatestEstimatedApr } from '../../../../../helpers/apy-
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
 import { fetchOrExtractErc20, throwOnMulticallError } from '../../../lib'
+import { snapshotTvl } from '../../../lib/tvl'
 import { getStrategyMeta, getTokenMeta, getVaultMeta } from '../../../lib/meta'
 import { getRiskScore } from '../../../lib/risk'
 
@@ -114,7 +115,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     risk,
     meta: { ...meta, token },
     sparklines,
-    tvl: sparklines.tvl[0],
+    tvl: await snapshotTvl(chainId, address, data.token, erc20.decimals, data.totalAssets, data.blockTime, sparklines.tvl[0]),
     apy,
     performance: {
       estimated,

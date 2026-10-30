@@ -11,6 +11,7 @@ import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
 import * as things from '../../../../../things'
 import { fetchOrExtractErc20 } from '../../../lib'
+import { snapshotTvl } from '../../../lib/tvl'
 import { computeApy, computeNetApr } from '../../../lib/apy'
 import { getStrategyMeta, getTokenMeta, getVaultMeta } from '../../../lib/meta'
 import { getRiskScore } from '../../../lib/risk'
@@ -167,7 +168,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     asset, strategies, allocator, roles, debts, composition, fees, locker,
     risk, meta: { ...meta, token },
     sparklines,
-    tvl: sparklines.tvl[0],
+    tvl: await snapshotTvl(chainId, address, data.asset, asset.decimals, data.totalAssets, data.blockTime, sparklines.tvl[0]),
     apy,
     // echo contract state so stale hook.pricePerShare from the erc4626 hook
     // (written before a vault turned yearn: true) gets overwritten on merge

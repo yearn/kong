@@ -8,7 +8,7 @@ import { normalize, priced } from 'lib/math'
 import { extractWithdrawalQueue } from '../2/vault/snapshot/hook'
 import { Data } from '../../../extract/timeseries'
 import { estimateHeight, getBlock } from 'lib/blocks'
-import { first, some } from '../../../db'
+import { first, getSparkline, some } from '../../../db'
 import { endOfDay } from 'lib/dates'
 import { readAuthoritativeAssets } from './tranches/assets'
 
@@ -91,6 +91,20 @@ async function hasComputedTvl(chainId: number, address: `0x${string}`, label: st
        AND series_time = to_timestamp($4::double precision) AND value IS NOT NULL`,
     [chainId, address, label, Number(endOfDay(blockTime))]
   )
+}
+
+type SparklinePoint = Awaited<ReturnType<typeof getSparkline>>[number]
+
+// Live tvl for the snapshot from its own totalAssets, so vault.tvl never trails the
+// tvl-c series by a fanout cycle. Falls back to the series when price or assets are missing.
+export async function snapshotTvl(
+  chainId: number, address: `0x${string}`, asset: `0x${string}`, decimals: number,
+  totalAssets: bigint | undefined, blockTime: bigint | undefined, fallback: SparklinePoint | undefined
+): Promise<SparklinePoint | undefined> {
+  if (totalAssets === undefined || blockTime === undefined) return fallback
+  const { priceUsd } = await fetchErc20PriceUsd(chainId, asset)
+  if (!priceUsd) return fallback
+  return { chainId, address, label: 'tvl-c', component: 'tvl', blockTime, close: priced(totalAssets, decimals, priceUsd) }
 }
 
 export async function _compute(vault: Thing, blockNumber: bigint, latest = false) {

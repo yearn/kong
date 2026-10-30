@@ -4,9 +4,12 @@ import { z } from 'zod'
 import { getSparkline } from '../../../db'
 import { getLatestApy, getLatestOracleApr } from '../../../helpers/apy-apr'
 import { fetchOrExtractErc20 } from '../../yearn/lib'
+import { snapshotTvl } from '../../yearn/lib/tvl'
 
 export default async function process(chainId: number, address: `0x${string}`, data: object) {
-  const { asset } = z.object({ asset: EvmAddressSchema }).parse(data)
+  const { asset, totalAssets, blockTime } = z.object({
+    asset: EvmAddressSchema, totalAssets: z.bigint().optional(), blockTime: z.bigint().optional()
+  }).parse(data)
 
   const sparklines = {
     tvl: await getSparkline(chainId, address, 'tvl-c', 'tvl'),
@@ -25,7 +28,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   return {
     asset: erc20,
     sparklines,
-    tvl: sparklines.tvl[0],
+    tvl: await snapshotTvl(chainId, address, asset, erc20.decimals, totalAssets, blockTime, sparklines.tvl[0]),
     apy: historical,
     performance: {
       estimated: undefined,
