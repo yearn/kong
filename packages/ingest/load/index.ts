@@ -113,13 +113,14 @@ export async function upsertBatchOutput(batch: any[]) {
     ...output,
     series_time: endOfDay(output.blockTime)
   }))
+  const usePreparedStatements = process.env.OUTPUT_PREPARED_STATEMENTS === 'true'
   await upsertBatchImpl(
     outputs,
     'output',
     'chain_id, address, label, component, series_time',
     undefined,
     undefined,
-    outputPreparedStatementName
+    usePreparedStatements ? outputPreparedStatementName : undefined
   )
   for (const output of outputs) {
     invalidateSparkline(output.chainId, output.address, output.label, output.blockTime)
