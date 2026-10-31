@@ -13,7 +13,26 @@ import { endOfDay } from 'lib/dates'
 import { readAuthoritativeAssets } from './tranches/assets'
 
 export default async function _process(chainId: number, address: `0x${string}`, data: Data, components?: boolean): Promise<Output[]> {
-  console.info('🧮', data.outputLabel, chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())
+  return processLabels(chainId, address, data, [data.outputLabel], () => Boolean(components))
+}
+
+/** Compute one observation once and render only the explicitly requested labels. */
+export async function processTvlGroup(chainId: number, address: `0x${string}`, data: Data, outputLabels: string[]): Promise<Output[]> {
+  const requested = [...new Set(outputLabels)]
+  if (requested.some(label => label !== 'tvl' && label !== 'tvl-c')) {
+    throw new Error(`unsupported TVL output label: ${requested.join(', ')}`)
+  }
+  return processLabels(chainId, address, data, requested, label => label === 'tvl-c')
+}
+
+async function processLabels(
+  chainId: number,
+  address: `0x${string}`,
+  data: Data,
+  outputLabels: string[],
+  componentsForLabel: (label: string) => boolean
+): Promise<Output[]> {
+  console.info('🧮', outputLabels.join(','), chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())
 
   let blockNumber: bigint = 0n
   let latest: boolean = false
@@ -33,7 +52,36 @@ export default async function _process(chainId: number, address: `0x${string}`, 
   if (!vault) return []
 
   const { tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd, priceSource, decimals } = await _compute(vault, blockNumber, latest)
+  const outputs: Output[] = []
+  for (const outputLabel of outputLabels) {
+    outputs.push(...await renderOutput({
+      chainId, address, outputLabel, blockTime: data.blockTime, blockNumber, latest,
+      components: componentsForLabel(outputLabel),
+      tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd, priceSource, decimals
+    }))
+  }
+  return outputs
+}
 
+async function renderOutput({
+  chainId, address, outputLabel, blockTime, blockNumber, latest, components,
+  tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd, priceSource, decimals
+}: {
+  chainId: number
+  address: `0x${string}`
+  outputLabel: string
+  blockTime: bigint
+  blockNumber: bigint
+  latest: boolean
+  components: boolean
+  tvl: number
+  delegatedTvl: number
+  totalAssets: bigint | undefined
+  delegatedAssets: bigint
+  priceUsd: number
+  priceSource: string
+  decimals: number
+}): Promise<Output[]> {
   // readAuthoritativeAssets returns undefined on read failure; skip emitting a false zero (a genuine empty vault is 0n)
   if (totalAssets === undefined) return []
 
@@ -52,31 +100,31 @@ export default async function _process(chainId: number, address: `0x${string}`, 
 
   // findMissingDays counts a null row as computed, so overwriting a real value here
   // would lose it for good.
-  if (priceUnavailable && await hasComputedTvl(chainId, address, data.outputLabel, data.blockTime)) return []
+  if (priceUnavailable && await hasComputedTvl(chainId, address, outputLabel, blockTime)) return []
 
   if (components) {
     // componentized outputs
     return OutputSchema.array().parse([{
-      chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
+      chainId, address, blockNumber, blockTime, label: outputLabel,
       component: 'tvl', value: usdUnknown ? null : tvl
     }, {
-      chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
+      chainId, address, blockNumber, blockTime, label: outputLabel,
       component: 'delegated', value: usdUnknown ? null : delegatedTvl
     }, {
-      chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
+      chainId, address, blockNumber, blockTime, label: outputLabel,
       component: 'totalAssets', value: normalize(totalAssets, decimals) || 0
     }, {
-      chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
+      chainId, address, blockNumber, blockTime, label: outputLabel,
       component: 'delegatedAssets', value: normalize(delegatedAssets, decimals) || 0
     }, {
-      chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
+      chainId, address, blockNumber, blockTime, label: outputLabel,
       component: 'priceUsd', value: priceUnavailable ? null : priceUsd
     }])
 
   } else {
     // legacy tvl output
     return OutputSchema.array().parse([{
-      chainId, address, blockNumber, blockTime: data.blockTime, label: data.outputLabel,
+      chainId, address, blockNumber, blockTime, label: outputLabel,
       component: 'tvl', value: usdUnknown ? null : tvl
     }])
 

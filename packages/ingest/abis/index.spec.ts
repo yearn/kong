@@ -4,6 +4,15 @@ import fs from 'fs/promises'
 import { getHookType, isHookPath, parseHookPath, requireHooks } from '.'
 
 describe('abis', function() {
+  it('keeps tranche TVL on its tvl-c label when hook metadata is resolved', async function() {
+    const resolveHooks = await requireHooks(path.join(__dirname, 'yearn/3/tranche/vault'))
+    const tvlHooks = resolveHooks('', 'timeseries')
+      .filter(hook => hook.module.outputLabel === 'tvl' || hook.module.outputLabel === 'tvl-c')
+
+    expect(tvlHooks.map(hook => hook.module.outputLabel)).to.deep.equal(['tvl-c'])
+    expect(tvlHooks[0].module.outputGroup).to.be.undefined
+  })
+
   describe('hook resolver', () => {
     const root = path.join(__dirname, '.spec')
 

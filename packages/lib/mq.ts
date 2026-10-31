@@ -6,6 +6,7 @@ import { Job } from './types'
 import { withRpcCaller } from './rpc-observability'
 
 const MQ_INVENTORY = process.env.MQ_INVENTORY === 'true'
+const METRIC_CHAIN_IDS = new Set(chains.map(chain => String(chain.id)))
 
 export const q = {
   fanout: 'fanout',
@@ -55,6 +56,19 @@ export const job: { [queue: string]: { [job: string]: Job } } = {
 export const LOWEST_PRIORITY = PRIORITY_LIMIT
 const DEFAULT_PRIORITY = 100
 
+export function mqMetricAttributes(job: Job, data: unknown): Record<string, string> {
+  const record = typeof data === 'object' && data !== null ? data as Record<string, unknown> : {}
+  const source = typeof record.source === 'object' && record.source !== null
+    ? record.source as Record<string, unknown>
+    : {}
+  const chainId = record.chainId ?? source.chainId
+  const chainIdLabel = chainId === undefined || chainId === null
+    ? 'none'
+    : METRIC_CHAIN_IDS.has(String(chainId)) ? String(chainId) : 'other'
+
+  return { queue: job.queue, jobName: job.name, chainId: chainIdLabel }
+}
+
 const bull = { connection: {
   host: process.env.REDIS_HOST || 'localhost',
   port: (process.env.REDIS_PORT || 6379) as number,
@@ -93,15 +107,7 @@ export function connect(queueName: string) {
 export async function add(job: Job, data: any, options?: any) {
   const queue = job.bychain ? `${job.queue}-${data.chainId}` : job.queue
   if (MQ_INVENTORY) {
-    countMetric('mq.job_added', 1, {
-      queue,
-      jobName: job.name,
-      address: String(data.address ?? data.source?.address ?? ''),
-      chainId: String(data.chainId ?? data.source?.chainId ?? ''),
-      fromBlock: String(data.from ?? data.fromBlock ?? ''),
-      toBlock: String(data.to ?? data.toBlock ?? ''),
-      abiPath: String(data.abiPath ?? data.abi?.abiPath ?? '')
-    })
+    countMetric('mq.job_added', 1, mqMetricAttributes(job, data))
   }
   if (!queues[queue]) { queues[queue] = connect(queue) }
   return await queues[queue].add(job.name, data, { priority: DEFAULT_PRIORITY, attempts: 1, ...options })
@@ -189,6 +195,6 @@ export function computeConcurrency(jobs: number, options: ConcurrencyOptions) {
 }
 
 export async function down() {
-  if (MQ_INVENTORY) await flushMetrics()
+  await flushMetrics()
   return Promise.all(Object.values(queues).map(async queue => queue.close()))
 }

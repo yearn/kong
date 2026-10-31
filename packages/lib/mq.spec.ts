@@ -1,6 +1,7 @@
 import { expect } from 'chai'
 import { PRIORITY_LIMIT } from 'bullmq'
-import { LOWEST_PRIORITY, computeConcurrency, workerLockOptions } from './mq'
+import { LOWEST_PRIORITY, computeConcurrency, mqMetricAttributes, workerLockOptions } from './mq'
+import type { Job } from './types'
 
 describe('mq', function() {
   it('keeps the lowest priority within the bullmq limit', function() {
@@ -13,6 +14,21 @@ describe('mq', function() {
     expect(opts.lockDuration).to.be.at.least(60_000)
     expect(opts.lockRenewTime).to.be.below(opts.lockDuration)
     expect(opts.stalledInterval).to.be.above(0)
+  })
+
+  it('bounds inventory labels to queue, job, and known chains', function() {
+    const job = { queue: 'extract', name: 'snapshot' } as Job
+    expect(mqMetricAttributes(job, {
+      chainId: 1,
+      address: '0x1234',
+      fromBlock: 100,
+      toBlock: 999,
+      abiPath: 'secret/path'
+    })).to.deep.equal({ queue: 'extract', jobName: 'snapshot', chainId: '1' })
+    expect(mqMetricAttributes(job, { chainId: 999_999, address: '0x5678' }))
+      .to.deep.equal({ queue: 'extract', jobName: 'snapshot', chainId: 'other' })
+    expect(mqMetricAttributes(job, {}))
+      .to.deep.equal({ queue: 'extract', jobName: 'snapshot', chainId: 'none' })
   })
 
   it('reads lock settings from env and ignores invalid values', function() {

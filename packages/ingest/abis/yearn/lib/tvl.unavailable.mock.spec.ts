@@ -4,7 +4,14 @@ vi.mock('../../../prices', () => ({
   fetchErc20PriceUsd: vi.fn(async () => ({ priceUsd: 0, priceSource: 'unavailable' }))
 }))
 
-const { someMock, totalAssets } = vi.hoisted(() => ({ someMock: vi.fn(async () => false), totalAssets: { value: 5000000000000000000n } }))
+const { someMock, totalAssets, readAssetsMock } = vi.hoisted(() => {
+  const totalAssets = { value: 5000000000000000000n }
+  return {
+    someMock: vi.fn(async (_query: string, _params: unknown[]) => false),
+    totalAssets,
+    readAssetsMock: vi.fn(async () => totalAssets.value as bigint | undefined)
+  }
+})
 
 vi.mock('../../../rpcs', () => ({
   rpcs: {
@@ -41,7 +48,10 @@ vi.mock('../2/vault/snapshot/hook', () => ({
   extractWithdrawalQueue: vi.fn(async () => [])
 }))
 
+vi.mock('./tranches/assets', () => ({ readAuthoritativeAssets: readAssetsMock }))
+
 import _process from './tvl'
+import { processTvlGroup } from './tvl'
 import { fetchErc20PriceUsd } from '../../../prices'
 import { Data } from '../../../extract/timeseries'
 import { endOfDay } from 'lib/dates'
@@ -52,9 +62,11 @@ const data = { outputLabel: 'tvl', blockTime: 1600000000n } as Data
 describe('tvl hook on price service unavailable', () => {
   beforeEach(() => {
     vi.mocked(fetchErc20PriceUsd).mockResolvedValue({ priceUsd: 0, priceSource: 'unavailable' })
+    vi.mocked(fetchErc20PriceUsd).mockClear()
     someMock.mockReset()
     someMock.mockResolvedValue(false)
     totalAssets.value = 5000000000000000000n
+    readAssetsMock.mockClear()
   })
 
   it('still writes component rows, null for usd components, real on-chain values', async () => {
@@ -93,8 +105,8 @@ describe('tvl hook on price service unavailable', () => {
     someMock.mockResolvedValue(true)
     expect(await _process(1, VAULT, data, true)).to.deep.equal([])
 
-    const [, params] = someMock.mock.calls[0]
-    expect(params[3]).to.equal(Number(endOfDay(1600000000n)))
+    const params = someMock.mock.calls[0]?.[1]
+    expect(params?.[3]).to.equal(Number(endOfDay(1600000000n)))
   })
 
   it('writes null again when the stored day is already null', async () => {
@@ -125,5 +137,44 @@ describe('tvl hook on price service unavailable', () => {
     vi.mocked(fetchErc20PriceUsd).mockResolvedValue({ priceUsd: 2, priceSource: 'priceservice' })
     await _process(1, VAULT, data, true)
     expect(someMock).not.toHaveBeenCalled()
+  })
+
+  it('computes the base observation once and renders both existing output formats', async () => {
+    const outputs = await processTvlGroup(1, VAULT, data, ['tvl', 'tvl-c'])
+
+    expect(fetchErc20PriceUsd).toHaveBeenCalledTimes(1)
+    expect(readAssetsMock).toHaveBeenCalledTimes(1)
+    expect(outputs).to.have.length(6)
+    expect(outputs.filter(output => output.label === 'tvl')).to.have.length(1)
+    expect(outputs.filter(output => output.label === 'tvl-c')).to.have.length(5)
+  })
+
+  it('renders only a label whose coverage is missing', async () => {
+    const outputs = await processTvlGroup(1, VAULT, data, ['tvl-c'])
+
+    expect(fetchErc20PriceUsd).toHaveBeenCalledTimes(1)
+    expect(readAssetsMock).toHaveBeenCalledTimes(1)
+    expect(outputs).to.have.length(5)
+    expect(outputs.every(output => output.label === 'tvl-c')).to.equal(true)
+  })
+
+  it('does not mistake unavailable authoritative assets for a genuine zero', async () => {
+    readAssetsMock.mockResolvedValueOnce(undefined)
+
+    const outputs = await processTvlGroup(1, VAULT, data, ['tvl', 'tvl-c'])
+
+    expect(outputs).to.deep.equal([])
+    expect(readAssetsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps unavailable-price guards independent for each output label', async () => {
+    someMock.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+
+    const outputs = await processTvlGroup(1, VAULT, data, ['tvl', 'tvl-c'])
+
+    expect(someMock).toHaveBeenCalledTimes(2)
+    expect(someMock.mock.calls.map(call => call[1][2])).to.deep.equal(['tvl', 'tvl-c'])
+    expect(outputs).to.have.length(5)
+    expect(outputs.every(output => output.label === 'tvl-c')).to.equal(true)
   })
 })

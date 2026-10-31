@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { mq, strider, types } from 'lib'
 import db, { getTravelledStrides, invalidateSparkline, toUpsertSql, upsertThingDefaults, upsertSnapshotData } from '../db'
@@ -112,10 +113,24 @@ export async function upsertBatchOutput(batch: any[]) {
     ...output,
     series_time: endOfDay(output.blockTime)
   }))
-  await upsertBatch(outputs, 'output', 'chain_id, address, label, component, series_time')
+  await upsertBatchImpl(
+    outputs,
+    'output',
+    'chain_id, address, label, component, series_time',
+    undefined,
+    undefined,
+    outputPreparedStatementName
+  )
   for (const output of outputs) {
     invalidateSparkline(output.chainId, output.address, output.label, output.blockTime)
   }
+}
+
+// Keep output statement names bounded and derived from the complete SQL text so
+// column order and omitted optional fields cannot share a prepared statement.
+function outputPreparedStatementName(sql: string) {
+  const digest = createHash('sha256').update(sql).digest('hex').slice(0, 48)
+  return `kong_output_${digest}`
 }
 
 export async function upsert(data: object, table: string, pk: string, where?: string, _client?: PoolClient) {
@@ -127,14 +142,28 @@ export async function upsert(data: object, table: string, pk: string, where?: st
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function upsertBatch(batch: any[], table: string, pk: string, where?: string, _client?: PoolClient) {
+  await upsertBatchImpl(batch, table, pk, where, _client)
+}
+
+async function upsertBatchImpl(
+  batch: object[],
+  table: string,
+  pk: string,
+  where?: string,
+  _client?: PoolClient,
+  preparedStatementName?: (sql: string) => string
+) {
   const client = _client ?? await db.connect()
   try {
     if(!_client) await client.query('BEGIN')
     for(const object of batch) {
-      await client.query(
-        toUpsertSql(table, pk, object, where),
-        Object.values(object)
-      )
+      const sql = toUpsertSql(table, pk, object, where)
+      const values = Object.values(object)
+      if (preparedStatementName) {
+        await client.query({ name: preparedStatementName(sql), text: sql, values })
+      } else {
+        await client.query(sql, values)
+      }
     }
     if(!_client) await client.query('COMMIT')
   } catch (error) {
