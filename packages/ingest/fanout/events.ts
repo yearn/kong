@@ -9,7 +9,7 @@ import { gnosis, polygon, fantom } from 'viem/chains'
 const LOG_STRIDES: {
   [key: number]: number
 } = {
-  [gnosis.id]: 5_000,
+  [gnosis.id]: 1_000,
   [polygon.id]: 3_000,
   [fantom.id]: 5_000
 }
