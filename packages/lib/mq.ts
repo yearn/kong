@@ -1,6 +1,7 @@
 import { PRIORITY_LIMIT, Queue, Worker } from 'bullmq'
 import chains from './chains'
-import { captureException, countMetric, flush as flushSentry } from './sentry'
+import { captureException } from './sentry'
+import { countMetric, flush as flushMetrics } from './metrics'
 import { Job } from './types'
 import { withRpcCaller } from './rpc-observability'
 
@@ -188,6 +189,6 @@ export function computeConcurrency(jobs: number, options: ConcurrencyOptions) {
 }
 
 export async function down() {
-  if (MQ_INVENTORY) await flushSentry(5000)
+  if (MQ_INVENTORY) await flushMetrics()
   return Promise.all(Object.values(queues).map(async queue => queue.close()))
 }

@@ -51,17 +51,6 @@ export function captureException(
   })
 }
 
-export function countMetric(
-  name: string,
-  value: number,
-  attributes: Record<string, string>
-) {
-  void getSentry().then(Sentry => {
-    if (!Sentry) return
-    Sentry.metrics.count(name, value, { attributes })
-  }).catch(() => undefined)
-}
-
 export async function flush(timeout?: number) {
   if (!sentryPromise) return
 

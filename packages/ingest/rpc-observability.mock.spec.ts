@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPublicClient } from 'viem'
 import { mainnet } from 'viem/chains'
 const { countMetric } = vi.hoisted(() => ({ countMetric: vi.fn() }))
-vi.mock('lib/sentry', () => ({ countMetric, captureException: vi.fn() }))
+vi.mock('lib/metrics', () => ({ countMetric }))
 vi.mock('bullmq', () => ({
   PRIORITY_LIMIT: 2 ** 21 - 1,
   Queue: class { count = async () => 0; close = async () => undefined },

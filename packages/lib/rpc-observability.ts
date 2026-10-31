@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { createTransport, http, type HttpTransport, type HttpTransportConfig } from 'viem'
-import { countMetric } from './sentry'
+import { countMetric } from './metrics'
 
 const callers = new Set([
   'fanout.abis', 'fanout.events', 'fanout.timeseries',
