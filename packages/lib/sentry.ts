@@ -8,7 +8,7 @@ async function getSentry() {
   if (!sentryPromise) {
     sentryPromise = import('@sentry/node')
       .then(Sentry => {
-        Sentry.init({ dsn: SENTRY_DSN })
+        Sentry.init({ dsn: SENTRY_DSN, sampleRate: Number(process.env.SENTRY_SAMPLE_RATE || 1) })
         return Sentry
       })
       .catch(() => null)
@@ -35,11 +35,16 @@ const IGNORED_ERROR_NAMES = new Set([
   'ContractFunctionExecutionError'
 ])
 
+const SAMPLED_ERROR_RATES: Record<string, number> = {
+  InvalidParamsRpcError: 0.01
+}
+
 export function captureException(
   exception: unknown,
   options?: Parameters<(typeof import('@sentry/node'))['captureException']>[1]
 ) {
   if (exception instanceof Error && IGNORED_ERROR_NAMES.has(exception.name)) return
+  if (exception instanceof Error && Math.random() >= (SAMPLED_ERROR_RATES[exception.name] ?? 1)) return
   void getSentry().then(Sentry => {
     if (!Sentry) return
     Sentry.captureException(exception, options)
