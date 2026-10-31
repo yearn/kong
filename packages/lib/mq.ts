@@ -62,6 +62,26 @@ const bull = { connection: {
   ...(process.env.REDIS_TLS === 'true' ? { tls: {} } : {})
 }}
 
+// Lock settings for workers. bullmq defaults (lockDuration 30s, stalledInterval 30s) are too tight
+// for ingest: jobs run long RPC/DB work at up to 50 concurrency per queue across many queues in one
+// process, so lock renewals (a timer on the same event loop) get starved. The lock expires, the
+// stalled checker moves the job back to wait, another worker re-runs it, and the original run then
+// fails with "Missing lock" / "Lock mismatch" on moveToFinished.
+function envInt(name: string, fallback: number) {
+  const value = Number(process.env[name])
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback
+}
+
+export function workerLockOptions() {
+  const lockDuration = envInt('MQ_LOCK_DURATION_MS', 5 * 60 * 1000)
+  return {
+    lockDuration,
+    lockRenewTime: envInt('MQ_LOCK_RENEW_TIME_MS', Math.floor(lockDuration / 4)),
+    stalledInterval: envInt('MQ_STALLED_INTERVAL_MS', 60 * 1000),
+    maxStalledCount: envInt('MQ_MAX_STALLED_COUNT', 1)
+  }
+}
+
 const queues: { [key: string]: Queue } = {}
 
 export function connect(queueName: string) {
@@ -107,6 +127,7 @@ export function worker(queueName: string, handler: (job: any) => Promise<any>, c
     }
   }, {
     ...bull,
+    ...workerLockOptions(),
     concurrency,
     removeOnComplete: {
       count: (process.env.MQ_REMOVE_ON_COMPLETE_COUNT ?? 100) as number,
