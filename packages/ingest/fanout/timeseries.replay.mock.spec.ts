@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { AbiHook, HookOutputGroup } from '../abis/types'
 
 const { queryMock, mqAdd, blockTimes, hookSet, pairedProcessor, secondProcessor } = vi.hoisted(() => {
   process.env.TVL_GROUPED_JOBS = 'true'
   return {
-    queryMock: vi.fn(async (_query: string, _params: unknown[]) => ({ rows: [] as { day: string }[] })),
-    mqAdd: vi.fn(async (_job: unknown, _data: any, _options: unknown) => undefined),
+    queryMock: vi.fn<(query: string, params: unknown[]) => Promise<{ rows: { day: string }[] }>>(async () => ({ rows: [] })),
+    mqAdd: vi.fn<(job: unknown, data: Record<string, unknown>, options: unknown) => Promise<void>>(async () => undefined),
     blockTimes: {} as Record<string, bigint>,
-    hookSet: { hooks: [] as any[] },
+    hookSet: { hooks: [] as AbiHook[] },
     pairedProcessor: vi.fn(async () => []),
     secondProcessor: vi.fn(async () => [])
   }
@@ -59,11 +60,11 @@ function abi() {
   return { abiPath: 'yearn/lib', sources: [], skip: false, only: false }
 }
 
-function singleHook() {
+function singleHook(): AbiHook {
   return { type: 'timeseries', abiPath: 'yearn/lib', module: { outputLabel: 'tvl', default: vi.fn() } }
 }
 
-function groupedHook(outputLabel: string, process = pairedProcessor) {
+function groupedHook(outputLabel: string, process: HookOutputGroup['process'] = pairedProcessor): AbiHook {
   return {
     type: 'timeseries',
     abiPath: 'yearn/lib',

@@ -121,7 +121,11 @@ Trial RPC batching separately and start small after confirming every affected pr
 
 ### Implementation verification
 
-Luna ran 57 targeted tests across 13 files: six output-write tests (including real PostgreSQL), 27 TVL/fanout/resolver tests, 13 network and existing RPC-observability tests, and 11 metrics/MQ/batch-settings tests. All passed. Local HTTP tests compare the byte counters to received request bodies, exercise retries and cross-chain batching isolation, and verify OTLP gzip. Ingest type checking passed. Lib type checking remains blocked by the existing `packages/lib/vitest.setup.ts:10` error where `inject('testcontainers')` is typed as `never`. Targeted SQL/network lint passed. Astra performed static review and did not run tests or lint.
+Luna's initial 57 targeted tests across 13 files passed, including real PostgreSQL output writes, TVL sharing/replays/legacy jobs, local HTTP byte comparisons/retries, and OTLP gzip. Full CI then exposed 12 existing mock-pool failures from unconditional listener registration; registration is now opt-in and has enabled/disabled coverage. Luna reran the full offline ingest suite: **264 tests passed, 44 skipped**, across 50 passing files. Live RPC tests were disabled for this run.
+
+Ingest type checking and targeted lint passed. The repository typecheck-baseline gate also passes after removing the resolved ingest diagnostics. Direct lib type checking still reports its existing `packages/lib/vitest.setup.ts:10` diagnostic where `inject('testcontainers')` is typed as `never`; that existing error remains in the baseline. No baseline guard logic was weakened. Astra performed static review and did not run tests or lint.
+
+Claude Code Fable (`claude-fable-5-1`) completed a separate read-only implementation review and found no blocking defects. Deployment still requires the documented grouped-consumer rollout and a Postgres connection that supports named prepared statements; the audit observed a direct Neon endpoint. MQ label changes and the default export cadence, as well as prepared output writes, take effect on code deployment.
 
 ## Sources
 

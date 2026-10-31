@@ -5,7 +5,7 @@ import { strings } from 'lib'
 import { StrideSchema, Thing, Snapshot } from 'lib/types'
 import { Pool, PoolClient, types as pgTypes } from 'pg'
 import { snakeToCamelCols } from 'lib/strings'
-import { instrumentPostgresClient } from './outbound-db-bytes'
+import { instrumentPostgresPool } from './outbound-db-bytes'
 
 // Convert numeric (OID 1700) to float
 pgTypes.setTypeParser(1700, 'text', parseFloat)
@@ -32,7 +32,7 @@ const db = new Pool({
   connectionTimeoutMillis: 60_000,
 })
 
-db.on('connect', client => instrumentPostgresClient(client))
+instrumentPostgresPool(db)
 
 export default db
 

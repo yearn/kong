@@ -7,7 +7,7 @@ vi.mock('../../../prices', () => ({
 const { someMock, totalAssets, readAssetsMock } = vi.hoisted(() => {
   const totalAssets = { value: 5000000000000000000n }
   return {
-    someMock: vi.fn(async (_query: string, _params: unknown[]) => false),
+    someMock: vi.fn<(query: string, params: unknown[]) => Promise<boolean>>(async () => false),
     totalAssets,
     readAssetsMock: vi.fn(async () => totalAssets.value as bigint | undefined)
   }
