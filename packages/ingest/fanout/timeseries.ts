@@ -3,8 +3,10 @@ import { AbiConfig, AbiConfigSchema, SourceConfig, SourceConfigSchema } from 'li
 import { getBlockNumber, getBlockTime, getDefaultStartBlockNumber } from 'lib/blocks'
 import db from '../db'
 import { requireHooks } from '../abis'
-import { ResolveHooks } from '../abis/types'
+import { HookOutputGroup, ResolveHooks } from '../abis/types'
 import { endOfDay, makeTimeline } from 'lib/dates'
+
+const GROUPED_TVL_JOBS_ENABLED = process.env.TVL_GROUPED_JOBS === 'true'
 
 export default class TimeseriesFanout {
   resolveHooks: ResolveHooks | undefined
@@ -17,35 +19,109 @@ export default class TimeseriesFanout {
     const defaultStartBlockNumber = await getDefaultStartBlockNumber(chainId)
 
     const hooks = this.resolveHooks(abiPath, 'timeseries')
-    for (const hook of hooks) {
+    if (hooks.length === 0) return
+    const from = startBlock !== undefined
+      ? startBlock
+      : math.max(inceptBlock, defaultStartBlockNumber, multicall3Activation)
+    const to = endBlock !== undefined ? endBlock : await getBlockNumber(chainId)
+    const start = endOfDay(await getBlockTime(chainId, from))
+    const end = endOfDay(await getBlockTime(chainId, to))
+
+    const labelledHooks = hooks.map(hook => {
       const outputLabel = hook.module.outputLabel
       if (!outputLabel) throw new Error(`!outputLabel, ${abiPath} timeseries hook`)
+      return { hook, outputLabel }
+    })
 
-      const from = startBlock !== undefined
-        ? startBlock
-        : math.max(inceptBlock, defaultStartBlockNumber, multicall3Activation)
-      const to = endBlock !== undefined ? endBlock : await getBlockNumber(chainId)
-      const start = endOfDay(await getBlockTime(chainId, from))
-      const end = endOfDay(await getBlockTime(chainId, to))
-
-      // Replay is the only path back for days the anti-join counts as computed but
-      // hold a null value (abis/yearn/lib/tvl.ts).
-      const missing = data.replay?.enabled
-        ? makeTimeline(data.replay.since ?? start, end)
-        : await findMissingDays(chainId, address, outputLabel, start, end)
-
-      if (missing.length === 0 || missing[missing.length - 1] !== end) {
-        missing.push(end)
+    // Grouping is opt-in because old extract workers ignore the optional
+    // outputLabels field. Keep the worker rollout safe: upgrade every consumer,
+    // then enable TVL_GROUPED_JOBS on fanout workers.
+    const groups: (HookOutputGroup & { hooks: typeof labelledHooks })[] = []
+    const standalone: typeof labelledHooks = []
+    for (const item of labelledHooks) {
+      const group = item.hook.module.outputGroup
+      if (!GROUPED_TVL_JOBS_ENABLED || !group) {
+        standalone.push(item)
+        continue
       }
 
+      if (!group.labels.includes(item.outputLabel)) {
+        throw new Error(`outputLabel ${item.outputLabel} is not declared by output group ${group.key}`)
+      }
+
+      const match = groups.find(candidate =>
+        candidate.key === group.key &&
+        candidate.process === group.process &&
+        sameLabels(candidate.labels, group.labels)
+      )
+      if (match) match.hooks.push(item)
+      else groups.push({ ...group, hooks: [item] })
+    }
+
+    for (const item of standalone) {
+      const missing = await missingDays(chainId, address, item.outputLabel, start, end, data.replay)
       for (const blockTime of missing) {
-        const jobId = `timeseries-${chainId}-${address}-${outputLabel}-${blockTime}`
-        await mq.add(mq.job.extract.timeseries, {
-          abiPath, chainId, address, outputLabel, blockTime
-        }, { jobId })
+        await enqueueTimeseries(abiPath, chainId, address, item.outputLabel, blockTime)
+      }
+    }
+
+    for (const group of groups) {
+      // Coverage remains label-specific. A day is included only with labels that
+      // independently need that observation; this preserves partial completion.
+      const requestedByDay = new Map<string, { blockTime: bigint, outputLabels: string[] }>()
+      for (const { outputLabel } of group.hooks) {
+        const missing = await missingDays(chainId, address, outputLabel, start, end, data.replay)
+        for (const blockTime of missing) {
+          const key = blockTime.toString()
+          const observation = requestedByDay.get(key) ?? { blockTime, outputLabels: [] }
+          observation.outputLabels.push(outputLabel)
+          requestedByDay.set(key, observation)
+        }
+      }
+
+      for (const { blockTime, outputLabels } of requestedByDay.values()) {
+        await enqueueGroupedTimeseries(abiPath, chainId, address, group.key, outputLabels, blockTime)
       }
     }
   }
+}
+
+function sameLabels(left: string[], right: string[]) {
+  return left.length === right.length && left.every((label, index) => label === right[index])
+}
+
+async function missingDays(
+  chainId: number,
+  address: `0x${string}`,
+  outputLabel: string,
+  start: bigint,
+  end: bigint,
+  replay?: { enabled: boolean, since?: bigint }
+) {
+  // Replay is the only path back for days the anti-join counts as computed but
+  // hold a null value (abis/yearn/lib/tvl.ts).
+  const missing = replay?.enabled
+    ? makeTimeline(replay.since ?? start, end)
+    : await findMissingDays(chainId, address, outputLabel, start, end)
+
+  if (missing.length === 0 || missing[missing.length - 1] !== end) missing.push(end)
+  return missing
+}
+
+async function enqueueTimeseries(abiPath: string, chainId: number, address: `0x${string}`, outputLabel: string, blockTime: bigint) {
+  const jobId = `timeseries-${chainId}-${address}-${outputLabel}-${blockTime}`
+  await mq.add(mq.job.extract.timeseries, {
+    abiPath, chainId, address, outputLabel, blockTime
+  }, { jobId })
+}
+
+async function enqueueGroupedTimeseries(abiPath: string, chainId: number, address: `0x${string}`, groupKey: string, outputLabels: string[], blockTime: bigint) {
+  const labels = [...new Set(outputLabels)].sort()
+  const labelKey = labels.map(encodeURIComponent).join('_')
+  const jobId = `timeseries-${chainId}-${address}-group-${encodeURIComponent(groupKey)}-${labelKey}-${blockTime}`
+  await mq.add(mq.job.extract.timeseries, {
+    abiPath, chainId, address, outputLabel: labels[0], outputLabels: labels, blockTime
+  }, { jobId })
 }
 
 // series_time is endOfDay(block_time) at write time (packages/ingest/load/index.ts).

@@ -9,6 +9,9 @@ export const DataSchema = z.object({
   chainId: z.number(),
   address: zhexstring,
   outputLabel: z.string(),
+  // Optional for new grouped jobs. Existing persisted jobs contain only
+  // outputLabel and continue through the original single-hook path.
+  outputLabels: z.array(z.string()).optional(),
   blockTime: z.bigint({ coerce: true })
 })
 
@@ -26,9 +29,37 @@ export class TimeseriesExtractor {
     const hook = hooks.find(hook => hook.module.outputLabel === outputLabel)
     if (!hook) throw new Error(`!hook, ${outputLabel}`)
 
-    const outputs = OutputSchema.array().parse(
-      await hook.module.default(chainId, address, data)
-    )
+    let result
+    if (data.outputLabels) {
+      if (data.outputLabels.length === 0 || !data.outputLabels.includes(outputLabel)) {
+        throw new Error(`invalid grouped outputLabels for ${outputLabel}`)
+      }
+
+      const groupedHooks = data.outputLabels.map(label => {
+        const groupedHook = hooks.find(candidate => candidate.module.outputLabel === label)
+        if (!groupedHook) throw new Error(`!hook, ${label}`)
+        const group = groupedHook.module.outputGroup
+        if (!group || !group.labels.includes(label)) {
+          throw new Error(`!compatible output group, ${label}`)
+        }
+        return { hook: groupedHook, group }
+      })
+      const firstGroup = groupedHooks[0].group
+      if (groupedHooks.some(({ group }) =>
+        group.key !== firstGroup.key ||
+        group.process !== firstGroup.process ||
+        group.labels.length !== firstGroup.labels.length ||
+        group.labels.some((label, index) => label !== firstGroup.labels[index])
+      )) {
+        throw new Error(`incompatible output group for ${data.outputLabels.join(', ')}`)
+      }
+
+      result = await firstGroup.process(chainId, address, data, data.outputLabels)
+    } else {
+      result = await hook.module.default(chainId, address, data)
+    }
+
+    const outputs = OutputSchema.array().parse(result)
 
     await mq.add(mq.job.load.output, { batch: outputs })
   }

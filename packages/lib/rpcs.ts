@@ -3,6 +3,27 @@ import { PublicClient, createPublicClient } from 'viem'
 import { rpcHttp } from './rpc-observability'
 import { Chain } from 'viem/chains'
 
+const DEFAULT_RPC_BATCH_SIZE = 0
+const MAX_RPC_BATCH_SIZE = 100
+const DEFAULT_RPC_BATCH_WAIT_MS = 0
+const MAX_RPC_BATCH_WAIT_MS = 100
+
+function boundedEnvInt(value: string | undefined, fallback: number, max: number) {
+  if (value === undefined || !/^\d+$/.test(value)) return fallback
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed <= max ? parsed : fallback
+}
+
+export function rpcBatchOptions(env: NodeJS.ProcessEnv = process.env) {
+  const batchSize = boundedEnvInt(env.RPC_BATCH_SIZE, DEFAULT_RPC_BATCH_SIZE, MAX_RPC_BATCH_SIZE)
+  return {
+    batchSize,
+    wait: batchSize === 0
+      ? DEFAULT_RPC_BATCH_WAIT_MS
+      : boundedEnvInt(env.RPC_BATCH_WAIT_MS, DEFAULT_RPC_BATCH_WAIT_MS, MAX_RPC_BATCH_WAIT_MS)
+  }
+}
+
 export interface RpcClients { [chaindId: number]: PublicClient }
 
 class pool {
@@ -29,13 +50,12 @@ class pool {
   }
 
   private setupRpcs() {
+    const batch = rpcBatchOptions()
     for(const chain of chains) {
       for(const archive of [true, false]) {
         this.rpcs[this.key(chain, archive)] = {
           clients: Array(this.size).fill(createPublicClient({
-            chain, transport: rpcHttp(this.http(chain, archive), {
-              batch: { batchSize: Number(process.env['RPC_BATCH_SIZE'] || 0) }
-            }, chain.id, archive)
+            chain, transport: rpcHttp(this.http(chain, archive), { batch }, chain.id, archive)
           })),
           pointers: { next: 0, recycle: 0 }
         }
@@ -52,10 +72,9 @@ class pool {
         const pointer = rpcsForKey.pointers.recycle
         const to_recycle = clients[pointer]
         console.log('♻️ ', 'rpc', chainId, pointer)
+        const batch = rpcBatchOptions()
         clients[pointer] = createPublicClient({
-          chain: to_recycle.chain, transport: rpcHttp(this.http(to_recycle.chain as Chain, archive), {
-            batch: { batchSize: Number(process.env['RPC_BATCH_SIZE'] || 0) }
-          }, chainId, archive)
+          chain: to_recycle.chain, transport: rpcHttp(this.http(to_recycle.chain as Chain, archive), { batch }, chainId, archive)
         })
         rpcsForKey.pointers.recycle = (pointer + 1) % clients.length
       })

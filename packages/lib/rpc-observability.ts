@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { createTransport, http, type HttpTransport, type HttpTransportConfig } from 'viem'
 import { countMetric } from './metrics'
+import { observeRpcEndpoint } from './outbound-bytes'
 
 const callers = new Set([
   'fanout.abis', 'fanout.events', 'fanout.timeseries',
@@ -26,9 +27,13 @@ function logRange(params: unknown): string {
 // No endpoint URLs, addresses, calldata, exact ranges, or error messages are tags.
 // These are attempted JSON-RPC calls, not HTTP envelopes or provider-billed RUs.
 export function rpcHttp(url: string | undefined, config: HttpTransportConfig, chainId: number, archive: boolean): HttpTransport {
-  const factory = http(url, config)
   return options => {
-    const transport = factory(options)
+    // viem 2.5.0 keys its shared batch scheduler by the URL passed to http(),
+    // not the resolved chain URL. Pass the resolved default to keep different
+    // chains' default RPCs from sharing a batch when batching is enabled.
+    const effectiveUrl = url || options.chain?.rpcUrls.default.http[0]
+    const transport = http(effectiveUrl, config)(options)
+    observeRpcEndpoint(transport.value?.url ?? effectiveUrl)
     if (process.env.RPC_METRICS !== 'true') return transport
     const attempts = new AsyncLocalStorage<{ count: number }>()
     const metric = (name: string, value: number, tags: Record<string, string>) => {
