@@ -1,10 +1,20 @@
-import type { PoolClient } from 'pg'
+import type { Pool, PoolClient } from 'pg'
 import { recordOutboundBytes } from 'lib/outbound-bytes'
 
 type Writable = { write: (chunk: unknown, ...args: unknown[]) => unknown }
 type ClientWithStream = PoolClient & { connection?: { stream?: Writable } }
 
 const instrumentedStreams = new WeakSet<object>()
+
+/** Subscribe to pool connection events only when byte accounting is enabled. */
+export function instrumentPostgresPool(pool: Pool) {
+  if (process.env.OUTBOUND_BYTES_METRICS !== 'true') return
+  try {
+    pool.on('connect', instrumentPostgresClient)
+  } catch {
+    // Missing event support should not prevent the pool from being used.
+  }
+}
 
 function byteLength(chunk: unknown, encoding: unknown): number | undefined {
   if (typeof chunk === 'string') {

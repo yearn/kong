@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { PoolClient } from 'pg'
+import type { Pool, PoolClient } from 'pg'
 
 const { recordOutboundBytes } = vi.hoisted(() => ({ recordOutboundBytes: vi.fn() }))
 vi.mock('lib/outbound-bytes', () => ({ recordOutboundBytes }))
 
-import { instrumentPostgresClient } from './outbound-db-bytes'
+import { instrumentPostgresClient, instrumentPostgresPool } from './outbound-db-bytes'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -20,6 +20,28 @@ function fakeClient(write: StreamWrite) {
 }
 
 describe('PostgreSQL outbound byte instrumentation', function() {
+  it('does not attach a pool listener while disabled and attaches it when enabled', function() {
+    const pool = { on: vi.fn() } as unknown as Pool
+    vi.stubEnv('OUTBOUND_BYTES_METRICS', 'false')
+    instrumentPostgresPool(pool)
+    expect(pool.on).not.toHaveBeenCalled()
+
+    let connected: ((client: PoolClient) => void) | undefined
+    vi.mocked(pool.on).mockImplementation((_event, listener) => {
+      connected = listener
+      return pool
+    })
+    vi.stubEnv('OUTBOUND_BYTES_METRICS', 'true')
+    instrumentPostgresPool(pool)
+    expect(pool.on).toHaveBeenCalledTimes(1)
+    expect(connected).to.be.a('function')
+
+    const { client, stream } = fakeClient(() => true)
+    connected?.(client)
+    stream.write(Buffer.from([1]))
+    expect(recordOutboundBytes).toHaveBeenCalledWith('database', 1)
+  })
+
   it('counts bytes after a successful write and preserves receiver, arguments, and return value', function() {
     vi.stubEnv('OUTBOUND_BYTES_METRICS', 'true')
     const result = { writable: true }

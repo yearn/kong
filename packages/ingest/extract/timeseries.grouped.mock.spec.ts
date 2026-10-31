@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mqAdd, singleHook, processGroup, hooks } = vi.hoisted(() => {
-  const singleHook = vi.fn(async (_chainId: number, _address: `0x${string}`, _data: unknown) => [])
-  const processGroup = vi.fn(async (_chainId: number, _address: `0x${string}`, _data: unknown, _labels: string[]) => [])
+  const singleHook = vi.fn<(chainId: number, address: `0x${string}`, data: unknown) => Promise<unknown[]>>(async () => [])
+  const processGroup = vi.fn<(chainId: number, address: `0x${string}`, data: unknown, labels: string[]) => Promise<unknown[]>>(async () => [])
   return {
     mqAdd: vi.fn(async () => undefined),
     singleHook,
@@ -22,7 +22,7 @@ const { mqAdd, singleHook, processGroup, hooks } = vi.hoisted(() => {
           outputGroup: { key: 'yearn-tvl', labels: ['tvl', 'tvl-c'], process: processGroup }
         }
       }
-    ] as any[]
+    ]
   }
 })
 

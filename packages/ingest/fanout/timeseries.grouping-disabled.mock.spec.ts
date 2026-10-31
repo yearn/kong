@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { AbiHook } from '../abis/types'
 
 const { queryMock, mqAdd, hooks, sharedProcessor, blockTimes } = vi.hoisted(() => {
   process.env.TVL_GROUPED_JOBS = 'false'
@@ -11,10 +12,10 @@ const { queryMock, mqAdd, hooks, sharedProcessor, blockTimes } = vi.hoisted(() =
       default: vi.fn(),
       outputGroup: { key: 'yearn-tvl', labels: ['tvl', 'tvl-c'], process: sharedProcessor }
     }
-  }))
+  })) as AbiHook[]
   return {
-    queryMock: vi.fn(async (_query: string, _params: unknown[]) => ({ rows: [] as { day: string }[] })),
-    mqAdd: vi.fn(async (_job: unknown, _data: any, _options: unknown) => undefined),
+    queryMock: vi.fn<(query: string, params: unknown[]) => Promise<{ rows: { day: string }[] }>>(async () => ({ rows: [] })),
+    mqAdd: vi.fn<(job: unknown, data: Record<string, unknown>, options: unknown) => Promise<void>>(async () => undefined),
     hooks,
     sharedProcessor,
     blockTimes: { '1': 1704153599n, '3': 1704326399n } as Record<string, bigint>
