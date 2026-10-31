@@ -16,6 +16,7 @@ describe('prepared output upserts', () => {
     const client = await db.connect()
     const connect = vi.spyOn(db, 'connect').mockImplementation(() => Promise.resolve(client))
     const release = vi.spyOn(client, 'release').mockImplementation(() => {})
+    const previousPreparedFlag = process.env.OUTPUT_PREPARED_STATEMENTS
 
     const base = {
       chainId: CHAIN_ID,
@@ -26,6 +27,7 @@ describe('prepared output upserts', () => {
     }
 
     try {
+      process.env.OUTPUT_PREPARED_STATEMENTS = 'true'
       await client.query('DELETE FROM output WHERE chain_id = $1 AND address = $2 AND label = $3', [CHAIN_ID, ADDRESS, LABEL])
 
       await upsertBatchOutput([
@@ -55,10 +57,16 @@ describe('prepared output upserts', () => {
       await upsertBatchOutput([{ ...base, value: null, blockNumber: 4n }])
       expect(await readValue()).toBeNull()
     } finally {
-      await client.query('DELETE FROM output WHERE chain_id = $1 AND address = $2 AND label = $3', [CHAIN_ID, ADDRESS, LABEL])
-      connect.mockRestore()
-      release.mockRestore()
-      client.release()
+      if (previousPreparedFlag === undefined) delete process.env.OUTPUT_PREPARED_STATEMENTS
+      else process.env.OUTPUT_PREPARED_STATEMENTS = previousPreparedFlag
+
+      try {
+        await client.query('DELETE FROM output WHERE chain_id = $1 AND address = $2 AND label = $3', [CHAIN_ID, ADDRESS, LABEL])
+      } finally {
+        connect.mockRestore()
+        release.mockRestore()
+        client.release()
+      }
     }
   })
 })
