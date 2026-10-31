@@ -10,13 +10,16 @@
     "typecheck": "node ../../scripts/typecheck.mjs"
   },
   "dependencies": {
+    "@opentelemetry/api": "1.10.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "0.300.0",
+    "@opentelemetry/sdk-metrics": "3.0.0",
     "@sentry/node": "10.75.3",
     "bullmq": "5.81.5",
     "cache-manager": "5.7.6",
     "cache-manager-redis-yet": "4.2.0",
     "dotenv": "16.4.7",
-    "pg": "8.13.1",
     "js-yaml": "4.3.2",
+    "pg": "8.13.1",
     "ts-node": "10.9.2",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "viem": "2.5.0",
