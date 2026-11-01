@@ -9,9 +9,22 @@ describe('metrics', function() {
     expect(metricExportIntervalMillis(undefined)).to.equal(60_000)
     expect(metricExportIntervalMillis('10000')).to.equal(10_000)
     expect(metricExportIntervalMillis('300000')).to.equal(300_000)
-    expect(metricExportIntervalMillis('9999')).to.equal(60_000)
-    expect(metricExportIntervalMillis('300001')).to.equal(60_000)
+    expect(metricExportIntervalMillis('9999')).to.equal(10_000)
+    expect(metricExportIntervalMillis('0')).to.equal(10_000)
+    expect(metricExportIntervalMillis('300001')).to.equal(300_000)
+    expect(metricExportIntervalMillis('99999999999999999999')).to.equal(300_000)
     expect(metricExportIntervalMillis('1e4')).to.equal(60_000)
+    expect(metricExportIntervalMillis('nope')).to.equal(60_000)
+  })
+
+  it('prefers OTEL_METRIC_EXPORT_INTERVAL over the _MS fallback', function() {
+    vi.stubEnv('OTEL_METRIC_EXPORT_INTERVAL', '20000')
+    vi.stubEnv('OTEL_METRIC_EXPORT_INTERVAL_MS', '30000')
+    expect(metricExportIntervalMillis()).to.equal(20_000)
+    vi.unstubAllEnvs()
+    vi.stubEnv('OTEL_METRIC_EXPORT_INTERVAL_MS', '30000')
+    expect(metricExportIntervalMillis()).to.equal(30_000)
+    vi.unstubAllEnvs()
   })
 
   it('exports counters to the OTLP endpoint', async function() {

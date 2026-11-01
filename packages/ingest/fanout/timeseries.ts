@@ -3,7 +3,7 @@ import { AbiConfig, AbiConfigSchema, SourceConfig, SourceConfigSchema } from 'li
 import { getBlockNumber, getBlockTime, getDefaultStartBlockNumber } from 'lib/blocks'
 import db from '../db'
 import { requireHooks } from '../abis'
-import { HookOutputGroup, ResolveHooks } from '../abis/types'
+import { HookOutputGroup, ResolveHooks, sameOutputGroup } from '../abis/types'
 import { endOfDay, makeTimeline } from 'lib/dates'
 
 const groupedTvlJobsEnabled = () => process.env.TVL_GROUPED_JOBS === 'true'
@@ -49,18 +49,16 @@ export default class TimeseriesFanout {
         throw new Error(`outputLabel ${item.outputLabel} is not declared by output group ${group.key}`)
       }
 
-      const match = groups.find(candidate =>
-        candidate.key === group.key &&
-        candidate.process === group.process &&
-        sameLabels(candidate.labels, group.labels)
-      )
+      const match = groups.find(candidate => sameOutputGroup(candidate, group))
       if (match) match.hooks.push(item)
       else groups.push({ ...group, hooks: [item] })
     }
 
-    for (const item of standalone) {
-      const missing = await missingDays(chainId, address, item.outputLabel, start, end, data.replay)
-      for (const blockTime of missing) {
+    const standaloneMissing = await Promise.all(
+      standalone.map(item => missingDays(chainId, address, item.outputLabel, start, end, data.replay))
+    )
+    for (const [index, item] of standalone.entries()) {
+      for (const blockTime of standaloneMissing[index]) {
         await enqueueTimeseries(abiPath, chainId, address, item.outputLabel, blockTime)
       }
     }
@@ -69,9 +67,11 @@ export default class TimeseriesFanout {
       // Coverage remains label-specific. A day is included only with labels that
       // independently need that observation; this preserves partial completion.
       const requestedByDay = new Map<string, { blockTime: bigint, outputLabels: string[] }>()
-      for (const { outputLabel } of group.hooks) {
-        const missing = await missingDays(chainId, address, outputLabel, start, end, data.replay)
-        for (const blockTime of missing) {
+      const groupMissing = await Promise.all(
+        group.hooks.map(({ outputLabel }) => missingDays(chainId, address, outputLabel, start, end, data.replay))
+      )
+      for (const [index, { outputLabel }] of group.hooks.entries()) {
+        for (const blockTime of groupMissing[index]) {
           const key = blockTime.toString()
           const observation = requestedByDay.get(key) ?? { blockTime, outputLabels: [] }
           observation.outputLabels.push(outputLabel)
@@ -84,10 +84,6 @@ export default class TimeseriesFanout {
       }
     }
   }
-}
-
-function sameLabels(left: string[], right: string[]) {
-  return left.length === right.length && left.every((label, index) => label === right[index])
 }
 
 async function missingDays(

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { mq } from 'lib'
 import { OutputSchema, zhexstring } from 'lib/types'
-import { ResolveHooks } from '../abis/types'
+import { ResolveHooks, sameOutputGroup } from '../abis/types'
 import { requireHooks } from '../abis'
 
 export const DataSchema = z.object({
@@ -45,12 +45,7 @@ export class TimeseriesExtractor {
         return { hook: groupedHook, group }
       })
       const firstGroup = groupedHooks[0].group
-      if (groupedHooks.some(({ group }) =>
-        group.key !== firstGroup.key ||
-        group.process !== firstGroup.process ||
-        group.labels.length !== firstGroup.labels.length ||
-        group.labels.some((label, index) => label !== firstGroup.labels[index])
-      )) {
+      if (groupedHooks.some(({ group }) => !sameOutputGroup(group, firstGroup))) {
         throw new Error(`incompatible output group for ${data.outputLabels.join(', ')}`)
       }
 
@@ -60,6 +55,12 @@ export class TimeseriesExtractor {
     }
 
     const outputs = OutputSchema.array().parse(result)
+    if (data.outputLabels) {
+      const requested = data.outputLabels
+      if (outputs.some(output => !requested.includes(output.label) || output.blockTime !== data.blockTime)) {
+        throw new Error(`grouped processor returned outputs outside the request for ${requested.join(', ')}`)
+      }
+    }
 
     await mq.add(mq.job.load.output, { batch: outputs })
   }

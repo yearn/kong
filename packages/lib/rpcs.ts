@@ -2,17 +2,12 @@ import { chains } from './chains'
 import { PublicClient, createPublicClient } from 'viem'
 import { rpcHttp } from './rpc-observability'
 import { Chain } from 'viem/chains'
+import { boundedEnvInt } from './env'
 
 const DEFAULT_RPC_BATCH_SIZE = 0
 const MAX_RPC_BATCH_SIZE = 100
 const DEFAULT_RPC_BATCH_WAIT_MS = 0
 const MAX_RPC_BATCH_WAIT_MS = 100
-
-function boundedEnvInt(value: string | undefined, fallback: number, max: number) {
-  if (value === undefined || !/^\d+$/.test(value)) return fallback
-  const parsed = Number(value)
-  return Number.isSafeInteger(parsed) && parsed <= max ? parsed : fallback
-}
 
 export function rpcBatchOptions(env: NodeJS.ProcessEnv = process.env) {
   const batchSize = boundedEnvInt(env.RPC_BATCH_SIZE, DEFAULT_RPC_BATCH_SIZE, MAX_RPC_BATCH_SIZE)
@@ -65,6 +60,7 @@ class pool {
 
   private startRecycling() {
     this.recycling = setInterval(async () => {
+      const batch = rpcBatchOptions()
       Object.keys(this.rpcs).forEach(key => {
         const { chainId, archive } = this.parseKey(key)
         const rpcsForKey = this.rpcs[key]
@@ -72,7 +68,6 @@ class pool {
         const pointer = rpcsForKey.pointers.recycle
         const to_recycle = clients[pointer]
         console.log('♻️ ', 'rpc', chainId, pointer)
-        const batch = rpcBatchOptions()
         clients[pointer] = createPublicClient({
           chain: to_recycle.chain, transport: rpcHttp(this.http(to_recycle.chain as Chain, archive), { batch }, chainId, archive)
         })

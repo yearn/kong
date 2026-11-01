@@ -166,4 +166,25 @@ describe('TimeseriesFanout replay', () => {
     expect(mqAdd).toHaveBeenCalledTimes(2)
     expect(mqAdd.mock.calls.map(call => call[1].outputLabels)).to.deep.equal([['tvl'], ['tvl-c']])
   })
+
+  it('uses the same grouped jobId regardless of label order', async () => {
+    mqAdd.mockClear()
+    queryMock.mockClear()
+    const run = async (hooks: AbiHook[]) => {
+      hookSet.hooks = hooks
+      mqAdd.mockClear()
+      await new TimeseriesFanout().fanout({ abi: abi(), source: source(), replay: { enabled: true, since: DAY3 } })
+      return mqAdd.mock.calls.map(call => (call[2] as { jobId: string }).jobId)
+    }
+    const forward = await run([groupedHook('tvl'), groupedHook('tvl-c')])
+    const reversed = await run([groupedHook('tvl-c'), groupedHook('tvl')])
+    expect(forward).to.have.length(1)
+    expect(reversed).to.deep.equal(forward)
+    expect(forward[0]).to.contain('tvl_tvl-c')
+  })
+
+  it('throws when a hook outputLabel is not declared by its group', async () => {
+    hookSet.hooks = [groupedHook('bogus')]
+    await expect(new TimeseriesFanout().fanout({ abi: abi(), source: source() })).rejects.toThrow('is not declared by output group')
+  })
 })

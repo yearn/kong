@@ -138,6 +138,17 @@ describe('outbound HTTP payload accounting', function() {
     expect(countMetric).not.toHaveBeenCalled()
   })
 
+  it('warns once without leaking the URL when the endpoint cap is hit', async function() {
+    vi.stubEnv('OUTBOUND_BYTES_METRICS', 'true')
+    vi.resetModules()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { observeRpcEndpoint } = await import('lib/outbound-bytes')
+    for (let i = 0; i < 70; i++) observeRpcEndpoint(`http://127.0.0.1:1/rpc?api_key=secret-${i}`)
+    expect(warn.mock.calls).to.have.length(1)
+    expect(JSON.stringify(warn.mock.calls)).not.to.contain('secret')
+    warn.mockRestore()
+  })
+
   it('does not let telemetry callback failures affect RPC results', async function() {
     vi.stubEnv('OUTBOUND_BYTES_METRICS', 'true')
     vi.stubEnv('RPC_METRICS', 'false')

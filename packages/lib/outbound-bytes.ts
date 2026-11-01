@@ -7,8 +7,9 @@ export type OutboundDestination = 'rpc' | 'database'
 const MAX_RPC_ENDPOINTS = 64
 const rpcEndpointFingerprints = new Set<string>()
 let undiciSubscribed = false
+let capWarned = false
 
-function enabled() {
+export function outboundBytesEnabled() {
   return process.env.OUTBOUND_BYTES_METRICS === 'true'
 }
 
@@ -17,7 +18,7 @@ function fingerprint(origin: string, path: string) {
 }
 
 export function recordOutboundBytes(destination: OutboundDestination, bytes: number) {
-  if (!enabled() || !Number.isSafeInteger(bytes) || bytes <= 0) return
+  if (!outboundBytesEnabled() || !Number.isSafeInteger(bytes) || bytes <= 0) return
   try {
     countMetric('outbound.payload_bytes', bytes, { destination })
   } catch {
@@ -26,7 +27,7 @@ export function recordOutboundBytes(destination: OutboundDestination, bytes: num
 }
 
 function recordOutboundEnvelope(destination: OutboundDestination) {
-  if (!enabled()) return
+  if (!outboundBytesEnabled()) return
   try {
     countMetric('outbound.http_envelopes', 1, { destination })
   } catch {
@@ -35,7 +36,7 @@ function recordOutboundEnvelope(destination: OutboundDestination) {
 }
 
 function onUndiciBodySent(message: unknown) {
-  if (!enabled() || typeof message !== 'object' || message === null) return
+  if (rpcEndpointFingerprints.size === 0 || !outboundBytesEnabled() || typeof message !== 'object' || message === null) return
   const request = (message as { request?: unknown }).request
   if (typeof request !== 'object' || request === null) return
 
@@ -60,17 +61,20 @@ function onUndiciBodySent(message: unknown) {
 
 /** Register the exact resolved RPC endpoint without retaining or exporting its URL or credentials. */
 export function observeRpcEndpoint(endpoint: string | undefined) {
-  if (!enabled() || !endpoint) return
+  if (!outboundBytesEnabled() || !endpoint) return
 
   try {
     const url = new URL(endpoint)
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return
     if (rpcEndpointFingerprints.size < MAX_RPC_ENDPOINTS) {
       rpcEndpointFingerprints.add(fingerprint(url.origin, `${url.pathname}${url.search}`))
+    } else if (!capWarned) {
+      capWarned = true
+      console.warn(`outbound bytes: RPC endpoint cap (${MAX_RPC_ENDPOINTS}) reached, further endpoints are not attributed`)
     }
 
     if (!undiciSubscribed) {
-      diagnosticsChannel.channel('undici:request:bodySent').subscribe(onUndiciBodySent)
+      diagnosticsChannel.subscribe('undici:request:bodySent', onUndiciBodySent)
       undiciSubscribed = true
     }
   } catch {

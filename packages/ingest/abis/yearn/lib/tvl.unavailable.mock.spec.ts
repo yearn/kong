@@ -167,6 +167,22 @@ describe('tvl hook on price service unavailable', () => {
     expect(readAssetsMock).toHaveBeenCalledTimes(1)
   })
 
+  it('rejects unsupported labels naming only the bad ones', async () => {
+    await expect(processTvlGroup(1, VAULT, data, ['tvl', 'bogus'])).rejects.toThrow(/^unsupported TVL output label: bogus$/)
+  })
+
+  it('dedupes duplicate labels', async () => {
+    const outputs = await processTvlGroup(1, VAULT, data, ['tvl', 'tvl'])
+    expect(outputs).to.have.length(1)
+  })
+
+  it('returns nothing for empty labels without touching RPC or DB', async () => {
+    expect(await processTvlGroup(1, VAULT, data, [])).to.deep.equal([])
+    expect(fetchErc20PriceUsd).not.toHaveBeenCalled()
+    expect(readAssetsMock).not.toHaveBeenCalled()
+    expect(someMock).not.toHaveBeenCalled()
+  })
+
   it('keeps unavailable-price guards independent for each output label', async () => {
     someMock.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
 
