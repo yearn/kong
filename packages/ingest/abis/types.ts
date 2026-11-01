@@ -1,14 +1,21 @@
-import { Processor } from 'lib/processor'
-import { EvmLog } from 'lib/types'
-import { Log } from 'viem'
+import type { Processor } from 'lib/processor'
+import type { EvmLog, Output } from 'lib/types'
+import type { Log } from 'viem'
+import type { Data } from '../extract/timeseries'
 
 export type HookType = 'event' | 'snapshot' | 'timeseries'
 
 export interface HookOutputGroup {
   key: string
   labels: string[]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  process: (chainId: number, address: `0x${string}`, data: any, outputLabels: string[]) => Promise<any>
+  process: (chainId: number, address: `0x${string}`, data: Data, outputLabels: string[]) => Promise<Output[]>
+}
+
+export function sameOutputGroup(left: HookOutputGroup, right: HookOutputGroup) {
+  return left.key === right.key &&
+    left.process === right.process &&
+    left.labels.length === right.labels.length &&
+    left.labels.every((label, index) => label === right.labels[index])
 }
 
 export interface HookModule {
@@ -17,8 +24,8 @@ export interface HookModule {
   /**
    * Hooks that declare the same output group can be enqueued together for one
    * observation. The processor must render only the requested labels from one
-   * shared computation. `key` is descriptive; processor identity is also
-   * checked before hooks are grouped.
+   * shared computation. Grouping (fanout) and compatibility (extract) require
+   * `key`, `process` identity and the ordered `labels` to all match.
    */
   outputGroup?: HookOutputGroup
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

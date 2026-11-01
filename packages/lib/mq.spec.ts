@@ -1,6 +1,11 @@
 import { expect } from 'chai'
 import { PRIORITY_LIMIT } from 'bullmq'
-import { LOWEST_PRIORITY, computeConcurrency, mqMetricAttributes, workerLockOptions } from './mq'
+import { vi } from 'vitest'
+
+const { flush } = vi.hoisted(() => ({ flush: vi.fn() }))
+vi.mock('./metrics', () => ({ countMetric: vi.fn(), flush }))
+
+import { LOWEST_PRIORITY, computeConcurrency, down, mqMetricAttributes, workerLockOptions } from './mq'
 import type { Job } from './types'
 
 describe('mq', function() {
@@ -29,6 +34,23 @@ describe('mq', function() {
       .to.deep.equal({ queue: 'extract', jobName: 'snapshot', chainId: 'other' })
     expect(mqMetricAttributes(job, {}))
       .to.deep.equal({ queue: 'extract', jobName: 'snapshot', chainId: 'none' })
+  })
+
+  it('reads chainId from a nested source and labels a null source as none', function() {
+    const job = { queue: 'extract', name: 'snapshot' } as Job
+    expect(mqMetricAttributes(job, { source: { chainId: 1 } }))
+      .to.deep.equal({ queue: 'extract', jobName: 'snapshot', chainId: '1' })
+    expect(mqMetricAttributes(job, { source: null }))
+      .to.deep.equal({ queue: 'extract', jobName: 'snapshot', chainId: 'none' })
+  })
+
+  it('still shuts down when the metrics flush rejects', async function() {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    flush.mockRejectedValueOnce(new Error('export failed'))
+    await down()
+    expect(flush.mock.calls).to.have.length(1)
+    expect(warn.mock.calls).to.have.length(1)
+    warn.mockRestore()
   })
 
   it('reads lock settings from env and ignores invalid values', function() {

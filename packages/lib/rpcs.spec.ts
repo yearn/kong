@@ -14,10 +14,15 @@ describe('RPC HTTP batch settings', function() {
       .to.deep.equal({ batchSize: 100, wait: 100 })
   })
 
-  it('falls back to singleton batches for unsafe or invalid settings', function() {
-    for (const value of ['-1', '101', '1.5', '1e2', 'nope']) {
+  it('falls back to singleton batches for invalid settings', function() {
+    for (const value of ['-1', '1.5', '1e2', 'nope']) {
       expect(rpcBatchOptions({ RPC_BATCH_SIZE: value, RPC_BATCH_WAIT_MS: value }))
         .to.deep.equal({ batchSize: 0, wait: 0 })
     }
+  })
+
+  it('clamps oversized settings to the maximum', function() {
+    expect(rpcBatchOptions({ RPC_BATCH_SIZE: '500', RPC_BATCH_WAIT_MS: '101' }))
+      .to.deep.equal({ batchSize: 100, wait: 100 })
   })
 })

@@ -6,7 +6,8 @@ import { parseAbi } from 'viem'
 import { compare } from 'compare-versions'
 import { normalize, priced } from 'lib/math'
 import { extractWithdrawalQueue } from '../2/vault/snapshot/hook'
-import { Data } from '../../../extract/timeseries'
+import type { Data } from '../../../extract/timeseries'
+import type { HookOutputGroup } from '../../types'
 import { estimateHeight, getBlock } from 'lib/blocks'
 import { first, some } from '../../../db'
 import { endOfDay } from 'lib/dates'
@@ -16,14 +17,24 @@ export default async function _process(chainId: number, address: `0x${string}`, 
   return processLabels(chainId, address, data, [data.outputLabel], () => Boolean(components))
 }
 
+const tvlLabelComponents: Record<string, boolean> = { tvl: false, 'tvl-c': true }
+
 /** Compute one observation once and render only the explicitly requested labels. */
 export async function processTvlGroup(chainId: number, address: `0x${string}`, data: Data, outputLabels: string[]): Promise<Output[]> {
   const requested = [...new Set(outputLabels)]
-  if (requested.some(label => label !== 'tvl' && label !== 'tvl-c')) {
-    throw new Error(`unsupported TVL output label: ${requested.join(', ')}`)
+  const unsupported = requested.filter(label => !(label in tvlLabelComponents))
+  if (unsupported.length > 0) {
+    throw new Error(`unsupported TVL output label: ${unsupported.join(', ')}`)
   }
-  return processLabels(chainId, address, data, requested, label => label === 'tvl-c')
+  if (requested.length === 0) return []
+  return processLabels(chainId, address, data, requested, label => tvlLabelComponents[label])
 }
+
+export const tvlOutputGroup = {
+  key: 'yearn-tvl',
+  labels: Object.keys(tvlLabelComponents),
+  process: processTvlGroup
+} satisfies HookOutputGroup
 
 async function processLabels(
   chainId: number,
@@ -52,15 +63,12 @@ async function processLabels(
   if (!vault) return []
 
   const { tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd, priceSource, decimals } = await _compute(vault, blockNumber, latest)
-  const outputs: Output[] = []
-  for (const outputLabel of outputLabels) {
-    outputs.push(...await renderOutput({
-      chainId, address, outputLabel, blockTime: data.blockTime, blockNumber, latest,
-      components: componentsForLabel(outputLabel),
-      tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd, priceSource, decimals
-    }))
-  }
-  return outputs
+  const rendered = await Promise.all(outputLabels.map(outputLabel => renderOutput({
+    chainId, address, outputLabel, blockTime: data.blockTime, blockNumber, latest,
+    components: componentsForLabel(outputLabel),
+    tvl, delegatedTvl, totalAssets, delegatedAssets, priceUsd, priceSource, decimals
+  })))
+  return rendered.flat()
 }
 
 async function renderOutput({

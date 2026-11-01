@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Pool, PoolClient } from 'pg'
 
 const { recordOutboundBytes } = vi.hoisted(() => ({ recordOutboundBytes: vi.fn() }))
-vi.mock('lib/outbound-bytes', () => ({ recordOutboundBytes }))
+vi.mock('lib/outbound-bytes', () => ({
+  recordOutboundBytes,
+  outboundBytesEnabled: () => process.env.OUTBOUND_BYTES_METRICS === 'true'
+}))
 
 import { instrumentPostgresClient, instrumentPostgresPool } from './outbound-db-bytes'
 

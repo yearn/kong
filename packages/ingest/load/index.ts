@@ -129,9 +129,15 @@ export async function upsertBatchOutput(batch: any[]) {
 
 // Keep output statement names bounded and derived from the complete SQL text so
 // column order and omitted optional fields cannot share a prepared statement.
+const preparedStatementNames = new Map<string, string>()
+
 function outputPreparedStatementName(sql: string) {
-  const digest = createHash('sha256').update(sql).digest('hex').slice(0, 48)
-  return `kong_output_${digest}`
+  let name = preparedStatementNames.get(sql)
+  if (!name) {
+    name = `kong_output_${createHash('sha256').update(sql).digest('hex').slice(0, 48)}`
+    preparedStatementNames.set(sql, name)
+  }
+  return name
 }
 
 export async function upsert(data: object, table: string, pk: string, where?: string, _client?: PoolClient) {

@@ -1,6 +1,7 @@
 import { metrics, type Counter } from '@opentelemetry/api'
 import { AggregationTemporalityPreference, OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
 import { MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics'
+import { boundedEnvInt } from './env'
 
 const ENDPOINT = process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || process.env.OTEL_EXPORTER_OTLP_ENDPOINT
 const DEFAULT_EXPORT_INTERVAL_MS = 60_000
@@ -10,12 +11,10 @@ const MAX_EXPORT_INTERVAL_MS = 5 * 60_000
 let provider: MeterProvider | undefined
 const counters = new Map<string, Counter>()
 
-export function metricExportIntervalMillis(value = process.env.OTEL_METRIC_EXPORT_INTERVAL_MS) {
-  if (value === undefined || !/^\d+$/.test(value)) return DEFAULT_EXPORT_INTERVAL_MS
-  const interval = Number(value)
-  return Number.isSafeInteger(interval) && interval >= MIN_EXPORT_INTERVAL_MS && interval <= MAX_EXPORT_INTERVAL_MS
-    ? interval
-    : DEFAULT_EXPORT_INTERVAL_MS
+export function metricExportIntervalMillis(
+  value = process.env.OTEL_METRIC_EXPORT_INTERVAL ?? process.env.OTEL_METRIC_EXPORT_INTERVAL_MS
+) {
+  return boundedEnvInt(value, DEFAULT_EXPORT_INTERVAL_MS, MAX_EXPORT_INTERVAL_MS, MIN_EXPORT_INTERVAL_MS)
 }
 
 function meter() {

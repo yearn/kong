@@ -195,6 +195,10 @@ export function computeConcurrency(jobs: number, options: ConcurrencyOptions) {
 }
 
 export async function down() {
-  await flushMetrics()
+  try {
+    await flushMetrics()
+  } catch (error) {
+    console.warn('metrics flush failed on shutdown', error)
+  }
   return Promise.all(Object.values(queues).map(async queue => queue.close()))
 }
