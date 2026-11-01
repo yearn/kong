@@ -6,7 +6,7 @@ import { requireHooks } from '../abis'
 import { HookOutputGroup, ResolveHooks } from '../abis/types'
 import { endOfDay, makeTimeline } from 'lib/dates'
 
-const GROUPED_TVL_JOBS_ENABLED = process.env.TVL_GROUPED_JOBS === 'true'
+const groupedTvlJobsEnabled = () => process.env.TVL_GROUPED_JOBS === 'true'
 
 export default class TimeseriesFanout {
   resolveHooks: ResolveHooks | undefined
@@ -40,7 +40,7 @@ export default class TimeseriesFanout {
     const standalone: typeof labelledHooks = []
     for (const item of labelledHooks) {
       const group = item.hook.module.outputGroup
-      if (!GROUPED_TVL_JOBS_ENABLED || !group) {
+      if (!groupedTvlJobsEnabled() || !group) {
         standalone.push(item)
         continue
       }

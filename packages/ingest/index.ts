@@ -101,7 +101,7 @@ async function start() {
       rpcs.down(),
       cache.down(),
       db.end()
-    ]).then(() => {
+    ]).then(() => mq.down()).then(() => {
 
       console.log('🐒 ingest down')
       process.exit(0)

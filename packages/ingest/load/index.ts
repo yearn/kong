@@ -114,7 +114,7 @@ export async function upsertBatchOutput(batch: any[]) {
     series_time: endOfDay(output.blockTime)
   }))
   const usePreparedStatements = process.env.OUTPUT_PREPARED_STATEMENTS === 'true'
-  await upsertBatchImpl(
+  await upsertBatch(
     outputs,
     'output',
     'chain_id, address, label, component, series_time',
@@ -142,12 +142,8 @@ export async function upsert(data: object, table: string, pk: string, where?: st
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function upsertBatch(batch: any[], table: string, pk: string, where?: string, _client?: PoolClient) {
-  await upsertBatchImpl(batch, table, pk, where, _client)
-}
-
-async function upsertBatchImpl(
-  batch: object[],
+export async function upsertBatch(
+  batch: any[],
   table: string,
   pk: string,
   where?: string,
