@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import { cache } from './cache'
-import { __estimateHeight, estimateHeight, getBlock } from './blocks'
+import { __estimateHeight, estimateCreationBlock, estimateHeight, getBlock } from './blocks'
 import { rpcs } from './rpcs'
 
 describe('blocks', function() {
@@ -77,6 +77,28 @@ describe('blocks', function() {
       expect(await estimateHeight(clampChain, stalledChainTimestamp)).to.equal(101n)
       expect(calls.get(clampKey)).to.equal(2)
       expect(ttls.get(clampKey)).to.equal(10_000)
+    } finally {
+      rpcs.next = originalNext
+      if (ownWrapDescriptor) Object.defineProperty(cache, 'wrap', ownWrapDescriptor)
+      else delete (cache as unknown as Record<string, unknown>).wrap
+    }
+  })
+
+  it('caches creation block briefly under a lowercase key', async function() {
+    const originalNext = rpcs.next
+    const ownWrapDescriptor = Object.getOwnPropertyDescriptor(cache, 'wrap')
+    const ttls = new Map<string, number | undefined>()
+    const wrap = async <T>(key: string, fn: () => Promise<T>, ttl?: number) => { ttls.set(key, ttl); return await fn() }
+    Object.defineProperty(cache, 'wrap', { configurable: true, value: wrap })
+    rpcs.next = (() => ({
+      getBlockNumber: async () => 8n,
+      getBytecode: async ({ blockNumber }: { blockNumber: bigint }) => blockNumber >= 5n ? '0x01' : undefined,
+      getBlock: async ({ blockNumber }: { blockNumber?: bigint } = {}) => ({ number: blockNumber ?? 8n, timestamp: (blockNumber ?? 8n) * 10n })
+    })) as unknown as typeof rpcs.next
+
+    try {
+      expect((await estimateCreationBlock(31343, '0x00000000000000000000000000000000000000AB')).number).to.equal(5n)
+      expect(ttls.get('estimateCreationBlock:31343:0x00000000000000000000000000000000000000ab')).to.equal(10_000)
     } finally {
       rpcs.next = originalNext
       if (ownWrapDescriptor) Object.defineProperty(cache, 'wrap', ownWrapDescriptor)
