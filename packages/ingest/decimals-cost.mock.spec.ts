@@ -2,16 +2,12 @@ import { expect, it, vi } from 'vitest'
 const { query, next, store } = vi.hoisted(() => ({ query: vi.fn(), next: vi.fn(), store: new Map<string, unknown>() }))
 vi.mock('./db', () => ({ default: { query } }))
 vi.mock('lib/rpcs', () => ({ rpcs: { next } }))
-vi.mock('lib/cache', () => ({
-  cache: {
-    wrap: async (key: string, fn: () => Promise<unknown>) => {
-      if (store.has(key)) return store.get(key)
-      const value = await fn()
-      if (value !== undefined && value !== null) store.set(key, value)
-      return value
-    }
-  }
-}))
+vi.mock('lib/cache', async () => {
+  const { caching } = await import('cache-manager')
+  const { redisInsStore } = await import('cache-manager-redis-yet')
+  const client = { get: async (key: string) => store.get(key) ?? null, set: async (key: string, value: string) => { store.set(key, value) }, on() {} }
+  return { cache: await caching(redisInsStore(client as never)) }
+})
 import { fetchDecimals, fetchOrExtractDecimals } from './abis/yearn/lib'
 it.each([0, '0'])('uses stored zero decimals (%s) without RPC', async decimals => {
   store.clear()
