@@ -122,9 +122,9 @@ async function estimateHeightManual(chainId: number, timestamp: bigint): Promise
 }
 
 export async function estimateCreationBlock(chainId: number, contract: `0x${string}`): Promise<Block> {
-  const result = cache.wrap(`estimateCreationBlock:${chainId}:${contract}`, async () => {
+  const result = cache.wrap(`estimateCreationBlock:${chainId}:${contract.toLowerCase()}`, async () => {
     return await __estimateCreationBlock(chainId, contract)
-  }, 10_000)
+  }, HEIGHT_ESTIMATE_TTL)
   return BlockSchema.parse(await result)
 }
 
