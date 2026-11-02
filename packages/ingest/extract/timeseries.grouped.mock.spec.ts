@@ -99,7 +99,14 @@ describe('extract/timeseries grouped jobs', () => {
     expect(mqAdd).toHaveBeenCalledTimes(1)
   })
 
+  it('does not enqueue a load job when there are no outputs', async () => {
+    await new TimeseriesExtractor().extract({ ...DATA, ...grouped })
+    expect(processGroup).toHaveBeenCalledTimes(1)
+    expect(mqAdd).not.toHaveBeenCalled()
+  })
+
   it('runs a grouped processor for only the requested output labels', async () => {
+    processGroup.mockResolvedValue([output('tvl')])
     const extractor = new TimeseriesExtractor()
     await extractor.extract({ ...DATA, outputLabels: ['tvl', 'tvl-c'] })
 
@@ -110,6 +117,7 @@ describe('extract/timeseries grouped jobs', () => {
   })
 
   it('executes persisted legacy jobs that have only outputLabel', async () => {
+    singleHook.mockResolvedValueOnce([output('tvl')])
     const extractor = new TimeseriesExtractor()
     await extractor.extract(DATA)
 

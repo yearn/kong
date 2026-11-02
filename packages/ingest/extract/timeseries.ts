@@ -62,6 +62,7 @@ export class TimeseriesExtractor {
       }
     }
 
+    if (outputs.length === 0) return
     await mq.add(mq.job.load.output, { batch: outputs })
   }
 }
