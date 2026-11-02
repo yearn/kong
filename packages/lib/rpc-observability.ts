@@ -50,7 +50,6 @@ export function rpcHttp(url: string | undefined, config: HttpTransportConfig, ch
           caller: callerContext.getStore() ?? 'unattributed',
           method: methods.has(args.method) ? args.method : 'other',
           retry: String(retry),
-          cache: 'unknown',
           range: args.method === 'eth_getLogs' ? logRange(args.params) : 'none'
         }
         const start = performance.now()

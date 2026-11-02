@@ -37,6 +37,7 @@ describe('RPC attempt metrics', () => {
       expect.objectContaining({ chainId: '1', caller: 'extract.snapshot', retry: 'false', outcome: 'error' }),
       expect.objectContaining({ caller: 'extract.snapshot', retry: 'true', outcome: 'success' })
     ])
+    expect(Object.keys(attempts()[0][2]).sort()).toEqual(['caller', 'chainId', 'method', 'outcome', 'provider', 'range', 'retry'])
     expect(JSON.stringify(countMetric.mock.calls)).not.toContain('secret')
     expect(JSON.stringify(countMetric.mock.calls)).not.toContain('private.invalid')
   })
