@@ -4,16 +4,19 @@ import { parseAbi } from 'viem'
 import db from '../../../db'
 import { ThingSchema, zhexstring } from 'lib/types'
 import { mq } from 'lib'
+import { cache } from 'lib/cache'
+
+const FETCH_DECIMALS_TTL = 60 * 60 * 1000
 
 export async function extractDecimals(chainId: number, address: `0x${string}`) {
   return await extractUint256(chainId, address, 'decimals')
 }
 
 export async function fetchDecimals(chainId: number, address: `0x${string}`) {
-  return (await db.query(
+  return await cache.wrap(`fetchDecimals:${chainId}:${address.toLowerCase()}`, async () => (await db.query(
     'SELECT coalesce(defaults #>> \'{decimals}\', defaults #>> \'{asset, decimals}\') AS decimals FROM thing WHERE chain_id = $1 AND address = $2',
     [chainId, address]
-  )).rows[0]?.decimals as number
+  )).rows[0]?.decimals, FETCH_DECIMALS_TTL) as number
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
