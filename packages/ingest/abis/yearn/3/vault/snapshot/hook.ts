@@ -6,6 +6,7 @@ import { EstimatedAprSchema, EvmAddressSchema, ThingSchema, TokenMetaSchema, Vau
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
 import db, { getSparkline } from '../../../../../db'
+import { resolveSnapshotTvl } from '../../../../../helpers/snapshot-tvl'
 import { getLatestApy, getLatestEstimatedAprLabel, getLatestEstimatedAprV3, getLatestOracleApr, promoteEstimatedApr } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
@@ -167,7 +168,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     asset, strategies, allocator, roles, debts, composition, fees, locker,
     risk, meta: { ...meta, token },
     sparklines,
-    tvl: sparklines.tvl[0],
+    tvl: await resolveSnapshotTvl(chainId, address, sparklines.tvl, (data as { totalAssets?: unknown }).totalAssets),
     apy,
     // echo contract state so stale hook.pricePerShare from the erc4626 hook
     // (written before a vault turned yearn: true) gets overwritten on merge

@@ -1,5 +1,6 @@
 import { getBlockNumber, getBlockTime } from 'lib/blocks'
 import { cache } from 'lib/cache'
+import * as sentry from 'lib/sentry'
 import { Price, PriceSchema } from 'lib/types'
 import { getAddress } from 'viem'
 
@@ -154,8 +155,10 @@ function isPriceServiceNegativeCacheMarker(value: unknown): value is PriceServic
 }
 
 async function fetchPriceServiceUsdResult(chainId: number, token: `0x${string}`, blockNumber: bigint, knownBlockTime?: bigint): Promise<PriceServiceResult> {
-  const warn = (reason: string, detail?: unknown) =>
+  const warn = (reason: string, detail?: unknown) => {
     console.warn('🚨', 'price service miss', reason, chainId, token, blockNumber, detail ?? '')
+    trackPriceServiceMiss(chainId, token)
+  }
 
   if (!process.env.PRICE_SERVICE_API_KEY) { warn('no api key'); return { type: 'unavailable' } }
   const chainName = PRICE_SERVICE_CHAIN_NAMES[chainId]
@@ -277,6 +280,51 @@ async function sendPriceServiceBatch(entries: PriceServiceBatchEntry[]) {
   } catch (error) {
     // Distinguish a broken batch route from a legitimate table miss, which resolves the same way.
     console.warn('🚨', 'price service batch failed', entries.length, error)
+    reportPriceServiceBatchFailure(entries.length, error)
     for (const entry of entries) entry.resolve({ found: false })
   }
+}
+
+const HOUR_MS = 60 * 60 * 1000
+const PRICE_MISS_ALERT_DISTINCT = Number(process.env.PRICE_MISS_ALERT_DISTINCT ?? 300)
+const priceMissWindows = new Map<number, { hour: number, tokens: Set<string>, reported: boolean }>()
+let batchFailureWindow = { hour: -1, count: 0, reported: false }
+
+/** Aggregate misses per chain per UTC hour; alert once when distinct missed tokens spike. */
+export function trackPriceServiceMiss(chainId: number, token: string, now = Date.now()) {
+  const hour = Math.floor(now / HOUR_MS)
+  let window = priceMissWindows.get(chainId)
+  if (!window || window.hour !== hour) {
+    window = { hour, tokens: new Set(), reported: false }
+    priceMissWindows.set(chainId, window)
+  }
+  window.tokens.add(token.toLowerCase())
+  if (!window.reported && window.tokens.size >= PRICE_MISS_ALERT_DISTINCT) {
+    window.reported = true
+    sentry.captureMessage('PRICE_SERVICE_MISS_SPIKE', {
+      level: 'warning',
+      tags: { component: 'ingest', chainId: String(chainId) },
+      extra: { distinctTokens: window.tokens.size, hourStart: new Date(hour * HOUR_MS).toISOString() }
+    })
+  }
+}
+
+/** Report batchHistorical failures at most once per UTC hour. */
+export function reportPriceServiceBatchFailure(entries: number, error: unknown, now = Date.now()) {
+  const hour = Math.floor(now / HOUR_MS)
+  if (batchFailureWindow.hour !== hour) batchFailureWindow = { hour, count: 0, reported: false }
+  batchFailureWindow.count += 1
+  if (batchFailureWindow.reported) return
+  batchFailureWindow.reported = true
+  const message = error instanceof Error ? error.message.split(' https://')[0] : String(error)
+  sentry.captureMessage('PRICE_SERVICE_BATCH_FAILED', {
+    level: 'error',
+    tags: { component: 'ingest' },
+    extra: { entries, error: message, hourStart: new Date(hour * HOUR_MS).toISOString() }
+  })
+}
+
+export function resetPriceServiceAlertsForTest() {
+  priceMissWindows.clear()
+  batchFailureWindow = { hour: -1, count: 0, reported: false }
 }

@@ -104,6 +104,13 @@ async function renderOutput({
   // latest-row queries.
   if (priceUnavailable && latest) return []
 
+  // A 404 ('na') for the open UTC day usually means the price service has not written
+  // today's row yet (its daily batch lands hours after 00:00 UTC). Persisting tvl=0 here
+  // made every vault read $0 through the rollover window, so skip the point and let the
+  // next fanout cycle compute it once the price exists. A genuinely empty vault
+  // (totalAssets 0n) still writes its real 0.
+  if (priceSource === 'na' && latest && totalAssets !== 0n) return []
+
   const usdUnknown = priceUnavailable && totalAssets !== 0n
 
   // findMissingDays counts a null row as computed, so overwriting a real value here
