@@ -2,6 +2,7 @@ import { mq } from 'lib'
 import { EvmAddressSchema, ThingSchema } from 'lib/types'
 import { z } from 'zod'
 import { getSparkline } from '../../../db'
+import { resolveSnapshotTvl } from '../../../helpers/snapshot-tvl'
 import { getLatestApy, getLatestOracleApr } from '../../../helpers/apy-apr'
 import { fetchOrExtractErc20 } from '../../yearn/lib'
 
@@ -25,7 +26,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   return {
     asset: erc20,
     sparklines,
-    tvl: sparklines.tvl[0],
+    tvl: await resolveSnapshotTvl(chainId, address, sparklines.tvl, (data as { totalAssets?: unknown }).totalAssets),
     apy: historical,
     performance: {
       estimated: undefined,

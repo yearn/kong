@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
+import * as sentry from 'lib/sentry'
 import { setLastRefresh } from '../rest/cache'
 
 function isAuthenticated(request: Request): boolean {
@@ -31,6 +32,8 @@ export function createCronHandler(job: () => Promise<void>, kumaEnvVar: string) 
       return NextResponse.json({ ok: true })
     } catch (error) {
       console.error(error)
+      sentry.captureException(error, { tags: { component: 'web', cron: jobName ?? 'unknown' } })
+      await sentry.flush(2000)
       await pushUptimeKuma(kumaEnvVar, 'down', 'Run failed')
       return NextResponse.json({ ok: false }, { status: 500 })
     } finally {

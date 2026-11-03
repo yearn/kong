@@ -5,6 +5,7 @@ import { EstimatedAprSchema, ThingSchema, TokenMetaSchema, VaultMetaSchema, zhex
 import { parseAbi, toEventSelector, zeroAddress } from 'viem'
 import { z } from 'zod'
 import db, { getSparkline } from '../../../../../db'
+import { resolveSnapshotTvl } from '../../../../../helpers/snapshot-tvl'
 import { getLatestApy, getLatestEstimatedApr } from '../../../../../helpers/apy-apr'
 import { fetchErc20PriceUsd } from '../../../../../prices'
 import { rpcs } from '../../../../../rpcs'
@@ -114,7 +115,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     risk,
     meta: { ...meta, token },
     sparklines,
-    tvl: sparklines.tvl[0],
+    tvl: await resolveSnapshotTvl(chainId, address, sparklines.tvl, (data as { totalAssets?: unknown }).totalAssets),
     apy,
     performance: {
       estimated,
