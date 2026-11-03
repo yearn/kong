@@ -43,7 +43,7 @@ describe('sparkline write lifecycle', () => {
       vi.advanceTimersByTime(15 * 60 * 1000)
     }
     expect(state.query).toHaveBeenCalledTimes(6)
-    expect(state.query.mock.calls.filter(([sql]) => !sql.includes('AND series_time >=')).length).toBe(1)
+    expect(state.query.mock.calls.filter(([sql]) => sql.includes('max(series_time)')).length).toBe(1)
   })
 
   it('does not invalidate the cached series when an output write rolls back', async () => {
