@@ -162,7 +162,13 @@ async function fetchSparkline(chainId: number, address: string, label: string, c
   const floor = boundary === undefined ? 'AND series_time >= now() - make_interval(days => 90)'
     : 'AND series_time >= to_timestamp($5::double precision) - INTERVAL \'13 weeks\''
   let rows = await querySparkline(chainId, address, label, component, `${floor} ${upper}`, boundary)
-  if (rows.length < 3) rows = await querySparkline(chainId, address, label, component, upper, boundary)
+  if (rows.length < 3) {
+    const latest = `AND series_time >= (SELECT max(series_time) FROM output
+      WHERE chain_id = $1 AND address = $2 AND label = $3 AND (component = $4 OR $4 IS NULL)
+        AND value IS NOT NULL ${upper}
+    ) - INTERVAL '13 weeks'`
+    rows = await querySparkline(chainId, address, label, component, `${latest} ${upper}`, boundary)
+  }
   return rows
 }
 
