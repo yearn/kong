@@ -62,6 +62,8 @@ describe('tvl hook on price service 404 (missing price)', () => {
   beforeEach(() => {
     vi.mocked(fetchErc20PriceUsd).mockResolvedValue({ priceUsd: 0, priceSource: 'na' } as never)
     totalAssets.value = 5000000000000000000n
+    someMock.mockReset()
+    someMock.mockResolvedValue(false)
   })
 
   it('skips the open day instead of persisting tvl=0', async () => {
@@ -76,8 +78,26 @@ describe('tvl hook on price service 404 (missing price)', () => {
     expect(outputs.find(o => o.component === 'tvl')?.value).to.equal(0)
   })
 
-  it('keeps past-day behavior unchanged', async () => {
+  it('writes null usd components for a past day instead of an asserted zero', async () => {
     const outputs = await _process(1, VAULT, pastDay, true)
     expect(outputs).to.have.length(5)
+    const byComponent = Object.fromEntries(outputs.map(o => [o.component, o.value]))
+    expect(byComponent['tvl']).to.equal(null)
+    expect(byComponent['delegated']).to.equal(null)
+    expect(byComponent['priceUsd']).to.equal(null)
+    expect(byComponent['totalAssets']).to.equal(5)
+  })
+
+  it('never overwrites a past day that already holds a real tvl', async () => {
+    someMock.mockResolvedValue(true)
+    expect(await _process(1, VAULT, pastDay, true)).to.deep.equal([])
+  })
+
+  it('writes real values once the price exists', async () => {
+    vi.mocked(fetchErc20PriceUsd).mockResolvedValue({ priceUsd: 2, priceSource: 'priceservice' } as never)
+    const byComponent = Object.fromEntries((await _process(1, VAULT, pastDay, true)).map(o => [o.component, o.value]))
+    expect(byComponent['tvl']).to.equal(10)
+    expect(byComponent['priceUsd']).to.equal(2)
+    expect(someMock).not.toHaveBeenCalled()
   })
 })

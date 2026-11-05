@@ -168,7 +168,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
     asset, strategies, allocator, roles, debts, composition, fees, locker,
     risk, meta: { ...meta, token },
     sparklines,
-    tvl: await resolveSnapshotTvl(chainId, address, sparklines.tvl, (data as { totalAssets?: unknown }).totalAssets),
+    tvl: resolveSnapshotTvl(sparklines.tvl),
     apy,
     // echo contract state so stale hook.pricePerShare from the erc4626 hook
     // (written before a vault turned yearn: true) gets overwritten on merge

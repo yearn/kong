@@ -67,6 +67,25 @@ describe('calculateAggregateTvl', () => {
     assertAggregateInvariants(result)
   })
 
+  it('counts vaults without a usable current tvl per chain instead of summing them', () => {
+    const result = calculateAggregateTvl([
+      vault(1, A, 100),
+      vault(250, B, 0, {}, { tvl: null }),
+      vault(250, B, 0, {}, { tvl: null }),
+      vault(250, A, 0, {}, { tvl: { close: 'stale' } }),
+      vault(10, B, 0, {}, null),
+    ], [], new Date('2026-01-02T03:04:05.000Z'))
+
+    assert.equal(result.tvl, 100)
+    assert.equal(result.unpricedVaults, 3)
+    assert.deepEqual(result.chains, [
+      { chainId: 1, tvl: 100, grossTvl: 100, deductedTvl: 0, unpricedVaults: 0 },
+      { chainId: 10, tvl: 0, grossTvl: 0, deductedTvl: 0, unpricedVaults: 1 },
+      { chainId: 250, tvl: 0, grossTvl: 0, deductedTvl: 0, unpricedVaults: 2 },
+    ])
+    assertAggregateInvariants(result)
+  })
+
   it('subtracts a V3 allocation to an included child while retaining outside child deposits', () => {
     const result = calculateAggregateTvl([
       vault(1, A, 100, {

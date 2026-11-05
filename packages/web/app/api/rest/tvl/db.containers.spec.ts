@@ -81,13 +81,17 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
     assert.deepEqual(rows.map(row => row.address).sort(), [child, missing].sort())
   })
 
-  it.each(['null', '"100"', '-1', '{}', '[]', '1e400'])('omits unusable TVL %s before returning debts', async (close) => {
+  it.each(['null', '"100"', '-1', '{}', '[]', '1e400'])('returns unusable TVL %s so the calculator counts it as unpriced', async (close) => {
     await thing(1, parent, 'vault', { yearn: true })
     await pool!.query(
       'INSERT INTO snapshot (chain_id, address, hook, block_number) VALUES (1, $1, $2::jsonb, 100)',
       [parent, `{"tvl":{"close":${close}},"debts":[{"strategy":"${strategy}"}]} `],
     )
-    assert.deepEqual(await getAggregateVaults(pool!), [])
+    const rows = await getAggregateVaults(pool!)
+    assert.equal(rows.length, 1)
+    const result = calculateAggregateTvl(rows)
+    assert.deepEqual(result.vaults, [])
+    assert.equal(result.unpricedVaults, 1)
   })
 
   it.each(['0', '-1e-400', '1.7976931348623158e308'])('preserves TVL %s that parses as a finite nonnegative number', async (close) => {

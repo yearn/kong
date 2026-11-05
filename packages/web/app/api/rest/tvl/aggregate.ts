@@ -52,6 +52,7 @@ export type AggregateTvlChain = {
   tvl: number
   grossTvl: number
   deductedTvl: number
+  unpricedVaults: number
 }
 
 export type AggregateTvlPayload = {
@@ -59,6 +60,7 @@ export type AggregateTvlPayload = {
   grossTvl: number
   deductedTvl: number
   updatedAt: string
+  unpricedVaults: number
   chains: AggregateTvlChain[]
   vaults: AggregateTvlVault[]
 }
@@ -103,15 +105,26 @@ function snapshotTvl(snapshot: AggregateTvlSnapshot): number | null {
 }
 
 function normalizedRows(rows: AggregateTvlSnapshot[]): InternalVault[] {
+  return partitionRows(rows).vaults
+}
+
+/** Vaults without a usable current `hook.tvl.close` are excluded from the sum and counted per chain. */
+function partitionRows(rows: AggregateTvlSnapshot[]): { vaults: InternalVault[], unpriced: Map<number, Set<string>> } {
   const unique = new Map<string, InternalVault>()
+  const unpriced = new Map<number, Set<string>>()
 
   for (const row of rows) {
     const chain = chainId(row?.chainId)
     const addr = address(row?.address)
     const grossTvl = snapshotTvl(row)
-    if (chain == null || addr == null || grossTvl == null) continue
+    if (chain == null || addr == null) continue
 
     const key = identity(chain, addr)
+    if (grossTvl == null) {
+      if (!unpriced.has(chain)) unpriced.set(chain, new Set())
+      unpriced.get(chain)!.add(key)
+      continue
+    }
     if (!unique.has(key)) {
       unique.set(key, {
         ...row,
@@ -123,9 +136,15 @@ function normalizedRows(rows: AggregateTvlSnapshot[]): InternalVault[] {
     }
   }
 
-  return Array.from(unique.values()).sort((a, b) => (
+  for (const [chain, keys] of unpriced) {
+    for (const key of keys) if (unique.has(key)) keys.delete(key)
+    if (keys.size === 0) unpriced.delete(chain)
+  }
+
+  const vaults = Array.from(unique.values()).sort((a, b) => (
     a.chainId - b.chainId || a.address.localeCompare(b.address)
   ))
+  return { vaults, unpriced }
 }
 
 function getDebts(vault: InternalVault): Array<Record<string, unknown>> {
@@ -211,7 +230,7 @@ export function calculateAggregateTvl(
   strategySnapshots: AggregateTvlStrategySnapshot[] = [],
   updatedAt: Date | string = new Date(),
 ): AggregateTvlPayload {
-  const vaults = normalizedRows(vaultSnapshots)
+  const { vaults, unpriced } = partitionRows(vaultSnapshots)
   const vaultByIdentity = new Map(vaults.map(vault => [vault.identity, vault]))
   const strategyByIdentity = new Map<string, AggregateTvlStrategySnapshot>()
 
@@ -351,13 +370,19 @@ export function calculateAggregateTvl(
     }
   })
 
-  const totalsByChain = new Map<number, { grossTvl: number, deductedTvl: number, tvl: number }>()
+  const totalsByChain = new Map<number, { grossTvl: number, deductedTvl: number, tvl: number, unpricedVaults: number }>()
+  const chainTotals = (chain: number) => {
+    const current = totalsByChain.get(chain)
+      ?? { grossTvl: 0, deductedTvl: 0, tvl: 0, unpricedVaults: unpriced.get(chain)?.size ?? 0 }
+    totalsByChain.set(chain, current)
+    return current
+  }
+  for (const chain of unpriced.keys()) chainTotals(chain)
   for (const vault of vaultResults) {
-    const current = totalsByChain.get(vault.chainId) ?? { grossTvl: 0, deductedTvl: 0, tvl: 0 }
+    const current = chainTotals(vault.chainId)
     current.grossTvl += vault.grossTvl
     current.deductedTvl += vault.deductedTvl
     current.tvl += vault.contribution
-    totalsByChain.set(vault.chainId, current)
   }
 
   const chains: AggregateTvlChain[] = Array.from(totalsByChain.entries())
@@ -367,12 +392,14 @@ export function calculateAggregateTvl(
   const grossTvl = chains.reduce((sum, chain) => sum + chain.grossTvl, 0)
   const deductedTvl = chains.reduce((sum, chain) => sum + chain.deductedTvl, 0)
   const tvl = chains.reduce((sum, chain) => sum + chain.tvl, 0)
+  const unpricedVaults = chains.reduce((sum, chain) => sum + chain.unpricedVaults, 0)
 
   return {
     tvl,
     grossTvl,
     deductedTvl,
     updatedAt: formatUpdatedAt(updatedAt),
+    unpricedVaults,
     chains,
     vaults: vaultResults,
   }

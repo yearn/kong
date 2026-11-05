@@ -1,29 +1,17 @@
-import db from '../db'
-
-function toAssets(value: unknown): bigint | undefined {
-  if (value === undefined || value === null) return undefined
-  try { return BigInt(value as string | number | bigint) } catch { return undefined }
-}
+const MAX_AGE_SECONDS = 14 * 24 * 60 * 60
 
 /**
- * Pick the snapshot tvl from the tvl sparkline. When the newest point reads 0 while the
- * vault still holds assets (e.g. a missing price at the UTC rollover), fall back to the
- * latest non-zero tvl-c value instead of publishing $0. Genuinely empty vaults, or vaults
- * whose assets are unknown, keep the newest point.
+ * Current snapshot tvl is the newest tvl sparkline bucket, and only while that bucket is
+ * recent. The weekly bucket keeps its own observation date; an older bucket is last-known
+ * history (still served in sparklines), never a current valuation. Never looks further
+ * back: a missing current price stays missing instead of inheriting an old balance's value.
+ * Returns null, not undefined: the hook travels through the queue as JSON, and an absent
+ * key would leave the previous snapshot's tvl in place on merge.
  */
-export async function resolveSnapshotTvl<T extends { close: number }>(
-  chainId: number, address: string, sparkline: T[], totalAssets: unknown
-): Promise<T | undefined> {
+export function resolveSnapshotTvl<T extends { blockTime: bigint }>(
+  sparkline: T[], nowSeconds = Math.floor(Date.now() / 1000)
+): T | null {
   const newest = sparkline[0]
-  if (!newest || newest.close > 0) return newest
-  const assets = toAssets(totalAssets)
-  if (assets === undefined || assets === 0n) return newest
-  const result = await db.query(
-    `SELECT value FROM output
-     WHERE chain_id = $1 AND address = $2 AND label = 'tvl-c' AND component = 'tvl' AND value > 0
-     ORDER BY series_time DESC LIMIT 1`,
-    [chainId, address]
-  )
-  const value = Number(result.rows[0]?.value)
-  return Number.isFinite(value) && value > 0 ? { ...newest, close: value } : newest
+  if (!newest || Number(newest.blockTime) < nowSeconds - MAX_AGE_SECONDS) return null
+  return newest
 }

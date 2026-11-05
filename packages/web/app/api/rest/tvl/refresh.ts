@@ -23,7 +23,8 @@ export async function refresh(): Promise<void> {
 
     const summary: AggregateTvlSummary = {
       updatedAt: payload.updatedAt,
-      chains: payload.chains.map(({ chainId, tvl }) => ({ chainId, tvl })),
+      unpricedVaults: payload.unpricedVaults,
+      chains: payload.chains.map(({ chainId, tvl, unpricedVaults }) => ({ chainId, tvl, unpricedVaults })),
     }
     // Publish both views together, even when they exceed the normal chunk target.
     // Oversized writes fail before publishing either key.
@@ -33,7 +34,7 @@ export async function refresh(): Promise<void> {
     ], { atomic: true })
     console.log(
       `✓ Refreshed aggregate TVL: ${payload.tvl} across ${payload.chains.length} chains ` +
-      `(${payload.vaults.length} vaults)`,
+      `(${payload.vaults.length} vaults, ${payload.unpricedVaults} unpriced)`,
     )
   } finally {
     console.log(`refresh aggregate tvl: ${Date.now() - started}ms`)

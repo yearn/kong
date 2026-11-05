@@ -3,5 +3,6 @@ export const AGGREGATE_TVL_SUMMARY_KEY = 'rest:tvl:summary'
 
 export type AggregateTvlSummary = {
   updatedAt: string
-  chains: { chainId: number, tvl: number }[]
+  unpricedVaults?: number
+  chains: { chainId: number, tvl: number, unpricedVaults?: number }[]
 }

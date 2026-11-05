@@ -93,29 +93,24 @@ async function renderOutput({
   // readAuthoritativeAssets returns undefined on read failure; skip emitting a false zero (a genuine empty vault is 0n)
   if (totalAssets === undefined) return []
 
-  // 'unavailable' (price service failure) still writes rows for past days: null for
-  // the usd components, real values for the on-chain ones. Returning [] left the day
-  // permanently missing, so every fanout cycle re-enqueued it forever. Null days heal
-  // by replay (fanout/timeseries.ts).
-  const priceUnavailable = priceSource === 'unavailable'
+  // A missing price ('na', service 404) or a failed service ('unavailable') still writes
+  // rows for past days: null for the usd components, real values for the on-chain ones.
+  // A 0 here would assert an economically genuine zero that never heals; null days heal
+  // by replay (fanout/timeseries.ts). Returning [] instead left the day permanently
+  // missing, so every fanout cycle re-enqueued it forever.
+  const priceMissing = priceSource !== 'priceservice'
 
-  // The current day is skipped outright: fanout re-extracts it every cycle anyway, and
-  // a null row at today's series_time would shadow yesterday's real value in
-  // latest-row queries.
-  if (priceUnavailable && latest) return []
+  // The open UTC day is skipped outright: fanout re-extracts it every cycle, the price
+  // service's daily batch lands hours after 00:00 UTC, and a null row at today's
+  // series_time would shadow yesterday's real value in latest-row queries. A genuinely
+  // empty vault (totalAssets 0n) still writes its real 0.
+  if (priceMissing && latest && totalAssets !== 0n) return []
 
-  // A 404 ('na') for the open UTC day usually means the price service has not written
-  // today's row yet (its daily batch lands hours after 00:00 UTC). Persisting tvl=0 here
-  // made every vault read $0 through the rollover window, so skip the point and let the
-  // next fanout cycle compute it once the price exists. A genuinely empty vault
-  // (totalAssets 0n) still writes its real 0.
-  if (priceSource === 'na' && latest && totalAssets !== 0n) return []
-
-  const usdUnknown = priceUnavailable && totalAssets !== 0n
+  const usdUnknown = priceMissing && totalAssets !== 0n
 
   // findMissingDays counts a null row as computed, so overwriting a real value here
   // would lose it for good.
-  if (priceUnavailable && await hasComputedTvl(chainId, address, outputLabel, blockTime)) return []
+  if (priceMissing && await hasComputedTvl(chainId, address, outputLabel, blockTime)) return []
 
   if (components) {
     // componentized outputs
@@ -133,7 +128,7 @@ async function renderOutput({
       component: 'delegatedAssets', value: normalize(delegatedAssets, decimals) || 0
     }, {
       chainId, address, blockNumber, blockTime, label: outputLabel,
-      component: 'priceUsd', value: priceUnavailable ? null : priceUsd
+      component: 'priceUsd', value: priceMissing ? null : priceUsd
     }])
 
   } else {
