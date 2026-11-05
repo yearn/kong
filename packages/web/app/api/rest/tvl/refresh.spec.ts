@@ -59,14 +59,16 @@ describe('aggregate TVL refresh', () => {
     assert.equal(pairs[1][0], AGGREGATE_TVL_SUMMARY_KEY)
     assert.deepEqual(JSON.parse(pairs[1][1]), { value: {
       updatedAt: payload.updatedAt,
-      chains: [{ chainId: 1, tvl: 170 }],
+      unpricedVaults: 0,
+      chains: [{ chainId: 1, tvl: 170, unpricedVaults: 0 }],
     } })
     assert.deepEqual({ ...payload, updatedAt: 'generated-at-refresh' }, {
       tvl: 170,
       grossTvl: 250,
       deductedTvl: 80,
       updatedAt: 'generated-at-refresh',
-      chains: [{ chainId: 1, tvl: 170, grossTvl: 250, deductedTvl: 80 }],
+      unpricedVaults: 0,
+      chains: [{ chainId: 1, tvl: 170, grossTvl: 250, deductedTvl: 80, unpricedVaults: 0 }],
       vaults: [
         {
           chainId: 1,

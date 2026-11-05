@@ -10,9 +10,10 @@ vi.mock('../cache', () => ({
 
 const payload = {
   updatedAt: '2026-01-02T03:04:05.000Z',
+  unpricedVaults: 3,
   chains: [
-    { chainId: 1, tvl: 100 },
-    { chainId: 10, tvl: 160 },
+    { chainId: 1, tvl: 100, unpricedVaults: 1 },
+    { chainId: 10, tvl: 160, unpricedVaults: 2 },
   ],
 }
 
@@ -40,7 +41,8 @@ describe('rest TVL route', () => {
     assert.equal(response.status, 200)
     assert.deepEqual(await response.json(), {
       tvl: 260,
-      chains: [{ chainId: 1, tvl: 100 }, { chainId: 10, tvl: 160 }],
+      unpricedVaults: 3,
+      chains: [{ chainId: 1, tvl: 100, unpricedVaults: 1 }, { chainId: 10, tvl: 160, unpricedVaults: 2 }],
     })
     assert.equal(get.mock.calls.length, 1)
     assert.deepEqual(get.mock.calls[0], ['rest:tvl:summary'])
@@ -52,12 +54,17 @@ describe('rest TVL route', () => {
   })
 
   it('serves the legacy payload until the first compact summary is published', async () => {
-    get.mockResolvedValueOnce(undefined).mockResolvedValueOnce({ ...payload, vaults: [], tvl: 260 })
+    const legacy = { updatedAt: payload.updatedAt, chains: [{ chainId: 1, tvl: 100 }, { chainId: 10, tvl: 160 }] }
+    get.mockResolvedValueOnce(undefined).mockResolvedValueOnce({ ...legacy, vaults: [], tvl: 260 })
 
     const response = await call()
 
     assert.equal(response.status, 200)
-    assert.deepEqual(await response.json(), { tvl: 260, chains: payload.chains })
+    assert.deepEqual(await response.json(), {
+      tvl: 260,
+      unpricedVaults: 0,
+      chains: [{ chainId: 1, tvl: 100, unpricedVaults: 0 }, { chainId: 10, tvl: 160, unpricedVaults: 0 }],
+    })
     assert.deepEqual(get.mock.calls, [['rest:tvl:summary'], ['rest:tvl:aggregate']])
     assert.equal(lastRefreshHeaders.mock.calls.length, 0)
   })
@@ -70,7 +77,8 @@ describe('rest TVL route', () => {
     assert.equal(response.status, 200)
     assert.deepEqual(await response.json(), {
       tvl: 160,
-      chains: [{ chainId: 10, tvl: 160 }],
+      unpricedVaults: 2,
+      chains: [{ chainId: 10, tvl: 160, unpricedVaults: 2 }],
     })
   })
 

@@ -42,11 +42,6 @@ function selectVaultSnapshots(where: string): string {
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
     WHERE ${where}
-      -- Leave IEEE-754 rounding boundaries to the calculator: tiny negatives
-      -- can parse as -0, and values just above MAX_VALUE can round down to it.
-      AND CASE WHEN jsonb_typeof(snapshot.hook->'tvl'->'close') = 'number'
-        THEN (snapshot.hook->'tvl'->>'close')::numeric BETWEEN -5e-324::numeric AND 1.8e308::numeric
-        ELSE false END
   `
 }
 

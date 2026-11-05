@@ -26,7 +26,7 @@ export default async function process(chainId: number, address: `0x${string}`, d
   return {
     asset: erc20,
     sparklines,
-    tvl: await resolveSnapshotTvl(chainId, address, sparklines.tvl, (data as { totalAssets?: unknown }).totalAssets),
+    tvl: resolveSnapshotTvl(sparklines.tvl),
     apy: historical,
     performance: {
       estimated: undefined,

@@ -15,15 +15,17 @@ const corsHeaders = {
 
 type TvlResponse = {
   tvl: number
-  chains: { chainId: number, tvl: number }[]
+  unpricedVaults: number
+  chains: { chainId: number, tvl: number, unpricedVaults: number }[]
 }
 
 function toResponse(payload: AggregateTvlSummary, chainId?: number): TvlResponse {
   const chains = payload.chains
     .filter((chain) => chainId === undefined || chain.chainId === chainId)
-    .map(({ chainId, tvl }) => ({ chainId, tvl }))
+    .map(({ chainId, tvl, unpricedVaults }) => ({ chainId, tvl, unpricedVaults: unpricedVaults ?? 0 }))
   return {
     tvl: chains.reduce((total, chain) => total + chain.tvl, 0),
+    unpricedVaults: chains.reduce((total, chain) => total + chain.unpricedVaults, 0),
     chains,
   }
 }
