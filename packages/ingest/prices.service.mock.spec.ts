@@ -44,12 +44,12 @@ const CHAIN_ID = 137
 const WETH_COIN = 'polygon:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'
 const DAY_END = 1700006399
 
-function batchResponse(prices: Record<string, number>) {
+function batchResponse(prices: Record<string, number>, source?: string) {
   return {
     ok: true,
     json: async () => ({
       coins: Object.fromEntries(Object.entries(prices).map(([coinId, price]) => [
-        coinId, { symbol: 'TOKEN', prices: [{ timestamp: DAY_END, price }] }
+        coinId, { symbol: 'TOKEN', prices: [{ timestamp: DAY_END, price, source }] }
       ]))
     })
   }
@@ -117,8 +117,8 @@ describe('fetchErc20PriceUsd', () => {
     expect(fetchMock.mock.calls[1][0]).to.equal(`https://prices.yearn.dev/api/prices/historical/1700000000/${WETH_COIN}`)
   })
 
-  it('accepts a batch zero as a real price without an exact call', async () => {
-    const fetchMock = vi.fn(async () => batchResponse({ [WETH_COIN]: 0 }))
+  it('accepts a batch zero write-down as a real price without an exact call', async () => {
+    const fetchMock = vi.fn(async () => batchResponse({ [WETH_COIN]: 0 }, 'write-down'))
     vi.stubGlobal('fetch', fetchMock)
 
     const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
@@ -126,6 +126,29 @@ describe('fetchErc20PriceUsd', () => {
     expect(priceSource).to.equal('priceservice')
     expect(priceUsd).to.equal(0)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a batch zero without a write-down source as na', async () => {
+    const fetchMock = vi.fn(async () => batchResponse({ [WETH_COIN]: 0 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('na')
+    expect(priceUsd).to.equal(0)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps an exact zero without a write-down source as na', async () => {
+    const fetchMock = vi.fn(async (url: string) => url.includes('batchHistorical')
+      ? batchResponse({})
+      : { ok: true, json: async () => ({ coins: { [WETH_COIN]: { symbol: 'WETH', price: 0, source: 'enso' } } }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('na')
+    expect(priceUsd).to.equal(0)
   })
 
   it('accepts an exact zero write-down as a real price', async () => {

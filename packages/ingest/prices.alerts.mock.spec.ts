@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { captureMessage } = vi.hoisted(() => ({ captureMessage: vi.fn() }))
 vi.mock('lib/sentry', () => ({ captureMessage, captureException: vi.fn(), flush: vi.fn() }))
 
-import { reportPriceServiceBatchFailure, resetPriceServiceAlertsForTest, trackPriceServiceMiss } from './prices'
+import { reportImplausiblePrice, reportPriceServiceBatchFailure, resetPriceServiceAlertsForTest, trackPriceServiceMiss } from './prices'
 
 const HOUR = 60 * 60 * 1000
 const T0 = 1793664000000
@@ -22,6 +22,16 @@ describe('price service alerts', () => {
   it('ignores repeated misses for the same few tokens', () => {
     for (let i = 0; i < 1000; i++) trackPriceServiceMiss(10, '0xabc', T0)
     expect(captureMessage).not.toHaveBeenCalled()
+  })
+
+  it('reports an implausible price once per token per hour', () => {
+    reportImplausiblePrice(1, '0xabc', 5.7e20, T0)
+    reportImplausiblePrice(1, '0xABC', 5.7e20, T0 + 1000)
+    reportImplausiblePrice(1, '0xdef', 5.7e20, T0 + 1000)
+    expect(captureMessage).toHaveBeenCalledTimes(2)
+    expect(captureMessage.mock.calls[0][0]).to.equal('PRICE_SERVICE_IMPLAUSIBLE_PRICE')
+    reportImplausiblePrice(1, '0xabc', 5.7e20, T0 + HOUR)
+    expect(captureMessage).toHaveBeenCalledTimes(3)
   })
 
   it('reports batch failures at most once per hour without the url', () => {
