@@ -139,6 +139,16 @@ describe('fetchErc20PriceUsd', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps a negative batch price as na', async () => {
+    const fetchMock = vi.fn(async () => batchResponse({ [WETH_COIN]: -5 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('na')
+    expect(priceUsd).to.equal(0)
+  })
+
   it('keeps an exact zero without a write-down source as na', async () => {
     const fetchMock = vi.fn(async (url: string) => url.includes('batchHistorical')
       ? batchResponse({})
