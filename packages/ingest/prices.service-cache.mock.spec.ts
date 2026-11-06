@@ -197,6 +197,22 @@ describe('fetchErc20PriceUsd (past-day path)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('does not promote a poisoned block-cache entry into the day cache', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    wrapStore.set(`fetchErc20PriceUsd:${CHAIN_ID}:${WETH}:1`, {
+      chainId: CHAIN_ID, address: WETH, priceUsd: 572712046375156060000, priceSource: 'priceservice', blockNumber: 1n, blockTime: 1700000000n
+    })
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('unavailable')
+    expect(priceUsd).to.equal(0)
+    expect(fetchMock).not.toHaveBeenCalled()
+    const [, marker] = cacheSet.mock.calls[0]
+    expect(marker).to.deep.equal({ type: 'price-service-negative', priceSource: 'unavailable' })
+  })
+
   it('clears negative markers, attempt counters and implausible prices, keeps cached prices', async () => {
     const prefix = 'fetchErc20PriceUsd:service:v2:137:'
     const store = new Map<string, unknown>([
