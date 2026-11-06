@@ -122,16 +122,29 @@ describe('fetchErc20PriceUsd (past-day path)', () => {
     expect(attemptsTtl).to.equal(24 * 60 * 60 * 1000)
   })
 
-  it('does not promote a literal zero price into the day cache', async () => {
+  it('caches a literal zero price under the day key like any hit', async () => {
     vi.stubGlobal('fetch', batchHit(0))
 
     const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
 
-    expect(priceSource).to.equal('na')
+    expect(priceSource).to.equal('priceservice')
     expect(priceUsd).to.equal(0)
-    expect(cacheSet).toHaveBeenCalledTimes(2)
+    expect(cacheSet).toHaveBeenCalledTimes(1)
+    const [key, value, ttl] = cacheSet.mock.calls[0]
+    expect(key).toContain(':service:')
+    expect(value).to.include({ priceUsd: 0, priceSource: 'priceservice' })
+    expect(ttl).to.equal(24 * 60 * 60 * 1000)
+  })
+
+  it('caches an implausible price as a short-lived unavailable marker', async () => {
+    vi.stubGlobal('fetch', batchHit(572712046375156060000))
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('unavailable')
+    expect(priceUsd).to.equal(0)
     const [, marker, ttl] = cacheSet.mock.calls[0]
-    expect(marker).to.deep.equal({ type: 'price-service-negative', priceSource: 'na' })
+    expect(marker).to.deep.equal({ type: 'price-service-negative', priceSource: 'unavailable' })
     expect(ttl).to.equal(120_000)
   })
 

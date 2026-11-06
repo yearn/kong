@@ -14,6 +14,9 @@ const PAST_DAY_NEGATIVE_CACHE_MAX_TTL_MS = 6 * 60 * 60 * 1000
 // ttl re-fetched an unchanged value ~120x/h per token.
 const SERVICE_BLOCK_CACHE_TTL_MS = 15 * 60 * 1000
 const CLEAR_BATCH_SIZE = 100
+// No real asset prices above this per whole token; a larger value is a producer bug
+// (2026-11-04: Enso quoted 5.7e20 for a drained Curve LP and it landed in tvl).
+const PRICE_USD_MAX = 1e9
 
 /** Fail closed without a key. Call from ingest startup. */
 export function assertPriceSourceConfig(): void {
@@ -172,10 +175,7 @@ async function fetchPriceServiceUsdResult(chainId: number, token: `0x${string}`,
 
     const batched = await enqueuePriceServiceBatch(coinId, Number(blockTime))
     if (batched.found) {
-      const priceUsd = batched.priceUsd
-      // A stored zero is an answer, not a gap: the exact endpoint would read the same row.
-      if (!priceUsd || !Number.isFinite(priceUsd)) { warn('empty coins'); return { type: 'missing' } }
-      return { type: 'price', price: PriceSchema.parse({ chainId, address: token, priceUsd, priceSource: 'priceservice', blockNumber, blockTime }) }
+      return servicePriceResult(batched.priceUsd, { chainId, token, blockNumber, blockTime, warn })
     }
 
     // batchHistorical reads the table only; the exact route also resolves upstream on a table miss.
@@ -207,10 +207,30 @@ async function fetchPriceServiceExactResult(request: {
   }
 
   const data = await response.json() as { coins: Record<string, { price: number }> }
-  const coinData = data.coins[coinId]
-  const priceUsd = coinData?.price
-  if (!priceUsd || !Number.isFinite(priceUsd)) { warn('empty coins'); return { type: 'missing' } }
+  return servicePriceResult(data.coins[coinId]?.price, { chainId, token, blockNumber, blockTime, warn })
+}
 
+// A present finite zero is a real valuation (the service writes down drained LPs to 0);
+// an absent, null, NaN or negative value stays a gap. The producer's `source` is not
+// forwarded: tvl.ts keys "price known" on priceSource === 'priceservice'.
+function servicePriceResult(priceUsd: unknown, request: {
+  chainId: number
+  token: `0x${string}`
+  blockNumber: bigint
+  blockTime: bigint
+  warn: (reason: string, detail?: unknown) => void
+}): PriceServiceResult {
+  const { chainId, token, blockNumber, blockTime, warn } = request
+  if (typeof priceUsd !== 'number' || !Number.isFinite(priceUsd) || priceUsd < 0) { warn('empty coins'); return { type: 'missing' } }
+  if (priceUsd > PRICE_USD_MAX) {
+    warn('implausible price', priceUsd)
+    sentry.captureMessage('PRICE_SERVICE_IMPLAUSIBLE_PRICE', {
+      level: 'error',
+      tags: { component: 'ingest', chainId: String(chainId), token },
+      extra: { priceUsd, blockNumber: String(blockNumber), blockTime: String(blockTime) }
+    })
+    return { type: 'unavailable' }
+  }
   return { type: 'price', price: PriceSchema.parse({ chainId, address: token, priceUsd, priceSource: 'priceservice', blockNumber, blockTime }) }
 }
 

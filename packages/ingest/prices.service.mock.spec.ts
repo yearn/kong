@@ -117,15 +117,53 @@ describe('fetchErc20PriceUsd', () => {
     expect(fetchMock.mock.calls[1][0]).to.equal(`https://prices.yearn.dev/api/prices/historical/1700000000/${WETH_COIN}`)
   })
 
-  it('returns na without an exact call when the batch stores a zero price', async () => {
+  it('accepts a batch zero as a real price without an exact call', async () => {
     const fetchMock = vi.fn(async () => batchResponse({ [WETH_COIN]: 0 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('priceservice')
+    expect(priceUsd).to.equal(0)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('accepts an exact zero write-down as a real price', async () => {
+    const fetchMock = vi.fn(async (url: string) => url.includes('batchHistorical')
+      ? batchResponse({})
+      : { ok: true, json: async () => ({ coins: { [WETH_COIN]: { symbol: 'alETH+ETH-f', price: 0, source: 'write-down', confidence: null } } }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceSource).to.equal('priceservice')
+    expect(priceUsd).to.equal(0)
+  })
+
+  it('keeps a null or absent exact price as na', async () => {
+    const fetchMock = vi.fn(async (url: string) => url.includes('batchHistorical')
+      ? batchResponse({})
+      : { ok: true, json: async () => ({ coins: { [WETH_COIN]: { symbol: 'WETH', price: null } } }) })
     vi.stubGlobal('fetch', fetchMock)
 
     const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
 
     expect(priceSource).to.equal('na')
     expect(priceUsd).to.equal(0)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats an implausible price as unavailable instead of storing it', async () => {
+    const fetchMock = vi.fn(async (url: string) => url.includes('batchHistorical')
+      ? batchResponse({})
+      : { ok: true, json: async () => ({ coins: { [WETH_COIN]: { symbol: 'alETH+ETH-f', price: 572712046375156060000, source: 'enso' } } }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const price = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+    const outputs = await processTvl(CHAIN_ID, VAULT, { outputLabel: 'tvl', blockTime: 1700000000n } as never)
+
+    expect(price.priceSource).to.equal('unavailable')
+    expect(price.priceUsd).to.equal(0)
+    expect(outputs[0].value).to.equal(null)
   })
 
   it('falls back to the exact endpoint when the batch call fails', async () => {
