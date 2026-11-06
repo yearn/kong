@@ -93,6 +93,16 @@ describe('tvl hook on price service 404 (missing price)', () => {
     expect(await _process(1, VAULT, pastDay, true)).to.deep.equal([])
   })
 
+  it('writes 0 usd components for a service zero (write-down) on a past day', async () => {
+    vi.mocked(fetchErc20PriceUsd).mockResolvedValue({ priceUsd: 0, priceSource: 'priceservice' } as never)
+    const byComponent = Object.fromEntries((await _process(1, VAULT, pastDay, true)).map(o => [o.component, o.value]))
+    expect(byComponent['tvl']).to.equal(0)
+    expect(byComponent['delegated']).to.equal(0)
+    expect(byComponent['priceUsd']).to.equal(0)
+    expect(byComponent['totalAssets']).to.equal(5)
+    expect(someMock).not.toHaveBeenCalled()
+  })
+
   it('writes real values once the price exists', async () => {
     vi.mocked(fetchErc20PriceUsd).mockResolvedValue({ priceUsd: 2, priceSource: 'priceservice' } as never)
     const byComponent = Object.fromEntries((await _process(1, VAULT, pastDay, true)).map(o => [o.component, o.value]))
