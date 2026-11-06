@@ -50,11 +50,11 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
       if (isPriceServiceNegativeCacheMarker(cached)) return { priceUsd: 0, priceSource: cached.priceSource }
       const parsed = PriceSchema.safeParse(cached)
       if (parsed.success && !isImplausiblePrice(parsed.data.priceUsd)) return parsed.data
-      const result = await cache.wrap(
+      const result = await plausibleOrUnavailable(await cache.wrap(
         blockCacheKey,
         async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, blockTime),
         blockCacheTtl()
-      )
+      ))
       // Only a day-granular service result is safe under a day key: a transient miss must
       // not stick tvl=0 for the whole day.
       if (result.priceSource === 'priceservice') await cache.set(key, result, PAST_DAY_CACHE_TTL_MS)
@@ -63,11 +63,17 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
     }
   }
 
-  return cache.wrap(
+  return plausibleOrUnavailable(await cache.wrap(
     blockCacheKey,
     async () => __fetchErc20PriceUsd(chainId, token, blockNumber!),
     blockCacheTtl()
-  )
+  ))
+}
+
+// A block-cache entry written before the cap existed must not be promoted into the day cache.
+function plausibleOrUnavailable(price: Price): Price {
+  if (price.priceSource !== 'priceservice' || !isImplausiblePrice(price.priceUsd)) return price
+  return { ...price, priceUsd: 0, priceSource: 'unavailable' }
 }
 
 // Backoff: first failure retries in 2m (transient outage), each repeat doubles the ttl up to 6h,
@@ -352,14 +358,15 @@ export function reportPriceServiceBatchFailure(entries: number, error: unknown, 
   })
 }
 
-const implausibleWindows = new Map<string, number>()
+let implausibleWindow = { hour: -1, tokens: new Set<string>() }
 
 /** Report an implausible quote at most once per token per UTC hour. */
 export function reportImplausiblePrice(chainId: number, token: string, priceUsd: number, now = Date.now()) {
   const hour = Math.floor(now / HOUR_MS)
+  if (implausibleWindow.hour !== hour) implausibleWindow = { hour, tokens: new Set() }
   const key = `${chainId}:${token.toLowerCase()}`
-  if (implausibleWindows.get(key) === hour) return
-  implausibleWindows.set(key, hour)
+  if (implausibleWindow.tokens.has(key)) return
+  implausibleWindow.tokens.add(key)
   sentry.captureMessage('PRICE_SERVICE_IMPLAUSIBLE_PRICE', {
     level: 'error',
     tags: { component: 'ingest', chainId: String(chainId), token },
@@ -369,6 +376,6 @@ export function reportImplausiblePrice(chainId: number, token: string, priceUsd:
 
 export function resetPriceServiceAlertsForTest() {
   priceMissWindows.clear()
-  implausibleWindows.clear()
+  implausibleWindow = { hour: -1, tokens: new Set() }
   batchFailureWindow = { hour: -1, count: 0, reported: false }
 }
