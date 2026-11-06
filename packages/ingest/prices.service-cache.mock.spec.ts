@@ -33,7 +33,7 @@ const CHAIN_ID = 137
 const endOfDay = (timestamp: number) => Math.floor(timestamp / 86400) * 86400 + 86399
 
 // Mirrors batchHistorical: echoes the requested keys, answers at end-of-day.
-function batchHit(price: number) {
+function batchHit(price: number, source?: string) {
   return vi.fn(async (url: string) => {
     const coins = JSON.parse(decodeURIComponent(new URL(url).searchParams.get('coins')!)) as Record<string, number[]>
     return {
@@ -41,7 +41,7 @@ function batchHit(price: number) {
       json: async () => ({
         coins: Object.fromEntries(Object.entries(coins).map(([coinId, timestamps]) => [
           coinId,
-          { symbol: 'TOKEN', prices: timestamps.map(timestamp => ({ timestamp: endOfDay(timestamp), price })) }
+          { symbol: 'TOKEN', prices: timestamps.map(timestamp => ({ timestamp: endOfDay(timestamp), price, source })) }
         ]))
       })
     }
@@ -122,8 +122,8 @@ describe('fetchErc20PriceUsd (past-day path)', () => {
     expect(attemptsTtl).to.equal(24 * 60 * 60 * 1000)
   })
 
-  it('caches a literal zero price under the day key like any hit', async () => {
-    vi.stubGlobal('fetch', batchHit(0))
+  it('caches a zero write-down under the day key like any hit', async () => {
+    vi.stubGlobal('fetch', batchHit(0, 'write-down'))
 
     const { priceSource, priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
 
@@ -184,11 +184,25 @@ describe('fetchErc20PriceUsd (past-day path)', () => {
     expect(markerTtls.at(-1)).to.equal(6 * 60 * 60 * 1000)
   })
 
-  it('clears negative markers and attempt counters, keeps cached prices', async () => {
+  it('ignores a cached implausible price and refetches', async () => {
+    const fetchMock = batchHit(2)
+    vi.stubGlobal('fetch', fetchMock)
+    cacheGet.mockResolvedValue({
+      chainId: CHAIN_ID, address: WETH, priceUsd: 572712046375156060000, priceSource: 'priceservice', blockNumber: 1n, blockTime: 1700000000n
+    })
+
+    const { priceUsd } = await fetchErc20PriceUsd(CHAIN_ID, WETH, 1n)
+
+    expect(priceUsd).to.equal(2)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears negative markers, attempt counters and implausible prices, keeps cached prices', async () => {
     const prefix = 'fetchErc20PriceUsd:service:v2:137:'
     const store = new Map<string, unknown>([
       [`${prefix}${WETH}:1699920000`, { type: 'price-service-negative', priceSource: 'unavailable' }],
       [`${prefix}${WETH}:1699920000:attempts`, 5],
+      [`${prefix}${WETH}:1699747200`, { chainId: CHAIN_ID, address: WETH, priceUsd: 572712046375156060000, priceSource: 'priceservice', blockNumber: 1n, blockTime: 1699747200n }],
       [`${prefix}${WETH}:1699833600`, { chainId: CHAIN_ID, address: WETH, priceUsd: 2, priceSource: 'priceservice', blockNumber: 1n, blockTime: 1699833600n }]
     ])
     cacheKeys.mockResolvedValue([...store.keys()])

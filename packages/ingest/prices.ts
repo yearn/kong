@@ -49,7 +49,7 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
       const cached = await cache.get(key)
       if (isPriceServiceNegativeCacheMarker(cached)) return { priceUsd: 0, priceSource: cached.priceSource }
       const parsed = PriceSchema.safeParse(cached)
-      if (parsed.success) return parsed.data
+      if (parsed.success && !isImplausiblePrice(parsed.data.priceUsd)) return parsed.data
       const result = await cache.wrap(
         blockCacheKey,
         async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, blockTime),
@@ -82,8 +82,8 @@ async function setNegativeDayCache(key: string, priceSource: string) {
 }
 
 // A replay must heal NULL days on its first run: an escalated negative marker (up to 6h)
-// would otherwise turn the replay into a silent no-op. Drops markers and attempt counters,
-// keeps cached prices.
+// would otherwise turn the replay into a silent no-op. Drops markers, attempt counters and
+// prices over the cap (cached before the cap existed), keeps plausible cached prices.
 export async function clearNegativePriceCache() {
   const keys = await cache.keys(`${SERVICE_DAY_KEY_PREFIX}*`)
   for (let i = 0; i < keys.length; i += CLEAR_BATCH_SIZE) {
@@ -91,9 +91,18 @@ export async function clearNegativePriceCache() {
     const attempts = batch.filter(key => key.endsWith(':attempts'))
     const markers = batch.filter(key => !key.endsWith(':attempts'))
     const cached = await Promise.all(markers.map(key => cache.get(key)))
-    const stale = markers.filter((_, index) => isPriceServiceNegativeCacheMarker(cached[index]))
+    const stale = markers.filter((_, index) => {
+      const value = cached[index]
+      if (isPriceServiceNegativeCacheMarker(value)) return true
+      const parsed = PriceSchema.safeParse(value)
+      return parsed.success && isImplausiblePrice(parsed.data.priceUsd)
+    })
     await Promise.all([...attempts, ...stale].map(key => cache.del(key)))
   }
+}
+
+function isImplausiblePrice(priceUsd: number) {
+  return priceUsd > PRICE_USD_MAX
 }
 
 // Misses keep the short negative ttl so a transient outage can't stick tvl=0 for 15 minutes.
@@ -175,7 +184,7 @@ async function fetchPriceServiceUsdResult(chainId: number, token: `0x${string}`,
 
     const batched = await enqueuePriceServiceBatch(coinId, Number(blockTime))
     if (batched.found) {
-      return servicePriceResult(batched.priceUsd, { chainId, token, blockNumber, blockTime, warn })
+      return servicePriceResult(batched, { chainId, token, blockNumber, blockTime, warn })
     }
 
     // batchHistorical reads the table only; the exact route also resolves upstream on a table miss.
@@ -206,14 +215,15 @@ async function fetchPriceServiceExactResult(request: {
     return response.status === 404 ? { type: 'missing' } : { type: 'unavailable' }
   }
 
-  const data = await response.json() as { coins: Record<string, { price: number }> }
-  return servicePriceResult(data.coins[coinId]?.price, { chainId, token, blockNumber, blockTime, warn })
+  const data = await response.json() as { coins: Record<string, { price: number, source?: string }> }
+  return servicePriceResult(data.coins[coinId] ?? {}, { chainId, token, blockNumber, blockTime, warn })
 }
 
-// A present finite zero is a real valuation (the service writes down drained LPs to 0);
-// an absent, null, NaN or negative value stays a gap. The producer's `source` is not
-// forwarded: tvl.ts keys "price known" on priceSource === 'priceservice'.
-function servicePriceResult(priceUsd: unknown, request: {
+// A zero is a real valuation only when the service marks it as a write-down (drained LP);
+// the exact route resolves upstream on a table miss, so an unmarked zero is a failed quote
+// and stays a gap, like absent, null, NaN or negative. The source is not forwarded:
+// tvl.ts keys "price known" on priceSource === 'priceservice'.
+function servicePriceResult(quote: { price?: unknown, source?: unknown }, request: {
   chainId: number
   token: `0x${string}`
   blockNumber: bigint
@@ -221,20 +231,18 @@ function servicePriceResult(priceUsd: unknown, request: {
   warn: (reason: string, detail?: unknown) => void
 }): PriceServiceResult {
   const { chainId, token, blockNumber, blockTime, warn } = request
-  if (typeof priceUsd !== 'number' || !Number.isFinite(priceUsd) || priceUsd < 0) { warn('empty coins'); return { type: 'missing' } }
-  if (priceUsd > PRICE_USD_MAX) {
+  const priceUsd = quote.price
+  if (typeof priceUsd !== 'number' || !Number.isFinite(priceUsd) || priceUsd < 0) { warn('no usable price', priceUsd); return { type: 'missing' } }
+  if (priceUsd === 0 && quote.source !== 'write-down') { warn('zero without write-down', quote.source); return { type: 'missing' } }
+  if (isImplausiblePrice(priceUsd)) {
     warn('implausible price', priceUsd)
-    sentry.captureMessage('PRICE_SERVICE_IMPLAUSIBLE_PRICE', {
-      level: 'error',
-      tags: { component: 'ingest', chainId: String(chainId), token },
-      extra: { priceUsd, blockNumber: String(blockNumber), blockTime: String(blockTime) }
-    })
+    reportImplausiblePrice(chainId, token, priceUsd)
     return { type: 'unavailable' }
   }
   return { type: 'price', price: PriceSchema.parse({ chainId, address: token, priceUsd, priceSource: 'priceservice', blockNumber, blockTime }) }
 }
 
-type PriceServiceBatchOutcome = { found: true, priceUsd: number } | { found: false }
+type PriceServiceBatchOutcome = { found: true, price: number, source?: string } | { found: false }
 
 type PriceServiceBatchEntry = {
   coinId: string
@@ -288,14 +296,14 @@ async function sendPriceServiceBatch(entries: PriceServiceBatchEntry[]) {
     })
     if (!response.ok) throw new Error(`batchHistorical ${response.status} ${url}`)
 
-    const data = await response.json() as { coins?: Record<string, { prices?: { timestamp: number, price: number }[] }> }
+    const data = await response.json() as { coins?: Record<string, { prices?: { timestamp: number, price: number, source?: string }[] }> }
     // The service echoes the key it parsed, which checksums the address.
     const byCoin = new Map(Object.entries(data.coins ?? {}).map(([key, value]) => [key.toLowerCase(), value]))
 
     for (const entry of entries) {
       const day = utcDayStart(entry.timestamp)
       const hit = byCoin.get(entry.coinId)?.prices?.find(price => utcDayStart(price.timestamp) === day)
-      entry.resolve(hit ? { found: true, priceUsd: hit.price } : { found: false })
+      entry.resolve(hit ? { found: true, price: hit.price, source: hit.source } : { found: false })
     }
   } catch (error) {
     // Distinguish a broken batch route from a legitimate table miss, which resolves the same way.
@@ -344,7 +352,23 @@ export function reportPriceServiceBatchFailure(entries: number, error: unknown, 
   })
 }
 
+const implausibleWindows = new Map<string, number>()
+
+/** Report an implausible quote at most once per token per UTC hour. */
+export function reportImplausiblePrice(chainId: number, token: string, priceUsd: number, now = Date.now()) {
+  const hour = Math.floor(now / HOUR_MS)
+  const key = `${chainId}:${token.toLowerCase()}`
+  if (implausibleWindows.get(key) === hour) return
+  implausibleWindows.set(key, hour)
+  sentry.captureMessage('PRICE_SERVICE_IMPLAUSIBLE_PRICE', {
+    level: 'error',
+    tags: { component: 'ingest', chainId: String(chainId), token },
+    extra: { priceUsd, hourStart: new Date(hour * HOUR_MS).toISOString() }
+  })
+}
+
 export function resetPriceServiceAlertsForTest() {
   priceMissWindows.clear()
+  implausibleWindows.clear()
   batchFailureWindow = { hour: -1, count: 0, reported: false }
 }
