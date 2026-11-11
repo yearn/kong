@@ -20,7 +20,7 @@ services:
     envVars:
       - fromGroup: kong
       - key: NODE_VERSION
-        value: lts
+        value: "26.13.1"
       - key: REDIS_HOST
         fromService:
           type: redis

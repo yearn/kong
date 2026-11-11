@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:22.23.5-slim
 
 RUN npm install -g bun@1.4.4
 
