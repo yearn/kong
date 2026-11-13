@@ -1,5 +1,4 @@
 import type { Pool } from 'pg'
-import db from '../../db'
 import { getAddress } from 'viem'
 import { trancheControllerLabels, trancheLabels } from './labels'
 
@@ -14,8 +13,9 @@ export type TimeseriesRow = {
   time: bigint
 }
 
-export async function getVaults(pool: Pool = db): Promise<VaultRow[]> {
-  const result = await pool.query(`
+export async function getVaults(pool?: Pool): Promise<VaultRow[]> {
+  const queryPool = pool ?? (await import('../../db')).default
+  const result = await queryPool.query(`
     SELECT DISTINCT
       chain_id AS "chainId",
       address
@@ -27,8 +27,9 @@ export async function getVaults(pool: Pool = db): Promise<VaultRow[]> {
   return result.rows as VaultRow[]
 }
 
-export async function getTranches(pool: Pool = db): Promise<VaultRow[]> {
-  const result = await pool.query(`
+export async function getTranches(pool?: Pool): Promise<VaultRow[]> {
+  const queryPool = pool ?? (await import('../../db')).default
+  const result = await queryPool.query(`
     SELECT DISTINCT
       chain_id AS "chainId",
       address
@@ -45,8 +46,9 @@ export async function getTranches(pool: Pool = db): Promise<VaultRow[]> {
  * is not a vault, so it never shows up in getVaults() — it has a thing of its own
  * under the `trancheController` label.
  */
-export async function getTrancheControllers(pool: Pool = db): Promise<VaultRow[]> {
-  const result = await pool.query(`
+export async function getTrancheControllers(pool?: Pool): Promise<VaultRow[]> {
+  const queryPool = pool ?? (await import('../../db')).default
+  const result = await queryPool.query(`
     SELECT
       chain_id AS "chainId",
       address
@@ -63,11 +65,12 @@ export async function getTrancheControllers(pool: Pool = db): Promise<VaultRow[]
 export async function getScopedTimeseriesPairs(
   read: (chainId: number, address: string, label: string, pool: Pool) => Promise<TimeseriesRow[]>,
   key: (label: string, chainId: number, addressLower: string) => string,
-  pool: Pool = db,
+  pool?: Pool,
 ): Promise<Array<[string, string]>> {
+  const queryPool = pool ?? (await import('../../db')).default
   const scoped = [
-    { addresses: await getTranches(pool), labels: trancheLabels },
-    { addresses: await getTrancheControllers(pool), labels: trancheControllerLabels },
+    { addresses: await getTranches(queryPool), labels: trancheLabels },
+    { addresses: await getTrancheControllers(queryPool), labels: trancheControllerLabels },
   ]
 
   const pairs: Array<[string, string]> = []
@@ -75,7 +78,7 @@ export async function getScopedTimeseriesPairs(
   for (const { addresses, labels } of scoped) {
     for (const { chainId, address } of addresses) {
       for (const { label } of labels) {
-        const rows = await read(chainId, address, label, pool)
+        const rows = await read(chainId, address, label, queryPool)
 
         pairs.push([
           key(label, chainId, address.toLowerCase()),
@@ -98,9 +101,10 @@ export async function getFullTimeseries(
   chainId: number,
   address: string,
   label: string,
-  pool: Pool = db,
+  pool?: Pool,
 ): Promise<TimeseriesRow[]> {
-  const result = await pool.query(
+  const queryPool = pool ?? (await import('../../db')).default
+  const result = await queryPool.query(
     `
     SELECT
       component,
@@ -125,9 +129,10 @@ export async function getRecentTimeseries(
   chainId: number,
   address: string,
   label: string,
-  pool: Pool = db,
+  pool?: Pool,
 ): Promise<TimeseriesRow[]> {
-  const result = await pool.query(
+  const queryPool = pool ?? (await import('../../db')).default
+  const result = await queryPool.query(
     `
     SELECT
       component,
@@ -153,9 +158,10 @@ export async function getTimeseriesSince(
   address: string,
   label: string,
   since: number,
-  pool: Pool = db,
+  pool?: Pool,
 ): Promise<TimeseriesRow[]> {
-  const result = await pool.query(`
+  const queryPool = pool ?? (await import('../../db')).default
+  const result = await queryPool.query(`
     SELECT component,
       COALESCE(AVG(NULLIF(value, 0)), 0) AS value,
       time_bucket('1 day'::interval, series_time) AS time

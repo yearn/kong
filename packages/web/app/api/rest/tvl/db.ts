@@ -2,7 +2,6 @@ import type { Pool } from 'pg'
 import { EvmAddressSchema } from 'lib/types'
 import { mergedJsonSql } from '../../../../lib/mergeSnapshot'
 import { buildVaultFilters } from '../../../../lib/vaultFilters'
-import { cronDb } from '../../db/cron'
 import type { AggregateTvlSnapshot, AggregateTvlStrategyRef, AggregateTvlStrategySnapshot } from './aggregate'
 import { KNOWN_AGGREGATE_TVL_TARGETS } from './known-targets'
 
@@ -46,14 +45,15 @@ function selectVaultSnapshots(where: string): string {
 }
 
 /** Read Yearn vault rows and their snapshots in one query. */
-export async function getAggregateVaults(pool: Pool = cronDb): Promise<AggregateTvlSnapshot[]> {
+export async function getAggregateVaults(pool?: Pool): Promise<AggregateTvlSnapshot[]> {
+  const queryPool = pool ?? (await import('../../db/cron')).cronDb
   const { where, params } = buildVaultFilters({ yearn: true })
   const excludeRetiredHiddenV3 = `NOT (
         (${mergedJsonSql('v3')} = to_jsonb(true)) IS TRUE
         AND COALESCE((snapshot.hook->'meta'->>'isRetired')::boolean, false)
         AND COALESCE((snapshot.hook->'meta'->>'isHidden')::boolean, false)
       )`
-  const result = await pool.query<VaultDbRow>(
+  const result = await queryPool.query<VaultDbRow>(
     selectVaultSnapshots(`${where}\n      AND ${excludeRetiredHiddenV3}`),
     params,
   )
@@ -66,8 +66,9 @@ export async function getAggregateVaults(pool: Pool = cronDb): Promise<Aggregate
  */
 export async function getAggregateStrategies(
   refs: AggregateTvlStrategyRef[],
-  pool: Pool = cronDb,
+  pool?: Pool,
 ): Promise<AggregateTvlStrategySnapshot[]> {
+  const queryPool = pool ?? (await import('../../db/cron')).cronDb
   const unique = new Map<string, AggregateTvlStrategyRef>()
   for (const ref of refs) {
     if (!Number.isInteger(ref.chainId) || ref.chainId <= 0) continue
@@ -83,7 +84,7 @@ export async function getAggregateStrategies(
   const strategies = Array.from(unique.values())
   if (strategies.length === 0) return []
 
-  const result = await pool.query<AggregateTvlStrategySnapshot>(`
+  const result = await queryPool.query<AggregateTvlStrategySnapshot>(`
     WITH candidates AS (
       SELECT requested.chain_id AS "chainId", requested.address,
         snapshot.hook->'aggregateTvlExposures' AS exposures,

@@ -1,0 +1,30 @@
+{
+  "name": "neon-rest-cache",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node --env-file-if-exists=.env --import tsx --watch src/local.ts",
+    "start": "node --env-file-if-exists=.env dist/local/local.mjs",
+    "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@neon/config": "1.12.0",
+    "@neon/functions": "^0.11.0",
+    "lib": "workspace:*",
+    "pg": "8.13.1",
+    "viem": "2.5.0",
+    "zod": "3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "20.17.17",
+    "@types/pg": "8.11.11",
+    "esbuild": "0.25.12",
+    "tsx": "4.20.6",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "4.1.11"
+  }
+}
