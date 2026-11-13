@@ -92,10 +92,10 @@ const SPARKLINE_CACHE_MAX_SERIES = 10_000
 const SPARKLINE_WEEK = 7 * 86400
 // time_bucket('7 day', timestamptz) uses Monday 2000-01-03 UTC as its origin.
 const SPARKLINE_ORIGIN = 946857600
-const configuredSparklineTtl = Number(process.env.SPARKLINE_CACHE_TTL_SECONDS || 3600)
+const configuredSparklineTtl = Number(process.env.SPARKLINE_CACHE_TTL_SECONDS || 86400)
 const sparklineTtl = Number.isFinite(configuredSparklineTtl) && configuredSparklineTtl >= 0
   ? configuredSparklineTtl * 1000
-  : 3_600_000
+  : 86_400_000
 
 export function invalidateSparkline(chainId: number, address: string, label: string, blockTime?: bigint) {
   const key = JSON.stringify([chainId, address, label])

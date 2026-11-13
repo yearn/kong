@@ -173,7 +173,7 @@ Made a mistake in one of your hooks? Patch your code and replay, no need to re-e
 
 `monitor` - system stats
 
-Ingestion caches completed sparkline weeks per process for one hour, including
+Ingestion caches completed sparkline weeks per process for 24 hours, including
 empty and sparse history. Each snapshot reads the current UTC week with a bounded
 query so current-week writes from any process remain visible without waiting for
 the cache TTL. Concurrent reads share their queries. `SPARKLINE_CACHE_TTL_SECONDS`

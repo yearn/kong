@@ -56,6 +56,20 @@ describe('sparkline cache', () => {
     expect(query).toHaveBeenCalledTimes(16)
   })
 
+  it('keeps completed weeks for a day by default', async () => {
+    vi.setSystemTime(new Date('2026-11-11T00:00:00Z'))
+    vi.stubEnv('SPARKLINE_CACHE_TTL_SECONDS', '')
+    const { getSparkline } = await import('./db')
+    await getSparkline(1, '0x1', 'tvl-c', 'tvl')
+    expect(query).toHaveBeenCalledTimes(3)
+    vi.advanceTimersByTime(2 * 3600_000)
+    await getSparkline(1, '0x1', 'tvl-c', 'tvl')
+    expect(query).toHaveBeenCalledTimes(4)
+    vi.advanceTimersByTime(22 * 3600_000)
+    await getSparkline(1, '0x1', 'tvl-c', 'tvl')
+    expect(query).toHaveBeenCalledTimes(7)
+  })
+
   it('retries failures instead of caching them', async () => {
     query.mockRejectedValueOnce(new Error('database unavailable'))
     const { getSparkline } = await import('./db')
