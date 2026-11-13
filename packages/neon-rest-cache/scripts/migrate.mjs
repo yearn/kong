@@ -1,5 +1,7 @@
 import { readFile } from 'node:fs/promises'
-import { Pool } from 'pg'
+import pg from 'pg'
+
+const { Pool } = pg
 
 const databaseUrl = process.env.DATABASE_URL?.trim()
 if (!databaseUrl) {

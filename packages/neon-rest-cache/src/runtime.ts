@@ -1,10 +1,13 @@
 import { attachDatabasePool } from '@neon/functions'
-import { Pool, types as pgTypes } from 'pg'
+import pg from 'pg'
 import TypeOverrides from 'pg/lib/type-overrides.js'
+import type { Pool as PgPool } from 'pg'
+
+const { Pool, types: pgTypes } = pg
 
 export type Runtime = {
-  cachePool: Pool
-  sourceDb: Pool
+  cachePool: PgPool
+  sourceDb: PgPool
 }
 
 let runtime: Runtime | undefined

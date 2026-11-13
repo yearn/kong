@@ -4,14 +4,17 @@ const state = vi.hoisted(() => ({ poolsCreated: 0 }))
 
 vi.mock('pg', async importOriginal => {
   const actual = await importOriginal<typeof import('pg')>()
+  const PoolSpy = class PoolSpy extends actual.Pool {
+    constructor(...args: ConstructorParameters<typeof actual.Pool>) {
+      state.poolsCreated += 1
+      super(...args)
+    }
+  }
+
   return {
     ...actual,
-    Pool: class PoolSpy extends actual.Pool {
-      constructor(...args: ConstructorParameters<typeof actual.Pool>) {
-        state.poolsCreated += 1
-        super(...args)
-      }
-    },
+    default: { ...actual, Pool: PoolSpy },
+    Pool: PoolSpy,
   }
 })
 
