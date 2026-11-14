@@ -1,7 +1,9 @@
 import db from '@/app/api/db'
-import { mergeSnapshotSql, VAULT_UNSERVED_KEYS } from '@/lib/mergeSnapshot'
+import { mergeSnapshotSql, pickKeysSql, VAULT_UNSERVED_KEYS } from '@/lib/mergeSnapshot'
+import { requestedFields } from '@/lib/requestedFields'
 import { buildVaultFilters, VaultFilterArgs } from '@/lib/vaultFilters'
 import { DefaultRiskScore } from 'lib/types'
+import { GraphQLResolveInfo } from 'graphql'
 
 const tvl = 'COALESCE((snapshot.hook->\'tvl\'->>\'close\')::numeric, 0)'
 
@@ -10,7 +12,7 @@ const MAX_LIMIT = 1000
 
 type VaultsArgs = VaultFilterArgs & { limit?: number | null, offset?: number | null }
 
-export default async (_: object, args: VaultsArgs) => {
+export default async (_: object, args: VaultsArgs, _context?: unknown, info?: GraphQLResolveInfo) => {
   try {
     const { where, params } = buildVaultFilters(args)
     params.push(
@@ -19,12 +21,17 @@ export default async (_: object, args: VaultsArgs) => {
     )
     const limit = `$${params.length - 1}`
     const offset = `$${params.length}`
+    let merged = mergeSnapshotSql(VAULT_UNSERVED_KEYS)
+    if (info) {
+      params.push(requestedFields(info))
+      merged = pickKeysSql(merged, `$${params.length}`)
+    }
 
     const result = await db.query(`
     SELECT
       thing.chain_id,
       thing.address,
-      ${mergeSnapshotSql(VAULT_UNSERVED_KEYS)} AS merged
+      ${merged} AS merged
     FROM thing
     JOIN snapshot
       ON thing.chain_id = snapshot.chain_id

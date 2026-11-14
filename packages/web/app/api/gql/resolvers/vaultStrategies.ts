@@ -1,10 +1,18 @@
 import db from '@/app/api/db'
-import { mergeSnapshot } from '@/lib/mergeSnapshot'
+import { mergeSnapshotSql, pickKeysSql } from '@/lib/mergeSnapshot'
+import { requestedFields } from '@/lib/requestedFields'
+import { GraphQLResolveInfo } from 'graphql'
 import { getAddress } from 'viem'
 
-const vaultStrategies = async (_: object, args: { chainId: number, vault: string }) => {
+const vaultStrategies = async (_: object, args: { chainId: number, vault: string }, _context?: unknown, info?: GraphQLResolveInfo) => {
   const { chainId, vault } = args
   try {
+    const params: unknown[] = [chainId, getAddress(vault)]
+    let merged = mergeSnapshotSql()
+    if (info) {
+      params.push(requestedFields(info))
+      merged = pickKeysSql(merged, `$${params.length}`)
+    }
 
     const result = await db.query(`
     WITH strategies AS (
@@ -16,9 +24,7 @@ const vaultStrategies = async (_: object, args: { chainId: number, vault: string
     SELECT
       thing.chain_id,
       thing.address,
-      thing.defaults,
-      snapshot.snapshot,
-      snapshot.hook
+      ${merged} AS merged
     FROM thing
     JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
@@ -33,12 +39,12 @@ const vaultStrategies = async (_: object, args: { chainId: number, vault: string
         )
       )
     ORDER BY snapshot.hook->>'totalDebtUsd' DESC;`,
-    [chainId, getAddress(vault)])
+    params)
 
     return result.rows.map(row => ({
       chainId: row.chain_id,
       address: row.address,
-      ...mergeSnapshot(row.defaults, row.snapshot, row.hook)
+      ...row.merged
     }))
 
   } catch (error) {
