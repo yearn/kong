@@ -7,9 +7,9 @@ const projects = async (_: object, args: { chainId?: number }) => {
     const result = await db.query(`
     SELECT
       thing.chain_id,
-      thing.defaults as defaults,
-      snapshot.hook as hook,
-      snapshot.snapshot as snapshot
+      snapshot.hook->'project' AS project,
+      thing.defaults->>'roleManagerFactory' AS role_manager_factory,
+      snapshot.snapshot->>'chad' AS governance
     FROM thing
     JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
@@ -20,9 +20,9 @@ const projects = async (_: object, args: { chainId?: number }) => {
 
     return result.rows.map(row => ({
       chainId: row.chain_id,
-      ...row.hook?.project,
-      roleManagerFactory: row.defaults?.roleManagerFactory,
-      governance: row.snapshot?.chad
+      ...row.project,
+      roleManagerFactory: row.role_manager_factory,
+      governance: row.governance
     }))
   } catch (error) {
     console.error(error)

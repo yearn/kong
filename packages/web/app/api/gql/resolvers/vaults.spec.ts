@@ -1,5 +1,7 @@
 import { strict as assert } from 'node:assert'
+import { GraphQLResolveInfo } from 'graphql'
 import { beforeEach, describe, it, vi } from 'vitest'
+import { infoFor } from '@/lib/requestedFields.fixture'
 
 const query = vi.fn()
 
@@ -7,10 +9,10 @@ vi.mock('@/app/api/db', () => ({
   default: { query }
 }))
 
-const run = async (args: Record<string, unknown>) => {
+const run = async (args: Record<string, unknown>, info?: GraphQLResolveInfo) => {
   query.mockResolvedValueOnce({ rows: [] })
   const { default: vaults } = await import('./vaults')
-  await vaults({}, args)
+  await vaults({}, args, {}, info)
   return {
     sql: query.mock.calls[0][0] as string,
     params: query.mock.calls[0][1] as unknown[]
@@ -65,5 +67,19 @@ describe('vaults resolver', () => {
     const nullable = await run({ chainId: null })
     assert.equal(nullable.sql, omitted.sql)
     assert.deepEqual(nullable.params, omitted.params)
+  })
+
+  it('binds the requested keys after limit and offset', async () => {
+    const { sql, params } = await run({ chainId: 1 }, infoFor('{ vaults { address name risk { label } } }'))
+    assert.deepEqual(params, ['vault', 1, 100, 0, ['address', 'name', 'risk']])
+    assert.match(sql, /jsonb_object_agg\(k, v\)/)
+    assert.match(sql, /WHERE k = ANY\(\$5::text\[\]\)/)
+    assert.match(sql, /LIMIT \$3 OFFSET \$4/)
+  })
+
+  it('returns full blobs without info', async () => {
+    const { sql, params } = await run({ chainId: 1 })
+    assert.deepEqual(params, ['vault', 1, 100, 0])
+    assert.equal(sql.includes('jsonb_object_agg'), false)
   })
 })

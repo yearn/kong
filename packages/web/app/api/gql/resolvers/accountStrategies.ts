@@ -1,11 +1,20 @@
 import db from '@/app/api/db'
-import { mergeSnapshot } from '@/lib/mergeSnapshot'
+import { mergeSnapshotSql, pickKeysSql } from '@/lib/mergeSnapshot'
+import { requestedFields } from '@/lib/requestedFields'
+import { GraphQLResolveInfo } from 'graphql'
 
-const accountStrategies = async (_: object, args: { chainId?: number, account: `0x${string}` }) => {
+const accountStrategies = async (_: object, args: { chainId?: number, account: `0x${string}` }, _context?: unknown, info?: GraphQLResolveInfo) => {
   const { chainId, account } = args
   try {
 
     const rolesFilter = JSON.stringify({ roles: [{ account }] })
+    const params: unknown[] = ['vault', chainId, rolesFilter, 'strategy']
+    let merged = mergeSnapshotSql()
+    if (info) {
+      params.push(requestedFields(info))
+      merged = pickKeysSql(merged, `$${params.length}`)
+    }
+
     const result = await db.query(`
     WITH strategies AS (
       SELECT DISTINCT
@@ -24,9 +33,7 @@ const accountStrategies = async (_: object, args: { chainId?: number, account: `
     SELECT
       thing.chain_id,
       thing.address,
-      thing.defaults,
-      snapshot.snapshot,
-      snapshot.hook
+      ${merged} AS merged
     FROM thing
     JOIN strategies
       ON thing.chain_id = strategies.chain_id
@@ -35,12 +42,12 @@ const accountStrategies = async (_: object, args: { chainId?: number, account: `
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
     WHERE thing.label = $4 AND (thing.chain_id = $2 OR $2 IS NULL);`,
-    ['vault', chainId, rolesFilter, 'strategy'])
+    params)
 
     return result.rows.map(row => ({
       chainId: row.chain_id,
       address: row.address,
-      ...mergeSnapshot(row.defaults, row.snapshot, row.hook)
+      ...row.merged
     }))
 
   } catch (error) {
