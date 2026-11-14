@@ -37,3 +37,6 @@ export const mergeSnapshotSql = (omit: string[] = []) =>
   `(${MERGED_BLOBS}
     || COALESCE(jsonb_strip_nulls(jsonb_build_object('asset', snapshot.hook->'asset')), '{}'))
     - ARRAY[${omit.map(k => `'${k}'`).join(', ')}]::text[]`
+
+export const pickKeysSql = (merged: string, param: string) =>
+  `COALESCE((SELECT jsonb_object_agg(k, v) FROM jsonb_each(${merged}) AS e(k, v) WHERE k = ANY(${param}::text[])), '{}'::jsonb)`
