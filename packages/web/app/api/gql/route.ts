@@ -5,6 +5,7 @@ import { startServerAndCreateNextHandler } from '@as-integrations/next'
 import KeyvRedis from '@keyv/redis'
 import Keyv from 'keyv'
 import { NextRequest } from 'next/server'
+import { withRequestDiagnostics } from '@/lib/request-diagnostics'
 import { CORS_HEADERS } from '../headers'
 import { CustomKeyvAdapter } from './CustomKeyvAdapter'
 import resolvers from './resolvers'
@@ -45,7 +46,7 @@ const server = new ApolloServer({
 const handle = startServerAndCreateNextHandler(server)
 
 async function respondTo(request: NextRequest) {
-  const response = await handle(request)
+  const response = await withRequestDiagnostics(request, () => handle(request))
   for (const [key, value] of Object.entries(CORS_HEADERS)) {
     response.headers.set(key, value)
   }
