@@ -74,7 +74,7 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
     await thing(1, strategy, 'strategy')
     await snapshot(1, parent, { tvl: { close: 100 } })
     await snapshot(1, strategy, { aggregateTvlExposures: [exposure] })
-    await pool!.query("UPDATE snapshot SET block_time = NOW() - INTERVAL '366 days'")
+    await pool!.query('UPDATE snapshot SET block_time = NOW() - $1::interval', ['366 days'])
     assert.deepEqual(await getAggregateVaults(pool!), [])
     assert.deepEqual(await getAggregateStrategies([{ chainId: 1, address: strategy }], pool!), [])
   })
