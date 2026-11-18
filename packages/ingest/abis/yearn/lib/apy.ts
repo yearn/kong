@@ -196,21 +196,23 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
     }
   }
 
-  const blocksPerDay = (blockNumber - result.weeklyBlockNumber) / 7n
+  // annualize on elapsed time, not on block count: a chain that changes its block time
+  // (Base, Nov 2026) makes any blocks-per-day rate wrong for windows that span the change
+  const timeOf = async (n: bigint) => (await getBlock(chainId, n)).timestamp
 
   result.weeklyNet = result.weeklyPricePerShare === undefined ? undefined : compoundAndAnnualizeDelta(
-    { block: result.weeklyBlockNumber, pps: result.weeklyPricePerShare },
-    { block: blockNumber, pps: result.pricePerShare }, blocksPerDay
+    { time: await timeOf(result.weeklyBlockNumber), pps: result.weeklyPricePerShare },
+    { time: block.timestamp, pps: result.pricePerShare }
   )
 
   result.monthlyNet = result.monthlyPricePerShare === undefined ? undefined : compoundAndAnnualizeDelta(
-    { block: result.monthlyBlockNumber, pps: result.monthlyPricePerShare },
-    { block: blockNumber, pps: result.pricePerShare }, blocksPerDay
+    { time: await timeOf(result.monthlyBlockNumber), pps: result.monthlyPricePerShare },
+    { time: block.timestamp, pps: result.pricePerShare }
   )
 
   result.inceptionNet = compoundAndAnnualizeDelta(
-    { block: result.inceptionBlockNumber, pps: result.inceptionPricePerShare },
-    { block: blockNumber, pps: result.pricePerShare }, blocksPerDay
+    { time: await timeOf(result.inceptionBlockNumber), pps: result.inceptionPricePerShare },
+    { time: block.timestamp, pps: result.pricePerShare }
   )
 
   const candidates: (number | undefined)[] = []
@@ -298,12 +300,11 @@ async function getFirstTwoHarvestBlocks(vault: Thing) {
 }
 
 function compoundAndAnnualizeDelta(
-  before: { block: bigint, pps: bigint },
-  after: { block: bigint, pps: bigint },
-  blocksPerDay: bigint
+  before: { time: bigint, pps: bigint },
+  after: { time: bigint, pps: bigint }
 ) {
   const delta = math.div(after.pps - before.pps, before.pps || 1n)
-  const period = math.div((BigInt(after.block) - BigInt(before.block)), blocksPerDay)
+  const period = Number(after.time - before.time) / 86_400 // days
   return Math.pow(1 + delta, 365.2425 / period) - 1
 }
 
