@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import type { Pool } from 'pg'
 import { mergeSnapshot } from '../../../../lib/mergeSnapshot'
-import db from '../../db'
 import type { VaultSnapshot } from '../snapshot/db'
 
 const CoerceNumber = z.preprocess(
@@ -122,8 +121,9 @@ export type VaultWithSnapshot = {
  * malformed list-only row should fail the list refresh, but it should not block
  * snapshot cache writes that only need chain/address plus the raw blobs.
  */
-export async function getVaultsWithSnapshots(pool: Pool = db): Promise<VaultWithSnapshot[]> {
-  const result = await pool.query(`
+export async function getVaultsWithSnapshots(pool?: Pool): Promise<VaultWithSnapshot[]> {
+  const queryPool = pool ?? (await import('../../db')).default
+  const result = await queryPool.query(`
     SELECT * FROM (
     SELECT DISTINCT ON (thing.chain_id, thing.address)
       thing.chain_id AS "chainId",
