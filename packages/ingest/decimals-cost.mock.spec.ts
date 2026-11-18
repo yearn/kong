@@ -3,7 +3,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 const { query, next, store, redisGet, redisSet } = vi.hoisted(() => {
   const store = new Map<string, string>()
   const redisGet = vi.fn(async (key: string) => store.get(key) ?? null)
-  const redisSet = vi.fn(async (key: string, value: string, _options?: unknown) => { store.set(key, value) })
+  const redisSet = vi.fn(async (key: string, value: string) => { store.set(key, value) })
   return { query: vi.fn(), next: vi.fn(), store, redisGet, redisSet }
 })
 
@@ -100,9 +100,9 @@ it('reads scalar and legacy nested asset metadata without changing address, labe
   expect(await fetchAssetAddress(1, VAULT, 'vault')).toBe(ASSET)
   expect(await fetchOrExtractAssetAddress(1, VAULT, 'vault', 'asset')).toBe(ASSET)
   const [sql, params] = query.mock.calls[0]
-  expect(sql).toContain("defaults #>> '{asset, address}'")
-  expect(sql).toContain("jsonb_typeof(defaults->'asset') = 'string'")
-  expect(sql).toContain("defaults #>> '{asset}'")
+  expect(sql).toContain('defaults #>> \'{asset, address}\'')
+  expect(sql).toContain('jsonb_typeof(defaults->\'asset\') = \'string\'')
+  expect(sql).toContain('defaults #>> \'{asset}\'')
   expect(params).toEqual([1, VAULT, 'vault'])
   expect(next).not.toHaveBeenCalled()
 })
