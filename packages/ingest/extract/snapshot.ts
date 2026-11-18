@@ -27,7 +27,9 @@ export class SnapshotExtractor {
     }))
 
     const block = await getBlock(chainId)
-    const multicall = await rpcs.next(chainId).multicall({ contracts, blockNumber: block.number })
+    const multicall = contracts.length === 0
+      ? []
+      : await rpcs.next(chainId).multicall({ contracts, blockNumber: block.number })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const _snapshot: { [key: string]: any } = {

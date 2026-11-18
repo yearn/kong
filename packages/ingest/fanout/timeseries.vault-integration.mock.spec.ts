@@ -10,7 +10,7 @@ const {
   dbQuery, dbFirst, dbSome, vaultFixture, rpcMulticall, rpcNext,
   fetchPrice, queueCalls, mqAdd
 } = vi.hoisted(() => {
-  process.env.TVL_GROUPED_JOBS = 'true'
+  delete process.env.TVL_GROUPED_JOBS
 
   const vaultFixture: { value: unknown } = { value: undefined }
   const queueCalls: CapturedQueueCall[] = []
@@ -84,7 +84,7 @@ describe.each(vaultVariants)('real $abiPath TVL hooks through fanout and extract
     queueCalls.length = 0
   })
 
-  it('passes the real grouped job through the real extractor and computes one observation', async () => {
+  it('uses the default grouped job through the real extractor and computes one observation', async () => {
     const abiDirectory = path.resolve(__dirname, `../abis/${abiPath}`)
     const realResolver = await requireHooks(abiDirectory)
     const resolveTvlHooks = (path: string, type?: HookType): AbiHook[] => realResolver(path, type)

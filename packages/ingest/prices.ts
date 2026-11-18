@@ -32,17 +32,17 @@ export function isCurrentUtcDay(blockTime: bigint | number, nowSec = Math.floor(
   return utcDayStart(blockTime) === utcDayStart(nowSec)
 }
 
-export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber?: bigint, latest = false): Promise<{ priceUsd: number, priceSource: string }>{
+export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber?: bigint, latest = false, knownBlockTime?: bigint): Promise<{ priceUsd: number, priceSource: string }>{
   token = getAddress(token)
 
-  if (!blockNumber) {
+  if (blockNumber === undefined) {
     blockNumber = await getBlockNumber(chainId)
     latest = true
   }
   const blockCacheKey = `fetchErc20PriceUsd:${chainId}:${token}:${blockNumber}`
 
   if (!latest) {
-    const blockTime = await getBlockTime(chainId, blockNumber)
+    const blockTime = knownBlockTime ?? await getBlockTime(chainId, blockNumber)
     if (!isCurrentUtcDay(blockTime)) {
       const day = utcDayStart(blockTime)
       const key = `${SERVICE_DAY_KEY_PREFIX}${chainId}:${token}:${day}`
@@ -65,7 +65,7 @@ export async function fetchErc20PriceUsd(chainId: number, token: `0x${string}`, 
 
   return plausibleOrUnavailable(await cache.wrap(
     blockCacheKey,
-    async () => __fetchErc20PriceUsd(chainId, token, blockNumber!),
+    async () => __fetchErc20PriceUsd(chainId, token, blockNumber!, knownBlockTime),
     blockCacheTtl()
   ))
 }
@@ -121,18 +121,18 @@ function blockCacheTtl() {
 async function __fetchErc20PriceUsd(chainId: number, token: `0x${string}`, blockNumber: bigint, knownBlockTime?: bigint) {
   const result = await fetchPriceServiceUsdResult(chainId, token, blockNumber, knownBlockTime)
   if (result.type === 'price') return result.price
-  if (result.type === 'missing') return unknownPrice(chainId, token, blockNumber)
+  if (result.type === 'missing') return unknownPrice(chainId, token, blockNumber, knownBlockTime)
   return unavailablePrice(chainId, token, blockNumber, knownBlockTime)
 }
 
-async function unknownPrice(chainId: number, token: `0x${string}`, blockNumber: bigint): Promise<Price> {
+async function unknownPrice(chainId: number, token: `0x${string}`, blockNumber: bigint, knownBlockTime?: bigint): Promise<Price> {
   return {
     chainId,
     address: token,
     priceUsd: 0,
     priceSource: 'na',
     blockNumber,
-    blockTime: await getBlockTime(chainId, blockNumber)
+    blockTime: knownBlockTime ?? await getBlockTime(chainId, blockNumber)
   }
 }
 
