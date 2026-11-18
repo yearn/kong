@@ -1,7 +1,7 @@
 import 'lib/global'
 import { z } from 'zod'
 import { rpcs } from 'ingest/rpcs'
-import { mq } from 'lib'
+import { cache, mq } from 'lib'
 import { zhexstring } from 'lib/types'
 import db from 'ingest/db'
 import processStrategyChanged from 'ingest/abis/yearn/3/vault/event/StrategyChanged/hook'
@@ -100,21 +100,22 @@ async function replayStrategyChanged() {
 }
 
 async function main() {
-  console.log('db up')
-  await rpcs.up()
-  console.log('rpcs up')
-
   try {
+    console.log('db up')
+    await cache.up()
+    await rpcs.up()
+    console.log('rpcs up')
     await replayStrategyChanged()
 
   } catch (error) {
     console.error('🤬', error)
 
   } finally {
-    await mq.down()
-    await rpcs.down()
+    const results = await Promise.allSettled([cache.down(), mq.down(), rpcs.down(), db.end()])
+    for (const result of results) {
+      if (result.status === 'rejected') console.error('Shutdown error:', result.reason)
+    }
     console.log('rpcs down')
-    await db.end()
     console.log('db down')
   }
 }

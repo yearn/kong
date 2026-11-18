@@ -5,14 +5,15 @@ import computeOracleApr from 'ingest/abis/erc4626/timeseries/apr-oracle/hook'
 import db from 'ingest/db'
 import type { Data } from 'ingest/extract/timeseries'
 import { rpcs } from 'ingest/rpcs'
-import { endOfDay } from 'lib/dates'
+import { cache } from 'lib'
+import { boundedEnvInt } from 'lib/env'
 import type { Output } from 'lib/types'
 import { getAddress } from 'viem'
 import { resetTempTable, insertTempBatch, type TempRow } from '../backfill-shared/tempTable'
 
 const TEMP_TABLE = 'output_temp_fapy_oracle'
 const GRID_LABEL = 'apy-bwd-delta-pps'
-const CONCURRENCY = Number(process.env.RECOMPUTE_CONCURRENCY ?? 25)
+const CONCURRENCY = boundedEnvInt(process.env.RECOMPUTE_CONCURRENCY, 25, 100, 1)
 
 type HookFn = (chainId: number, address: `0x${string}`, data: Data) => Promise<Output[]>
 
@@ -89,7 +90,7 @@ async function discoverVaults(): Promise<{ chainId: number, address: `0x${string
 
 async function getGridBlockTimes(
   chainId: number, address: string, start?: string, end?: string
-): Promise<bigint[]> {
+): Promise<{ blockTime: bigint; seriesTime: bigint }[]> {
   const params: (number | string | Date)[] = [chainId, address]
   let timeFilter = ''
 
@@ -103,19 +104,24 @@ async function getGridBlockTimes(
   }
 
   const result = await db.query(`
-    SELECT DISTINCT EXTRACT(EPOCH FROM block_time)::bigint AS block_time_epoch
+    SELECT DISTINCT ON (series_time)
+      series_time,
+      block_number,
+      EXTRACT(EPOCH FROM block_time)::bigint AS block_time_epoch
     FROM output
     WHERE chain_id = $1 AND address = $2 AND label = '${GRID_LABEL}' ${timeFilter}
-    ORDER BY block_time_epoch
+    ORDER BY series_time, block_number DESC, component ASC
   `, params)
 
-  return result.rows.map((row: { block_time_epoch: string }) => BigInt(row.block_time_epoch))
+  return result.rows.map((row: { series_time: bigint; block_time_epoch: string }) => ({
+    blockTime: BigInt(row.block_time_epoch),
+    seriesTime: row.series_time,
+  }))
 }
 
-function toTempRows(outputs: Output[]): TempRow[] {
-  // series_time must be derived exactly as the load path does (load/index.ts:
-  // `series_time: endOfDay(output.blockTime)`) so the upsert's ON CONFLICT keys
-  // match existing rows and overwrite them instead of inserting duplicates.
+function toTempRows(outputs: Output[], sourceSeriesTime: bigint): TempRow[] {
+  // Preserve the source observation key while keeping the recomputed block time
+  // independent. A delayed block may fall on a different UTC day.
   return outputs.map(output => ({
     chain_id: output.chainId,
     address: output.address,
@@ -124,7 +130,7 @@ function toTempRows(outputs: Output[]): TempRow[] {
     value: Number(output.value ?? 0),
     block_number: output.blockNumber,
     block_time: new Date(Number(output.blockTime) * 1000),
-    series_time: new Date(Number(endOfDay(output.blockTime)) * 1000),
+    series_time: new Date(Number(sourceSeriesTime) * 1000),
   }))
 }
 
@@ -145,12 +151,7 @@ function fmtDuration(seconds: number): string {
   return m > 0 ? `${m}m${s.toString().padStart(2, '0')}s` : `${s}s`
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2))
-  const startTime = Date.now()
-
-  await rpcs.up()
-
+async function run(args: ReturnType<typeof parseArgs>, startTime: number) {
   const vaults = args.vaults ?? await discoverVaults()
   if (!args.vaults) console.log(`Discovered ${vaults.length} plain erc4626 vaults from thing (erc4626=true, yearn!=true)`)
 
@@ -170,7 +171,7 @@ async function main() {
   // work list so a single global pool keeps the RPC pipe full across vaults instead
   // of stalling between them. peak concurrency stays CONCURRENCY (same RPC ceiling
   // the per-vault batch had before), it just no longer idles between vaults.
-  type Task = { chainId: number, address: `0x${string}`, blockTime: bigint }
+  type Task = { chainId: number, address: `0x${string}`, blockTime: bigint, seriesTime: bigint }
   const tasks: Task[] = []
   let skipped = 0
 
@@ -185,7 +186,7 @@ async function main() {
       return
     }
     console.log(`  [${resolved}/${vaults.length}] ${chainId}:${address} -> ${grid.length} pts`)
-    for (const blockTime of grid) tasks.push({ chainId, address, blockTime })
+    for (const { blockTime, seriesTime } of grid) tasks.push({ chainId, address, blockTime, seriesTime })
   })
 
   totalEntries = tasks.length
@@ -193,25 +194,24 @@ async function main() {
 
   if (tasks.length === 0) {
     console.log('Nothing to recompute -- exiting.')
-    await rpcs.down()
-    await db.end()
     return
   }
 
   console.log(`Computing at concurrency ${CONCURRENCY}${args.dryRun ? ' (dry run -- not writing)' : ''}...`)
   const computeStart = Date.now()
   let processed = 0
-  await runPool(tasks, CONCURRENCY, async ({ chainId, address, blockTime }) => {
+  await runPool(tasks, CONCURRENCY, async ({ chainId, address, blockTime, seriesTime }) => {
     try {
       const outputs: Output[] = []
       for (const key of args.labels) {
         const { outputLabel, compute } = LABELS[key]
         outputs.push(...await compute(chainId, address, {
           abiPath: 'erc4626', chainId, address, outputLabel, blockTime,
+          seriesTime,
         }))
       }
       if (outputs.length > 0) {
-        if (!args.dryRun) await insertTempBatch(TEMP_TABLE, toTempRows(outputs))
+        if (!args.dryRun) await insertTempBatch(TEMP_TABLE, toTempRows(outputs, seriesTime))
         totalOutputs += outputs.length
       }
     } catch (error) {
@@ -243,8 +243,22 @@ async function main() {
     console.log('\nRun upsert.ts to promote to the output table.')
   }
 
-  await rpcs.down()
-  await db.end()
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2))
+  const startTime = Date.now()
+
+  try {
+    await cache.up()
+    await rpcs.up()
+    await run(args, startTime)
+  } finally {
+    const results = await Promise.allSettled([cache.down(), rpcs.down(), db.end()])
+    for (const result of results) {
+      if (result.status === 'rejected') console.error('Shutdown error:', result.reason)
+    }
+  }
 }
 
 main().catch(error => {

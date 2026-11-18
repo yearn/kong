@@ -19,4 +19,5 @@ jobs:
         run: bun run production
       - run: bun --filter lib test
       - run: bun --filter ingest test
+      - run: bun --filter scripts test
       - run: bun --filter web test
