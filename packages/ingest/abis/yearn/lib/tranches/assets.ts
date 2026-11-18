@@ -1,5 +1,6 @@
 import { EvmAddressSchema, Thing } from 'lib/types'
 import { parseAbi } from 'viem'
+import { cachePps } from '../../../../pps-cache'
 import { rpcs } from '../../../../rpcs'
 import controllerAbi from '../../3/tranche/controller/abi'
 
@@ -74,25 +75,42 @@ export function computeTranchePps(assets: bigint, totalSupply: bigint, scale: bi
 // monthly, inception — goes through here so a tranche and an ordinary vault are
 // never priced by two different rules. Throws on read failure, matching the
 // direct pricePerShare() read it replaces.
-export async function readPps(vault: Thing, blockNumber: bigint): Promise<bigint> {
-  const { chainId, address } = vault
-  const controller = trancheControllerOf(vault)
-
-  if (!controller) {
+export async function readVanillaPps(
+  chainId: number,
+  address: `0x${string}`,
+  blockNumber: bigint,
+  options: { blockTime?: bigint, isHistorical?: boolean } = {}
+): Promise<bigint> {
+  return await cachePps(chainId, address, blockNumber, 'yearn:pricePerShare', async () => {
     return await rpcs.next(chainId, blockNumber).readContract({
       address, abi: parseAbi(['function pricePerShare() view returns (uint256)']),
       functionName: 'pricePerShare', blockNumber
     }) as bigint
-  }
+  }, options)
+}
 
-  const [assets, totalSupply] = await rpcs.next(chainId, blockNumber).multicall({
-    contracts: [
-      { address: controller, abi: controllerAbi, functionName: 'liveAssets', args: [address] },
-      { address, abi: parseAbi(['function totalSupply() view returns (uint256)']), functionName: 'totalSupply' }
-    ],
-    blockNumber,
-    allowFailure: false
-  }) as [bigint, bigint]
+export async function readPps(
+  vault: Thing,
+  blockNumber: bigint,
+  options: { blockTime?: bigint, isHistorical?: boolean } = {}
+): Promise<bigint> {
+  const { chainId, address } = vault
+  const controller = trancheControllerOf(vault)
 
-  return computeTranchePps(assets, totalSupply, 10n ** BigInt(vault.defaults.decimals ?? 0))
+  if (!controller) return await readVanillaPps(chainId, address, blockNumber, options)
+
+  const scale = 10n ** BigInt(vault.defaults.decimals ?? 0)
+  return await cachePps(chainId, address, blockNumber,
+    `yearn:tranche:${controller.toLowerCase()}:scale:${scale}`, async () => {
+      const [assets, totalSupply] = await rpcs.next(chainId, blockNumber).multicall({
+        contracts: [
+          { address: controller, abi: controllerAbi, functionName: 'liveAssets', args: [address] },
+          { address, abi: parseAbi(['function totalSupply() view returns (uint256)']), functionName: 'totalSupply' }
+        ],
+        blockNumber,
+        allowFailure: false
+      }) as [bigint, bigint]
+
+      return computeTranchePps(assets, totalSupply, scale)
+    }, options)
 }

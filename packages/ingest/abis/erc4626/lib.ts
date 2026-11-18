@@ -1,5 +1,6 @@
 import { ReadContractParameters } from 'viem'
 import { cache } from 'lib/cache'
+import { cachePps } from '../../pps-cache'
 import { rpcs } from '../../rpcs'
 import abi from './abi'
 
@@ -33,4 +34,35 @@ export async function ppsReadParameters(
   return {
     abi, address, functionName: 'convertToAssets', args: [10n ** shareDecimals]
   } as ReadContractParameters
+}
+
+// Use the vault's actual share scale as both the quote input and part of the
+// cache identity. Asset decimals from defaults are not interchangeable with
+// ERC-4626 share decimals.
+export async function readPpsAtBlock(
+  chainId: number,
+  address: `0x${string}`,
+  blockNumber: bigint,
+  fallbackDecimals?: number,
+  options: { blockTime?: bigint, isHistorical?: boolean } = {}
+): Promise<bigint> {
+  const parameters = await ppsReadParameters(chainId, address, fallbackDecimals)
+  return await readPpsWithParameters(chainId, address, blockNumber, parameters, options)
+}
+
+export async function readPpsWithParameters(
+  chainId: number,
+  address: `0x${string}`,
+  blockNumber: bigint,
+  parameters: ReadContractParameters,
+  options: { blockTime?: bigint, isHistorical?: boolean } = {}
+): Promise<bigint> {
+  const shareScale = BigInt((parameters.args as readonly bigint[])[0])
+
+  return await cachePps(chainId, address, blockNumber, `erc4626:convertToAssets:${shareScale}`, async () => {
+    return await rpcs.next(chainId, blockNumber).readContract({
+      ...parameters,
+      blockNumber
+    }) as bigint
+  }, options)
 }

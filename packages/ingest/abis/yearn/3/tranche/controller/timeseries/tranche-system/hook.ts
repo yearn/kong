@@ -1,9 +1,10 @@
 import { multicall3 } from 'lib'
-import { estimateHeight, getBlock } from 'lib/blocks'
+import { getBlock } from 'lib/blocks'
 import { div, normalize } from 'lib/math'
 import { EvmAddressSchema, Output, OutputSchema } from 'lib/types'
 import { rpcs } from '../../../../../../../rpcs'
 import { Data } from '../../../../../../../extract/timeseries'
+import { resolveTimeseriesBlock } from '../../../../../../../helpers/timeseries-block'
 import { fetchOrExtractDecimals } from '../../../../../lib'
 import abi from '../../abi'
 
@@ -17,12 +18,8 @@ export const outputLabel = 'tranche-system'
 export default async function process(chainId: number, address: `0x${string}`, data: Data): Promise<Output[]> {
   console.info('🧮', data.outputLabel, chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())
 
-  let blockNumber: bigint = 0n
-  if(data.blockTime >= BigInt(Math.floor(new Date().getTime() / 1000))) {
-    blockNumber = (await getBlock(chainId)).number
-  } else {
-    blockNumber = await estimateHeight(chainId, data.blockTime)
-  }
+  const blockNumber = await resolveTimeseriesBlock(chainId, data)
+  if (blockNumber === undefined) return []
 
   if(!multicall3.supportsBlock(chainId, blockNumber)) {
     console.warn('🚨', 'block not supported', chainId, blockNumber)

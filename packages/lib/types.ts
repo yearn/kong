@@ -166,7 +166,10 @@ export const OutputSchema = z.object({
     return undefined
   }).nullish(),
   blockNumber: z.bigint({ coerce: true }),
-  blockTime: z.bigint({ coerce: true })
+  blockTime: z.bigint({ coerce: true }),
+  // Optional for existing queued output jobs. `blockTime` remains the actual
+  // chain block timestamp; `seriesTime` carries the requested coverage day.
+  seriesTime: z.bigint({ coerce: true }).optional()
 })
 
 export type Output = z.infer<typeof OutputSchema>

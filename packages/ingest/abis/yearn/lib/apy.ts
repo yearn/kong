@@ -1,17 +1,18 @@
 import { compare } from 'compare-versions'
 import { math, multicall3 } from 'lib'
-import { estimateHeight, getBlock } from 'lib/blocks'
+import { estimateHeightWithAge, getBlock } from 'lib/blocks'
 import { EvmLog, EvmLogSchema, Output, OutputSchema, Thing, ThingSchema, zhexstring } from 'lib/types'
-import { ReadContractParameters, getAddress, parseAbi } from 'viem'
+import { getAddress, parseAbi } from 'viem'
 import { mainnet } from 'viem/chains'
 import { z } from 'zod'
 import { first, query } from '../../../db'
 import { Data } from '../../../extract/timeseries'
 import { rpcs } from '../../../rpcs'
+import { resolveTimeseriesBlock } from '../../../helpers/timeseries-block'
 import { extractFeesBps } from '../2/strategy/event/hook'
 import * as snapshot__v2 from '../2/vault/snapshot/hook'
 import * as snapshot__v3 from '../3/vault/snapshot/hook'
-import { readPps } from './tranches/assets'
+import { readPps, readVanillaPps } from './tranches/assets'
 
 export const APYSchema = z.object({
   chainId: z.number(),
@@ -35,15 +36,17 @@ export const APYSchema = z.object({
 
 export type APY = z.infer<typeof APYSchema>
 
-export default async function _process(chainId: number, address: `0x${string}`, label: 'vault' | 'strategy', data: Data): Promise<Output[]> {
+export default async function _process(
+  chainId: number,
+  address: `0x${string}`,
+  label: 'vault' | 'strategy',
+  data: Data,
+  knownBlockNumber?: bigint,
+): Promise<Output[]> {
   console.info('🧮', data.outputLabel, chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())
 
-  let blockNumber: bigint = 0n
-  if(data.blockTime >= BigInt(Math.floor(new Date().getTime() / 1000))) {
-    blockNumber = (await getBlock(chainId)).number
-  } else {
-    blockNumber = await estimateHeight(chainId, data.blockTime)
-  }
+  const blockNumber = knownBlockNumber ?? await resolveTimeseriesBlock(chainId, data)
+  if (blockNumber === undefined) return []
 
   if(!multicall3.supportsBlock(chainId, blockNumber)) {
     console.warn('🚨', 'block not supported', chainId, blockNumber)
@@ -64,7 +67,7 @@ export default async function _process(chainId: number, address: `0x${string}`, 
     strategies.push(...await snapshot__v2.projectStrategies(chainId, address, blockNumber))
   }
 
-  const apy = await _compute(vault, strategies, blockNumber)
+  const apy = await _compute(vault, strategies, blockNumber, { includeLockedProfit: false })
   if (!apy) return []
 
   return OutputSchema.array().parse([
@@ -119,7 +122,12 @@ export default async function _process(chainId: number, address: `0x${string}`, 
   ])
 }
 
-export async function _compute(vault: Thing, strategies: `0x${string}`[], blockNumber: bigint) {
+export async function _compute(
+  vault: Thing,
+  strategies: `0x${string}`[],
+  blockNumber: bigint,
+  options: { includeLockedProfit?: boolean } = {}
+) {
   const { chainId, address } = vault
   const block = await getBlock(chainId, blockNumber)
 
@@ -158,42 +166,46 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
       `,
       [chainId, getAddress(vault.defaults.asset as `0x${string}`), 'vault'])
     : undefined
-  const assetPpsParameters = assetVault ? {
-    address: vault.defaults.asset as `0x${string}`, functionName: 'pricePerShare' as never,
-    abi: parseAbi(['function pricePerShare() view returns (uint256)'])
-  } as ReadContractParameters : undefined
   const assetScale = assetVault ? 10n ** BigInt(assetVault.defaults.decimals ?? 0) : 1n
 
   const day = 24n * 60n * 60n
   const weeklyTime = block.timestamp - 7n * day
   const monthlyTime = block.timestamp - 30n * day
-  result.weeklyBlockNumber = await estimateHeight(chainId, weeklyTime)
-  result.monthlyBlockNumber = await estimateHeight(chainId, monthlyTime)
+  const [weeklyEstimate, monthlyEstimate] = await Promise.all([
+    estimateHeightWithAge(chainId, weeklyTime),
+    estimateHeightWithAge(chainId, monthlyTime)
+  ])
+  result.weeklyBlockNumber = weeklyEstimate.height
+  result.monthlyBlockNumber = monthlyEstimate.height
 
   // every observation goes through the shared pps reader, so a controller-backed
   // tranche and an ordinary vault are measured the same way
-  result.pricePerShare = await readPps(vault, blockNumber)
-  result.inceptionPricePerShare = await readPps(vault, result.inceptionBlockNumber)
+  result.pricePerShare = await readPps(vault, blockNumber, { blockTime: block.timestamp })
+  result.inceptionPricePerShare = await readPps(vault, result.inceptionBlockNumber, { blockTime: inception.blockTime })
 
-  if (assetPpsParameters) {
-    const assetPps = await rpcs.next(chainId, blockNumber).readContract({...assetPpsParameters, blockNumber}) as bigint
+  if (assetVault) {
+    const assetPps = await readVanillaPps(chainId, assetVault.address, blockNumber, { blockTime: block.timestamp })
     result.pricePerShare = result.pricePerShare * assetPps / assetScale
-    const assetInceptionPps = await rpcs.next(chainId, result.inceptionBlockNumber).readContract({...assetPpsParameters, blockNumber: result.inceptionBlockNumber}) as bigint
+    const assetInceptionPps = await readVanillaPps(chainId, assetVault.address, result.inceptionBlockNumber, { blockTime: inception.blockTime })
     result.inceptionPricePerShare = result.inceptionPricePerShare * assetInceptionPps / assetScale
   }
 
   if (result.pricePerShare === result.inceptionPricePerShare) return result
 
-  result.weeklyPricePerShare = result.weeklyBlockNumber < result.inceptionBlockNumber ? undefined : await readPps(vault, result.weeklyBlockNumber)
-  result.monthlyPricePerShare = result.monthlyBlockNumber < result.inceptionBlockNumber ? undefined : await readPps(vault, result.monthlyBlockNumber)
+  result.weeklyPricePerShare = result.weeklyBlockNumber < result.inceptionBlockNumber ? undefined :
+    await readPps(vault, result.weeklyBlockNumber, { isHistorical: weeklyEstimate.historical })
+  result.monthlyPricePerShare = result.monthlyBlockNumber < result.inceptionBlockNumber ? undefined :
+    await readPps(vault, result.monthlyBlockNumber, { isHistorical: monthlyEstimate.historical })
 
-  if (assetPpsParameters) {
+  if (assetVault) {
     if (result.weeklyPricePerShare !== undefined) {
-      const assetWeeklyPps = await rpcs.next(chainId, result.weeklyBlockNumber).readContract({...assetPpsParameters, blockNumber: result.weeklyBlockNumber}) as bigint
+      const assetWeeklyPps = await readVanillaPps(chainId, assetVault.address, result.weeklyBlockNumber,
+        { isHistorical: weeklyEstimate.historical })
       result.weeklyPricePerShare = result.weeklyPricePerShare * assetWeeklyPps / assetScale
     }
     if (result.monthlyPricePerShare !== undefined) {
-      const assetMonthlyPps = await rpcs.next(chainId, result.monthlyBlockNumber).readContract({...assetPpsParameters, blockNumber: result.monthlyBlockNumber}) as bigint
+      const assetMonthlyPps = await readVanillaPps(chainId, assetVault.address, result.monthlyBlockNumber,
+        { isHistorical: monthlyEstimate.historical })
       result.monthlyPricePerShare = result.monthlyPricePerShare * assetMonthlyPps / assetScale
     }
   }
@@ -244,9 +256,11 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
     }
   }
 
-  result.lockedProfit = compare(vault.defaults.apiVersion, '3.0.0', '>=')
-    ? await extractLockedProfit__v3(chainId, address, blockNumber)
-    : await extractLockedProfit__v2(chainId, address, blockNumber)
+  if (options.includeLockedProfit !== false) {
+    result.lockedProfit = compare(vault.defaults.apiVersion, '3.0.0', '>=')
+      ? await extractLockedProfit__v3(chainId, address, blockNumber)
+      : await extractLockedProfit__v2(chainId, address, blockNumber)
+  }
 
   return result
 }

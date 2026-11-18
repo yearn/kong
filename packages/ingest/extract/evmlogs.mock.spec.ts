@@ -4,20 +4,33 @@ const {
   add, getBlockTime, getDefaultStartBlockNumber, getLogs, loadAbi, query,
   resolveHooks, rpcsNext, hookDefault, blacklistEvents
 } = vi.hoisted(() => {
+  type RpcEvent = { type: string, name: string }
+  type RpcOptions = { address: string, events: RpcEvent[], fromBlock: bigint, toBlock: bigint }
+  type RpcLog = {
+    address: string
+    eventName: string
+    topics: string[]
+    data: string
+    args: Record<string, unknown>
+    blockNumber: bigint
+    logIndex: number
+    transactionHash: string
+    transactionIndex: number
+  }
   const hookDefault = vi.fn(async (_chainId: number, _address: string, data: { blockTime?: bigint }) => ({ seenBlockTime: data.blockTime }))
   const hook = { type: 'event', abiPath: 'test', module: { topics: ['0xaaaa'], default: hookDefault } }
   const resolveHooks = vi.fn(() => [hook])
   const blacklistEvents = { ignore: ['Ignored'], limit: ['Limited'] }
-  const getLogs = vi.fn()
+  const getLogs = vi.fn<(options: RpcOptions) => Promise<RpcLog[]>>()
   return {
-    add: vi.fn(async () => undefined),
-    getBlockTime: vi.fn(async () => 0n),
-    getDefaultStartBlockNumber: vi.fn(async () => 10n),
+    add: vi.fn<(job: string, data: Record<string, unknown>, options?: Record<string, unknown>) => Promise<void>>(),
+    getBlockTime: vi.fn<(chainId: number, blockNumber?: bigint) => Promise<bigint>>(async () => 0n),
+    getDefaultStartBlockNumber: vi.fn<(chainId: number) => Promise<bigint>>(async () => 10n),
     getLogs,
-    loadAbi: vi.fn(),
-    query: vi.fn(),
+    loadAbi: vi.fn<() => Promise<RpcEvent[]>>(),
+    query: vi.fn<(sql: string, params: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>>(),
     resolveHooks,
-    rpcsNext: vi.fn(() => ({ getLogs })),
+    rpcsNext: vi.fn<(chainId: number, blockNumber?: bigint) => { getLogs: typeof getLogs }>(() => ({ getLogs })),
     hookDefault,
     blacklistEvents
   }
@@ -104,7 +117,7 @@ describe('EvmLogsExtractor RPC avoidance and timestamps', () => {
     ])
     expect(getBlockTime.mock.calls).toEqual([[1, 8n], [1, 10n]])
     expect(hookDefault.mock.calls.map(([, , data]) => data.blockTime)).toEqual([0n, 0n])
-    const payload = add.mock.calls[0][1] as { batch: { blockNumber: bigint, blockTime: bigint, hook: object }[] }
+    const payload = add.mock.calls[0]![1] as { batch: { blockNumber: bigint, blockTime: bigint, hook: object }[] }
     expect(payload.batch.map(log => [log.blockNumber, log.blockTime, log.hook])).toEqual([
       [8n, 0n, { seenBlockTime: 0n }],
       [10n, 0n, { seenBlockTime: 0n }]
@@ -139,7 +152,7 @@ describe('EvmLogsExtractor RPC avoidance and timestamps', () => {
     expect(getBlockTime).not.toHaveBeenCalled()
     expect(rpcsNext).not.toHaveBeenCalled()
     expect(hookDefault.mock.calls[0][2].blockTime).toBe(0n)
-    const payload = add.mock.calls[0][1] as { batch: { blockTime: bigint }[] }
+    const payload = add.mock.calls[0]![1] as { batch: { blockTime: bigint }[] }
     expect(payload.batch[0].blockTime).toBe(0n)
   })
 })

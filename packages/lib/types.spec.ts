@@ -21,5 +21,6 @@ describe('types', function() {
     expect(OutputSchema.parse({ ...output, value: Infinity }).value).to.be.undefined
     expect(OutputSchema.parse({ ...output, value: 'string' }).value).to.be.undefined
     expect(OutputSchema.parse({ ...output, value: {} }).value).to.be.undefined
+    expect(OutputSchema.parse({ ...output, seriesTime: '2' }).seriesTime).to.equal(2n)
   })
 })

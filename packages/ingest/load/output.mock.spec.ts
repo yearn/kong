@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { endOfDay } from 'lib/dates'
 
 const { query, release, client, toUpsertSql, invalidateSparkline } = vi.hoisted(() => {
   const query = vi.fn<(statement: unknown, values?: unknown[]) => Promise<{ rows: unknown[] }>>(
@@ -71,8 +72,32 @@ describe('output queue compatibility', () => {
         values: expect.arrayContaining([1, output.address, 'apr'])
       })
     ])
+    expect((toUpsertSql.mock.calls[0][2] as { series_time: bigint }).series_time).toBe(endOfDay(output.blockTime))
     expect(query).toHaveBeenCalledWith('COMMIT')
     expect(invalidateSparkline).toHaveBeenCalledWith(1, output.address, 'apr', 1n)
+  })
+
+  it('writes the requested series day while preserving the actual block timestamp', async () => {
+    const actualBlockTime = 1_699_827_200n
+    const requestedSeriesTime = 1_700_000_000n
+
+    await new Load().handlers.output({
+      batch: [{ ...output, blockTime: actualBlockTime, seriesTime: requestedSeriesTime }]
+    })
+
+    const persisted = toUpsertSql.mock.calls[0][2] as Record<string, bigint | string>
+    expect(persisted.blockTime).toBe(actualBlockTime)
+    expect(persisted.series_time).toBe(endOfDay(requestedSeriesTime))
+    expect(persisted).not.toHaveProperty('seriesTime')
+    expect(invalidateSparkline).toHaveBeenCalledWith(1, output.address, 'apr', actualBlockTime)
+  })
+
+  it('rejects a requested series day that would precede the actual block time', async () => {
+    await expect(new Load().handlers.output({
+      batch: [{ ...output, blockTime: 200_000n, seriesTime: 1n }]
+    })).rejects.toThrow('seriesTime precedes actual blockTime')
+    expect(query).not.toHaveBeenCalled()
+    expect(invalidateSparkline).not.toHaveBeenCalled()
   })
 
   it.each([

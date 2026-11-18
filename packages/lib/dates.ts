@@ -27,6 +27,10 @@ export function endOfDay(blocktime: bigint): bigint {
   return BigInt(Math.floor(endOfDayMs(Number(blocktime) * 1000) / 1000))
 }
 
+export function isClosedDay(blocktime: bigint, now = BigInt(Math.floor(Date.now() / 1000))): boolean {
+  return endOfDay(blocktime) < endOfDay(now)
+}
+
 export function epoch(date: string) {
   return BigInt((new Date(date)).getTime() / 1000)
 }

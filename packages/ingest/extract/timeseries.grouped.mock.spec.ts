@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { endOfStringDay } from 'lib/dates'
 
 const { mqAdd, singleHook, processGroup, hooks, hookState } = vi.hoisted(() => {
   const singleHook = vi.fn<(chainId: number, address: `0x${string}`, data: unknown) => Promise<unknown[]>>(async () => [])
@@ -19,7 +20,8 @@ const { mqAdd, singleHook, processGroup, hooks, hookState } = vi.hoisted(() => {
       }
     }
   ]
-  return { mqAdd: vi.fn(async () => undefined), singleHook, processGroup, hooks, hookState: { hooks } }
+  const mqAdd = vi.fn<(job: unknown, data: Record<string, unknown>) => Promise<void>>(async () => undefined)
+  return { mqAdd, singleHook, processGroup, hooks, hookState: { hooks } }
 })
 
 vi.mock('lib', () => ({
@@ -124,5 +126,65 @@ describe('extract/timeseries grouped jobs', () => {
     expect(singleHook).toHaveBeenCalledTimes(1)
     expect(processGroup).not.toHaveBeenCalled()
     expect(mqAdd).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps actual blockTime while carrying the requested day for historical pps rows', async () => {
+    const requestedDay = endOfStringDay('2024-01-01')
+    const actualBlockTime = endOfStringDay('2023-12-31')
+    hookState.hooks = [hookWith('pps')] as typeof hooks
+    singleHook.mockResolvedValueOnce([output('pps', actualBlockTime)])
+
+    await new TimeseriesExtractor().extract({
+      ...DATA,
+      outputLabel: 'pps',
+      blockTime: requestedDay
+    })
+
+    const batch = (mqAdd.mock.calls[0][1] as { batch: { blockTime: bigint, seriesTime?: bigint }[] }).batch
+    expect(batch).to.deep.equal([{
+      ...output('pps', actualBlockTime),
+      seriesTime: requestedDay
+    }])
+    expect(singleHook.mock.calls[0][2]).toMatchObject({
+      seriesTime: requestedDay,
+      isClosedDay: true
+    })
+  })
+
+  it('does not retag an open-day output when extraction crosses midnight', async () => {
+    const requestedDay = endOfStringDay('2024-01-01')
+    const afterMidnight = endOfStringDay('2024-01-02') - 86_394n
+    hookState.hooks = [hookWith('pps')] as typeof hooks
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2024-01-01T23:59:59Z'))
+    singleHook.mockImplementationOnce(async () => {
+      vi.setSystemTime(new Date('2024-01-02T00:00:05Z'))
+      return [output('pps', afterMidnight)]
+    })
+
+    try {
+      await new TimeseriesExtractor().extract({
+        ...DATA,
+        outputLabel: 'pps',
+        blockTime: requestedDay
+      })
+
+      const batch = (mqAdd.mock.calls[0][1] as { batch: Record<string, unknown>[] }).batch
+      expect(batch[0]).not.to.have.property('seriesTime')
+      expect(batch[0].blockTime).to.equal(afterMidnight)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not apply requested-day coverage metadata to unrelated output labels', async () => {
+    const requestedDay = endOfStringDay('2024-01-01')
+    hookState.hooks = [hookWith('tvl')] as typeof hooks
+    singleHook.mockResolvedValueOnce([output('tvl', endOfStringDay('2023-12-31'))])
+
+    await new TimeseriesExtractor().extract({ ...DATA, blockTime: requestedDay })
+
+    const batch = (mqAdd.mock.calls[0][1] as { batch: Record<string, unknown>[] }).batch
+    expect(batch[0]).not.to.have.property('seriesTime')
   })
 })
