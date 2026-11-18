@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { store, cacheTtls, cacheWrap, latestBlocks } = vi.hoisted(() => {
   const store = new Map<string, unknown>()
