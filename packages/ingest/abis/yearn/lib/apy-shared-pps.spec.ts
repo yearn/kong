@@ -38,7 +38,7 @@ describe('abis/yearn/lib/apy shared pps reader', function() {
       await db.query(`
         INSERT INTO evmlog (chain_id, address, event_name, signature, topics, args, hook,
           block_number, block_time, log_index, transaction_hash, transaction_index)
-        VALUES ($1, $2, 'StrategyReported', $3, '{}', '{}', '{}', $4, to_timestamp(1694000000), $5, $6, 0)
+        VALUES ($1, $2, 'StrategyReported', $3, '{}', '{}', '{}', $4, to_timestamp(1694276627), $5, $6, 0)
         ON CONFLICT DO NOTHING
       `, [mainnet.id, vault.address, signature, blockNumber, index, `0xsharedpps${index}`])
     }
