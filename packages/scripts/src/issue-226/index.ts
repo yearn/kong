@@ -4,7 +4,7 @@ import { Pool, types as pgTypes } from 'pg'
 import { compare } from 'compare-versions'
 import { HarvestSchema, computeApr } from 'ingest/abis/yearn/2/strategy/event/hook'
 import { rpcs } from 'ingest/rpcs'
-import { mq } from 'lib'
+import { cache, mq } from 'lib'
 
 const HarvestWithHookSchema = HarvestSchema.extend({
   hook: z.any(),
@@ -114,11 +114,12 @@ async function replayHarvestsWithBadAprs(db: Pool) {
 
 async function main() {
   const db = getDb()
-  console.log('db up')
-  await rpcs.up()
-  console.log('rpcs up')
-
   try {
+    console.log('db up')
+    await cache.up()
+    await rpcs.up()
+    console.log('rpcs up')
+
     const harvests = await replayHarvestsWithBadAprs(db)
     console.log('harvests', harvests.length)
 
@@ -128,10 +129,11 @@ async function main() {
     console.error('🤬🤬🤬🤬🤬')
 
   } finally {
-    await mq.down()
-    await rpcs.down()
+    const results = await Promise.allSettled([cache.down(), mq.down(), rpcs.down(), db.end()])
+    for (const result of results) {
+      if (result.status === 'rejected') console.error('Shutdown error:', result.reason)
+    }
     console.log('rpcs down')
-    await db.end()
     console.log('db down')
 
   }

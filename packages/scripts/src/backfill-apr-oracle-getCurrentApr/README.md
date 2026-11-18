@@ -15,10 +15,12 @@ The backfill flow does that in two steps:
 
 ### 1. compute.ts
 
-Finds distinct vaults with `apr=0` in the output table, re-queries the oracle at each **historical block** for every timeseries row, and writes corrected values to a temp table.
+Finds vaults with `apr=0` in the output table, then re-queries the oracle once per exact source observation across each affected vault's full history. It writes corrected values to a temp table.
 
 - Writes to `output_temp_apr_oracle_backfill`
 - Skips rows where the oracle still returns 0 (no point overwriting a zero with a zero)
+- Resumes by skipping only observations with all four APR/APY components staged
+- Uses a bounded RPC pool (`RECOMPUTE_CONCURRENCY`, default 25, maximum 100)
 
 ```
 bun packages/scripts/src/backfill-apr-oracle-getCurrentApr/compute.ts

@@ -3,7 +3,7 @@ import 'lib/global'
 import _process from 'ingest/abis/yearn/lib/apy'
 import db from 'ingest/db'
 import { rpcs } from 'ingest/rpcs'
-import { mq } from 'lib'
+import { cache, mq } from 'lib'
 import type { Output } from 'lib/types'
 import { getAddress } from 'viem'
 
@@ -48,7 +48,7 @@ Run upsert.ts to promote them to the output table.`)
 
 async function getExistingBlockTimes(
   chainId: number, address: string, start?: string, end?: string
-): Promise<{ blockTime: bigint; seriesTime: bigint }[]> {
+): Promise<{ blockNumber: bigint; blockTime: bigint; seriesTime: bigint }[]> {
   const params: (number | string | Date)[] = [chainId, address]
   let timeFilter = ''
 
@@ -62,14 +62,17 @@ async function getExistingBlockTimes(
   }
 
   const result = await db.query(`
-    SELECT DISTINCT series_time,
+    SELECT DISTINCT ON (series_time)
+      series_time,
+      block_number,
       EXTRACT(EPOCH FROM block_time)::bigint AS block_time_epoch
     FROM output
     WHERE chain_id = $1 AND address = $2 AND label = 'apy-bwd-delta-pps' ${timeFilter}
-    ORDER BY series_time
+    ORDER BY series_time, block_number DESC, component ASC
   `, params)
 
-  return result.rows.map((row: { series_time: bigint; block_time_epoch: string }) => ({
+  return result.rows.map((row: { block_number: string | bigint; series_time: bigint; block_time_epoch: string }) => ({
+    blockNumber: BigInt(row.block_number),
     blockTime: BigInt(row.block_time_epoch),
     seriesTime: row.series_time,
   }))
@@ -93,7 +96,7 @@ async function ensureTempTable() {
   console.log(`Temp table ${TEMP_TABLE}: ${count.rows[0].count} existing rows`)
 }
 
-async function insertTempBatch(rows: Output[]) {
+async function insertTempBatch(rows: Output[], sourceSeriesTime: bigint) {
   if (rows.length === 0) return
 
   const values: string[] = []
@@ -102,10 +105,9 @@ async function insertTempBatch(rows: Output[]) {
 
   for (const row of rows) {
     const blockTime = new Date(Number(row.blockTime) * 1000)
-    // series_time = end of day for blockTime
-    const d = new Date(blockTime)
-    d.setUTCHours(23, 59, 59, 0)
-    const seriesTime = d
+    // Keep the exact source observation key. It is independent of the actual
+    // timestamp of the block used to recompute the output.
+    const seriesTime = new Date(Number(sourceSeriesTime) * 1000)
 
     values.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7})`)
     params.push(
@@ -123,12 +125,7 @@ async function insertTempBatch(rows: Output[]) {
   `, params)
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2))
-  const startTime = Date.now()
-
-  await rpcs.up()
-
+async function run(args: ReturnType<typeof parseArgs>, startTime: number) {
   console.log(args.dryRun ? 'DRY RUN mode' : 'COMPUTE mode')
   console.log(`Vaults: ${args.vaults.length}`)
   if (args.start) console.log(`Start: ${args.start}`)
@@ -150,7 +147,6 @@ async function main() {
     console.log(`  ${entries.length} existing entries`)
     if (entries.length === 0) continue
     totalEntries += entries.length
-
     let processed = 0
     let errors = 0
 
@@ -163,7 +159,8 @@ async function main() {
           address: address as `0x${string}`,
           outputLabel: 'apy-bwd-delta-pps',
           blockTime: entry.blockTime,
-        })
+          seriesTime: entry.seriesTime,
+        }, entry.blockNumber)
         return { outputs, entry }
       }))
 
@@ -171,7 +168,7 @@ async function main() {
         if (result.status === 'fulfilled') {
           const { outputs } = result.value
           if (outputs.length > 0) {
-            if (!args.dryRun) await insertTempBatch(outputs)
+            if (!args.dryRun) await insertTempBatch(outputs, result.value.entry.seriesTime)
             totalOutputs += outputs.length
           }
           processed++
@@ -202,9 +199,22 @@ async function main() {
     console.log('\nRun upsert.ts to promote to the output table.')
   }
 
-  await rpcs.down()
-  await mq.down()
-  await db.end()
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2))
+  const startTime = Date.now()
+
+  try {
+    await cache.up()
+    await rpcs.up()
+    await run(args, startTime)
+  } finally {
+    const results = await Promise.allSettled([cache.down(), rpcs.down(), mq.down(), db.end()])
+    for (const result of results) {
+      if (result.status === 'rejected') console.error('Shutdown error:', result.reason)
+    }
+  }
 }
 
 main().catch(error => {

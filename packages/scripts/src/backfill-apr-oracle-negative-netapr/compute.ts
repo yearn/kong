@@ -3,6 +3,7 @@ import 'lib/global'
 import aprOracleHook from 'ingest/abis/yearn/3/vault/timeseries/apr-oracle/hook'
 import db from 'ingest/db'
 import { rpcs } from 'ingest/rpcs'
+import { cache } from 'lib'
 import type { Output } from 'lib/types'
 import { insertTempBatch, resetTempTable, type TempRow } from '../backfill-shared/tempTable'
 
@@ -171,6 +172,7 @@ async function main() {
   const startTime = Date.now()
 
   try {
+    await cache.up()
     await rpcs.up()
     await resetTempTable(TEMP_TABLE)
     console.log(`reset temp table ${TEMP_TABLE}`)
@@ -219,8 +221,10 @@ async function main() {
     console.log(`Errors:                  ${totalErrors}`)
     console.log(`Duration:                ${duration}s`)
   } finally {
-    await rpcs.down()
-    await db.end()
+    const results = await Promise.allSettled([cache.down(), rpcs.down(), db.end()])
+    for (const result of results) {
+      if (result.status === 'rejected') console.error('Shutdown error:', result.reason)
+    }
   }
 }
 
