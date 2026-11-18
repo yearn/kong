@@ -31,12 +31,12 @@ export type Harvest = z.infer<typeof HarvestSchema>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function process(chainId: number, address: `0x${string}`, data: any) {
   const latestHarvest = HarvestSchema.parse({
-    chainId, address, blockTime: await getBlockTime(chainId, data.blockNumber), ...data
+    chainId, address, ...data, blockTime: data.blockTime ?? await getBlockTime(chainId, data.blockNumber)
   })
 
   const decimals = await fetchOrExtractDecimals(chainId, address)
   const asset = await fetchOrExtractAssetAddress(chainId, address, 'strategy', 'asset')
-  const price = await fetchErc20PriceUsd(chainId, asset, latestHarvest.blockNumber)
+  const price = await fetchErc20PriceUsd(chainId, asset, latestHarvest.blockNumber, false, latestHarvest.blockTime)
 
   const previousLog = await first<EvmLog>(EvmLogSchema, `
   SELECT * from evmlog

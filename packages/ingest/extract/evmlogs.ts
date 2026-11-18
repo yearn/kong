@@ -26,24 +26,46 @@ export class EvmLogsExtractor {
       replay: z.boolean().optional()
     }).parse(data)
 
-    const abi = await abiutil.load(abiPath)
-    const defaultStartBlockNumber = await getDefaultStartBlockNumber(chainId)
-    const excludeLimitlist = from < defaultStartBlockNumber
-
-    const events = excludeLimitlist
-      ? abiutil.exclude([...blacklist.events.ignore, ...blacklist.events.limit], abiutil.events(abi))
-      : abiutil.exclude(blacklist.events.ignore, abiutil.events(abi))
-
     const logs = await (async () => {
       if (replay) {
         return await fetchLogs(chainId, address, from, to)
       } else {
-        return await rpcs.next(chainId, from).getLogs({
-          address,
-          events,
-          fromBlock: BigInt(from),
-          toBlock: BigInt(to)
-        })
+        const abiEvents = abiutil.events(await abiutil.load(abiPath))
+        const eligibleEvents = abiutil.exclude(blacklist.events.ignore, abiEvents)
+        if (eligibleEvents.length === 0) return []
+
+        const hasLimitedEvents = eligibleEvents.some(event => blacklist.events.limit.includes(event.name))
+        if (!hasLimitedEvents) {
+          return await rpcs.next(chainId, from).getLogs({
+            address,
+            events: eligibleEvents,
+            fromBlock: from,
+            toBlock: to
+          })
+        }
+
+        const defaultStartBlockNumber = await getDefaultStartBlockNumber(chainId)
+        const ranges = from < defaultStartBlockNumber && to >= defaultStartBlockNumber
+          ? [
+              { from, to: defaultStartBlockNumber - 1n, excludeLimitlist: true },
+              { from: defaultStartBlockNumber, to, excludeLimitlist: false }
+            ]
+          : [{ from, to, excludeLimitlist: from < defaultStartBlockNumber }]
+
+        const fetched = await Promise.all(ranges.map(async range => {
+          const events = range.excludeLimitlist
+            ? abiutil.exclude([...blacklist.events.ignore, ...blacklist.events.limit], abiEvents)
+            : eligibleEvents
+          if (events.length === 0) return []
+
+          return await rpcs.next(chainId, range.from).getLogs({
+            address,
+            events,
+            fromBlock: range.from,
+            toBlock: range.to
+          })
+        }))
+        return fetched.flat()
       }
     })()
 
@@ -64,6 +86,9 @@ export class EvmLogsExtractor {
         continue
       }
 
+      const storedBlockTime = 'blockTime' in log ? log.blockTime as bigint | undefined : undefined
+      const blockTime = storedBlockTime ?? await getBlockTime(chainId, log.blockNumber ?? undefined)
+      const eventLog = { ...log, blockTime }
       const topic = log.topics[0]
       const topical = hooks.filter(h => h.module.topics && h.module.topics.includes(topic))
 
@@ -71,18 +96,18 @@ export class EvmLogsExtractor {
       for (const hook of topical) {
         hookResult = {
           ...hookResult,
-          ...await hook.module.default(chainId, address, log)
+          ...await hook.module.default(chainId, address, eventLog)
         }
       }
 
       processedLogs.push({
-        ...log,
+        ...eventLog,
         chainId,
         address: getAddress(log.address),
         signature: log.topics[0],
         args,
         hook: hookResult,
-        blockTime: await getBlockTime(chainId, log.blockNumber || undefined)
+        blockTime
       })
     }
 

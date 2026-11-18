@@ -34,24 +34,30 @@ export async function safeFetchOrExtractDecimals(chainId: number, address: `0x${
 export async function fetchOrExtractDecimals(chainId: number, address: `0x${string}`) {
   const result = await fetchDecimals(chainId, address)
   if (result !== undefined && result !== null) return result
-  try {
-    return Number(await extractDecimals(chainId, address))
-  } catch(_) {
-    const multicall = await rpcs.next(chainId).multicall({ contracts: [
-      { address, functionName: 'asset', abi: parseAbi(['function asset() view returns (address)']) },
-      { address, functionName: 'want', abi: parseAbi(['function want() view returns (address)']) }
-    ] })
 
-    const asset = multicall[0].result ?? multicall[1].result ?? undefined
-    if (!asset) throw new Error(`!asset ${address}`)
+  return await cache.wrap(`chainDecimals:${chainId}:${address.toLowerCase()}`, async () => {
+    try {
+      return Number(await extractDecimals(chainId, address))
+    } catch(_) {
+      const multicall = await rpcs.next(chainId).multicall({ contracts: [
+        { address, functionName: 'asset', abi: parseAbi(['function asset() view returns (address)']) },
+        { address, functionName: 'want', abi: parseAbi(['function want() view returns (address)']) }
+      ] })
 
-    return Number(await extractDecimals(chainId, asset))
-  }
+      const asset = multicall[0].result ?? multicall[1].result ?? undefined
+      if (!asset) throw new Error(`!asset ${address}`)
+
+      return Number(await extractDecimals(chainId, asset))
+    }
+  }, FETCH_DECIMALS_TTL) as number
 }
 
 export async function fetchAssetAddress(chainId: number, address: `0x${string}`, label: string) {
   return (await db.query(
-    'SELECT defaults #>> \'{asset, address}\' AS address FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3',
+    `SELECT coalesce(
+      defaults #>> '{asset, address}',
+      CASE WHEN jsonb_typeof(defaults->'asset') = 'string' THEN defaults #>> '{asset}' END
+    ) AS address FROM thing WHERE chain_id = $1 AND address = $2 AND label = $3`,
     [chainId, address, label])
   ).rows[0]?.address as `0x${string}`
 }

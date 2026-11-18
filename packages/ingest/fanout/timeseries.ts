@@ -6,7 +6,10 @@ import { requireHooks } from '../abis'
 import { HookOutputGroup, ResolveHooks, sameOutputGroup } from '../abis/types'
 import { endOfDay, makeTimeline } from 'lib/dates'
 
-const groupedTvlJobsEnabled = () => process.env.TVL_GROUPED_JOBS === 'true'
+const groupedTvlJobsEnabled = () => {
+  const setting = process.env.TVL_GROUPED_JOBS?.trim()
+  return setting === undefined || setting === '' || setting === 'true'
+}
 
 export default class TimeseriesFanout {
   resolveHooks: ResolveHooks | undefined
@@ -33,9 +36,8 @@ export default class TimeseriesFanout {
       return { hook, outputLabel }
     })
 
-    // Grouping is opt-in because old extract workers ignore the optional
-    // outputLabels field. Keep the worker rollout safe: upgrade every consumer,
-    // then enable TVL_GROUPED_JOBS on fanout workers.
+    // Grouped jobs are the default; set TVL_GROUPED_JOBS=false to return to
+    // legacy per-label jobs during a compatibility rollback.
     const groups: (HookOutputGroup & { hooks: typeof labelledHooks })[] = []
     const standalone: typeof labelledHooks = []
     for (const item of labelledHooks) {
@@ -120,7 +122,9 @@ async function enqueueGroupedTimeseries(abiPath: string, chainId: number, addres
   }, { jobId })
 }
 
-// series_time is endOfDay(block_time) at write time (packages/ingest/load/index.ts).
+// series_time is endOfDay(seriesTime ?? blockTime) at write time
+// (packages/ingest/load/index.ts). Fanout blockTime is the requested day for
+// queued observations; backfills can supply a separate source seriesTime.
 // The anti-join returns only the missing days, not every computed day — the full
 // computed list was ~50M calls x O(history) rows of egress per fanout cycle. The
 // BETWEEN range keeps the single prunable index-only scan on
