@@ -99,6 +99,9 @@ describe('Yearn APY locked-profit RPC', () => {
     const todayEod = BigInt(Math.floor(Date.now() / 86_400_000) * 86_400 + 86_399)
 
     const outputs = await process(1, ADDRESS, 'vault', {
+      abiPath: 'yearn/2/vault',
+      chainId: 1,
+      address: ADDRESS,
       outputLabel: 'apy-bwd-delta-pps',
       blockTime: todayEod,
       isClosedDay: false
