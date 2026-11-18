@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import { cache } from './cache'
-import { __estimateHeight, estimateCreationBlock, estimateHeight, getBlock } from './blocks'
+import { __estimateHeight, estimateCreationBlock, estimateHeight, estimateHeightAtOrBefore, estimateHeightWithAge, getBlock } from './blocks'
 import { rpcs } from './rpcs'
 
 describe('blocks', function() {
@@ -45,6 +45,7 @@ describe('blocks', function() {
     try {
       const historicalKey = `estimateHeight:v2:${historicalChain}:100000`
       expect(await estimateHeight(historicalChain, 100_000n)).to.equal(50n)
+      expect(await estimateHeightWithAge(historicalChain, 100_000n)).to.deep.equal({ height: 50n, historical: true })
       now = 11_000
       expect(await estimateHeight(historicalChain, 100_000n)).to.equal(50n)
       expect(calls.get(historicalKey)).to.equal(1)
@@ -181,6 +182,65 @@ describe('blocks', function() {
       await Promise.all(
         ['undefined', '1', '2', '3', '4', '5'].map(blockNumber => cache.del(`getBlock:${chainId}:${blockNumber}`))
       )
+    }
+  })
+
+  it('resolves the last block at or before a daily boundary, handles a stalled head, and skips times before genesis', async function() {
+    const originalNext = rpcs.next
+    const chainId = 31344
+    const stalledChainId = 31345
+    const repeatedHeadChainId = 31346
+    const blocks = new Map<bigint, bigint>([
+      [1n, 0n],
+      [2n, 99n],
+      [3n, 100n],
+      [4n, 100n],
+      [5n, 101n]
+    ])
+    const keys = ['undefined', ...Array.from({ length: 6 }, (_, i) => String(i))]
+    await Promise.all([
+      ...keys.map(blockNumber => cache.del(`getBlock:${chainId}:${blockNumber}`)),
+      cache.del(`getBlock:${stalledChainId}:undefined`),
+      cache.del(`getBlock:${stalledChainId}:100`),
+      ...keys.map(blockNumber => cache.del(`getBlock:${repeatedHeadChainId}:${blockNumber}`))
+    ])
+
+    rpcs.next = ((chain: number) => ({
+      getBlock: async ({ blockNumber }: { blockNumber?: bigint } = {}) => {
+        if (chain === stalledChainId) {
+          const number = blockNumber ?? 100n
+          return { number, timestamp: 900n }
+        }
+        const number = blockNumber ?? 5n
+        const timestamp = chain === repeatedHeadChainId
+          ? new Map([[1n, 0n], [2n, 99n], [3n, 100n], [4n, 101n], [5n, 101n]]).get(number) ?? 0n
+          : blocks.get(number) ?? 0n
+        return { number, timestamp }
+      }
+    })) as unknown as typeof rpcs.next
+
+    try {
+      // The two adjacent blocks at second 100 must both be included, so the
+      // helper returns the last one instead of estimateHeight's first match.
+      expect(await estimateHeightAtOrBefore(chainId, 100n)).to.equal(4n)
+      expect(await estimateHeight(chainId, 100n)).to.equal(3n)
+      expect(await estimateHeightAtOrBefore(chainId, -1n)).to.equal(undefined)
+
+      // When the head and its predecessor share the first timestamp after the
+      // boundary, the upper-bound fallback still finds the earlier eligible block.
+      expect(await estimateHeightAtOrBefore(repeatedHeadChainId, 100n)).to.equal(3n)
+
+      // A timestamp ahead of a stalled head still resolves to the latest block
+      // available before the requested boundary.
+      expect(await estimateHeightAtOrBefore(stalledChainId, 1_000n)).to.equal(100n)
+    } finally {
+      rpcs.next = originalNext
+      await Promise.all([
+        ...keys.map(blockNumber => cache.del(`getBlock:${chainId}:${blockNumber}`)),
+        cache.del(`getBlock:${stalledChainId}:undefined`),
+        cache.del(`getBlock:${stalledChainId}:100`),
+        ...keys.map(blockNumber => cache.del(`getBlock:${repeatedHeadChainId}:${blockNumber}`))
+      ])
     }
   })
 

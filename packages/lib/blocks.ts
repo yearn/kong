@@ -60,7 +60,14 @@ export async function getDefaultStartBlockNumber(chainId: number): Promise<bigin
   return BigInt(await result)
 }
 
+export type HeightEstimate = { height: bigint, historical: boolean }
+
 export async function estimateHeight(chainId: number, timestamp: bigint): Promise<bigint> {
+  return (await estimateHeightWithAge(chainId, timestamp)).height
+}
+
+/** Return the cached height and the age/finality classification from its search. */
+export async function estimateHeightWithAge(chainId: number, timestamp: bigint): Promise<HeightEstimate> {
   // The v2 key stores metadata so historical results can use a longer TTL while
   // moving-head clamps remain short-lived. The versioned key avoids reusing the
   // previous scalar cache value with a different shape.
@@ -68,7 +75,51 @@ export async function estimateHeight(chainId: number, timestamp: bigint): Promis
     const estimate = await estimateHeightManual(chainId, timestamp)
     return { height: estimate.height.toString(), historical: estimate.historical }
   }, value => value.historical ? HISTORICAL_BLOCK_TTL : HEIGHT_ESTIMATE_TTL)
-  return BigInt((await result).height)
+  const estimate = await result
+  return { height: BigInt(estimate.height), historical: estimate.historical }
+}
+
+/**
+ * Resolve the latest block whose timestamp is at or before a time boundary.
+ * `estimateHeight` intentionally keeps its first-at-or-after semantics for
+ * callers resolving arbitrary event timestamps; daily historical observations
+ * use this helper so a sparse block at midnight cannot move the sample into
+ * the next series day. Returns undefined when the requested time predates the
+ * first eligible block on the chain.
+ */
+export async function estimateHeightAtOrBefore(chainId: number, timestamp: bigint): Promise<bigint | undefined> {
+  // Timestamps are integer seconds, so the first block at/after the next second
+  // is the first block strictly after this boundary. estimateHeight/getBlock
+  // share caches, meaning the adjacent-header lookup is normally already warm.
+  const afterHeight = await estimateHeight(chainId, timestamp + 1n)
+  const after = await getBlock(chainId, afterHeight)
+
+  // A stale chain head may be older than the requested timestamp. It is still
+  // the latest available observation at or before the boundary.
+  if (after.timestamp <= timestamp) return afterHeight
+
+  const firstEligible = FIRST_BLOCK[chainId] ?? 1n
+  if (afterHeight <= firstEligible) return undefined
+
+  const candidate = afterHeight - 1n
+  const before = await getBlock(chainId, candidate)
+  if (before.timestamp <= timestamp) return candidate
+
+  // A head can contain multiple blocks with the same timestamp as the first
+  // block strictly after the boundary. The normal first-after search clamps
+  // at the head in that case, so find the upper bound with a binary search.
+  const first = await getBlock(chainId, firstEligible)
+  if (first.timestamp > timestamp) return undefined
+
+  let low = firstEligible
+  let high = candidate
+  while (high - low > 1n) {
+    const middle = low + (high - low) / 2n
+    const block = await getBlock(chainId, middle)
+    if (block.timestamp <= timestamp) low = middle
+    else high = middle
+  }
+  return low
 }
 
 export async function __estimateHeight(chainId: number, timestamp: bigint) {
@@ -80,8 +131,6 @@ export async function __estimateHeight(chainId: number, timestamp: bigint) {
 // getBlock calls (~4) vs binary search's ~24. each getBlock is cached, so this collapses
 // the dominant RPC cost of timestamp->block resolution.
 const FIRST_BLOCK: Record<number, bigint> = { 10: 105235063n }
-
-type HeightEstimate = { height: bigint, historical: boolean }
 
 async function estimateHeightManual(chainId: number, timestamp: bigint): Promise<HeightEstimate> {
   const top = await getBlock(chainId)
