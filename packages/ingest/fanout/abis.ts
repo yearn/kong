@@ -1,6 +1,7 @@
 import { abisConfig, chains, mq, sentry } from 'lib'
 import * as things from '../things'
 import { clearNegativePriceCache } from '../prices'
+import { clearNegativeAprOracleCache } from '../abis/yearn/3/vault/timeseries/apr-oracle/hook'
 import WebhookCollector from './webhooks'
 import { findBusyMatch } from './isBusy'
 
@@ -17,7 +18,9 @@ export default class AbisFanout {
       return
     }
 
-    if ((data as { replay?: { enabled?: boolean } }).replay?.enabled) await clearNegativePriceCache()
+    if ((data as { replay?: { enabled?: boolean } }).replay?.enabled) {
+      await Promise.all([clearNegativePriceCache(), clearNegativeAprOracleCache()])
+    }
 
     const webhookCollector = new WebhookCollector()
 
