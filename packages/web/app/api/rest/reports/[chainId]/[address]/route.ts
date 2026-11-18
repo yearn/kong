@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getKeyvClient, lastRefreshHeaders } from '../../../cache'
+import { restCacheControl, restHistoryStart } from '../../../history'
 import { VaultReport } from '../../db'
 import { getReportKey, getReportLatestKey } from '../../redis'
 
@@ -16,6 +17,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ chainId: string; address: string }> }
 ) {
+  const requestedAt = Date.now()
   const { chainId: chainIdStr, address: addressStr } = await params
   const chainId = parseInt(chainIdStr)
   const address = addressStr.toLowerCase()
@@ -36,7 +38,10 @@ export async function GET(
     lastRefreshHeaders(REFRESH_JOB),
   ])
 
-  if (!historical && !latest) {
+  const cutoff = restHistoryStart()
+  const recentReports = (latest ?? []).filter(report => Number(report.blockTime) >= cutoff)
+  const historicalReports = (historical ?? []).filter(report => Number(report.blockTime) >= cutoff)
+  if (!historicalReports.length && !recentReports.length) {
     return NextResponse.json(
       { error: 'Not found' },
       { status: 404 }
@@ -45,16 +50,16 @@ export async function GET(
 
   // Merge: dedupe by txHash+logIndex, latest wins, keep DESC order, cap at 1000
   const latestTxKeys = new Set(
-    (latest || []).map((r) => `${r.transactionHash}:${r.logIndex}`)
+    recentReports.map((r) => `${r.transactionHash}:${r.logIndex}`)
   )
   const merged = [
-    ...(latest || []),
-    ...(historical || []).filter((r) => !latestTxKeys.has(`${r.transactionHash}:${r.logIndex}`)),
+    ...recentReports,
+    ...historicalReports.filter((r) => !latestTxKeys.has(`${r.transactionHash}:${r.logIndex}`)),
   ].slice(0, 1000)
 
   return NextResponse.json(merged, {
     headers: {
-      'Cache-Control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
+      'Cache-Control': restCacheControl(requestedAt),
       ...corsHeaders,
       ...refreshHeaders,
     }

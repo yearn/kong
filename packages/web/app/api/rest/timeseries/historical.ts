@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import type { Pool } from 'pg'
-import { getFullTimeseries, getTimeseriesSince } from './db'
+import { DAY_SECONDS, restHistoryStart } from '../history'
+import { getTimeseriesSince } from './db'
 
-const DAY = 86400
 // pg returns NUMERIC as text unless a process installed a custom type parser.
 // Keep the cached representation intact rather than coercing API values.
 const rowSchema = z.object({
@@ -16,12 +16,13 @@ const historicalSchema = z.object({
 
 // Replace the entire refreshed range, not just matching keys: a corrected bucket
 // that is now all-null must disappear even though SQL no longer returns it.
-export function mergeHistorical(
+function mergeHistorical(
   previous: z.infer<typeof rowSchema>[],
   recent: z.infer<typeof rowSchema>[],
   since: number,
+  cutoff: number,
 ) {
-  return [...previous.filter(row => row.time < since), ...recent]
+  return [...previous.filter(row => row.time >= cutoff && row.time < since), ...recent]
     .sort((a, b) => a.time - b.time || a.component.localeCompare(b.component))
 }
 
@@ -40,19 +41,23 @@ export async function refreshHistoricalSeries(
     if (parsed.success) previous = parsed.data
   } catch { /* Old or corrupt entries are rebuilt from the database. */ }
 
-  const full = forceFull || !previous || previous.refreshedAt > now
-    || previous.reconciledAt > now || now - previous.reconciledAt >= 7 * DAY
+  const cutoff = restHistoryStart(now)
+  // Reuse a cache only while its timestamps support an incremental refresh.
+  if (previous && (forceFull || previous.refreshedAt > now || previous.reconciledAt > now
+    || now - previous.reconciledAt >= 7 * DAY_SECONDS)) {
+    previous = undefined
+  }
   // Include missed refresh days and re-read two complete UTC days for corrections.
-  const since = Math.floor(Math.min(previous?.refreshedAt ?? now, now) / DAY) * DAY - 2 * DAY
-  const rows = full
-    ? await getFullTimeseries(chainId, address, label, pool)
-    : await getTimeseriesSince(chainId, address, label, since, pool)
+  const since = previous
+    ? Math.max(cutoff, (Math.floor(previous.refreshedAt / DAY_SECONDS) - 2) * DAY_SECONDS)
+    : cutoff
+  const rows = await getTimeseriesSince(chainId, address, label, since, pool)
   const recent = rows.map(row => ({ ...row, time: Number(row.time) }))
-  const value = full ? recent : mergeHistorical(previous!.value, recent, since)
+  const value = previous ? mergeHistorical(previous.value, recent, since, cutoff) : recent
 
   return {
-    full,
+    full: !previous,
     rowsRead: rows.length,
-    payload: JSON.stringify({ value, refreshedAt: now, reconciledAt: full ? now : previous!.reconciledAt }),
+    payload: JSON.stringify({ value, refreshedAt: now, reconciledAt: previous?.reconciledAt ?? now }),
   }
 }

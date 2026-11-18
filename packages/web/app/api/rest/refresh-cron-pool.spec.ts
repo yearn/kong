@@ -5,7 +5,7 @@ const cronDb = { tag: 'cron' }
 const getVaultsWithSnapshots = vi.fn()
 const getTimeseriesVaults = vi.fn()
 const getRecentTimeseries = vi.fn()
-const getFullTimeseries = vi.fn()
+const getTimeseriesSince = vi.fn()
 const getScopedTimeseriesPairs = vi.fn()
 const getTranches = vi.fn()
 const getTrancheControllers = vi.fn()
@@ -15,13 +15,14 @@ const getStrategyReports = vi.fn()
 const getRecentStrategyReports = vi.fn()
 const cacheMSet = vi.fn().mockResolvedValue(undefined)
 const cacheMGet = vi.fn()
+const cacheDelete = vi.fn()
 
 vi.mock('../db/cron', () => ({ cronDb }))
 vi.mock('./list/db', () => ({ getVaultsWithSnapshots }))
 vi.mock('./timeseries/db', () => ({
   getVaults: getTimeseriesVaults,
   getRecentTimeseries,
-  getFullTimeseries,
+  getTimeseriesSince,
   getScopedTimeseriesPairs,
   getTranches,
   getTrancheControllers,
@@ -32,7 +33,10 @@ vi.mock('./reports/db', () => ({
   getStrategyReports,
   getRecentStrategyReports,
 }))
-vi.mock('./cache', () => ({ cacheMSet, cacheMGet }))
+vi.mock('./cache', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./cache')>(),
+  cacheMSet, cacheMGet, cacheDelete,
+}))
 
 const VAULT = { chainId: 1, address: '0x0000000000000000000000000000000000000001' }
 
@@ -42,7 +46,7 @@ describe('refresh jobs pass cronDb into db helpers', () => {
     getVaultsWithSnapshots.mockResolvedValue([])
     getTimeseriesVaults.mockResolvedValue([VAULT])
     getRecentTimeseries.mockResolvedValue([])
-    getFullTimeseries.mockResolvedValue([])
+    getTimeseriesSince.mockResolvedValue([])
     getScopedTimeseriesPairs.mockResolvedValue([])
     getTranches.mockResolvedValue([])
     getTrancheControllers.mockResolvedValue([])
@@ -76,9 +80,9 @@ describe('refresh jobs pass cronDb into db helpers', () => {
     const { refreshHistorical } = await import('./timeseries/refresh-historical')
     await refreshHistorical()
     assert.equal(getTimeseriesVaults.mock.calls[0][0], cronDb)
-    assert.equal(getFullTimeseries.mock.calls.length, vaultLabels.length)
-    for (const args of getFullTimeseries.mock.calls) {
-      assert.equal(args[3], cronDb)
+    assert.equal(getTimeseriesSince.mock.calls.length, vaultLabels.length)
+    for (const args of getTimeseriesSince.mock.calls) {
+      assert.equal(args[4], cronDb)
     }
     assert.equal(getTranches.mock.calls[0][0], cronDb)
     assert.equal(getTrancheControllers.mock.calls[0][0], cronDb)
@@ -102,5 +106,12 @@ describe('refresh jobs pass cronDb into db helpers', () => {
     await refreshHistorical()
     assert.equal(getReportsVaults.mock.calls[0][0], cronDb)
     assert.deepEqual(getStrategyReports.mock.calls[0], [VAULT.chainId, VAULT.address, cronDb])
+  })
+
+  it('removes a cached report history when the last report ages out', async () => {
+    getStrategyReports.mockResolvedValueOnce([])
+    const { refreshHistorical } = await import('./reports/refresh-historical')
+    await refreshHistorical()
+    assert.deepEqual(cacheDelete.mock.calls, [[[`rest:vault_reports:1:${VAULT.address}`]]])
   })
 })

@@ -3,6 +3,7 @@ import { EvmAddressSchema } from 'lib/types'
 import { mergedJsonSql } from '../../../../lib/mergeSnapshot'
 import { buildVaultFilters } from '../../../../lib/vaultFilters'
 import { cronDb } from '../../db/cron'
+import { restHistoryStart } from '../history'
 import type { AggregateTvlSnapshot, AggregateTvlStrategyRef, AggregateTvlStrategySnapshot } from './aggregate'
 import { KNOWN_AGGREGATE_TVL_TARGETS } from './known-targets'
 
@@ -54,8 +55,9 @@ export async function getAggregateVaults(pool: Pool = cronDb): Promise<Aggregate
         AND COALESCE((snapshot.hook->'meta'->>'isHidden')::boolean, false)
       )`
   const result = await pool.query<VaultDbRow>(
-    selectVaultSnapshots(`${where}\n      AND ${excludeRetiredHiddenV3}`),
-    params,
+    selectVaultSnapshots(`${where}\n      AND ${excludeRetiredHiddenV3}
+      AND snapshot.block_time >= to_timestamp($${params.length + 1})`),
+    [...params, restHistoryStart()],
   )
   return result.rows.map(row => ({ ...row, chainId: Number(row.chainId) }))
 }
@@ -98,6 +100,7 @@ export async function getAggregateStrategies(
       LEFT JOIN snapshot
         ON requested.chain_id = snapshot.chain_id
         AND requested.address = snapshot.address
+        AND snapshot.block_time >= to_timestamp($4)
       LEFT JOIN jsonb_to_recordset($3::jsonb) AS known("chainId" int, address text, target jsonb)
         ON requested.chain_id = known."chainId"
         AND requested.address = known.address
@@ -111,7 +114,7 @@ export async function getAggregateStrategies(
     FROM candidates
     WHERE (jsonb_typeof(exposures) = 'array' AND exposures <> '[]'::jsonb)
       OR jsonb_typeof(target) = 'object'
-  `, [strategies.map(ref => ref.chainId), strategies.map(ref => ref.address), JSON.stringify(KNOWN_AGGREGATE_TVL_TARGETS)])
+  `, [strategies.map(ref => ref.chainId), strategies.map(ref => ref.address), JSON.stringify(KNOWN_AGGREGATE_TVL_TARGETS), restHistoryStart()])
 
   return result.rows
 }

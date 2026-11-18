@@ -19,6 +19,7 @@ describe('getVaultsWithSnapshots', () => {
     await getVaultsWithSnapshots()
 
     const executedSql = query.mock.calls[0][0] as string
+    assert.match(executedSql, /snapshot\.block_time >= to_timestamp\(\$1\)/)
     const coalesceMatch = executedSql.match(/COALESCE\(\s*thing\.defaults->>'name',([\s\S]*?)\)\s+AS name/)
     assert.ok(coalesceMatch, 'expected a name COALESCE in the query')
     const args = coalesceMatch![1].split(',').map((arg) => arg.trim())

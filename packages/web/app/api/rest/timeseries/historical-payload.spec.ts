@@ -1,15 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Keyv } from 'keyv'
 import type { Pool } from 'pg'
 import { labels } from './labels'
 import { getTimeseriesKey, getTimeseriesLatestKey } from './redis'
 
 const state = vi.hoisted(() => ({
-  raw: new Map<string, string>(), get: vi.fn(), full: vi.fn(), since: vi.fn(), failWrite: false,
+  raw: new Map<string, string>(), get: vi.fn(), since: vi.fn(), failWrite: false,
   vaults: vi.fn(), tranches: vi.fn(), controllers: vi.fn(), pool: {},
 }))
 vi.mock('./db', () => ({
-  getFullTimeseries: state.full, getTimeseriesSince: state.since,
+  getTimeseriesSince: state.since,
   getVaults: state.vaults, getTranches: state.tranches, getTrancheControllers: state.controllers,
 }))
 vi.mock('../../db/cron', () => ({ cronDb: state.pool }))
@@ -39,23 +39,25 @@ const readResponse = async (segment: string, components = '') => {
 describe('serialized historical cache to REST', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.spyOn(Date, 'now').mockReturnValue(now * 1000)
     state.raw.clear()
     state.failWrite = false
     const keyv = new Keyv({ store: state.raw, useKeyPrefix: false })
     state.get.mockImplementation((key: string) => keyv.get(key))
-    state.full.mockResolvedValue([])
     state.since.mockResolvedValue([])
     state.vaults.mockResolvedValue([{ chainId: 1, address }])
     state.tranches.mockResolvedValue([{ chainId: 1, address }])
     state.controllers.mockResolvedValue([{ chainId: 1, address }])
   })
 
+  afterEach(() => vi.restoreAllMocks())
+
   it.each(labels)('keeps the $segment response compatible through full and incremental refresh', async ({ label, segment, defaultComponent }) => {
     const older = { time: BigInt(10 * DAY), component: defaultComponent, value: '12345678901234567890.1234567890' }
     const correction = { time: BigInt(98 * DAY), component: defaultComponent, value: '42.000' }
     const extra = { time: BigInt(98 * DAY), component: 'extra-component', value: '0' }
     const rows = [older, correction, extra]
-    state.full.mockResolvedValue(rows)
+    state.since.mockResolvedValue(rows)
     const key = getTimeseriesKey(label, 1, address)
     // Exact pre-PR serialization, then actual Keyv deserialization + HTTP handler.
     state.raw.set(key, JSON.stringify({ value: rows.map(row => ({ time: Number(row.time), component: row.component, value: row.value })) }))
@@ -80,18 +82,16 @@ describe('serialized historical cache to REST', () => {
   it('refreshes all vault, tranche and controller labels on cold and warm passes', async () => {
     await refreshHistorical()
     expect([...state.raw.keys()].sort()).toEqual(labels.map(({ label }) => getTimeseriesKey(label, 1, address)).sort())
-    expect(state.full).toHaveBeenCalledTimes(6)
-    await refreshHistorical()
-    expect(state.full).toHaveBeenCalledTimes(6)
     expect(state.since).toHaveBeenCalledTimes(6)
+    await refreshHistorical()
+    expect(state.since).toHaveBeenCalledTimes(12)
     for (const args of state.since.mock.calls) expect(args[4]).toBe(pool)
   })
 
   it('demonstrates old backfills stay absent until reconciliation even after a successful refresh', async () => {
     const row = { time: BigInt(50 * DAY), component: 'tvl', value: '10.00' }
     const cached = JSON.stringify({ value: [], refreshedAt: now - DAY, reconciledAt: now - DAY })
-    state.full.mockResolvedValue([row])
-    state.since.mockResolvedValue([])
+    state.since.mockResolvedValueOnce([]).mockResolvedValueOnce([row])
     const warm = await refreshHistoricalSeries(1, address, 'tvl-c', cached, now, false, pool)
     state.raw.set(getTimeseriesKey('tvl-c', 1, address), warm.payload)
     expect(await readResponse('tvl')).toEqual([])
@@ -101,12 +101,12 @@ describe('serialized historical cache to REST', () => {
   })
 
   it('counts completed Postgres work when Redis writing fails', async () => {
-    state.full.mockResolvedValue([{ time: 1n, component: 'tvl', value: '1' }])
+    state.since.mockResolvedValue([{ time: 1n, component: 'tvl', value: '1' }])
     state.failWrite = true
     const info = vi.spyOn(console, 'info').mockImplementation(() => {})
     try {
       await expect(refreshHistorical()).rejects.toThrow('Redis write failed')
-      expect(state.full).toHaveBeenCalledTimes(6)
+      expect(state.since).toHaveBeenCalledTimes(6)
       expect(info).toHaveBeenCalledWith('timeseries-refresh-historical', expect.objectContaining({ series: 6, full: 6, rowsRead: 6 }))
     } finally { info.mockRestore() }
   })
@@ -115,7 +115,7 @@ describe('serialized historical cache to REST', () => {
     let finish!: (rows: unknown[]) => void
     let began!: () => void
     const started = new Promise<void>(resolve => { began = resolve })
-    state.full.mockRejectedValueOnce(new Error('query failed'))
+    state.since.mockRejectedValueOnce(new Error('query failed'))
       .mockImplementationOnce(() => { began(); return new Promise(resolve => { finish = resolve }) })
       .mockResolvedValue([{ time: 1n, component: 'tvl', value: '1' }])
     const info = vi.spyOn(console, 'info').mockImplementation(() => {})

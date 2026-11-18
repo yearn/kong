@@ -4,7 +4,7 @@ const get = vi.fn()
 const lastRefreshHeaders = vi.fn()
 
 vi.mock('../cache', () => ({
-  getKeyvClient: () => ({ get }),
+  getCurrentState: get,
   lastRefreshHeaders,
 }))
 
@@ -45,28 +45,12 @@ describe('rest TVL route', () => {
       chains: [{ chainId: 1, tvl: 100, unpricedVaults: 1 }, { chainId: 10, tvl: 160, unpricedVaults: 2 }],
     })
     assert.equal(get.mock.calls.length, 1)
-    assert.deepEqual(get.mock.calls[0], ['rest:tvl:summary'])
+    assert.equal(get.mock.calls[0][0], 'rest:tvl:summary')
     assert.deepEqual(lastRefreshHeaders.mock.calls, [])
     assert.equal(response.headers.get('access-control-allow-origin'), '*')
     assert.match(response.headers.get('cache-control') ?? '', /public/)
     assert.equal(response.headers.get('x-last-refresh'), payload.updatedAt)
     assert.equal(response.headers.get('access-control-expose-headers'), 'x-last-refresh')
-  })
-
-  it('serves the legacy payload until the first compact summary is published', async () => {
-    const legacy = { updatedAt: payload.updatedAt, chains: [{ chainId: 1, tvl: 100 }, { chainId: 10, tvl: 160 }] }
-    get.mockResolvedValueOnce(undefined).mockResolvedValueOnce({ ...legacy, vaults: [], tvl: 260 })
-
-    const response = await call()
-
-    assert.equal(response.status, 200)
-    assert.deepEqual(await response.json(), {
-      tvl: 260,
-      unpricedVaults: 0,
-      chains: [{ chainId: 1, tvl: 100, unpricedVaults: 0 }, { chainId: 10, tvl: 160, unpricedVaults: 0 }],
-    })
-    assert.deepEqual(get.mock.calls, [['rest:tvl:summary'], ['rest:tvl:aggregate']])
-    assert.equal(lastRefreshHeaders.mock.calls.length, 0)
   })
 
   it('filters chains and recalculates tvl for a requested chain', async () => {
@@ -80,6 +64,16 @@ describe('rest TVL route', () => {
       unpricedVaults: 2,
       chains: [{ chainId: 10, tvl: 160, unpricedVaults: 2 }],
     })
+  })
+
+  it('uses the full aggregate when the summary has not been published', async () => {
+    get.mockResolvedValueOnce(undefined).mockResolvedValueOnce(payload)
+
+    const response = await call()
+
+    assert.equal(response.status, 200)
+    assert.equal((await response.json()).tvl, 260)
+    assert.deepEqual(get.mock.calls.map(([key]) => key), ['rest:tvl:summary', 'rest:tvl:aggregate'])
   })
 
   it('returns a CORS 400 for a non-integer chainId without reading the cache', async () => {

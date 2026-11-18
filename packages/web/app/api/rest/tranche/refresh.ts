@@ -1,5 +1,6 @@
 import { cronDb } from '../../db/cron'
-import { cacheMSet } from '../cache'
+import { cacheMSet, serializeState } from '../cache'
+import { restHistoryStart } from '../history'
 import { getTrancheSystems } from './db'
 import { getTrancheControllersKey, getTrancheSystemKey } from './redis'
 
@@ -15,6 +16,7 @@ import { getTrancheControllersKey, getTrancheSystemKey } from './redis'
 export async function refreshTranches(): Promise<void> {
   console.time('refresh tranche')
 
+  const cutoff = restHistoryStart()
   const systems = await getTrancheSystems(cronDb)
 
   const byChain = new Map<number, typeof systems>()
@@ -29,14 +31,14 @@ export async function refreshTranches(): Promise<void> {
   for (const system of systems) {
     pairs.push([
       getTrancheSystemKey(system.chainId, system.controller),
-      JSON.stringify({ value: system }),
+      serializeState(system, cutoff),
     ])
   }
 
   for (const [chainId, chainSystems] of Array.from(byChain.entries())) {
     pairs.push([
       getTrancheControllersKey(chainId),
-      JSON.stringify({ value: chainSystems }),
+      serializeState(chainSystems, cutoff),
     ])
   }
 

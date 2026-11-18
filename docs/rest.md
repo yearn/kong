@@ -6,7 +6,9 @@
 https://kong.yearn.fi/api/rest
 ```
 
-All endpoints are public, CORS-enabled (all origins), and return JSON. REST responses are served from a Redis cache with `Cache-Control: public, max-age=900, s-maxage=900, stale-while-revalidate=600`.
+All endpoints are public, CORS-enabled (all origins), and return JSON. REST covers today and the preceding 364 UTC dates. Timeseries and snapshot sparklines use each point's observation date. Reports use the event's block time. Vault lists, snapshots, tranche systems and aggregate TVL require a dated snapshot inside the same window. A vault's inception date can be older.
+
+Successful responses can be cached for 15 minutes and served stale for another 10 minutes. Both periods are shortened near UTC midnight so an HTTP cache cannot extend the retention window.
 
 ## Endpoints
 
@@ -14,7 +16,7 @@ All endpoints are public, CORS-enabled (all origins), and return JSON. REST resp
 
 #### `GET /api/rest/list/vaults`
 
-All vaults across all chains, sorted by TVL descending.
+Vaults with a snapshot in the last 365 UTC dates across all chains, sorted by TVL descending.
 
 **Query Parameters**
 
@@ -140,7 +142,7 @@ curl -s https://kong.yearn.fi/api/rest/snapshot/1/0x6faf8b7ffee3306efcfc2ba9fec9
 
 #### `GET /api/rest/timeseries/:segment/:chainId/:address`
 
-Historical timeseries data for a vault.
+Daily timeseries data for a vault within the 365-day REST window. A series with no points in the window returns an empty array.
 
 **URL Parameters**
 
@@ -332,7 +334,7 @@ indexed. `/api/rest/tranche/:chainId` is a bare prefix and is not routed — use
 
 #### `GET /api/rest/reports/:chainId/:address`
 
-StrategyReported events for a vault (up to 1000, sorted by time descending).
+Up to 1,000 StrategyReported events for a vault within the 365-day REST window, sorted by time descending. A vault with no cached reports in the window returns `404`.
 
 **URL Parameters**
 

@@ -43,7 +43,7 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
 
   async function snapshot(chain: number, address: string, hook: object, state: object = {}) {
     await pool!.query(
-      'INSERT INTO snapshot (chain_id, address, snapshot, hook, block_number) VALUES ($1, $2, $3, $4, 100)',
+      'INSERT INTO snapshot (chain_id, address, snapshot, hook, block_number, block_time) VALUES ($1, $2, $3, $4, 100, NOW())',
       [chain, address, state, hook],
     )
   }
@@ -69,6 +69,16 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
     assert.equal(result.vaults.length, 2)
   })
 
+  it('omits expired vault snapshots and strategy observations', async () => {
+    await thing(1, parent, 'vault', { yearn: true })
+    await thing(1, strategy, 'strategy')
+    await snapshot(1, parent, { tvl: { close: 100 } })
+    await snapshot(1, strategy, { aggregateTvlExposures: [exposure] })
+    await pool!.query("UPDATE snapshot SET block_time = NOW() - INTERVAL '366 days'")
+    assert.deepEqual(await getAggregateVaults(pool!), [])
+    assert.deepEqual(await getAggregateStrategies([{ chainId: 1, address: strategy }], pool!), [])
+  })
+
   it('excludes retired and hidden v3 vaults only', async () => {
     await thing(1, parent, 'vault', { yearn: true, v3: true })
     await thing(1, child, 'vault', { yearn: true, v3: true })
@@ -84,7 +94,7 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
   it.each(['null', '"100"', '-1', '{}', '[]', '1e400'])('returns unusable TVL %s so the calculator counts it as unpriced', async (close) => {
     await thing(1, parent, 'vault', { yearn: true })
     await pool!.query(
-      'INSERT INTO snapshot (chain_id, address, hook, block_number) VALUES (1, $1, $2::jsonb, 100)',
+      'INSERT INTO snapshot (chain_id, address, hook, block_number, block_time) VALUES (1, $1, $2::jsonb, 100, NOW())',
       [parent, `{"tvl":{"close":${close}},"debts":[{"strategy":"${strategy}"}]} `],
     )
     const rows = await getAggregateVaults(pool!)
@@ -97,7 +107,7 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('aggregate TVL PostgreSQL read
   it.each(['0', '-1e-400', '1.7976931348623158e308'])('preserves TVL %s that parses as a finite nonnegative number', async (close) => {
     await thing(1, parent, 'vault', { yearn: true })
     await pool!.query(
-      'INSERT INTO snapshot (chain_id, address, hook, block_number) VALUES (1, $1, $2::jsonb, 100)',
+      'INSERT INTO snapshot (chain_id, address, hook, block_number, block_time) VALUES (1, $1, $2::jsonb, 100, NOW())',
       [parent, `{"tvl":{"close":${close}}}`],
     )
     const rows = await getAggregateVaults(pool!)

@@ -1,3 +1,4 @@
+import { restHistoryStart } from '../history'
 import { strict as assert } from 'node:assert'
 import { getAddress } from 'viem'
 import { getAggregateStrategies, getAggregateVaults } from './db'
@@ -40,7 +41,8 @@ describe('aggregate TVL database reads', () => {
     assert.match(sql, /INNER JOIN snapshot/)
     assert.match(sql, /NOT \(\s*\(.*'v3'.*\) IS TRUE\s*AND COALESCE\(\(snapshot\.hook->'meta'->>'isRetired'\)::boolean, false\)\s*AND COALESCE\(\(snapshot\.hook->'meta'->>'isHidden'\)::boolean, false\)/s)
     assert.match(sql, /thing\.address = snapshot\.address/)
-    assert.deepEqual(query.mock.calls[0][1], ['vault'])
+    assert.match(sql, /snapshot\.block_time >= to_timestamp\(\$2\)/)
+    assert.deepEqual(query.mock.calls[0][1], ['vault', restHistoryStart()])
     assert.deepEqual(vaults, [{
       chainId: 1,
       address: A,
@@ -79,6 +81,7 @@ describe('aggregate TVL database reads', () => {
       [1, 10],
       [getAddress(STRATEGY), getAddress(STRATEGY)],
       JSON.stringify(KNOWN_AGGREGATE_TVL_TARGETS),
+      restHistoryStart(),
     ])
     assert.equal(strategies.length, 1)
     assert.deepEqual(strategies[0].hook, { aggregateTvlExposures: [{ attributableUsd: 20 }] })

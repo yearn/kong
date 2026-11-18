@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getKeyvClient, lastRefreshHeaders } from '../../../cache'
-import type { VaultSnapshot } from '../../db'
+import { getCurrentState, lastRefreshHeaders } from '../../../cache'
+import { restCacheControl } from '../../../history'
+import { getCurrentSnapshot, type VaultSnapshot } from '../../db'
 import { getSnapshotKey } from '../../redis'
-
-const keyv = getKeyvClient()
 
 export const runtime = 'nodejs'
 
@@ -23,6 +22,7 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<RouteParams> },
 ) {
+  const requestedAt = Date.now()
   const { chainId, address } = (await context.params) ?? {}
 
   if (
@@ -39,11 +39,11 @@ export async function GET(
   let refreshHeaders: Record<string, string> = {}
   try {
     ;[parsed, refreshHeaders] = await Promise.all([
-      keyv.get(cacheKey) as Promise<VaultSnapshot | undefined>,
+      getCurrentState(cacheKey, () => getCurrentSnapshot(Number(chainId), addressLower)),
       lastRefreshHeaders(REFRESH_JOB),
     ])
   } catch (err) {
-    console.error(`Redis read failed for ${cacheKey}:`, err)
+    console.error(`REST state read failed for ${cacheKey}:`, err)
     throw err
   }
 
@@ -54,7 +54,7 @@ export async function GET(
   return NextResponse.json(parsed, {
     status: 200,
     headers: {
-      'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
+      'cache-control': restCacheControl(requestedAt),
       ...corsHeaders,
       ...refreshHeaders,
     },

@@ -22,11 +22,9 @@ export async function refreshLatest(): Promise<void> {
 
       await Promise.all(batch.map(async (vault) => {
         const reports = await getRecentStrategyReports(vault.chainId, vault.address, cronDb)
-        if (!reports || reports.length === 0) return
-        pairs.push([
-          getReportLatestKey(vault.chainId, vault.address.toLowerCase()),
-          JSON.stringify({ value: reports }),
-        ])
+        // An empty two-day window can still have cached reports inside the year.
+        if (reports.length === 0) return
+        pairs.push([getReportLatestKey(vault.chainId, vault.address), JSON.stringify({ value: reports })])
       }))
 
       await cacheMSet(pairs)

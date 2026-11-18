@@ -1,6 +1,7 @@
 import type { Pool } from 'pg'
 import db from '../../db'
 import { getAddress } from 'viem'
+import { DAY_SECONDS, restHistoryStart } from '../history'
 import { trancheControllerLabels, trancheLabels } from './labels'
 
 export type VaultRow = {
@@ -94,58 +95,14 @@ export async function getScopedTimeseriesPairs(
   return pairs
 }
 
-export async function getFullTimeseries(
-  chainId: number,
-  address: string,
-  label: string,
-  pool: Pool = db,
-): Promise<TimeseriesRow[]> {
-  const result = await pool.query(
-    `
-    SELECT
-      component,
-      COALESCE(AVG(NULLIF(value, 0)), 0) AS value,
-      time_bucket('1 day'::interval, series_time) AS time
-    FROM output
-    WHERE chain_id = $1
-      AND address = $2
-      AND label = $3
-    GROUP BY component, time
-    -- all-null bucket = ingest gap (price service outage): must read as missing, not zero
-    HAVING COUNT(value) > 0
-    ORDER BY time ASC
-  `,
-    [chainId, getAddress(address as `0x${string}`), label],
-  )
-
-  return result.rows as TimeseriesRow[]
-}
-
 export async function getRecentTimeseries(
   chainId: number,
   address: string,
   label: string,
   pool: Pool = db,
 ): Promise<TimeseriesRow[]> {
-  const result = await pool.query(
-    `
-    SELECT
-      component,
-      COALESCE(AVG(NULLIF(value, 0)), 0) AS value,
-      time_bucket('1 day'::interval, series_time) AS time
-    FROM output
-    WHERE chain_id = $1
-      AND address = $2
-      AND label = $3
-      AND series_time >= date_trunc('day', NOW()) - INTERVAL '2 days'
-    GROUP BY component, time
-    HAVING COUNT(value) > 0
-    ORDER BY time ASC
-  `,
-    [chainId, getAddress(address as `0x${string}`), label],
-  )
-
-  return result.rows as TimeseriesRow[]
+  const utcDay = Math.floor(Date.now() / 1000 / DAY_SECONDS)
+  return getTimeseriesSince(chainId, address, label, (utcDay - 2) * DAY_SECONDS, pool)
 }
 
 export async function getTimeseriesSince(
@@ -165,6 +122,6 @@ export async function getTimeseriesSince(
     GROUP BY component, time
     HAVING COUNT(value) > 0
     ORDER BY time ASC
-  `, [chainId, getAddress(address as `0x${string}`), label, since])
+  `, [chainId, getAddress(address as `0x${string}`), label, Math.max(since, restHistoryStart())])
   return result.rows as TimeseriesRow[]
 }

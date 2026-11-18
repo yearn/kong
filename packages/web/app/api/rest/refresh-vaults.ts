@@ -1,5 +1,6 @@
 import { cronDb } from '../db/cron'
-import { cacheMSet } from './cache'
+import { cacheMSet, serializeState } from './cache'
+import { restHistoryStart } from './history'
 import { getVaultsWithSnapshots } from './list/db'
 import type { VaultListItem } from './list/db'
 import { getSnapshotKey } from './snapshot/redis'
@@ -23,6 +24,7 @@ import { getSnapshotKey } from './snapshot/redis'
  */
 export async function refresh(): Promise<void> {
   const started = Date.now()
+  const cutoff = restHistoryStart(started / 1000)
 
   try {
     let hadFailure = false
@@ -58,7 +60,7 @@ export async function refresh(): Promise<void> {
       if (snapshot) {
         snapshotPairs.push([
           getSnapshotKey(snapshot.chainId, snapshot.address),
-          JSON.stringify({ value: snapshot }),
+          serializeState(snapshot, cutoff),
         ])
         snapshotCount++
       }
@@ -81,14 +83,14 @@ export async function refresh(): Promise<void> {
       const chainIds = Object.keys(vaultsByChain).map(Number)
       const perChainPairs: Array<[string, string]> = chainIds.map((chainId) => [
         `rest:list:vaults:${chainId}`,
-        JSON.stringify({ value: vaultsByChain[chainId] }),
+        serializeState(vaultsByChain[chainId], cutoff),
       ])
 
       // Per-chain and `all` are flushed independently so an oversized `all`
       // payload cannot block the per-chain (or already-written snapshot) caches.
       await flush(perChainPairs, 'list per-chain')
       await flush(
-        [['rest:list:vaults:all', JSON.stringify({ value: listItems })]],
+        [['rest:list:vaults:all', serializeState(listItems, cutoff)]],
         'list all',
       )
     }

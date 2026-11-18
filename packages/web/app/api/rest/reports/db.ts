@@ -1,6 +1,7 @@
 import type { Pool } from 'pg'
 import db from '../../db'
 import { getAddress } from 'viem'
+import { DAY_SECONDS, restHistoryStart } from '../history'
 
 export type VaultRow = {
   chainId: number
@@ -72,15 +73,7 @@ export async function getVaults(pool: Pool = db): Promise<VaultRow[]> {
   return result.rows as VaultRow[]
 }
 
-/**
- * Get strategy reports for a vault
- * Used by both API endpoint and refresh script
- *
- * @param chainId - Chain ID (optional for refresh, required for API)
- * @param address - Vault address (optional for refresh, required for API)
- * @returns Array of vault reports
- */
-export const getStrategyReports = async (chainId?: number, address?: string, pool: Pool = db) => {
+export async function getStrategyReports(chainId?: number, address?: string, pool: Pool = db, since = 0) {
   try {
     const result = await pool.query(`
    SELECT
@@ -127,10 +120,11 @@ export const getStrategyReports = async (chainId?: number, address?: string, poo
     WHERE
       (evmlog.chain_id = $1 OR $1 IS NULL) AND (evmlog.address = $2 OR $2 IS NULL)
       AND event_name = 'StrategyReported'
+      AND evmlog.block_time >= to_timestamp($3)
     ORDER BY
       block_time DESC, log_index DESC
       LIMIT 1000;`,
-    [chainId, address ? getAddress(address) : null])
+    [chainId, address ? getAddress(address) : null, Math.max(since, restHistoryStart())])
 
     return result.rows as VaultReport[]
   } catch (error) {
@@ -139,62 +133,6 @@ export const getStrategyReports = async (chainId?: number, address?: string, poo
   }
 }
 
-export const getRecentStrategyReports = async (chainId?: number, address?: string, pool: Pool = db) => {
-  try {
-    const result = await pool.query(`
-   SELECT
-      evmlog.chain_id AS "chainId",
-      evmlog.address,
-      event_name AS "eventName",
-
-      args->>'strategy' AS strategy,
-      args->>'gain' AS gain,
-      args->>'loss' AS loss,
-      args->>'debtPaid' AS "debtPaid",
-      args->>'totalGain' AS "totalGain",
-      args->>'totalLoss' AS "totalLoss",
-      args->>'totalDebt' AS "totalDebt",
-      args->>'debtAdded' AS "debtAdded",
-      CASE WHEN thing.defaults->>'apiVersion' LIKE '0.2.%'
-        OR (thing.defaults->>'apiVersion' IS NULL AND NOT (args ? 'debtPaid')) THEN NULL
-        ELSE args->>'debtRatio' END AS "debtRatio",
-      args->>'current_debt' AS "currentDebt",
-      args->>'protocol_fees' AS "protocolFees",
-      args->>'total_fees' AS "totalFees",
-      args->>'total_refunds' AS "totalRefunds",
-
-      hook->>'gainUsd' AS "gainUsd",
-      hook->>'lossUsd' AS "lossUsd",
-      hook->>'debtPaidUsd' AS "debtPaidUsd",
-      hook->>'totalGainUsd' AS "totalGainUsd",
-      hook->>'totalLossUsd' AS "totalLossUsd",
-      hook->>'totalDebtUsd' AS "totalDebtUsd",
-      hook->>'debtAddedUsd' AS "debtAddedUsd",
-      hook->>'currentDebtUsd' AS "currentDebtUsd",
-      hook->>'protocolFeesUsd' AS "protocolFeesUsd",
-      hook->>'totalFeesUsd' AS "totalFeesUsd",
-      hook->>'totalRefundsUsd' AS "totalRefundsUsd",
-      hook->'apr' AS "apr",
-
-      block_number AS "blockNumber",
-      block_time AS "blockTime",
-      log_index AS "logIndex",
-      transaction_hash AS "transactionHash"
-    FROM evmlog
-    LEFT JOIN thing
-      ON thing.chain_id = evmlog.chain_id AND thing.address = evmlog.address AND thing.label = 'vault'
-    WHERE
-      (evmlog.chain_id = $1 OR $1 IS NULL) AND (evmlog.address = $2 OR $2 IS NULL)
-      AND event_name = 'StrategyReported'
-      AND block_time > NOW() - INTERVAL '2 days'
-    ORDER BY
-      block_time DESC, log_index DESC
-      LIMIT 1000;`,
-    [chainId, address ? getAddress(address) : null])
-
-    return result.rows as VaultReport[]
-  } catch (error) {
-    console.error(error)
-    throw new Error('!getRecentStrategyReports')
-  }
+export function getRecentStrategyReports(chainId?: number, address?: string, pool: Pool = db) {
+  return getStrategyReports(chainId, address, pool, Date.now() / 1000 - 2 * DAY_SECONDS)
 }

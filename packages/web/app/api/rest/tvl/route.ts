@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
-import { getKeyvClient, lastRefreshHeaders } from '../cache'
+import { getCurrentState, lastRefreshHeaders } from '../cache'
+import { restCacheControl } from '../history'
+import db from '../../db'
+import { getCurrentAggregate } from './refresh'
 import { AGGREGATE_TVL_KEY, AGGREGATE_TVL_SUMMARY_KEY, type AggregateTvlSummary } from './redis'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const REFRESH_JOB = 'tvl-refresh'
-const keyv = getKeyvClient()
 
 const corsHeaders = {
   'access-control-allow-origin': '*',
@@ -31,6 +33,7 @@ function toResponse(payload: AggregateTvlSummary, chainId?: number): TvlResponse
 }
 
 export async function GET(request: Request) {
+  const requestedAt = Date.now()
   const { searchParams } = new URL(request.url)
   const chainIdParam = searchParams.get('chainId')
   let chainId: number | undefined
@@ -48,11 +51,11 @@ export async function GET(request: Request) {
 
   let payload: AggregateTvlSummary | undefined
   try {
-    payload = await keyv.get(AGGREGATE_TVL_SUMMARY_KEY) as AggregateTvlSummary | undefined
-    // Serve the previous deployment's cache until the first summary refresh.
-    if (!payload) payload = await keyv.get(AGGREGATE_TVL_KEY) as AggregateTvlSummary | undefined
+    const read = async () => (await getCurrentAggregate(db)).summary
+    payload = await getCurrentState(AGGREGATE_TVL_SUMMARY_KEY, read)
+      ?? await getCurrentState(AGGREGATE_TVL_KEY, read)
   } catch (error) {
-    console.error('Redis read failed for aggregate TVL:', error)
+    console.error('REST state read failed for aggregate TVL:', error)
     throw error
   }
 
@@ -74,7 +77,7 @@ export async function GET(request: Request) {
   return NextResponse.json(response, {
     status: 200,
     headers: {
-      'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
+      'cache-control': restCacheControl(requestedAt),
       ...corsHeaders,
       ...payloadRefreshHeaders,
     },

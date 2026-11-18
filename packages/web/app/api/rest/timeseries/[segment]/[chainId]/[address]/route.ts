@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getKeyvClient, lastRefreshHeaders } from '../../../../cache'
+import { restCacheControl, restHistoryStart } from '../../../../history'
 import { labels } from '../../../labels'
 import { getTimeseriesKey, getTimeseriesLatestKey } from '../../../redis'
 
@@ -24,6 +25,7 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<RouteParams> },
 ) {
+  const requestedAt = Date.now()
   const { segment, chainId, address } = (await context.params) ?? {}
 
   if (
@@ -71,9 +73,11 @@ export async function GET(
   }
 
   // Merge: latest rows override historical rows for the same time+component
+  const cutoff = restHistoryStart()
+  latest = latest.filter(row => row.time >= cutoff)
   const latestTimes = new Set(latest.map((r) => `${r.time}:${r.component}`))
   const merged = [
-    ...historical.filter((r) => !latestTimes.has(`${r.time}:${r.component}`)),
+    ...historical.filter((r) => r.time >= cutoff && !latestTimes.has(`${r.time}:${r.component}`)),
     ...latest,
   ].sort((a, b) => a.time - b.time)
 
@@ -86,7 +90,7 @@ export async function GET(
   return NextResponse.json(filtered, {
     status: 200,
     headers: {
-      'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
+      'cache-control': restCacheControl(requestedAt),
       ...corsHeaders,
       ...refreshHeaders,
     },
