@@ -142,10 +142,10 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
     blockTime: block.timestamp,
   })
 
-  const inceptionBlockNumber = await getInceptionBlockNumber(vault, blockNumber)
-  if (!inceptionBlockNumber) return result
+  const inception = await getInception(vault, blockNumber)
+  if (!inception) return result
 
-  result.inceptionBlockNumber = inceptionBlockNumber
+  result.inceptionBlockNumber = inception.blockNumber
 
   // When the vault's asset is itself a yield-bearing vault (e.g. Locked yvUSD wraps yvUSD),
   // compose PPS values to capture the full economic return, not just the wrapper's bonus.
@@ -165,8 +165,10 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
   const assetScale = assetVault ? 10n ** BigInt(assetVault.defaults.decimals ?? 0) : 1n
 
   const day = 24n * 60n * 60n
-  result.weeklyBlockNumber = await estimateHeight(chainId, block.timestamp - 7n * day)
-  result.monthlyBlockNumber = await estimateHeight(chainId, block.timestamp - 30n * day)
+  const weeklyTime = block.timestamp - 7n * day
+  const monthlyTime = block.timestamp - 30n * day
+  result.weeklyBlockNumber = await estimateHeight(chainId, weeklyTime)
+  result.monthlyBlockNumber = await estimateHeight(chainId, monthlyTime)
 
   // every observation goes through the shared pps reader, so a controller-backed
   // tranche and an ordinary vault are measured the same way
@@ -196,21 +198,19 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
     }
   }
 
-  const blocksPerDay = (blockNumber - result.weeklyBlockNumber) / 7n
-
   result.weeklyNet = result.weeklyPricePerShare === undefined ? undefined : compoundAndAnnualizeDelta(
-    { block: result.weeklyBlockNumber, pps: result.weeklyPricePerShare },
-    { block: blockNumber, pps: result.pricePerShare }, blocksPerDay
+    { time: weeklyTime, pps: result.weeklyPricePerShare },
+    { time: block.timestamp, pps: result.pricePerShare }
   )
 
   result.monthlyNet = result.monthlyPricePerShare === undefined ? undefined : compoundAndAnnualizeDelta(
-    { block: result.monthlyBlockNumber, pps: result.monthlyPricePerShare },
-    { block: blockNumber, pps: result.pricePerShare }, blocksPerDay
+    { time: monthlyTime, pps: result.monthlyPricePerShare },
+    { time: block.timestamp, pps: result.pricePerShare }
   )
 
   result.inceptionNet = compoundAndAnnualizeDelta(
-    { block: result.inceptionBlockNumber, pps: result.inceptionPricePerShare },
-    { block: blockNumber, pps: result.pricePerShare }, blocksPerDay
+    { time: inception.blockTime, pps: result.inceptionPricePerShare },
+    { time: block.timestamp, pps: result.pricePerShare }
   )
 
   const candidates: (number | undefined)[] = []
@@ -251,16 +251,16 @@ export async function _compute(vault: Thing, strategies: `0x${string}`[], blockN
   return result
 }
 
-async function getInceptionBlockNumber(vault: Thing, blockNumber: bigint) {
+async function getInception(vault: Thing, blockNumber: bigint) {
   const { chainId, address } = vault
-  const [first, second] = await getFirstTwoHarvestBlocks(vault)
+  const [first, second] = await getFirstTwoHarvests(vault)
 
   if(!(first && second)) {
     console.warn('🚨', 'harvests < 2', chainId, address)
     return undefined
   }
 
-  if(first > blockNumber) {
+  if(first.blockNumber > blockNumber) {
     console.warn('🚨', 'first > blockNumber', chainId, address)
     return undefined
   }
@@ -289,21 +289,19 @@ export async function extractFees__v2(chainId: number, vault: `0x${string}`, api
   }
 }
 
-async function getFirstTwoHarvestBlocks(vault: Thing) {
-  const harvests = await query<EvmLog>(EvmLogSchema, `
+async function getFirstTwoHarvests(vault: Thing) {
+  return query<EvmLog>(EvmLogSchema, `
   SELECT * FROM evmlog WHERE chain_id = $1 AND address = $2 AND event_name IN ('StrategyReported', 'Reported')
   ORDER BY block_number, log_index LIMIT 2`,
   [vault.chainId, vault.address])
-  return harvests.map(h => h.blockNumber)
 }
 
 function compoundAndAnnualizeDelta(
-  before: { block: bigint, pps: bigint },
-  after: { block: bigint, pps: bigint },
-  blocksPerDay: bigint
+  before: { time: bigint, pps: bigint },
+  after: { time: bigint, pps: bigint }
 ) {
   const delta = math.div(after.pps - before.pps, before.pps || 1n)
-  const period = math.div((BigInt(after.block) - BigInt(before.block)), blocksPerDay)
+  const period = Number(after.time - before.time) / 86_400
   return Math.pow(1 + delta, 365.2425 / period) - 1
 }
 

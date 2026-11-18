@@ -16,9 +16,9 @@ describe('abis/yearn/lib/apy', () => {
       const harvest = EvmLogSchema.parse({
         chainId: mainnet.id, address: addresses.v2.yvusdt,
         eventName: 'StrategyReported', signature: '0x', topics: [], args: {}, hook: {},
-        blockNumber: 15243268n, blockTime: 1n, logIndex: 1, transactionHash: '0x', transactionIndex: 1
+        blockNumber: 15243268n, blockTime: 1659177175n, logIndex: 1, transactionHash: '0x', transactionIndex: 1
       })
-      await upsertBatch([harvest, {...harvest, blockNumber: 15243269n, blockTime: 2n}],
+      await upsertBatch([harvest, {...harvest, blockNumber: 15243269n}],
         'evmlog', 'chain_id, address, signature, block_number, log_index, transaction_hash')
     }
 
@@ -26,9 +26,9 @@ describe('abis/yearn/lib/apy', () => {
       const harvest = EvmLogSchema.parse({
         chainId: polygon.id, address: addresses.v3.yvusdca,
         eventName: 'StrategyReported', signature: '0x', topics: [], args: {}, hook: {},
-        blockNumber: 49181585n, blockTime: 1n, logIndex: 1, transactionHash: '0x', transactionIndex: 1
+        blockNumber: 49181585n, blockTime: 1698338748n, logIndex: 1, transactionHash: '0x', transactionIndex: 1
       })
-      await upsertBatch([harvest, {...harvest, blockNumber: 49181586n, blockTime: 2n}],
+      await upsertBatch([harvest, {...harvest, blockNumber: 49181586n}],
         'evmlog', 'chain_id, address, signature, block_number, log_index, transaction_hash')
     }
   })
@@ -132,7 +132,7 @@ describe('abis/yearn/lib/apy', () => {
     expect(apy.monthlyPricePerShare).to.be.eq(1022834n)
     expect(Number(apy.monthlyBlockNumber)).to.be.closeTo(18130373, 4)
 
-    expect(apy.inceptionNet).to.be.closeTo(0.019352846869146623, 1e-5)
+    expect(apy.inceptionNet).to.be.closeTo(0.01906897005393393, 1e-5)
     expect(apy.inceptionPricePerShare).to.be.eq(1000000n)
     expect(Number(apy.inceptionBlockNumber)).to.be.closeTo(15243268, 4)
   }, 20_000)
@@ -172,7 +172,7 @@ describe('abis/yearn/lib/apy', () => {
     expect(apy.monthlyPricePerShare).to.be.eq(1001147n)
     expect(Number(apy.monthlyBlockNumber)).to.be.closeTo(15656324, 4)
 
-    expect(apy.inceptionNet).to.be.closeTo(0.007697361270727177, 1e-5)
+    expect(apy.inceptionNet).to.be.closeTo(0.0072184101790302435, 1e-5)
     expect(apy.inceptionPricePerShare).to.be.eq(1000000n)
     expect(Number(apy.inceptionBlockNumber)).to.be.closeTo(15243268, 4)
   }, 20_000)
@@ -229,11 +229,11 @@ describe('abis/yearn/lib/apy', () => {
     expect(apy.weeklyPricePerShare).to.be.eq(1019009n)
     expect(Number(apy.weeklyBlockNumber)).to.be.closeTo(51764634, 4)
 
-    expect(apy.monthlyNet).to.be.closeTo(0.293880331621855, 1e-5)
+    expect(apy.monthlyNet).to.be.closeTo(0.29692477138616447, 1e-5)
     expect(apy.monthlyPricePerShare).to.be.eq(1005328n)
     expect(Number(apy.monthlyBlockNumber)).to.be.closeTo(50876142, 4)
 
-    expect(apy.inceptionNet).to.be.closeTo(0.13935788133629456, 1e-5)
+    expect(apy.inceptionNet).to.be.closeTo(0.1438462057410339, 1e-5)
     expect(apy.inceptionPricePerShare).to.be.eq(1000000n)
     expect(Number(apy.inceptionBlockNumber)).to.be.closeTo(49181585, 4)
   }, 20_000)

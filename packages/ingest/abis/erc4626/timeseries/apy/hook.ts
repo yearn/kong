@@ -111,11 +111,17 @@ export async function _compute(vault: Thing, blockNumber: bigint) {
     blockTime: block.timestamp,
   })
 
+  const inceptionTime = vault.defaults.inceptTime !== undefined
+    ? BigInt(vault.defaults.inceptTime)
+    : (await getBlock(chainId, result.inceptionBlockNumber)).timestamp
+
   const ppsParameters = await ppsReadParameters(chainId, address, vault.defaults.decimals)
 
   const day = 24n * 60n * 60n
-  result.weeklyBlockNumber = await estimateHeight(chainId, block.timestamp - 7n * day)
-  result.monthlyBlockNumber = await estimateHeight(chainId, block.timestamp - 30n * day)
+  const weeklyTime = block.timestamp - 7n * day
+  const monthlyTime = block.timestamp - 30n * day
+  result.weeklyBlockNumber = await estimateHeight(chainId, weeklyTime)
+  result.monthlyBlockNumber = await estimateHeight(chainId, monthlyTime)
 
   result.pricePerShare = await rpcs.next(chainId, blockNumber).readContract({...ppsParameters, blockNumber}) as bigint
   result.inceptionPricePerShare = await rpcs.next(chainId, result.inceptionBlockNumber).readContract({...ppsParameters, blockNumber: result.inceptionBlockNumber}) as bigint
@@ -125,21 +131,19 @@ export async function _compute(vault: Thing, blockNumber: bigint) {
   result.weeklyPricePerShare = result.weeklyBlockNumber < result.inceptionBlockNumber ? undefined : await rpcs.next(chainId, result.weeklyBlockNumber).readContract({...ppsParameters, blockNumber: result.weeklyBlockNumber}) as bigint
   result.monthlyPricePerShare = result.monthlyBlockNumber < result.inceptionBlockNumber ? undefined : await rpcs.next(chainId, result.monthlyBlockNumber).readContract({...ppsParameters, blockNumber: result.monthlyBlockNumber}) as bigint
 
-  const blocksPerDay = (blockNumber - result.weeklyBlockNumber) / 7n
-
   result.weeklyNet = result.weeklyPricePerShare === undefined ? undefined : compoundAndAnnualizeDelta(
-    { block: result.weeklyBlockNumber, pps: result.weeklyPricePerShare },
-    { block: blockNumber, pps: result.pricePerShare }, blocksPerDay
+    { time: weeklyTime, pps: result.weeklyPricePerShare },
+    { time: block.timestamp, pps: result.pricePerShare }
   )
 
   result.monthlyNet = result.monthlyPricePerShare === undefined ? undefined : compoundAndAnnualizeDelta(
-    { block: result.monthlyBlockNumber, pps: result.monthlyPricePerShare },
-    { block: blockNumber, pps: result.pricePerShare }, blocksPerDay
+    { time: monthlyTime, pps: result.monthlyPricePerShare },
+    { time: block.timestamp, pps: result.pricePerShare }
   )
 
   result.inceptionNet = compoundAndAnnualizeDelta(
-    { block: result.inceptionBlockNumber, pps: result.inceptionPricePerShare },
-    { block: blockNumber, pps: result.pricePerShare }, blocksPerDay
+    { time: inceptionTime, pps: result.inceptionPricePerShare },
+    { time: block.timestamp, pps: result.pricePerShare }
   )
 
   const candidates: (number | undefined)[] = []
@@ -163,11 +167,10 @@ export async function _compute(vault: Thing, blockNumber: bigint) {
 }
 
 function compoundAndAnnualizeDelta(
-  before: { block: bigint, pps: bigint },
-  after: { block: bigint, pps: bigint },
-  blocksPerDay: bigint
+  before: { time: bigint, pps: bigint },
+  after: { time: bigint, pps: bigint }
 ) {
   const delta = math.div(after.pps - before.pps, before.pps || 1n)
-  const period = math.div((BigInt(after.block) - BigInt(before.block)), blocksPerDay)
+  const period = Number(after.time - before.time) / 86_400
   return Math.pow(1 + delta, 365.2425 / period) - 1
 }
