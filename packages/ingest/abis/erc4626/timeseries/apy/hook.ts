@@ -1,11 +1,11 @@
 import { Data } from '../../../../extract/timeseries'
 import { Output, OutputSchema, Thing, ThingSchema } from 'lib/types'
 import { first } from '../../../../db'
-import { estimateHeight, getBlock } from 'lib/blocks'
+import { estimateHeightWithAge, getBlock } from 'lib/blocks'
 import { math, multicall3 } from 'lib'
 import { mainnet } from 'viem/chains'
-import { rpcs } from '../../../../rpcs'
-import { ppsReadParameters } from '../../lib'
+import { resolveTimeseriesBlock } from '../../../../helpers/timeseries-block'
+import { ppsReadParameters, readPpsWithParameters } from '../../lib'
 import { APYSchema } from '../../../yearn/lib/apy'
 
 export const outputLabel = 'apy-bwd-delta-pps'
@@ -13,12 +13,8 @@ export const outputLabel = 'apy-bwd-delta-pps'
 export default async function process(chainId: number, address: `0x${string}`, data: Data): Promise<Output[]> {
   console.info('🧮', data.outputLabel, chainId, address, (new Date(Number(data.blockTime) * 1000)).toDateString())
 
-  let blockNumber: bigint = 0n
-  if(data.blockTime >= BigInt(Math.floor(new Date().getTime() / 1000))) {
-    blockNumber = (await getBlock(chainId)).number
-  } else {
-    blockNumber = await estimateHeight(chainId, data.blockTime)
-  }
+  const blockNumber = await resolveTimeseriesBlock(chainId, data)
+  if (blockNumber === undefined) return []
 
   if(!multicall3.supportsBlock(chainId, blockNumber)) {
     console.warn('🚨', 'block not supported', chainId, blockNumber)
@@ -114,22 +110,31 @@ export async function _compute(vault: Thing, blockNumber: bigint) {
   const inceptionTime = vault.defaults.inceptTime !== undefined
     ? BigInt(vault.defaults.inceptTime)
     : (await getBlock(chainId, result.inceptionBlockNumber)).timestamp
-
   const ppsParameters = await ppsReadParameters(chainId, address, vault.defaults.decimals)
 
   const day = 24n * 60n * 60n
   const weeklyTime = block.timestamp - 7n * day
   const monthlyTime = block.timestamp - 30n * day
-  result.weeklyBlockNumber = await estimateHeight(chainId, weeklyTime)
-  result.monthlyBlockNumber = await estimateHeight(chainId, monthlyTime)
+  const [weeklyEstimate, monthlyEstimate] = await Promise.all([
+    estimateHeightWithAge(chainId, weeklyTime),
+    estimateHeightWithAge(chainId, monthlyTime)
+  ])
+  result.weeklyBlockNumber = weeklyEstimate.height
+  result.monthlyBlockNumber = monthlyEstimate.height
 
-  result.pricePerShare = await rpcs.next(chainId, blockNumber).readContract({...ppsParameters, blockNumber}) as bigint
-  result.inceptionPricePerShare = await rpcs.next(chainId, result.inceptionBlockNumber).readContract({...ppsParameters, blockNumber: result.inceptionBlockNumber}) as bigint
+  result.pricePerShare = await readPpsWithParameters(chainId, address, blockNumber, ppsParameters,
+    { blockTime: block.timestamp })
+  result.inceptionPricePerShare = await readPpsWithParameters(chainId, address, result.inceptionBlockNumber,
+    ppsParameters, { blockTime: inceptionTime })
 
   if (result.pricePerShare === result.inceptionPricePerShare) return result
 
-  result.weeklyPricePerShare = result.weeklyBlockNumber < result.inceptionBlockNumber ? undefined : await rpcs.next(chainId, result.weeklyBlockNumber).readContract({...ppsParameters, blockNumber: result.weeklyBlockNumber}) as bigint
-  result.monthlyPricePerShare = result.monthlyBlockNumber < result.inceptionBlockNumber ? undefined : await rpcs.next(chainId, result.monthlyBlockNumber).readContract({...ppsParameters, blockNumber: result.monthlyBlockNumber}) as bigint
+  result.weeklyPricePerShare = result.weeklyBlockNumber < result.inceptionBlockNumber ? undefined :
+    await readPpsWithParameters(chainId, address, result.weeklyBlockNumber, ppsParameters,
+      { isHistorical: weeklyEstimate.historical })
+  result.monthlyPricePerShare = result.monthlyBlockNumber < result.inceptionBlockNumber ? undefined :
+    await readPpsWithParameters(chainId, address, result.monthlyBlockNumber, ppsParameters,
+      { isHistorical: monthlyEstimate.historical })
 
   result.weeklyNet = result.weeklyPricePerShare === undefined ? undefined : compoundAndAnnualizeDelta(
     { time: weeklyTime, pps: result.weeklyPricePerShare },

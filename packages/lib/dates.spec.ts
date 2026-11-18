@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { endOfDayMs, endOfStringDay, epoch, makeTimeline, startOfDayMs } from './dates'
+import { endOfDayMs, endOfStringDay, epoch, isClosedDay, makeTimeline, startOfDayMs } from './dates'
 
 describe('dates', function() {
   it('computes start of day', async function() {
@@ -12,6 +12,12 @@ describe('dates', function() {
     const start = new Date('2021-01-01T00:00:00.000Z')
     const end = endOfDayMs(start.getTime())
     expect(end).to.deep.eq((new Date('2021-01-01T23:59:59.999Z')).getTime())
+  })
+
+  it('treats today as open until the UTC day rolls over', async function() {
+    const today = endOfStringDay('2021-01-01')
+    expect(isClosedDay(today, epoch('2021-01-01T23:59:59Z'))).to.equal(false)
+    expect(isClosedDay(today, epoch('2021-01-02T00:00:00Z'))).to.equal(true)
   })
 
   it('makes timelines', async function() {

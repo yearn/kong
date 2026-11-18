@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { mq } from 'lib'
 import { OutputSchema, zhexstring } from 'lib/types'
+import { endOfDay, isClosedDay } from 'lib/dates'
 import { ResolveHooks, sameOutputGroup } from '../abis/types'
 import { requireHooks } from '../abis'
 
@@ -12,7 +13,13 @@ export const DataSchema = z.object({
   // Optional for new grouped jobs. Existing persisted jobs contain only
   // outputLabel and continue through the original single-hook path.
   outputLabels: z.array(z.string()).optional(),
-  blockTime: z.bigint({ coerce: true })
+  blockTime: z.bigint({ coerce: true }),
+  // Optional for persisted jobs created before requested-day coverage was
+  // carried separately. Those jobs already have the requested day in blockTime.
+  seriesTime: z.bigint({ coerce: true }).optional(),
+  // Derived once per extraction so a job crossing midnight keeps the same
+  // historical/open-day decision through its hook and load payload.
+  isClosedDay: z.boolean().optional()
 })
 
 export type Data = z.infer<typeof DataSchema>
@@ -22,6 +29,9 @@ export class TimeseriesExtractor {
 
   async extract(data: Data) {
     data = DataSchema.parse(data)
+    const seriesTime = data.seriesTime ?? data.blockTime
+    const isClosedSeriesDay = isClosedDay(seriesTime)
+    data = { ...data, seriesTime, isClosedDay: isClosedSeriesDay }
     const { abiPath, chainId, address, outputLabel } = data
     if (!this.resolveHooks) this.resolveHooks = await requireHooks()
 
@@ -54,7 +64,19 @@ export class TimeseriesExtractor {
       result = await hook.module.default(chainId, address, data)
     }
 
-    const outputs = OutputSchema.array().parse(result)
+    const outputs = OutputSchema.array().parse(result).map(output => {
+      // A few historical readers may resolve a stalled chain to an older
+      // actual block. Keep that blockTime intact while assigning the row to
+      // the requested coverage day. The hook path allowlist and closed-day
+      // guard keep this away from unrelated outputs and the live day.
+      if (
+        isClosedSeriesDay
+        && usesRequestedSeriesDay(abiPath, output.label)
+        && endOfDay(seriesTime) >= output.blockTime
+      ) return { ...output, seriesTime }
+
+      return output
+    })
     if (data.outputLabels) {
       const requested = data.outputLabels
       if (outputs.some(output => !requested.includes(output.label) || output.blockTime !== data.blockTime)) {
@@ -65,4 +87,16 @@ export class TimeseriesExtractor {
     if (outputs.length === 0) return
     await mq.add(mq.job.load.output, { batch: outputs })
   }
+}
+
+const requestedSeriesDayOutputs: Record<string, Set<string>> = {
+  erc4626: new Set(['apy-bwd-delta-pps', 'pps']),
+  'yearn/2/vault': new Set(['apy-bwd-delta-pps', 'pps']),
+  'yearn/3/vault': new Set(['apy-bwd-delta-pps', 'pps']),
+  'yearn/3/tranche/vault': new Set(['apy-bwd-delta-pps', 'pps', 'tranche-accounting']),
+  'yearn/3/tranche/controller': new Set(['tranche-system'])
+}
+
+function usesRequestedSeriesDay(abiPath: string, outputLabel: string) {
+  return requestedSeriesDayOutputs[abiPath]?.has(outputLabel) ?? false
 }

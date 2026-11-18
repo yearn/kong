@@ -109,10 +109,16 @@ export async function upsertThing(data: object) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function upsertBatchOutput(batch: any[]) {
-  const outputs = OutputSchema.array().parse(batch).map(output => ({
-    ...output,
-    series_time: endOfDay(output.blockTime)
-  }))
+  const outputs = OutputSchema.array().parse(batch).map(({ seriesTime, ...output }) => {
+    // Old load jobs contain no seriesTime and continue to derive coverage from
+    // the actual block timestamp. New historical rows can retain their requested
+    // day without changing that actual timestamp.
+    const series_time = endOfDay(seriesTime ?? output.blockTime)
+    if (series_time < output.blockTime) {
+      throw new Error(`seriesTime precedes actual blockTime for ${output.label}`)
+    }
+    return { ...output, series_time }
+  })
   const usePreparedStatements = process.env.OUTPUT_PREPARED_STATEMENTS === 'true'
   await upsertBatch(
     outputs,

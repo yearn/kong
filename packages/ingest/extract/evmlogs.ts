@@ -47,9 +47,9 @@ export class EvmLogsExtractor {
         const defaultStartBlockNumber = await getDefaultStartBlockNumber(chainId)
         const ranges = from < defaultStartBlockNumber && to >= defaultStartBlockNumber
           ? [
-              { from, to: defaultStartBlockNumber - 1n, excludeLimitlist: true },
-              { from: defaultStartBlockNumber, to, excludeLimitlist: false }
-            ]
+            { from, to: defaultStartBlockNumber - 1n, excludeLimitlist: true },
+            { from: defaultStartBlockNumber, to, excludeLimitlist: false }
+          ]
           : [{ from, to, excludeLimitlist: from < defaultStartBlockNumber }]
 
         const fetched = await Promise.all(ranges.map(async range => {
