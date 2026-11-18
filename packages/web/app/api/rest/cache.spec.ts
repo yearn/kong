@@ -1,5 +1,33 @@
 import { strict as assert } from 'node:assert'
-import { cacheMGet, cacheMSet, estimateMSetRequestSize, getKeyvClient, lastRefreshHeaders, setLastRefresh, splitPairsForMSet, writeClient } from './cache'
+import { cacheMGet, cacheMSet, estimateMSetRequestSize, getCurrentState, getKeyvClient, lastRefreshHeaders, serializeState, setLastRefresh, splitPairsForMSet, writeClient } from './cache'
+import { restCacheControl } from './history'
+
+describe('REST state retention', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('uses the stamped payload today and re-reads legacy or previous-day state', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.UTC(2026, 10, 18, 23, 59))
+    const get = vi.spyOn(getKeyvClient(), 'getRaw')
+    const read = vi.fn().mockResolvedValue('fresh')
+    const cutoff = Date.UTC(2025, 10, 19) / 1000
+    get.mockResolvedValueOnce(JSON.parse(serializeState('cached', cutoff)))
+    assert.equal(await getCurrentState('key', read), 'cached')
+    assert.equal(read.mock.calls.length, 0)
+    get.mockResolvedValueOnce(JSON.parse(serializeState('old', cutoff - 86400)))
+    get.mockResolvedValueOnce({ value: 'legacy' })
+    assert.equal(await getCurrentState('key', read), 'fresh')
+    assert.equal(await getCurrentState('key', read), 'fresh')
+    assert.equal(read.mock.calls.length, 2)
+  })
+
+  it('bounds browser freshness and stale revalidation at UTC midnight', () => {
+    const now = Date.UTC(2026, 10, 18, 23, 40)
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now)
+    assert.equal(restCacheControl(now), 'public, max-age=900, s-maxage=900, stale-while-revalidate=300')
+    clock.mockReturnValue(Date.UTC(2026, 10, 19))
+    assert.equal(restCacheControl(now), 'public, max-age=0, s-maxage=0, stale-while-revalidate=0')
+  })
+})
 
 describe('cacheMGet', () => {
   afterEach(() => vi.restoreAllMocks())

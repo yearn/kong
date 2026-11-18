@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getKeyvClient, lastRefreshHeaders } from '../../cache'
-import type { VaultListItem } from '../db'
-
-const keyv = getKeyvClient()
+import { getCurrentState, lastRefreshHeaders } from '../../cache'
+import { restCacheControl } from '../../history'
+import { getCurrentList } from '../db'
 
 export const runtime = 'nodejs'
 
@@ -14,12 +13,13 @@ const corsHeaders = {
 }
 
 export async function GET(request: Request) {
+  const requestedAt = Date.now()
   const { searchParams } = new URL(request.url)
   const origin = searchParams.get('origin')
 
   try {
     const [allVaults, refreshHeaders] = await Promise.all([
-      keyv.get('rest:list:vaults:all') as Promise<VaultListItem[] | undefined>,
+      getCurrentState('rest:list:vaults:all', () => getCurrentList()),
       lastRefreshHeaders(REFRESH_JOB),
     ])
 
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     return NextResponse.json(filtered, {
       status: 200,
       headers: {
-        'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
+        'cache-control': restCacheControl(requestedAt),
         ...corsHeaders,
         ...refreshHeaders,
       },

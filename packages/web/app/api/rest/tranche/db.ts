@@ -1,6 +1,7 @@
 import type { Pool } from 'pg'
 import { getAddress } from 'viem'
 import db from '../../db'
+import { restHistoryStart } from '../history'
 
 /**
  * yTranche system state, assembled from what the indexer already stores:
@@ -123,20 +124,21 @@ type ControllerRow = { chainId: number, controller: string }
 // Controllers are read from their own things rather than derived from the
 // tranches that point at them, so a deployment with nothing registered yet is
 // still discoverable.
-export async function getTrancheControllers(pool: Pool = db): Promise<ControllerRow[]> {
+export async function getTrancheControllers(pool: Pool = db, chainId?: number): Promise<ControllerRow[]> {
   const result = await pool.query(`
     SELECT
-      chain_id AS "chainId",
-      address AS controller
-    FROM thing
+      chain_id AS "chainId", address AS controller
+    FROM thing JOIN snapshot USING (chain_id, address)
     WHERE label = 'trancheController'
+      AND snapshot.block_time >= to_timestamp($1)
+      ${chainId === undefined ? '' : 'AND chain_id = $2'}
     ORDER BY chain_id, address
-  `)
+  `, chainId === undefined ? [restHistoryStart()] : [restHistoryStart(), chainId])
   return result.rows as ControllerRow[]
 }
 
-export async function getTrancheSystems(pool: Pool = db): Promise<TrancheSystem[]> {
-  const controllers = await getTrancheControllers(pool)
+export async function getTrancheSystems(pool: Pool = db, chainId?: number): Promise<TrancheSystem[]> {
+  const controllers = await getTrancheControllers(pool, chainId)
   const systems: TrancheSystem[] = []
 
   for (const { chainId, controller } of controllers) {
@@ -155,13 +157,13 @@ export async function getTrancheSystem(
   const controllerAddress = getAddress(controller as `0x${string}`)
   const controllerRows = await pool.query(`
     SELECT
-      snapshot,
-      hook,
-      block_number AS "blockNumber",
-      block_time AS "blockTime"
-    FROM snapshot
-    WHERE chain_id = $1 AND address = $2
-  `, [chainId, controllerAddress])
+      snapshot.snapshot, snapshot.hook,
+      snapshot.block_number AS "blockNumber",
+      snapshot.block_time AS "blockTime"
+    FROM thing JOIN snapshot USING (chain_id, address)
+    WHERE chain_id = $1 AND address = $2 AND thing.label = 'trancheController'
+      AND snapshot.block_time >= to_timestamp($3)
+  `, [chainId, controllerAddress, restHistoryStart()])
 
   // No controller snapshot yet means nothing to serve — the tranches' own
   // accounting lives in that row.
@@ -188,13 +190,14 @@ export async function getTrancheSystem(
       snapshot.block_number AS "blockNumber",
       snapshot.block_time AS "blockTime"
     FROM thing
-    LEFT JOIN snapshot
+    JOIN snapshot
       ON snapshot.chain_id = thing.chain_id
       AND snapshot.address = thing.address
     WHERE thing.chain_id = $1
       AND thing.label = 'tranche'
       AND thing.defaults->>'trancheController' = $2
-  `, [chainId, controllerAddress])
+      AND snapshot.block_time >= to_timestamp($3)
+  `, [chainId, controllerAddress, restHistoryStart()])
 
   const pps = await getLatestPricePerShare(
     chainId,
@@ -345,8 +348,9 @@ async function getLatestPricePerShare(chainId: number, addresses: string[], pool
     WHERE chain_id = $1
       AND address = ANY($2)
       AND label = 'pps'
+      AND series_time >= to_timestamp($3)
     ORDER BY address, component, series_time DESC
-  `, [chainId, addresses])
+  `, [chainId, addresses, restHistoryStart()])
 
   for (const row of rows.rows) {
     const key = String(row.address).toLowerCase()

@@ -2,7 +2,8 @@ import { z } from 'zod'
 import type { Pool } from 'pg'
 import { mergeSnapshot } from '../../../../lib/mergeSnapshot'
 import db from '../../db'
-import type { VaultSnapshot } from '../snapshot/db'
+import { restHistoryStart } from '../history'
+import { retainedSnapshotHook, type VaultSnapshot } from '../snapshot/db'
 
 const CoerceNumber = z.preprocess(
   (val) => (val === null || val === undefined) ? null : Number(val),
@@ -122,7 +123,11 @@ export type VaultWithSnapshot = {
  * malformed list-only row should fail the list refresh, but it should not block
  * snapshot cache writes that only need chain/address plus the raw blobs.
  */
-export async function getVaultsWithSnapshots(pool: Pool = db): Promise<VaultWithSnapshot[]> {
+export async function getVaultsWithSnapshots(
+  pool: Pool = db,
+  listOnly = false,
+  chainId?: number,
+): Promise<VaultWithSnapshot[]> {
   const result = await pool.query(`
     SELECT * FROM (
     SELECT DISTINCT ON (thing.chain_id, thing.address)
@@ -219,21 +224,24 @@ export async function getVaultsWithSnapshots(pool: Pool = db): Promise<VaultWith
       (snapshot.snapshot->>'pricePerShare')::numeric AS "pricePerShare",
 
       -- Raw blobs for the full snapshot cache (reused from the same scan)
-      thing.defaults AS "_defaults",
-      snapshot.snapshot AS "_snapshot",
-      snapshot.hook AS "_hook",
-      (snapshot.chain_id IS NOT NULL) AS "_hasSnapshot"
+      ${listOnly ? 'false AS "_hasSnapshot"' : `
+        thing.defaults AS "_defaults",
+        snapshot.snapshot AS "_snapshot",
+        ${retainedSnapshotHook} AS "_hook",
+        true AS "_hasSnapshot"`}
 
     FROM thing
-    LEFT JOIN snapshot
+    JOIN snapshot
       ON thing.chain_id = snapshot.chain_id
       AND thing.address = snapshot.address
     WHERE thing.label = 'vault'
+      AND snapshot.block_time >= to_timestamp($1)
+      ${chainId === undefined ? '' : 'AND thing.chain_id = $2'}
     -- DISTINCT ON requires its key as the leading ORDER BY; the outer query restores TVL ordering.
     ORDER BY thing.chain_id, thing.address
     ) vaults
     ORDER BY tvl DESC NULLS LAST
-  `)
+  `, chainId === undefined ? [restHistoryStart()] : [restHistoryStart(), chainId])
 
   return result.rows.map((row) => {
     const { _defaults, _snapshot, _hook, _hasSnapshot, ...listColumns } = row
@@ -252,5 +260,14 @@ export async function getVaultsWithSnapshots(pool: Pool = db): Promise<VaultWith
       listError: parsedListItem.success ? null : parsedListItem.error,
       snapshot,
     }
+  })
+}
+
+export async function getCurrentList(chainId?: number): Promise<VaultListItem[] | undefined> {
+  const rows = await getVaultsWithSnapshots(db, true, chainId)
+  if (chainId !== undefined && rows.length === 0) return undefined
+  return rows.map(row => {
+    if (!row.listItem) throw row.listError
+    return row.listItem
   })
 }

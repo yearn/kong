@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server'
-import { getKeyvClient } from '../../../cache'
-import type { TrancheSystem } from '../../db'
+import { getCurrentState } from '../../../cache'
+import { restCacheControl } from '../../../history'
+import { getTrancheSystem, type TrancheSystem } from '../../db'
 import { getTrancheSystemKey } from '../../redis'
-
-const keyv = getKeyvClient()
 
 export const runtime = 'nodejs'
 
@@ -23,6 +22,7 @@ export async function GET(
   request: Request,
   context: { params: Promise<RouteParams> },
 ) {
+  const requestedAt = Date.now()
   const { chainId: chainIdParam, controller } = (await context.params) ?? {}
   const chainId = parseInt(chainIdParam as string, 10)
 
@@ -36,9 +36,10 @@ export async function GET(
 
   let system: TrancheSystem | undefined
   try {
-    system = await keyv.get(getTrancheSystemKey(chainId, controller)) as TrancheSystem | undefined
+    system = await getCurrentState(getTrancheSystemKey(chainId, controller), async () =>
+      await getTrancheSystem(chainId, controller.toLowerCase()) ?? undefined)
   } catch (err) {
-    console.error(`Redis read failed for ${chainId}:${controller}:`, err)
+    console.error(`REST state read failed for ${chainId}:${controller}:`, err)
     throw err
   }
 
@@ -49,7 +50,7 @@ export async function GET(
   return NextResponse.json(system, {
     status: 200,
     headers: {
-      'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
+      'cache-control': restCacheControl(requestedAt),
       ...corsHeaders,
     },
   })

@@ -57,8 +57,9 @@ Uptime Kuma URL named in its route file.
 The historical timeseries job runs daily, capped at 800s (`maxDuration`). Cached
 series refresh from their last successful refresh day minus two UTC days, replacing
 that entire range so corrected or now-null buckets disappear. Missing or legacy cache
-entries are rebuilt in full. Each series is reconciled against full history every
-seven days; older backfills and deletions become visible at that reconciliation.
+entries are rebuilt from the last 365 UTC dates. Incremental merges discard expired
+days. Each series is reconciled across that window every seven days, including
+backfills and deletions.
 For immediate reconciliation after a backfill, run the historical CLI with
 `TIMESERIES_HISTORICAL_FULL_REFRESH=true` (or set it for the cron invocation and unset
 it afterward). API payloads keep the same shape. The first run after upgrading
@@ -69,8 +70,13 @@ serialized cache payload bytes, elapsed time, environment and deployment commit.
 Completed reads are counted even if another read or the Redis write fails; all
 in-flight reads in a failed batch settle before its summary is logged. Payload
 bytes describe generated cache values, not successful Redis writes or Postgres
-network bytes. Full histories are still read and rewritten in Redis during
-incremental refreshes.
+network bytes. Incremental refreshes read and rewrite the retained history in Redis.
+
+Current-state publishers record the UTC retention cutoff alongside each cached
+value. When a request encounters a legacy entry or a cutoff from a previous day,
+it reads the current view from Postgres until the next scheduled publication.
+Timeseries and report handlers apply the cutoff to both historical and latest
+cache entries, including entries written before the limit took effect.
 
 Historical cache reads use individual Redis `GET` commands, at most five at a time,
 so a batch of histories cannot exceed Upstash's 10 MiB combined `MGET` response

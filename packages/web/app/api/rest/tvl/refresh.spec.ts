@@ -1,3 +1,4 @@
+import { restHistoryStart } from '../history'
 import { strict as assert } from 'node:assert'
 import { AGGREGATE_TVL_KEY, refresh } from './refresh'
 import { AGGREGATE_TVL_SUMMARY_KEY } from './redis'
@@ -12,7 +13,10 @@ let cachedValue: string
 
 vi.mock('../../db/cron', () => ({ cronDb }))
 vi.mock('./db', () => ({ getAggregateVaults, getAggregateStrategies }))
-vi.mock('../cache', () => ({ cacheMSet }))
+vi.mock('../cache', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../cache')>(),
+  cacheMSet,
+}))
 
 const A = '0x0000000000000000000000000000000000000001'
 const B = '0x0000000000000000000000000000000000000002'
@@ -57,7 +61,8 @@ describe('aggregate TVL refresh', () => {
     const payload = cacheEntry.value
     assert.match(payload.updatedAt, /^\d{4}-\d\d-\d\dT/)
     assert.equal(pairs[1][0], AGGREGATE_TVL_SUMMARY_KEY)
-    assert.deepEqual(JSON.parse(pairs[1][1]), { value: {
+    assert.equal(cacheEntry.cutoff, restHistoryStart())
+    assert.deepEqual(JSON.parse(pairs[1][1]), { cutoff: cacheEntry.cutoff, value: {
       updatedAt: payload.updatedAt,
       unpricedVaults: 0,
       chains: [{ chainId: 1, tvl: 170, unpricedVaults: 0 }],

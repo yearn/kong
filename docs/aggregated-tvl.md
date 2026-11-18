@@ -122,10 +122,9 @@ Return:
 The diagnostic cache (`rest:tvl:aggregate`) keeps the full detail (`grossTvl`, `deductedTvl`,
 `updatedAt`, per-vault contributions and deductions). A separate summary (`rest:tvl:summary`)
 contains only `updatedAt` and per-chain TVL. Requests read the summary and send its timestamp
-in the `x-last-refresh` header. Until the first summary is published after deployment, requests
-fall back to the existing diagnostic cache.
-
-The endpoint reads a cached payload using existing REST cache and CORS conventions. It performs no RPC calls or database aggregation on requests.
+in the `x-last-refresh` header. Only vault and strategy snapshots from the last 365 UTC
+dates contribute. If an existing summary predates the current cutoff, the endpoint
+recalculates it using the bounded database queries until the next scheduled refresh.
 
 ### Refresh script
 

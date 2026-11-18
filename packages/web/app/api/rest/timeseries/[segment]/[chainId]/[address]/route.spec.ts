@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert'
-import { beforeEach, describe, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, it, vi } from 'vitest'
 
 const get = vi.fn()
 const lastRefreshHeaders = vi.fn()
@@ -26,39 +26,50 @@ async function call(components?: string) {
 }
 
 describe('rest timeseries route', () => {
+  const cutoff = Date.UTC(2025, 10, 19) / 1000
   beforeEach(() => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.UTC(2026, 10, 18, 23, 59))
     get.mockReset()
     lastRefreshHeaders.mockReset()
     lastRefreshHeaders.mockResolvedValue({})
   })
 
+  afterEach(() => vi.restoreAllMocks())
+
   it('omits null-valued days instead of serving them as zero', async () => {
     get.mockImplementation(async (key: string) =>
       key.includes('latest') ? [] : [
-        { time: 1, component: 'tvl', value: 100 },
-        { time: 2, component: 'tvl', value: null },
-        { time: 3, component: 'tvl', value: 300 }
+        { time: cutoff, component: 'tvl', value: 100 },
+        { time: cutoff + 86400, component: 'tvl', value: null },
+        { time: cutoff + 172800, component: 'tvl', value: 300 }
       ]
     )
 
     const rows = await call()
 
     assert.deepEqual(rows, [
-      { time: 1, component: 'tvl', value: 100 },
-      { time: 3, component: 'tvl', value: 300 }
+      { time: cutoff, component: 'tvl', value: 100 },
+      { time: cutoff + 172800, component: 'tvl', value: 300 }
     ])
   })
 
   it('omits a null latest row that overrides a historical day', async () => {
     get.mockImplementation(async (key: string) =>
       key.includes('latest')
-        ? [{ time: 2, component: 'tvl', value: null }]
-        : [{ time: 2, component: 'tvl', value: 200 }]
+        ? [{ time: cutoff + 86400, component: 'tvl', value: null }]
+        : [{ time: cutoff + 86400, component: 'tvl', value: 200 }]
     )
 
     const rows = await call()
 
     assert.deepEqual(rows, [])
+  })
+
+  it('hides expired points from both cache entries before the next refresh', async () => {
+    const retained = { time: cutoff, component: 'tvl', value: '10' }
+    const expired = { ...retained, time: cutoff - 86400 }
+    get.mockImplementation(async (key: string) => key.includes('latest') ? [expired] : [expired, retained])
+    assert.deepEqual(await call(), [retained])
   })
 
   it('exposes x-last-refresh from the timeseries-refresh job', async () => {

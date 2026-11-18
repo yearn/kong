@@ -1,6 +1,6 @@
 import 'lib/global'
 import { cronDb } from '../../db/cron'
-import { cacheMSet } from '../cache'
+import { cacheDelete, cacheMSet } from '../cache'
 import { getStrategyReports, getVaults } from './db'
 import { getReportKey } from './redis'
 
@@ -19,17 +19,20 @@ export async function refreshHistorical(): Promise<void> {
     for (let i = 0; i < vaults.length; i += BATCH_SIZE) {
       const batch = vaults.slice(i, i + BATCH_SIZE)
       const pairs: Array<[string, string]> = []
+      const emptyKeys: string[] = []
 
       await Promise.all(batch.map(async (vault) => {
         const reports = await getStrategyReports(vault.chainId, vault.address, cronDb)
-        if (!reports || reports.length === 0) return
-        pairs.push([
-          getReportKey(vault.chainId, vault.address.toLowerCase()),
-          JSON.stringify({ value: reports }),
-        ])
+        const key = getReportKey(vault.chainId, vault.address)
+        if (reports.length === 0) {
+          emptyKeys.push(key)
+        } else {
+          pairs.push([key, JSON.stringify({ value: reports })])
+        }
       }))
 
       await cacheMSet(pairs)
+      await cacheDelete(emptyKeys)
 
       processed += batch.length
       if (processed % 10 === 0) {

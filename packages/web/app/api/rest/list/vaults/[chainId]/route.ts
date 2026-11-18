@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getKeyvClient, lastRefreshHeaders } from '../../../cache'
-import type { VaultListItem } from '../../db'
-
-const keyv = getKeyvClient()
+import { getCurrentState, lastRefreshHeaders } from '../../../cache'
+import { restCacheControl } from '../../../history'
+import { getCurrentList, type VaultListItem } from '../../db'
 
 export const runtime = 'nodejs'
 
@@ -21,6 +20,7 @@ export async function GET(
   request: Request,
   context: { params: Promise<RouteParams> },
 ) {
+  const requestedAt = Date.now()
   const { searchParams } = new URL(request.url)
   const origin = searchParams.get('origin')
 
@@ -35,11 +35,11 @@ export async function GET(
   let refreshHeaders: Record<string, string> = {}
   try {
     ;[vaults, refreshHeaders] = await Promise.all([
-      keyv.get(`rest:list:vaults:${chainId}`) as Promise<VaultListItem[] | undefined>,
+      getCurrentState(`rest:list:vaults:${chainId}`, () => getCurrentList(chainId)),
       lastRefreshHeaders(REFRESH_JOB),
     ])
   } catch (err) {
-    console.error(`Redis read failed for chainId ${chainId}:`, err)
+    console.error(`REST state read failed for chainId ${chainId}:`, err)
     throw err
   }
 
@@ -54,7 +54,7 @@ export async function GET(
   return NextResponse.json(filtered, {
     status: 200,
     headers: {
-      'cache-control': 'public, max-age=900, s-maxage=900, stale-while-revalidate=600',
+      'cache-control': restCacheControl(requestedAt),
       ...corsHeaders,
       ...refreshHeaders,
     },

@@ -1,5 +1,6 @@
 import { createKeyv } from '@keyv/redis'
 import { createClient } from '@redis/client'
+import { restHistoryStart } from './history'
 
 export const writeClient = createClient({ url: process.env.REST_CACHE_REDIS_URL || 'redis://localhost:6379' })
 
@@ -20,6 +21,20 @@ const REDIS_MSET_TARGET_BYTES = Number.isFinite(parsedRedisMSetTargetBytes) && p
 
 export function getKeyvClient() {
   return keyv
+}
+
+// Keep the cutoff outside the public value so older readers can use the same keys.
+export function serializeState(value: unknown, cutoff: number): string {
+  return JSON.stringify({ value, cutoff })
+}
+
+export async function getCurrentState<T>(key: string, read: () => Promise<T | undefined>): Promise<T | undefined> {
+  const entry = await keyv.getRaw<T>(key) as { value: T, cutoff?: number } | undefined
+  if (!entry) return undefined
+  if (entry.cutoff === restHistoryStart()) return entry.value
+  // A legacy entry or yesterday's publication may include expired inputs. Use a
+  // scoped read until the scheduled publisher replaces it, including after a failed refresh.
+  return read()
 }
 
 /**
@@ -120,6 +135,12 @@ export async function cacheMSet(pairs: Array<[string, string]>, options: { atomi
 export async function disconnect(): Promise<void> {
   await writeClient.disconnect()
   await keyv.disconnect()
+}
+
+export async function cacheDelete(keys: string[]): Promise<void> {
+  if (keys.length === 0) return
+  await connectWriteClient()
+  await writeClient.del(keys)
 }
 
 const LAST_REFRESH_PREFIX = 'rest:refresh:'
