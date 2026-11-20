@@ -8,4 +8,8 @@ const db = new Pool({
   connectionTimeoutMillis: 5_000,
 })
 
+// Idle clients can be terminated by the server (e.g. read-replica recovery conflicts).
+// Without a listener, pg emits an unhandled 'error' event that crashes the process.
+db.on('error', console.error)
+
 export default db
