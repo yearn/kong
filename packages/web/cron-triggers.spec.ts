@@ -5,7 +5,7 @@ import { CRON_JOBS, runCronJobs } from './cron-triggers'
 
 describe('runCronJobs', () => {
   it('calls every job of the cron with the cron secret', async () => {
-    const fetch = vi.fn(async (_request: Request) => new Response('{}'))
+    const fetch = vi.fn<(request: Request) => Promise<Response>>(async () => new Response('{}'))
 
     await runCronJobs('*/30 * * * *', 'secret', fetch)
 
@@ -16,7 +16,7 @@ describe('runCronJobs', () => {
   })
 
   it('runs nothing for an unknown cron', async () => {
-    const fetch = vi.fn(async (_request: Request) => new Response('{}'))
+    const fetch = vi.fn<(request: Request) => Promise<Response>>(async () => new Response('{}'))
 
     await runCronJobs('1 1 1 1 1', 'secret', fetch)
 
