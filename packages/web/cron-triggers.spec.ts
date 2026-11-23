@@ -5,18 +5,18 @@ import { CRON_JOBS, runCronJobs } from './cron-triggers'
 
 describe('runCronJobs', () => {
   it('calls every job of the cron with the cron secret', async () => {
-    const fetch = vi.fn(async () => new Response('{}'))
+    const fetch = vi.fn(async (_request: Request) => new Response('{}'))
 
     await runCronJobs('*/30 * * * *', 'secret', fetch)
 
     assert.deepEqual(
-      fetch.mock.calls.map(([request]: [Request]) => [new URL(request.url).pathname, request.headers.get('authorization')]),
+      fetch.mock.calls.map(([request]) => [new URL(request.url).pathname, request.headers.get('authorization')]),
       [['/api/cron/refresh-cache', 'Bearer secret'], ['/api/cron/tvl-refresh', 'Bearer secret']],
     )
   })
 
   it('runs nothing for an unknown cron', async () => {
-    const fetch = vi.fn(async () => new Response('{}'))
+    const fetch = vi.fn(async (_request: Request) => new Response('{}'))
 
     await runCronJobs('1 1 1 1 1', 'secret', fetch)
 
