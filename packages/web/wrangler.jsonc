@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kong",
+  "main": "worker.ts",
+  "compatibility_date": "2026-11-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "workers_dev": true,
+  "placement": { "mode": "smart" },
+  "limits": { "cpu_ms": 300000 },
+  "triggers": { "crons": [] },
+  "env": { "preview": { "workers_dev": true, "triggers": { "crons": [] } } }
+}

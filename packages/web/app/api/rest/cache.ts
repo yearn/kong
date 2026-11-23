@@ -1,12 +1,17 @@
 import { createKeyv } from '@keyv/redis'
 import { createClient } from '@redis/client'
+import { delegate, perRequest } from '../request-scope'
 import { restHistoryStart } from './history'
 
-export const writeClient = createClient({ url: process.env.REST_CACHE_REDIS_URL || 'redis://localhost:6379' })
+const currentWriteClient = perRequest(() => {
+  const client = createClient({ url: process.env.REST_CACHE_REDIS_URL || 'redis://localhost:6379' })
+  client.on('error', (error) => console.error('rest cache write client', error))
+  return client
+})
 
-writeClient.on('error', (error) => console.error('rest cache write client', error))
+export const writeClient = delegate(currentWriteClient)
 
-const keyv = createKeyv(process.env.REST_CACHE_REDIS_URL || 'redis://localhost:6379')
+const keyv = delegate(perRequest(() => createKeyv(process.env.REST_CACHE_REDIS_URL || 'redis://localhost:6379')))
 
 const DEFAULT_REDIS_MSET_TARGET_BYTES = 8 * 1024 * 1024
 const REDIS_MSET_HARD_LIMIT_BYTES = 10 * 1024 * 1024
@@ -91,13 +96,16 @@ export function splitPairsForMSet(
   return chunks
 }
 
-let writeConnection: Promise<unknown> | undefined
+const writeConnections = new WeakMap<object, Promise<unknown>>()
 
 async function connectWriteClient(): Promise<void> {
-  if (writeConnection) { await writeConnection; return }
+  const client = currentWriteClient()
+  const pending = writeConnections.get(client)
+  if (pending) { await pending; return }
   if (writeClient.isOpen) return
-  writeConnection = writeClient.connect()
-  try { await writeConnection } finally { writeConnection = undefined }
+  const connection = writeClient.connect()
+  writeConnections.set(client, connection)
+  try { await connection } finally { writeConnections.delete(client) }
 }
 
 export async function cacheMGet(keys: string[]): Promise<Array<string | null>> {

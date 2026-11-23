@@ -1,0 +1,32 @@
+name: Deploy to Cloudflare Workers
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths:
+      - 'packages/web/**'
+      - 'packages/lib/**'
+      - 'bun.lock'
+  push:
+    branches: [main]
+    paths:
+      - 'packages/web/**'
+      - 'packages/lib/**'
+      - 'bun.lock'
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+cache-mode: none
+
+jobs:
+  deploy:
+    uses: yearn/yearn-gha/.github/workflows/cloudflare-deploy.yml@7fefbd1d4f12a24818f0228555d172fa01e91df8
+    with:
+      project: kong-api
+      sync-secrets: true
+      working-directory: packages/web
+      identity-id: ${{ github.event_name == 'pull_request' && vars.DOPPLER_CF_PREVIEW_IDENTITY_ID || vars.DOPPLER_CF_PRODUCTION_IDENTITY_ID }}
+      build-identity-id: ${{ github.event_name == 'pull_request' && vars.DOPPLER_CF_PREVIEW_BUILD_IDENTITY_ID || vars.DOPPLER_CF_PRODUCTION_BUILD_IDENTITY_ID }}

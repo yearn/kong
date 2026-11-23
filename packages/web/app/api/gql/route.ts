@@ -7,6 +7,7 @@ import Keyv from 'keyv'
 import { NextRequest } from 'next/server'
 import { withRequestDiagnostics } from '@/lib/request-diagnostics'
 import { CORS_HEADERS } from '../headers'
+import { delegate, perRequest } from '../request-scope'
 import { CustomKeyvAdapter } from './CustomKeyvAdapter'
 import resolvers from './resolvers'
 import responseCachePlugin from './responseCachePlugin'
@@ -29,9 +30,9 @@ const plugins = [
 ]
 
 if (enableCache) {
-  const store = new KeyvRedis(redisUrl)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cache = new CustomKeyvAdapter(new Keyv<string>({ store: store as any }))
+  const keyv = delegate(perRequest(() => new Keyv<string>({ store: new KeyvRedis(redisUrl) as any })))
+  const cache = new CustomKeyvAdapter(keyv)
   plugins.push(ApolloServerPluginCacheControl({ defaultMaxAge: defaultCacheMaxAge }))
   plugins.push(responseCachePlugin({ cache }))
 }
