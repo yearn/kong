@@ -18,7 +18,7 @@ subscriptions:
       chainIds: [1, 8453, 10, 250, 42161]
 
   - id: 'S_YVUSD_APR'
-    url: 'https://yearn-yvusd-apr-service.vercel.app/api/webhook'
+    url: 'https://yvusd-api.yearn.fi/api/webhook'
     abiPath: 'yearn/3/vault'
     type: 'timeseries'
     labels: ['yvusd-estimated-apr', 'locked-yvusd-estimated-apr']
