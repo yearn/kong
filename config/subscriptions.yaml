@@ -10,7 +10,7 @@ subscriptions:
           address: '0x182863131F9a4630fF9E27830d945B1413e347E8'  # yUSDS vault
 
   - id: 'S_C2795BC0'
-    url: 'https://v2-estimated-apr-hook.vercel.app/webhook'
+    url: 'https://fapy-hook.yearn.dev/webhook'
     abiPath: 'yearn/2/vault'
     type: 'timeseries'
     labels: ['crv-estimated-apr', 'aero-estimated-apr', 'velo-estimated-apr']
